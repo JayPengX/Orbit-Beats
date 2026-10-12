@@ -1,13 +1,15 @@
 // Passion Beats page: pick a recording, split it, set things, make songs.
-import { BPM, PIECES, STYLES, SECTIONS, MIN_BARS, parseWav, splitPieces, makeSong, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
+import { BPM, STYLES, SECTIONS, ROLES, MIN_BARS, parseWav, splitPieces, guessRoles, makeSong, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
 
 const $ = id => document.getElementById(id);
 const MAX_SONGS = 30, MAX_BARS = 64;
 const STYLE_NAMES = { four: 'Four-on-floor', hiphop: 'Hip-hop', trap: 'Trap', half: 'Half-time', broken: 'Broken' };
 const SECTION_NAMES = { intro: 'Intro', verse: 'Verse', hook: 'Hook', break: 'Break', bridge: 'Bridge', outro: 'Outro' };
+const ROLE_NAMES = { riff: 'Riff', phrase: 'Phrase', bass: 'Bass', hat: 'Hats', fill: 'Fill', kick: 'Kick', sub: '808', snare: 'Snare', tick: 'Tick', roll: 'Roll', off: 'Not used' };
 
 let rec = null;        // { sr, L, R }
 let pieces = [];
+let roles = [];        // one per piece: guessed, then as set
 let songs = [];        // { name, data, url }
 let busy = false;
 
@@ -39,6 +41,7 @@ function problem() {
   if (minBars > maxBars) return 'Shortest length is over the longest';
   if (!styles.length) return 'Pick at least one drum style';
   if (seed && !(/^\d+$/.test(seed) && +seed <= 4294967295)) return 'Seed must be a whole number';
+  if (pieces.length && !roles.some(x => x === 'riff' || x === 'phrase')) return 'Needs a riff or a phrase: set one under the pieces';
   return '';
 }
 
@@ -54,7 +57,7 @@ function update() {
   $('error').textContent = bad;
   if (!busy) {
     $('go').textContent = count >= 1 && count <= MAX_SONGS ? `Make ${count} song${count === 1 ? '' : 's'}` : 'Make songs';
-    $('go').disabled = !!bad || pieces.length < PIECES;
+    $('go').disabled = !!bad || !pieces.length;
   }
 }
 
@@ -113,7 +116,7 @@ async function load(get) {
   stopPiece();
   status('<b>Reading…</b>', 'busy');
   $('pieces').textContent = ''; $('pieces-hint').hidden = true;
-  pieces = []; update();
+  pieces = []; roles = []; update();
   await new Promise(r => setTimeout(r, 30));
   try { rec = await get(); } catch (e) {
     rec = null; $('resplit').disabled = true;
@@ -127,25 +130,23 @@ function split() {
   if (!rec) return;
   stopPiece();
   pieces = splitPieces(rec, { silenceDb: settings.silenceDb, minGap: settings.minGap });
+  roles = guessRoles(pieces, rec.sr);
   const B = 60 / BPM * rec.sr, len = rec.L.length / rec.sr;
   const time = `${Math.floor(len / 60)}:${String(Math.round(len % 60)).padStart(2, '0')}`;
   const khz = `${+(rec.sr / 1000).toFixed(1)} kHz`;
-  if (pieces.length < PIECES) {
-    status(`<b>${pieces.length} pieces</b> · needs ${PIECES} · see Splitting`, 'bad');
+  if (!pieces.length) {
+    status('<b>No pieces</b> · see Splitting', 'bad');
     $('split-more').open = true;
-  } else if (pieces.length > PIECES) {
-    status(`<b>${pieces.length} pieces</b> · using the first ${PIECES}`, 'bad');
-    $('split-more').open = true;
-  } else status(`<b>${PIECES} pieces</b> · ${khz} · ${time}`);
+  } else status(`<b>${pieces.length} piece${pieces.length === 1 ? '' : 's'}</b> · ${khz} · ${time}`);
   const grid = $('pieces');
   grid.textContent = '';
   pieces.forEach((p, i) => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'piece'; b.dataset.i = i;
-    const beats = p.L.length / B;
-    b.innerHTML = `<b>${i + 1}</b><span>${beats < 10 ? beats.toFixed(1) : Math.round(beats)}</span>`;
-    b.setAttribute('aria-label', `Piece ${i + 1}, ${beats.toFixed(1)} beats`);
-    grid.append(b);
+    const tile = document.createElement('div'), beats = p.L.length / B;
+    tile.className = 'piece'; tile.dataset.i = i;
+    tile.innerHTML = `<button type="button" aria-label="Play piece ${i + 1}, ${beats.toFixed(1)} beats"><b>${i + 1}</b><span>${beats < 10 ? beats.toFixed(1) : Math.round(beats)} beats</span></button>
+      <select aria-label="Piece ${i + 1} role">${ROLES.map(x => `<option value="${x}"${x === roles[i] ? ' selected' : ''}>${ROLE_NAMES[x]}</option>`).join('')}</select>`;
+    tile.classList.toggle('off', roles[i] === 'off');
+    grid.append(tile);
   });
   $('pieces-hint').hidden = !pieces.length;
   update();
@@ -169,14 +170,19 @@ function stopPiece() {
   try { playing.src.stop(); } catch {}
   playing.btn.classList.remove('on'); playing = null;
 }
+$('pieces').addEventListener('change', e => {
+  const tile = e.target.closest('.piece'); if (!tile) return;
+  roles[+tile.dataset.i] = e.target.value;
+  tile.classList.toggle('off', e.target.value === 'off'); update();
+});
 $('pieces').addEventListener('click', e => {
-  const btn = e.target.closest('.piece'); if (!btn) return;
+  const btn = e.target.closest('.piece button'); if (!btn) return;
   const again = playing && playing.btn === btn;
   stopPiece();
   if (again) return;
   for (const a of document.querySelectorAll('audio')) a.pause();
   ctx ||= new AudioContext();
-  const p = pieces[+btn.dataset.i], ab = ctx.createBuffer(2, p.L.length, rec.sr);
+  const p = pieces[+btn.parentNode.dataset.i], ab = ctx.createBuffer(2, p.L.length, rec.sr);
   ab.copyToChannel(p.L, 0); ab.copyToChannel(p.R, 1);
   const src = ctx.createBufferSource(); src.buffer = ab; src.connect(ctx.destination);
   src.onended = () => { if (playing && playing.src === src) stopPiece(); };
@@ -208,7 +214,7 @@ function songItem({ name, url, info, bits }) {
 }
 
 $('go').onclick = async () => {
-  if (busy || problem() || pieces.length < PIECES) return;
+  if (busy || problem() || !pieces.length) return;
   busy = true; stopPiece();
   for (const s of songs) URL.revokeObjectURL(s.url);
   songs = [];
@@ -224,7 +230,7 @@ $('go').onclick = async () => {
     if (k === 0) $('out').scrollIntoView({ behavior: 'smooth', block: 'start' });
     await new Promise(r => setTimeout(r, 0));
     const { name, seed: s } = list[k];
-    const { audio, info } = makeSong(pieces.slice(0, PIECES), rec.sr, s, { minBars, maxBars, styles, humanize: humanize / 100 });
+    const { audio, info } = makeSong(pieces, rec.sr, s, { roles, minBars, maxBars, styles, humanize: humanize / 100 });
     const data = encodeWav(audio, bits), url = URL.createObjectURL(new Blob([data], { type: 'audio/wav' }));
     songs.push({ name, data, url });
     $('songs').append(songItem({ name, url, info, bits }));
