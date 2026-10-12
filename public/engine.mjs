@@ -1,27 +1,20 @@
 // Passion Beats engine: the browser port of passion_beats.py. Splits a
-// recording of beat pieces on silence and builds humanized songs from them.
-// No DOM here, so the tests run it in Node.
+// recording of beat pieces on silence, hears its tempo and each piece's role
+// (analyze.mjs), and builds humanized songs from them. No DOM here, so the
+// tests run it in Node.
 //
 // Audio is { sr, L, R } with L and R Float32Arrays (R may be L for mono).
 
-export const BPM = 125;
+import { analyzeRecording } from './analyze.mjs';
+export { analyzeRecording, analyzePiece, detectTempo, guessRole, loopBeats } from './analyze.mjs';
+
 export const STYLES = ['four', 'hiphop', 'trap', 'half', 'broken'];
 export const SECTIONS = ['intro', 'verse', 'hook', 'break', 'bridge', 'outro'];
 
-// What a piece does in a song. Loops repeat every `loopBeats` beats; the
-// others are one-shots. 'off' leaves a piece out.
+// What a piece does in a song. Loops repeat every so many beats (a loop
+// length, from analyze.mjs); the others are one-shots. 'off' leaves a piece
+// out.
 export const ROLES = ['riff', 'phrase', 'bass', 'hat', 'fill', 'kick', 'sub', 'snare', 'tick', 'roll', 'off'];
-export const LOOP_ROLES = ['riff', 'phrase', 'bass', 'hat', 'fill'];
-
-// The original 24-piece "Passion" recording's layout, which the arrangement
-// was made on: each piece's role, the riff sets that go together, and the
-// riff laid over hooks (pieces counted from 0).
-export const PASSION = {
-  roles: ['phrase', 'phrase', 'phrase', 'phrase', 'hat', 'fill', 'hat', 'hat', 'hat', 'kick', 'tick', 'snare',
-    'riff', 'riff', 'riff', 'riff', 'riff', 'riff', 'bass', 'bass', 'riff', 'kick', 'roll', 'sub'],
-  riffSets: [[12, 13, 14, 13], [15, 16, 17, 16], [12, 14], [15, 17], [20, 20, 14, 14], [13, 12, 13, 14], [16, 15, 16, 17], [20, 12, 20, 13]],
-  layer: 20,
-};
 
 // Arrangement rules (see README, "How it works"):
 // a hook may lift to a related groove, never a foreign one;
@@ -135,103 +128,17 @@ export function splitPieces({ sr, L, R }, { silenceDb = -90, minGap = 0.2 } = {}
   return segs.filter(([a, b]) => b - a >= minLen).map(([a, b]) => ({ L: L.slice(a, b), R: R === L ? L.slice(a, b) : R.slice(a, b) }));
 }
 
-// ---- Roles ----
-
-// The loop length of a piece `beats` long: the longest whole power of two
-// beats that fits (1, 2, 4, 8, 16, …), so a tail ringing on past the loop
-// doesn't count. Recorded pieces often carry a beat or so of tail.
-export function loopBeats(beats) {
-  let p = 1;
-  while (p * 2 <= beats + 0.25) p *= 2;
-  return p;
-}
-
-// What can be heard of a piece: how long it is, how many hits start in it,
-// whether it keeps sounding or dies away, how bright it is, how much is
-// low end, and how pitched (a note) rather than noisy (a drum) it is.
-export function features({ L, R }, sr) {
-  const n = L.length, m = new Float32Array(n);
-  for (let j = 0; j < n; j++) m[j] = (L[j] + R[j]) / 2;
-  const hop = Math.max(1, Math.round(sr / 100)), F = Math.max(1, Math.ceil(n / hop)), env = new Float32Array(F);   // 10 ms loudness
-  for (let f = 0; f < F; f++) {
-    const a = f * hop, b = Math.min(n, a + hop);
-    let s = 0; for (let j = a; j < b; j++) s += m[j] * m[j];
-    env[f] = Math.sqrt(s / Math.max(1, b - a));
-  }
-  const peak = Math.max(...env);
-  let last = F - 1; while (last > 0 && env[last] < peak * 0.0316) last--;   // rings until 30 dB down
-  let onsets = 0;
-  for (let f = 0, prev = -9; f < F; f++)   // a jump within 20 dB of the peak, 50 ms apart
-    if (env[f] > peak * 0.1 && env[f] > 1.6 * Math.max(env[f - 1] ?? 0, env[f - 2] ?? 0, env[f - 3] ?? 0) && f - prev >= 5) { onsets++; prev = f; }
-  let e1 = 0, e2 = 0;
-  for (let f = 0; f <= last; f++) f < (last + 1) / 2 ? (e1 += env[f] ** 2) : (e2 += env[f] ** 2);
-  // Brightness: the rms frequency, from how much the wave changes sample to
-  // sample. Low end: what gets through a 150 Hz low-pass (two poles).
-  let E = 0, D = 0, lowE = 0, y1 = 0, y2 = 0;
-  const a = 1 - Math.exp(-2 * Math.PI * 150 / sr);
-  for (let j = 0; j < n; j++) {
-    const x = m[j]; E += x * x; if (j) D += (x - m[j - 1]) ** 2;
-    y1 += a * (x - y1); y2 += a * (y1 - y2); lowE += y2 * y2;
-  }
-  return {
-    beats: n / (60 / BPM * sr), ring: (last + 1) * hop / sr, onsets,
-    sustain: Math.sqrt(e2 / Math.max(1e-20, e1)),   // the second half against the first
-    bright: E > 0 ? sr / Math.PI * Math.asin(Math.sqrt(Math.min(1, D / E / 4))) : 0,
-    low: E > 0 ? lowE / E : 0,
-    pitched: pitchedness(m, sr, env, hop, peak),
-  };
-}
-
-// How much the loud parts repeat themselves at a pitch between 50 and 1000
-// Hz (0 is noise, 1 a steady note): the median over up to 8 moments of the
-// autocorrelation's highest peak past its first dip, at about 16 kHz.
-function pitchedness(m, sr, env, hop, peak) {
-  const d = Math.max(1, Math.floor(sr / 16000)), s2 = sr / d, nd = Math.floor(m.length / d), x = new Float32Array(nd);
-  for (let i = 0; i < nd; i++) { let s = 0; for (let k = 0; k < d; k++) s += m[i * d + k]; x[i] = s / d; }
-  const W = Math.round(0.064 * s2), lo = Math.round(s2 / 1000), hi = Math.round(s2 / 50);
-  const loud = []; env.forEach((e, f) => { if (e > peak * 0.3) loud.push(f); });
-  const k = Math.min(8, loud.length), out = [], c = new Float64Array(W + hi + 1);
-  for (let q = 0; q < k; q++) {
-    const st = Math.floor(loud[Math.floor(q * loud.length / k)] * hop / d);
-    if (st + W + hi > nd) continue;
-    for (let i = 0; i < W + hi; i++) c[i + 1] = c[i] + x[st + i] ** 2;
-    let best = 0, dipped = false;
-    for (let t = lo; t <= hi; t++) {
-      let s = 0; for (let i = 0; i < W; i++) s += x[st + i] * x[st + i + t];
-      const r = s / Math.sqrt(c[W] * (c[t + W] - c[t]) + 1e-20);
-      if (r < 0) dipped = true; else if (dipped) best = Math.max(best, r);
-    }
-    out.push(best);
-  }
-  return out.length ? out.sort((a, b) => a - b)[Math.floor(out.length / 2)] : 0;
-}
-
-// A role for a piece, from what can be heard of it (see README, "Roles").
-export function guessRole(f) {
-  const loop = f.beats >= 1.75 && (f.onsets >= 2 || f.sustain >= 0.3);
-  const tonal = f.pitched >= 0.75 || f.bright < 2000;
-  if (loop) {
-    if (!tonal) return f.bright > 7000 ? 'hat' : 'fill';
-    return f.low > 0.3 ? 'bass' : f.beats < 3 ? 'phrase' : 'riff';
-  }
-  if (f.onsets >= 3) return 'roll';
-  if (f.low > 0.3) return f.ring > 1 ? 'sub' : 'kick';
-  if (f.bright > 7000) return 'tick';
-  return tonal ? 'phrase' : 'snare';
-}
-
-export const guessRoles = (pieces, sr) => pieces.map(p => guessRole(features(p, sr)));
-
 // ---- Songs ----
 
-// A song is the pieces exactly as recorded, placed on the 125 BPM grid and
-// summed: no volume changes, panning, cutting or effects. Pieces may overlap.
-// Humanize only moves when a piece starts. Pieces are by index; null is none.
+// A song is the pieces exactly as recorded, placed on the recording's beat
+// grid and summed: no volume changes, panning, cutting or effects. Pieces may
+// overlap. Humanize only moves when a piece starts. Pieces are by index; null
+// is none; `loops` is each one's loop length in beats.
 class Song {
-  constructor(bars, r, pieces, sr, humanize) {
+  constructor(bars, r, pieces, sr, humanize, bpm, loops) {
     this.r = r; this.py = makeRng(r.int(0, 1e9 - 1)); this.pc = pieces;
-    this.sr = sr; this.B = 60 / BPM * sr; this.bars = bars;
-    this.per = pieces.map(p => loopBeats(p.L.length / this.B));
+    this.sr = sr; this.B = 60 / bpm * sr; this.bars = bars;
+    this.per = loops;
     const longest = Math.max(...pieces.map(p => p.L.length));   // the last pieces play out in full
     const len = Math.floor((bars * 4 + 2) * this.B) + longest;
     this.L = new Float32Array(len); this.R = new Float32Array(len);
@@ -341,17 +248,19 @@ export function planSong(R, minBars, maxBars) {
 // Riff sets: a pattern over a few riffs (as numbered in a shuffled order).
 const PATTERNS = [[0, 1, 2, 1], [0, 1], [0, 0, 1, 1], [0, 1, 0, 2], [0]];
 
-// The roles to start from: the original layout for a 24-piece recording,
-// else guessed from the audio.
-export const defaultRoles = (pieces, sr) => (pieces.length === PASSION.roles.length ? [...PASSION.roles] : guessRoles(pieces, sr));
+// How alike two pieces' notes are (their pitch classes): 1 the same, 0 none shared.
+const alike = (a, b) => a && b ? a.reduce((s, v, k) => s + v * b[k], 0) : 0;
 
-// One song from `pieces` (from splitPieces), each in its role in `roles`
-// (one per piece; defaultRoles when not given). It needs a riff or a
+// One song from `pieces` (from splitPieces). `analysis` is from
+// analyzeRecording (made when not given): its tempo, and each piece's role
+// and loop length; `bpm` and `roles` set those instead. It needs a riff or a
 // phrase; any other role may be missing, and what it plays is then left out
-// (or played by the nearest role there is). `riffSets` and `layer` are riff
-// sets that go together and a riff for over hooks (as in PASSION); the ones
-// still riffs are used, else they're made up from the riffs.
-export function makeSong(pieces, sr, seed, { roles = defaultRoles(pieces, sr), riffSets, layer: layerRiff, minBars = 25, maxBars = 29, styles = STYLES, humanize = 1 } = {}) {
+// (or played by the nearest role there is).
+export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25, maxBars = 29, styles = STYLES, humanize = 1 } = {}) {
+  analysis ??= analyzeRecording(pieces, sr, { bpm });
+  bpm ??= analysis.bpm; roles ??= analysis.roles;
+  const loops = bpm === analysis.bpm ? analysis.loops : analyzeRecording(pieces, sr, { bpm }).loops;
+  const chroma = analysis.analyses.map(a => a.chroma);
   if (roles.length !== pieces.length) throw new Error(`Need a role for each of the ${pieces.length} pieces`);
   const pool = Object.fromEntries(ROLES.map(x => [x, []]));
   roles.forEach((x, i) => pool[x]?.push(i));
@@ -365,19 +274,18 @@ export function makeSong(pieces, sr, seed, { roles = defaultRoles(pieces, sr), r
   // Choices made once, so what repeats sounds the same each time.
   const style = R.choice(styles), kin = FAMILY[style].filter(x => styles.includes(x));
   const hookStyle = R.random() < 0.4 ? R.choice(kin) : style;          // every hook the same groove
-  // Intro/outro, verse, hook and bridge riff sets: three of the given sets
-  // and another for the bridge, or else each made up starting further on in
-  // the riffs, so they differ when there are riffs enough.
-  const given = (riffSets ?? []).filter(set => set.every(i => roles[i] === 'riff'));
-  let introSet, verseSet, hookSet, bridgeSet;
-  if (given.length >= 4) {
-    [introSet, verseSet, hookSet] = r.sample(given.length, 3).map(i => given[i]);
-    bridgeSet = R.choice(given.filter(x => ![introSet, verseSet, hookSet].includes(x)));
-  } else {
-    const order = r.sample(riffs.length, riffs.length).map(i => riffs[i]), step = Math.max(1, Math.floor(riffs.length / 4));
-    [introSet, verseSet, hookSet, bridgeSet] = [0, 1, 2, 3].map(j => R.choice(PATTERNS).map(x => order[(j * step + x) % order.length]));
-  }
-  const layer = roles[layerRiff] === 'riff' ? layerRiff : pick(riffs.filter(x => !hookSet.includes(x)));   // another riff over hooks
+  // Intro/outro, verse, hook and bridge riff sets, each led by a different
+  // riff where there are riffs enough, with the riffs most alike in notes
+  // to it (so in the same key) after it in the pattern.
+  const order = r.sample(riffs.length, riffs.length).map(i => riffs[i]), step = Math.max(1, Math.floor(riffs.length / 4));
+  const [introSet, verseSet, hookSet, bridgeSet] = [0, 1, 2, 3].map(j => {
+    const lead = order[(j * step) % order.length];
+    const kin = [lead, ...riffs.filter(x => x !== lead).sort((x, y) => alike(chroma[y], chroma[lead]) - alike(chroma[x], chroma[lead]))];
+    return R.choice(PATTERNS).map(x => kin[x % kin.length]);
+  });
+  // Another riff over hooks: the one most alike in notes not already there.
+  const others = riffs.filter(x => !hookSet.includes(x)).sort((x, y) => alike(chroma[y], chroma[hookSet[0]]) - alike(chroma[x], chroma[hookSet[0]]));
+  const layer = others[0] ?? null;
   const hookLayer = layer != null && R.random() < 0.5;
   const bassMode = R.choice(pool.bass.length > 1 ? ['alt', 'one', 'one', 'sparse'] : pool.bass.length ? ['one', 'sparse'] : ['none']);
   const bassA = pick(pool.bass), bassB = pick(pool.bass, [bassA]);
@@ -394,7 +302,7 @@ export function makeSong(pieces, sr, seed, { roles = defaultRoles(pieces, sr), r
 
   const plan = planSong(R, minBars, maxBars), bars = plan.at(-1)[1] + plan.at(-1)[2];
   const hooks = plan.filter(([t]) => t === 'hook').length;
-  const s = new Song(bars, r, pieces, sr, humanize);
+  const s = new Song(bars, r, pieces, sr, humanize, bpm, loops);
 
   // How each section hands over, decided first: the bar before a hook may be
   // a stop bar (everything lays out but the fill). Fills fit where they lead:
@@ -452,7 +360,7 @@ export function makeSong(pieces, sr, seed, { roles = defaultRoles(pieces, sr), r
   });
   s.hit(R.choice([kit.heavy, kit.sub]), bars * 4);   // one last hit on the next downbeat
   const audio = s.render();
-  return { audio, info: { style, alt: hookStyle, bass: bassMode, riffSets: [introSet, verseSet, hookSet, bridgeSet], layer, bars, beats: bars * 4, seconds: audio.L.length / sr, peak: audio.peak, plan: plan.map(([t, , L]) => [t, L]) } };
+  return { audio, info: { bpm, style, alt: hookStyle, bass: bassMode, riffSets: [introSet, verseSet, hookSet, bridgeSet], layer, bars, beats: bars * 4, seconds: audio.L.length / sr, peak: audio.peak, plan: plan.map(([t, , L]) => [t, L]) } };
 }
 
 // "Passion DD-MM-YYYY HH-MM", in local time.
@@ -528,12 +436,12 @@ export function zipParts(files, date = new Date()) {
   return [...parts, ...central, end];
 }
 
-// ---- A demo recording: 24 synthesized pieces, laid out as in the README ----
+// ---- A demo recording: 24 synthesized pieces in every role, at `bpm` ----
 
 // Laid out like the real one (silence, piece, silence, …), with a quiet
 // noise floor inside each piece the way a phone mic has.
-export function demoRecording(sr = 48000) {
-  const B = 60 / BPM * sr, rnd = makeRng(2024), noise = () => rnd.random() * 2 - 1;
+export function demoRecording(sr = 48000, bpm = 125) {
+  const B = 60 / bpm * sr, rnd = makeRng(2024), noise = () => rnd.random() * 2 - 1;
   const hz = m => 440 * 2 ** ((m - 69) / 12);
   const buf = beats => new Float32Array(Math.round(beats * B));
   const env = (t, d) => Math.exp(-t / d);
@@ -545,11 +453,11 @@ export function demoRecording(sr = 48000) {
   const snare = (x, b, g = 1) => { let lp = 0; at(x, b, t => { lp += 0.3 * (noise() - lp); return g * (1.1 * lp * env(t, 0.06) + 0.4 * Math.sin(2 * Math.PI * 190 * t) * env(t, 0.04)); }, 0.35); };   // noise under ~2.5 kHz
   const hat = (x, b, g = 0.35, d = 0.025) => { let p = 0; at(x, b, t => { const w = noise(), y = w - p; p = w; return g * y * env(t, d); }, d * 8); };
   const pluck = (x, b, m, beats, g = 0.32) => at(x, b, t => g * Math.min(1, t / 0.003) * env(t, 0.22) *
-    (Math.sin(2 * Math.PI * hz(m) * t) + 0.5 * Math.sin(4 * Math.PI * hz(m) * t) + 0.25 * Math.sin(6 * Math.PI * hz(m) * t)), beats * 60 / BPM);
+    (Math.sin(2 * Math.PI * hz(m) * t) + 0.5 * Math.sin(4 * Math.PI * hz(m) * t) + 0.25 * Math.sin(6 * Math.PI * hz(m) * t)), beats * 60 / bpm);
   const bassNote = (x, b, m, beats) => at(x, b, t => {
     let s = 0; for (let h = 1; h <= 6; h++) s += Math.sin(2 * Math.PI * hz(m) * h * t) / h;
     return 0.38 * Math.min(1, t / 0.004) * env(t, 0.3) * s;
-  }, beats * 60 / BPM);
+  }, beats * 60 / bpm);
   const notes = (x, seq, fn = pluck) => seq.forEach((m, k) => { if (m != null) fn(x, k / 2, m, 0.5 * (seq.slice(k + 1).findIndex(q => q != null) + 1 || seq.length - k)); });
   const piece = (beats, draw) => { const x = buf(beats); draw(x); return x; };
   const oneShot = (secs, draw) => { const x = new Float32Array(Math.round(secs * sr)); draw(x); return x; };

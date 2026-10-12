@@ -4,15 +4,15 @@ Arranges one recording of beat pieces (separated by silence) into new
 songs, using the pieces exactly as recorded.
 
 **https://jaypengx.github.io/Passion-Beats/**: the page. Choose a recording
-(or try the demo), check the roles it hears, set things, make songs, play them and download them one
-by one or all in a zip. It all runs in the browser: nothing is uploaded.
+(or try the demo), check the tempo and roles it hears, set things, make
+songs, play them and download them one by one or all in a zip. It all runs in the browser: nothing is uploaded.
 
 `passion_beats.py` is the same thing on the command line.
 
 ## The recording
 
 - Any number of pieces, with silence (0.2 s or more) between them.
-- Recorded at 125 BPM.
+- All at one tempo, any tempo: it's heard from the pieces.
 - At least one riff or phrase; everything else is optional.
 - WAV is best (any PCM or float WAV). On the page, anything the browser can
   play (m4a, mp3, …) works too; it's decoded at 48 kHz.
@@ -20,56 +20,75 @@ by one or all in a zip. It all runs in the browser: nothing is uploaded.
   raise **Silence below** (say to -60 dB) under **Splitting** on the page, or
   `--silence-db -60` in the script.
 
+## Tempo
+
+Pieces are made on a beat grid, so the hits inside each one fall on its
+16th notes, and loops cut to the grid are whole beats long. Every tempo
+from 70 to 190 BPM is scored by how well those line up, to a tenth of a
+BPM (a whole number when it fits as well).
+
+Twice a tempo can fit as well as the tempo itself, as can half, or 3/2
+when a pack has few 16th notes. Of the tempos that fit about as well as
+the best, the one wins that best balances the fit, loops of a usual
+length (about 4 beats: half a bar to 4 bars) and a slight lean towards
+120 BPM. If it's wrong, it's nearly always by one of those ratios: the
+page has **½** and **×2** next to the tempo, and any tempo can be typed
+in (`--bpm` in the script).
+
 ## Roles
 
-A recording of 24 pieces starts from the original "Passion" layout, which
-the arrangement was made on:
-
-| Pieces | Role |
-|---|---|
-| 1–4 | Phrases |
-| 5 | Shaker (the shortest hat loop, for breaks) |
-| 6 | Fill |
-| 7–9 | Hats |
-| 10, 22 | Kicks (22 the heavier) |
-| 11 | Tick |
-| 12 | Snare |
-| 13–18, 21 | Riffs, in the riff sets that go together (21 also over hooks) |
-| 19, 20 | Bass |
-| 23 | Roll |
-| 24 | 808 |
-
-Any other number of pieces has each piece's role guessed from how it sounds
-(**Guess instead** on the page, or `--guess` in the script, does that for 24
-pieces too). On the page, each piece has a menu to change its role. In the
-script, use `--roles 3=riff,6-8=hat,12=off` (it prints the roles it uses).
+Each piece's role is heard from its sound at that tempo. On the page,
+each piece has a menu to change it (a new tempo hears the roles again,
+but not ones set by hand). In the script, use `--roles 3=riff,6-8=hat,12=off`
+(it prints the tempo and roles it uses).
 
 | Role | What it is | How it's heard |
 |---|---|---|
-| Riff | A loop of notes, 3 beats or more | Repeats (several hits, or keeps sounding), pitched, little low end |
-| Phrase | A short loop of notes, or a pitched one-shot | The same, under 3 beats |
-| Bass | A low loop of notes | Pitched, mostly under 150 Hz |
-| Hats | A hi-hat or shaker loop | Repeats, noisy, bright (above ~7 kHz) |
-| Fill | A drum loop or fill | Repeats, noisy, not as bright |
-| Kick | A kick | One hit, mostly low end, done within 1 s |
-| 808 | A long low hit | The same, ringing past 1 s |
-| Snare | A snare or clap | One noisy hit |
-| Tick | A short click or hat hit | One very bright hit |
-| Roll | A short roll | Three hits or more, under 1.75 beats |
+| Riff | A loop of notes, 4 beats or more | Hits a beat or more apart (or a held note), pitched or not noisy |
+| Phrase | A short loop of notes, or a one-shot note | The same, looping every 1 or 2 beats; or one pure note |
+| Bass | A low loop of notes | The same, mostly under 500 Hz, centred under 300 Hz |
+| Hats | A hi-hat or shaker loop | Hits a beat or more apart, mostly above 6 kHz |
+| Fill | A drum fill or loop | Hits over 1.5 beats or more, noisy (or a run of low drums, 3 or more a beat) |
+| Kick | A kick | One low hit (mostly under 120 Hz) that dies away |
+| 808 | A long low hit | The same, ringing on 0.8 s or more (or cut off still ringing) |
+| Snare | A snare or clap | One hit, noisy, not mostly above 6 kHz |
+| Tick | A short click or hat hit | One hit, mostly above 6 kHz |
+| Roll | A short roll | Three hits or more over under 1.5 beats |
 | Not used | Left out | |
+
+What's heard of each piece: its hits (rises in its spectrum where some
+octave band gets 3 dB louder, leaving out echoes, faint ripples and a
+dying sound's flicker), how it dies away, how its sound spreads over five
+frequency bands, how noisy it is (spectral flatness), how pitched, and
+its notes' pitch classes.
 
 A loop repeats every 1, 2, 4, 8 or 16 beats (and so on), whichever is the
 longest that fits its length, so a tail ringing past the loop doesn't
-count: a riff recorded as 5 beats (4 and a tail) loops every 4.
+count: a riff recorded as 5 beats (4 and a tail) loops every 4. A piece
+that wasn't cut to the grid (not a whole number of beats long) may ring on
+longer, so it's also kept to the shortest that holds all its hits.
 
-Songs work with whatever roles there are. In the original layout, the
-intro, verse, hook and bridge each get one of its riff sets (as long as
-their riffs are still riffs). Otherwise riff sets are drawn from the riffs (phrases stand in if there are
-none, and the other way round). The hook may add another riff on top. With
-two kicks, the first plays light parts and the second heavy ones. A missing kick
+**How well it works:** `tests/kits.mjs` makes up sample packs, each with
+its own kicks (clicky, distorted), snares and claps, noise and metallic
+808-style hats, shakers, tom and snare fills, 808s (some cut off short),
+plucks, saws, squares, bells, keys, pads and chords, and sine, saw and
+square basses, at tempos from 75 to 165 BPM, recorded with or without a
+beat of tail cut to the grid, reverb, a phone's noise floor or an mp3's
+missing top end. On 100 such packs never used to tune it, 97 tempos were
+heard exactly (the other 3 as half) and 97.5% of roles were right, most
+misses being riff and phrase mixed up (only the loop length differs).
+They're made-up sounds, though: a real recording can differ, so check the
+roles and tempo it hears.
+
+Songs work with whatever roles there are. Riff sets for the intro, verse,
+hook and bridge each start from a different riff and go on with the riffs
+most alike in notes to it, so they keep to one key (phrases stand in if
+there are no riffs, and the other way round). The hook may add the riff
+most alike to it on top. With two kicks, the first plays light parts and
+the second heavy ones; a break gets the shortest hat loop. A missing kick
 or 808 is played by the other, a missing roll by the snare, and a missing
-fill by a stutter. Anything else that's missing is left out: with no drums
-the song is just its riffs.
+fill by a stutter. Anything else that's missing is left out: with no
+drums the song is just its riffs.
 
 ## Settings
 
@@ -82,7 +101,8 @@ the song is just its riffs.
 | Seed | `--seed` | The same seed makes the same songs (the page and the script have different random numbers, so not the same songs as each other) |
 | Format | | 32-bit float or 16-bit WAV (the script writes 32-bit float) |
 | Splitting | `--silence-db` / `--min-gap` | What counts as silence, and the shortest gap between pieces (default -90 dB, 0.2 s) |
-| Roles | `--roles` / `--guess` | Each piece's role: the original layout for 24 pieces, else guessed, or as set (see Roles) |
+| Tempo | `--bpm` | The tempo the pieces were recorded at: heard, or as set (see Tempo) |
+| Roles | `--roles` | Each piece's role: heard, or as set (see Roles) |
 | | `--save-pieces folder/` | Also save the split pieces |
 | | `--out folder/` | Where songs go (default `songs/`) |
 
@@ -93,11 +113,11 @@ sample rate.
 
 ## How it works
 
-1. Cuts the recording into pieces at each run of silence, and hears each
-   one's role.
+1. Cuts the recording into pieces at each run of silence, and hears the
+   tempo and each one's role.
 2. Plans the song (below), to an even number of bars in the Length range
    (an odd one only if that's all the range allows).
-3. Places the pieces on the 125 BPM grid and adds them up.
+3. Places the pieces on the recording's beat grid and adds them up.
 
 **The pieces are used exactly as recorded:** no volume changes, panning,
 fades, cutting or effects, and no fade-out at the end. Pieces may overlap
@@ -133,12 +153,14 @@ keeps them exactly, a 16-bit WAV clips them, and the page shows by how much
 
     python3 -m pip install --user numpy scipy
     python3 passion_beats.py all_beats.wav --count 20 --out songs/
-    python3 passion_beats.py all_beats.wav --roles 3=riff,12=off
+    python3 passion_beats.py all_beats.wav --bpm 125 --roles 3=riff,12=off
 
 ## Development
 
-- `public/`: the page (`index.html`, `app.js`, and `engine.mjs`, the port
-  of the script, with no DOM so it's testable).
-- `npm test`: the engine's tests (Node 22).
+- `public/`: the page (`index.html`, `app.js`, `engine.mjs`, the port of
+  the script, and `analyze.mjs`, the hearing, both with no DOM so they're
+  testable).
+- `npm test`: the tests (Node 22), the analysis's on made-up sample packs
+  (`tests/kits.mjs`) among them.
 - Every push to `main` runs the tests and deploys `public/` to Pages
   (`.github/workflows/pages.yml`).

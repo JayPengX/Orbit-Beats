@@ -6,41 +6,33 @@ Usage:
   python passion_beats.py all_beats.wav --count 20 --out songs/
   python passion_beats.py all_beats.wav --count 5 --min-bars 25 --max-bars 29 --seed 42
 
-Input: one WAV with each piece separated by silence (>0.2 s), recorded at 125 BPM.
-Any number of pieces: each one's role (riff, bass, kick, ...) is guessed from
-its sound; --roles sets any of them.
+Input: one WAV with each piece separated by silence (>0.2 s), all at one tempo.
+Any number of pieces. The tempo and each piece's role (riff, bass, kick, ...)
+are heard from the audio; --bpm and --roles set them instead.
 Songs use the pieces exactly as recorded (no volume changes or effects); where
 they overlap they add up, kept as-is in the 32-bit float WAV.
 """
 import argparse, datetime, os, random, sys
 import numpy as np
 from scipy.io import wavfile
-from scipy.signal import lfilter
 
-BPM = 125
 sr = 48000
-B = 60 / BPM * sr
+B = 60 / 120 * sr   # samples per beat, once the tempo is known
 pc = {}
 
 # what a piece does in a song (the same as public/engine.mjs; see the README)
 ROLES = ['riff','phrase','bass','hat','fill','kick','sub','snare','tick','roll','off']
-# the original 24-piece "Passion" recording's layout, which the arrangement was
-# made on: roles, the riff sets that go together, and the riff over hooks
-PASSION_ROLES = dict(enumerate(['phrase']*4 + ['hat','fill','hat','hat','hat','kick','tick','snare'] + ['riff']*6 + ['bass','bass','riff','kick','roll','sub'], 1))
-RIFFSETS = [[13,14,15,14],[16,17,18,17],[13,15],[16,18],[21,21,15,15],[14,13,14,15],[17,16,17,18],[21,13,21,14]]
-LAYER = 21
 
 def load_pieces(path, pieces_dir=None, silence_db=-90, min_gap=0.2):
     """Split the recording on runs of silence and store pieces in `pc`, each
     exactly as recorded. Sound before the first gap and after the last counts too."""
-    global sr, B
+    global sr
     sr, x = wavfile.read(path)
     if x.dtype == np.uint8: x = (x.astype(np.float32) - 128) / 128
     elif x.dtype.kind == 'i': x = x.astype(np.float32) / -np.iinfo(x.dtype).min
     else: x = x.astype(np.float32)
     if x.ndim == 1: x = np.stack([x, x], 1)
     x = x[:, :2]
-    B = 60 / BPM * sr
     z = (np.abs(x).max(1) < 10 ** (silence_db / 20)).astype(int)
     d = np.diff(np.r_[0, z, 0]); st = np.where(d == 1)[0]; en = np.where(d == -1)[0]
     runs = [(a, b) for a, b in zip(st, en) if (b - a) > min_gap * sr]
@@ -54,58 +46,192 @@ def load_pieces(path, pieces_dir=None, silence_db=-90, min_gap=0.2):
             wavfile.write(f"{pieces_dir}/piece_{k+1:02d}_{len(s)/B:.1f}beats.wav", sr, s)
     return len(pc)
 
-def loop_beats(beats):
-    """The loop length of a piece `beats` long: the longest whole power of two
-    beats that fits, so a tail ringing on past the loop doesn't count."""
+# ---- Hearing a recording (the same as public/analyze.mjs; see the README) ----
+
+def jround(x):   # JavaScript's Math.round: halves round up
+    return int(np.floor(x + 0.5))
+
+BANDS = {'low': (0, 120), 'lowmid': (120, 500), 'mid': (500, 2500), 'upper': (2500, 6000), 'high': (6000, np.inf)}
+EDGES = [0, 150, 300, 600, 1200, 2400, 4800, 9600, np.inf]
+
+def analyze_piece(x):
+    """Everything about a piece that doesn't depend on the tempo: when its hits
+    start, how it dies away, where its sound sits, how noisy and how pitched it
+    is, and its notes' pitch classes. Frames are ~21 ms, ~5 ms apart."""
+    m = x.astype(np.float64).mean(1); n = len(m)
+    m = m - m.mean(); top = np.abs(m).max() if n else 0
+    if top > 0: m = m / top
+    N = 2 ** jround(np.log2(sr * 0.0213)); hop = N // 4; half = N // 2; bins = half + 1; hz = sr / N
+    F = max(1, -(-n // hop) + 1)
+    padded = np.zeros(half + n + N + hop * F); padded[half:half + n] = m
+    win = 0.5 - 0.5 * np.cos(2 * np.pi * np.arange(N) / N)
+    frames = np.lib.stride_tricks.as_strided(padded, (F, N), (padded.strides[0] * hop, padded.strides[0]))
+    P = np.abs(np.fft.rfft(frames * win, axis=1)) ** 2
+    total = P.sum(0); energy = P.sum(1)
+    k150 = int(np.ceil(150 / hz))   # below this a frame is too short to follow a wave, so the flux wobbles
+    freqs = np.arange(bins) * hz
+    band_e = np.array([P[:, (freqs >= a) & (freqs < b)].sum(1) for a, b in zip(EDGES, EDGES[1:])])
+    cur = np.log1p(100 * np.sqrt(P[:, k150:]))
+    flux = np.maximum(0, np.diff(np.vstack([np.zeros(cur.shape[1]), cur]), axis=0)).sum(1)
+    low_e = P[:, :k150].sum(1)
+    lo, hi = int(np.ceil(100 / hz)), min(half, int(np.floor(16000 / hz)))
+    q = P[:, lo:hi + 1] + 1e-12
+    frame_flat = np.exp(np.log(q).mean(1)) / q.mean(1)
+    # the low end's flux: the rise of its level, smoothed over 5 frames
+    idx = np.clip(np.arange(F)[:, None] + np.arange(-2, 3), 0, F - 1)
+    low_level = np.log1p(100 * np.sqrt(low_e[idx].sum(1) / 5))
+    flux = flux + k150 * np.maximum(0, low_level - np.r_[0, 0, low_level[:-2]][:F])
+    peak_e = energy.max(); peak_f = int(np.argmax(energy))
+    flat = np.sort(frame_flat[energy > peak_e * 0.01])
+
+    # hits: peaks of spectral flux well over their surroundings, in frames
+    # within 30 dB of the loudest, 30 ms apart, where some band gets 3 dB louder
+    max_flux = flux.max(); gap = jround(0.03 * sr / hop)
+    ref = max(0.15 * max_flux, flux[4:].max() if F > 4 else 0)
+    at = lambda arr, i, d=0: arr[i] if 0 <= i < len(arr) else d
+    def rises(f):
+        for e in band_e:
+            now = max(e[f], at(e, f + 1), at(e, f + 2))
+            if now < peak_e * 0.01: continue
+            if now >= 2 * min(at(e, f - d) for d in range(1, 5)): return True
+        return False
+    onsets = []
+    for f in range(F):
+        if flux[f] < 0.1 * ref or energy[min(F - 1, f + 1)] < peak_e * 1e-3 or not rises(f): continue
+        if any(at(flux, f + d, -1) > flux[f] - (0 if d < 0 else 1e-12) for d in range(-3, 4) if d): continue
+        around = sorted(flux[max(0, f - 8):f + 9])
+        if flux[f] < 1.25 * around[len(around) // 2] + 0.02 * ref: continue
+        if onsets and f - onsets[-1]['f'] < gap: continue
+        # timed at its flux peak; a slow swell (20 ms or more) from where it begins
+        b = f
+        while b > 0 and f - b < 0.15 * sr / hop and energy[b - 1] < energy[b] and flux[b - 1] > 0.25 * flux[f]: b -= 1
+        y0, y2 = at(flux, f - 1, flux[f]), at(flux, f + 1, flux[f]); den = y0 - 2 * flux[f] + y2
+        t = b if f - b > 0.02 * sr / hop else f + (0.5 * (y0 - y2) / den if den else 0)
+        onsets.append(dict(f=f, t=max(0, t) * hop / sr, s=min(1, flux[f] / ref), level=max(energy[f:f + 4]) / peak_e))
+    if not onsets or onsets[0]['t'] > 0.05: onsets.insert(0, dict(f=0, t=0, s=1, level=1))
+
+    f20 = peak_f
+    while f20 < F - 1 and energy[f20] > peak_e * 0.01: f20 += 1
+    end_f = max(0, (n - 1) // hop); tail = energy[max(0, end_f - jround(0.03 * sr / hop)):end_f + 1]
+    tot = total.sum() or 1
+    bands = {k: total[(freqs >= a) & (freqs < b)].sum() / tot for k, (a, b) in BANDS.items()}
+    chroma = np.zeros(12); k = int(np.ceil(60 / hz))
+    while k * hz <= 2500:
+        chroma[((jround(12 * np.log2(k * hz / 440)) + 69) % 12 + 12) % 12] += np.sqrt(total[k]); k += 1
+    chroma /= np.hypot.reduce(chroma) or 1
+    return dict(seconds=n / sr, onsets=[o['t'] for o in onsets], strengths=[o['s'] for o in onsets], levels=[o['level'] for o in onsets],
+                attack=peak_f * hop / sr, decay=(f20 - peak_f) * hop / sr, loud=(energy > peak_e * 0.01).sum() * hop / sr,
+                end=tail.max() / peak_e, bands=bands, centroid=(freqs * total).sum() / tot,
+                flatness=flat[len(flat) // 2] if len(flat) else 1, **pitch(m, energy, hop, peak_e), chroma=chroma)
+
+def pitch(m, energy, hop, peak_e):
+    """How much the loud parts repeat at a pitch of 40-1000 Hz (0 noise, 1 a note)
+    and that pitch: the autocorrelation's highest peak past its first dip,
+    median over up to 8 moments, at about 16 kHz."""
+    d = max(1, sr // 16000); s2 = sr / d; nd = len(m) // d; x = m[:nd * d].reshape(nd, d).mean(1)
+    W, lo, hi = jround(0.064 * s2), jround(s2 / 1000), jround(s2 / 40)
+    loud = np.where(energy > peak_e * 0.1)[0]; k = min(8, len(loud)); out = []
+    for q in range(k):
+        st = max(0, int(loud[q * len(loud) // k] * hop // d) - (W >> 1))
+        if st + W + hi > nd: continue
+        seg = x[st:st + W + hi]; c = np.r_[0, np.cumsum(seg ** 2)]; lags = np.arange(lo, hi + 1)
+        r = np.array([seg[:W] @ seg[t:t + W] for t in lags]) / np.sqrt(c[W] * (c[lags + W] - c[lags]) + 1e-20)
+        neg = np.where(r < 0)[0]; best, lag = 0.0, 0
+        if len(neg):
+            rest = r[neg[0]:]; i = int(np.argmax(rest))
+            if rest[i] > 0: best, lag = float(rest[i]), int(lags[neg[0] + i])
+        out.append((best, s2 / lag if lag else 0))
+    if not out: return dict(pitched=0, f0=0)
+    out.sort(key=lambda o: o[0]); best, f0 = out[len(out) // 2]
+    return dict(pitched=best, f0=f0)
+
+def pow2_below(beats):
     p = 1
-    while p * 2 <= beats + 0.25: p *= 2
+    while p * 2 <= beats: p *= 2
     return p
 
-def features(x):
-    """What can be heard of a piece: length, hits, sustain, brightness, low end, pitchedness."""
-    m = x.astype(np.float64).mean(1); n = len(m)
-    hop = max(1, round(sr / 100)); F = max(1, -(-n // hop))
-    env = np.sqrt(np.array([np.mean(m[f*hop:(f+1)*hop] ** 2) for f in range(F)]))
-    peak = env.max(); loud = np.where(env >= peak * 0.0316)[0]; last = loud[-1] if len(loud) else 0
-    onsets, prev = 0, -9
-    for f in range(F):   # a jump within 20 dB of the peak, 50 ms apart
-        before = env[max(0, f-3):f].max() if f else 0
-        if env[f] > peak * 0.1 and env[f] > 1.6 * before and f - prev >= 5: onsets += 1; prev = f
-    h = (last + 1) / 2; fr = np.arange(last + 1)
-    e1 = (env[:last+1][fr < h] ** 2).sum(); e2 = (env[:last+1][fr >= h] ** 2).sum()
-    E = (m ** 2).sum(); D = (np.diff(m) ** 2).sum()
-    a = 1 - np.exp(-2 * np.pi * 150 / sr); y = m
-    for _ in range(2): y = lfilter([a], [1, a - 1], y)   # two-pole 150 Hz low-pass
-    return dict(beats=n / B, ring=(last + 1) * hop / sr, onsets=onsets, sustain=np.sqrt(e2 / max(1e-20, e1)),
-                bright=sr / np.pi * np.arcsin(np.sqrt(min(1, D / E / 4))) if E > 0 else 0,
-                low=(y ** 2).sum() / E if E > 0 else 0, pitched=pitchedness(m, env, hop, peak))
+def pow2_above(beats):
+    p = 1
+    while p < beats: p *= 2
+    return p
 
-def pitchedness(m, env, hop, peak):
-    """0 for noise, 1 for a steady note: the autocorrelation's highest peak past its
-    first dip, at 50-1000 Hz, the median over up to 8 loud moments, at about 16 kHz."""
-    d = max(1, sr // 16000); s2 = sr / d; nd = len(m) // d; x = m[:nd*d].reshape(nd, d).mean(1)
-    W = round(0.064 * s2); lo = round(s2 / 1000); hi = round(s2 / 50)
-    loud = np.where(env > peak * 0.3)[0]; k = min(8, len(loud)); out = []
-    for q in range(k):
-        st = int(loud[q * len(loud) // k] * hop // d)
-        if st + W + hi > nd: continue
-        seg = x[st:st + W + hi]; c = np.r_[0, np.cumsum(seg ** 2)]
-        r = np.array([seg[:W] @ seg[t:t+W] for t in range(lo, hi + 1)])
-        r = r / np.sqrt(c[W] * (c[np.arange(lo, hi+1) + W] - c[np.arange(lo, hi+1)]) + 1e-20)
-        neg = np.where(r < 0)[0]
-        out.append(max(0.0, r[neg[0]:].max()) if len(neg) else 0.0)
-    return float(np.sort(out)[len(out) // 2]) if out else 0.0
+def hits(a):
+    """A piece's hits, leaving out faint ones (12 dB under its loudest, or barely
+    a change) and echoes (under 60% of a hit within 100 ms before)."""
+    kept = []
+    for i, t in enumerate(a['onsets']):
+        if i and (a['levels'][i] < 0.063 or a['strengths'][i] < 0.15): continue
+        if any(t - u < 0.1 and a['strengths'][i] < 0.6 * s for u, s in kept): continue
+        kept.append((t, a['strengths'][i]))
+    return [t for t, _ in kept]
 
-def guess_role(f):
-    loop = f['beats'] >= 1.75 and (f['onsets'] >= 2 or f['sustain'] >= 0.3)
-    tonal = f['pitched'] >= 0.75 or f['bright'] < 2000
+def detect_tempo(analyses, lo=70, hi=190, w_fit=3, w_loop=0.5, w_lean=0.2, near=0.08):
+    """The tempo the pieces were recorded at: hits on their 16th-note grid, loops
+    whole beats long; of the tempos fitting about as well as the best, the one
+    balancing fit, usual loop lengths (about 4 beats) and a lean to 120 BPM."""
+    pts, lengths, loops = [], [], []
+    for a in analyses:
+        h = hits(a)
+        if len(h) >= 4 and h[-1] - h[0] < 0.8: continue   # a roll
+        for i, t in enumerate(h):
+            if i and t - h[i - 1] >= 0.07: pts.append((t - h[0], a['strengths'][a['onsets'].index(t)]))
+        if len(h) > 1 and h[-1] - h[0] >= 0.4: lengths.append(a['seconds']); loops.append(a['seconds'])
+    if len(pts) < 4: return None, 0
+    weight = sum(w for _, w in pts) + len(lengths) * 0.5
+    def score(bpm):
+        beat = 60 / bpm; s = 0
+        for t, w in pts: s += w * np.cos(2 * np.pi * t / (beat / 4))
+        for t in lengths: s += 0.5 * max(0, np.cos(2 * np.pi * t / beat))
+        return s / weight
+    tried = []; b = lo
+    while b <= hi + 1e-9: tried.append((b, score(b))); b += 0.02
+    best = max(s for _, s in tried)
+    def unusual(bpm):
+        if not loops: return 0
+        beats = sorted(pow2_below(t / (60 / bpm) + 0.25) for t in loops)
+        return abs(np.log2(beats[len(beats) // 2] / 4))
+    pick, cost = None, np.inf
+    for i, (b, s) in enumerate(tried):
+        if s < best - near or s < (tried[i - 1][1] if i else -9) or s < (tried[i + 1][1] if i + 1 < len(tried) else -9): continue
+        c = w_fit * (best - s) + w_loop * unusual(b) + w_lean * abs(np.log2(b / 120))
+        if c < cost: cost, pick = c, (b, s)
+    bpm, fit = pick; b = bpm - 0.03
+    while b <= bpm + 0.03:
+        s = score(b)
+        if s > fit: fit, bpm = s, b
+        b += 0.002
+    whole = jround(bpm); ws = score(whole)
+    if abs(whole - bpm) < 0.6 and ws >= fit - 0.03: return whole, ws
+    return jround(bpm * 10) / 10, fit
+
+def loop_beats(a, bpm):
+    """A loop's length in beats: the longest whole power of two that fits, kept to
+    the shortest that holds all its hits if it wasn't cut to the beat grid."""
+    beat = 60 / bpm; beats = a['seconds'] / beat; fit = pow2_below(beats + 0.25); h = hits(a)
+    if abs(beats - jround(beats)) < 0.05 or len(h) < 2: return fit
+    return min(fit, pow2_above((h[-1] - h[0]) / beat + 0.2))
+
+def guess_role(a, bpm):
+    beat = 60 / bpm; beats = a['seconds'] / beat; b = a['bands']; h = hits(a)
+    spread = h[-1] - h[0] if len(h) > 1 else 0
+    deep = b['low'] + b['lowmid']
+    bright = b['high'] >= 0.6                                              # hats, not snares
+    tonal = a['flatness'] < 0.05 or (a['pitched'] >= 0.7 and a['flatness'] < 0.3)   # notes, not drums
+    pure = a['pitched'] >= 0.85 and a['flatness'] < 0.05
+    low_hit = lambda: 'sub' if a['decay'] >= 0.8 or (a['end'] >= 0.25 and a['decay'] >= 0.25) else 'kick'
+    if len(h) <= 1 and b['low'] >= 0.5: return low_hit()
+    loop = beats >= 1.75 and (spread >= 0.75 * beat or (tonal and a['loud'] >= 1.5 * beat and a['decay'] >= beat))
     if loop:
-        if not tonal: return 'hat' if f['bright'] > 7000 else 'fill'
-        return 'bass' if f['low'] > 0.3 else 'phrase' if f['beats'] < 3 else 'riff'
-    if f['onsets'] >= 3: return 'roll'
-    if f['low'] > 0.3: return 'sub' if f['ring'] > 1 else 'kick'
-    if f['bright'] > 7000: return 'tick'
-    return 'phrase' if tonal else 'snare'
+        if bright: return 'hat'
+        if not tonal: return 'fill' if spread >= 1.5 * beat else 'roll'
+        if deep >= 0.7 and a['centroid'] < 300: return 'fill' if len(h) / max(beat, spread) * beat >= 3 else 'bass'
+        return 'phrase' if loop_beats(a, bpm) <= 2 else 'riff'
+    if bright: return 'hat' if len(h) >= 2 else 'tick'
+    if b['low'] >= 0.5: return low_hit()
+    if pure: return 'phrase'
+    if len(h) >= 3 and spread >= 0.4 * beat: return 'roll'
+    if b['low'] >= 0.35: return 'kick'
+    return 'snare'
 
 # Arrangement rules (the same as public/engine.mjs; see the README):
 # a hook may lift to a related groove, never a foreign one;
@@ -137,12 +263,12 @@ def plan_song(R):
     return plan + [('outro', bar, outro)]
 
 class Song:
-    """The pieces exactly as recorded, placed on the 125 BPM grid and summed:
-    no volume changes, panning, cutting or effects; pieces may overlap.
+    """The pieces exactly as recorded, placed on the recording's beat grid and
+    summed: no volume changes, panning, cutting or effects; pieces may overlap.
     Humanize only moves when a piece starts."""
-    def __init__(s,bars,rng,humanize):   # pieces by number; None is none
+    def __init__(s,bars,rng,humanize,loops):   # pieces by number; None is none; loops: loop lengths in beats
         s.r=rng; s.py=random.Random(int(rng.integers(1e9))); s.bars=bars; s.rest=set()   # stop bars
-        s.per={i:loop_beats(len(p)/B) for i,p in pc.items()}
+        s.per=loops
         s.buf=np.zeros((int((bars*4+2)*B)+max(len(p) for p in pc.values()),2),np.float32)
         s.swing=rng.uniform(0,0.06)*humanize        # fraction of a beat pushed on off-16ths
         s.loose=rng.uniform(0.004,0.012)*humanize   # timing sd in seconds
@@ -202,9 +328,10 @@ class Song:
         idx=np.where(np.abs(y).max(1)>1e-5)[0]; y=y[:idx[-1]+1+int(0.5*sr)]
         wavfile.write(path,sr,y.astype(np.float32)); return len(y)/sr, float(np.abs(y).max())
 
-def make(seed,path,styles,humanize,roles,riff_sets=(),layer_riff=None):
-    """One song; roles: {piece number: role}. Needs a riff or a phrase; what a
-    missing role plays is left out (or played by the nearest role there is)."""
+def make(seed,path,styles,humanize,roles,loops,chroma):
+    """One song; roles, loops (in beats) and chroma: {piece number: ...}. Needs a
+    riff or a phrase; what a missing role plays is left out (or played by the
+    nearest role there is)."""
     r=np.random.default_rng(seed); R=random.Random(seed)
     pool={x:[i for i in sorted(roles) if roles[i]==x] for x in ROLES}
     riffs=pool['riff'] or pool['phrase']; phrases=pool['phrase'] or riffs
@@ -214,17 +341,18 @@ def make(seed,path,styles,humanize,roles,riff_sets=(),layer_riff=None):
     # choices made once, so what repeats sounds the same each time
     style=R.choice(styles); kin=[x for x in FAMILY[style] if x in styles]
     hook_style=R.choice(kin) if R.random()<0.4 else style          # every hook the same groove
-    # intro/outro, verse, hook and bridge riff sets, each further on in the riffs
-    # three of the given sets that are still riffs and another for the bridge,
-    # or else each made up further on in the riffs
-    given=[x for x in riff_sets if all(roles.get(i)=='riff' for i in x)]
-    if len(given)>=4:
-        intro_set,verse_set,hook_set=[given[i] for i in r.choice(len(given),3,replace=False)]
-        bridge_set=R.choice([x for x in given if x not in (intro_set,verse_set,hook_set)])
-    else:
-        order=[riffs[i] for i in r.permutation(len(riffs))]; step=max(1,len(riffs)//4)
-        intro_set,verse_set,hook_set,bridge_set=[[order[(j*step+x)%len(order)] for x in R.choice(PATTERNS)] for j in range(4)]
-    layer=layer_riff if roles.get(layer_riff)=='riff' else pick([x for x in riffs if x not in hook_set])   # another riff over hooks
+    # intro/outro, verse, hook and bridge riff sets, each led by a different riff
+    # where there are riffs enough, with the riffs most alike in notes to it (so
+    # in the same key) after it in the pattern
+    alike=lambda x,y:float(chroma[x]@chroma[y])
+    order=[riffs[i] for i in r.permutation(len(riffs))]; step=max(1,len(riffs)//4)
+    def riff_set(j):
+        lead=order[(j*step)%len(order)]
+        kin=[lead]+sorted([x for x in riffs if x!=lead],key=lambda x:-alike(x,lead))
+        return [kin[x%len(kin)] for x in R.choice(PATTERNS)]
+    intro_set,verse_set,hook_set,bridge_set=[riff_set(j) for j in range(4)]
+    others=sorted([x for x in riffs if x not in hook_set],key=lambda x:-alike(x,hook_set[0]))
+    layer=others[0] if others else None                            # another riff over hooks: the most alike in notes
     hook_layer=layer is not None and R.random()<0.5
     bass_mode=R.choice(['alt','one','one','sparse'] if len(pool['bass'])>1 else ['one','sparse'] if pool['bass'] else ['none'])
     bass_a=pick(pool['bass']); bass_b=pick(pool['bass'],[bass_a])
@@ -240,7 +368,7 @@ def make(seed,path,styles,humanize,roles,riff_sets=(),layer_riff=None):
     kit=dict(kick=kick,heavy=heavy,sub=heavy if sub is None else sub,snare=snare,tick=pick(pool['tick']),
              roll=snare if roll is None else roll,fill=pick(pool['fill']))
     plan=plan_song(R); bars=plan[-1][1]+plan[-1][2]; hooks=sum(t=='hook' for t,_,_ in plan)
-    s=Song(bars,r,humanize)
+    s=Song(bars,r,humanize,loops)
     # how each section hands over, decided first: the bar before a hook may be
     # a stop bar, where everything lays out but the fill
     into=[]
@@ -303,7 +431,7 @@ def main():
     ap.add_argument('--min-gap', type=float, default=0.2, help='shortest silence between pieces, seconds (default 0.2)')
     ap.add_argument('--styles', default='four,hiphop,trap,half,broken', help='drum styles songs pick from (default all)')
     ap.add_argument('--humanize', type=float, default=100, help='swing and timing drift, percent (default 100; 0 is a strict grid)')
-    ap.add_argument('--guess', action='store_true', help='guess 24 pieces\' roles from the sound, not the original Passion layout')
+    ap.add_argument('--bpm', type=float, default=None, help='the tempo the pieces were recorded at (default: heard from them)')
     ap.add_argument('--roles', default='', help='set pieces\' roles, e.g. 3=riff,6-8=hat,12=off (roles: ' + ','.join(ROLES) + ')')
     a = ap.parse_args()
     if not 8 <= a.min_bars <= a.max_bars: ap.error('need 8 <= --min-bars <= --max-bars')
@@ -311,11 +439,17 @@ def main():
     styles = [x for x in a.styles.split(',') if x]
     if not styles or set(styles) - set(FAMILY): ap.error('--styles: any of four,hiphop,trap,half,broken')
     if not 0 <= a.humanize <= 200: ap.error('--humanize must be 0 to 200')
+    if a.bpm is not None and not 40 <= a.bpm <= 250: ap.error('--bpm must be 40 to 250')
     MIN_BARS, MAX_BARS = a.min_bars, a.max_bars
     n = load_pieces(a.input, a.save_pieces, a.silence_db, a.min_gap); print(f'found {n} pieces')
     if not n: sys.exit('no pieces; try a different --silence-db or --min-gap')
-    original = n == len(PASSION_ROLES) and not a.guess   # 24 pieces: the original layout
-    roles = dict(PASSION_ROLES) if original else {i: guess_role(features(p)) for i, p in pc.items()}
+    global B
+    heard = {i: analyze_piece(p) for i, p in pc.items()}
+    detected, _ = detect_tempo(list(heard.values()))
+    bpm = a.bpm or detected or 120
+    print(f'tempo {bpm:g} BPM', '(set)' if a.bpm else '(heard)' if detected else "(couldn't hear it; set it with --bpm)")
+    B = 60 / bpm * sr
+    roles = {i: guess_role(h, bpm) for i, h in heard.items()}
     for part in filter(None, a.roles.split(',')):   # 3=riff, 6-8=hat
         try:
             nums, role = part.split('='); lo, _, hi = nums.partition('-'); lo = int(lo); hi = int(hi or lo)
@@ -323,8 +457,9 @@ def main():
         if role not in ROLES: ap.error(f'--roles: {role!r} is not one of ' + ','.join(ROLES))
         if not 1 <= lo <= hi <= n: ap.error(f'--roles: pieces are 1 to {n}')
         for i in range(lo, hi + 1): roles[i] = role
-    print('roles (original Passion layout):' if original else 'roles (guessed):', ' '.join(f'{i}={roles[i]}' for i in sorted(roles)))
+    print('roles:', ' '.join(f'{i}={roles[i]}' for i in sorted(roles)))
     if not any(x in ('riff', 'phrase') for x in roles.values()): sys.exit('needs a riff or a phrase; set one with --roles')
+    loops = {i: loop_beats(h, bpm) for i, h in heard.items()}; chroma = {i: h['chroma'] for i, h in heard.items()}
     os.makedirs(a.out, exist_ok=True)
     # named for when they're made: now, then a minute later for each next song
     rnd = random.Random(a.seed); t = datetime.datetime.now()
@@ -332,7 +467,7 @@ def main():
         while os.path.exists(path := f"{a.out}/Passion {t:%d-%m-%Y %H-%M}.wav"):   # never overwrite
             t += datetime.timedelta(minutes=1)
         t += datetime.timedelta(minutes=1)
-        info = make(rnd.randint(0, 10**9), path, styles, a.humanize / 100, roles, RIFFSETS if original else (), LAYER if original else None)
+        info = make(rnd.randint(0, 10**9), path, styles, a.humanize / 100, roles, loops, chroma)
         over = f" peaks +{20*np.log10(info['peak']):.1f} dB" if info['peak'] > 1 else ''
         print(os.path.basename(path), info['beats'], 'beats', info['dur'], 's', info['style'], '-'.join(info['sections']) + over)
 

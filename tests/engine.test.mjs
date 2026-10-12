@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { STYLES, ROLES, PASSION, FORMS, makeRng, parseWav, splitPieces, guessRoles, defaultRoles, loopBeats, planSong, makeSong, batch, songName, encodeWav, zipParts, crc32, demoRecording } from '../public/engine.mjs';
+import { STYLES, ROLES, FORMS, makeRng, parseWav, splitPieces, analyzeRecording, planSong, makeSong, batch, songName, encodeWav, zipParts, crc32, demoRecording } from '../public/engine.mjs';
 
 const rec = demoRecording();
 const pieces = splitPieces(rec);
+const analysis = analyzeRecording(pieces, rec.sr);
 // The roles the demo's pieces were made for (3 is a 4-beat phrase, so a riff).
 const DEMO = ['phrase', 'phrase', 'riff', 'phrase', 'hat', 'fill', 'hat', 'hat', 'hat', 'kick', 'tick', 'snare',
   'riff', 'riff', 'riff', 'riff', 'riff', 'riff', 'bass', 'bass', 'riff', 'kick', 'roll', 'sub'];
@@ -30,14 +31,14 @@ test('a short pause inside a piece, or a click between pieces, splits nothing', 
 
 test('songs keep to the length asked and are the same for the same seed', () => {
   for (let seed = 1; seed <= 8; seed++) {
-    const { audio, info } = makeSong(pieces, rec.sr, seed, { minBars: 25, maxBars: 29 });
+    const { audio, info } = makeSong(pieces, rec.sr, seed, { analysis, minBars: 25, maxBars: 29 });
     assert.ok([26, 28].includes(info.bars), `bars ${info.bars}`);   // even, in the range
     assert.equal(info.plan.reduce((s, [, n]) => s + n, 0), info.bars);
     for (const v of audio.L) assert.ok(Number.isFinite(v));
     // the bars, then the last hit ringing out, then 0.5 s
     assert.ok(info.seconds > info.beats * 0.48 && info.seconds < info.beats * 0.48 + 3, `${info.seconds}s for ${info.beats} beats`);
   }
-  const a = makeSong(pieces, rec.sr, 42).audio.L, b = makeSong(pieces, rec.sr, 42).audio.L;
+  const a = makeSong(pieces, rec.sr, 42, { analysis }).audio.L, b = makeSong(pieces, rec.sr, 42, { analysis }).audio.L;
   assert.deepEqual(a, b);
 });
 
@@ -47,7 +48,7 @@ test('a song is the pieces exactly as recorded: no volume change, panning or eff
   const sr = 1000, unit = Array.from({ length: 24 }, () => {
     const L = new Float32Array(40), R = new Float32Array(40); L[0] = 0.25; R[0] = -0.5; return { L, R };
   });
-  const { audio, info } = makeSong(unit, sr, 7, { roles: DEMO, humanize: 0 });
+  const { audio, info } = makeSong(unit, sr, 7, { bpm: 125, roles: DEMO, humanize: 0 });
   let most = 0;
   for (let j = 0; j < audio.L.length; j++) {
     const k = audio.L[j] / 0.25;
@@ -57,7 +58,7 @@ test('a song is the pieces exactly as recorded: no volume change, panning or eff
   assert.ok(most >= 4, `overlaps add up: ${most} pieces at once`);
   assert.equal(info.peak, most * 0.5);   // the right side, unscaled
   // and the real demo goes past full scale, untouched
-  assert.ok(makeSong(pieces, rec.sr, 1).info.peak > 1);
+  assert.ok(makeSong(pieces, rec.sr, 1, { analysis }).info.peak > 1);
 });
 
 test('song forms follow the rules: phrases in fours, a hook after a verse, ending on a hook', () => {
@@ -79,64 +80,58 @@ test('song forms follow the rules: phrases in fours, a hook after a verse, endin
 
 test('settings: drum styles, humanize off, a fixed length', () => {
   for (let seed = 1; seed <= 5; seed++) {
-    const { info } = makeSong(pieces, rec.sr, seed, { styles: ['trap'], humanize: 0, minBars: 12, maxBars: 12 });
+    const { info } = makeSong(pieces, rec.sr, seed, { analysis, styles: ['trap'], humanize: 0, minBars: 12, maxBars: 12 });
     assert.equal(info.style, 'trap'); assert.equal(info.alt, 'trap'); assert.equal(info.bars, 12);
   }
   for (let seed = 1; seed <= 20; seed++) {   // hooks only lift to a related groove
-    const { info } = makeSong(pieces, rec.sr, seed, { minBars: 8, maxBars: 8 });
+    const { info } = makeSong(pieces, rec.sr, seed, { analysis, minBars: 8, maxBars: 8 });
     const ok = { four: ['four', 'broken'], broken: ['broken', 'four'], hiphop: ['hiphop', 'trap'], trap: ['trap', 'hiphop'], half: ['half', 'hiphop'] };
     assert.ok(ok[info.style].includes(info.alt), `${info.style} -> ${info.alt}`);
   }
 });
 
-test('the roles are heard from the audio', () => {
-  assert.deepEqual(guessRoles(pieces, rec.sr), DEMO);
-  assert.deepEqual([0.5, 1, 1.9, 2, 3, 3.9, 4.9, 6, 7.8, 9, 12, 17].map(loopBeats), [1, 1, 2, 2, 2, 4, 4, 4, 8, 8, 8, 16]);   // a tail doesn't count
-  // 24 pieces start from the original layout; the demo's guesses match it but for its 4-beat phrase
-  assert.deepEqual(defaultRoles(pieces, rec.sr), PASSION.roles);
-  assert.deepEqual(DEMO.map((x, i) => (i === 2 ? 'phrase' : x)), PASSION.roles);
+test('the demo: its tempo, roles and loop lengths are heard, at any tempo', () => {
+  assert.equal(analysis.bpm, 125);
+  assert.deepEqual(analysis.roles, DEMO);
+  assert.deepEqual(analysis.loops.slice(0, 9), [2, 2, 4, 2, 2, 4, 8, 4, 4]);
+  for (const bpm of [84, 100, 150]) {
+    const r = demoRecording(48000, bpm), a = analyzeRecording(splitPieces(r), r.sr);
+    assert.equal(a.bpm, bpm); assert.deepEqual(a.roles, DEMO);
+  }
 });
 
 test('any number of pieces, in any roles: what is missing is left out', () => {
   const some = [12, 13, 18, 9, 11, 19];   // two riffs, a bass, a kick, a snare, a hat (0-based)
   for (let seed = 1; seed <= 6; seed++) {
     const { audio, info } = makeSong(some.map(i => pieces[i]), rec.sr, seed);
-    assert.ok(audio.peak > 0.1 && [26, 28].includes(info.bars));
+    assert.ok(audio.peak > 0.1 && [26, 28].includes(info.bars) && info.bpm === 125);
   }
   for (const n of [1, 3]) {   // only riffs: no drums, no bass, still a song
-    const { audio } = makeSong(pieces.slice(12, 12 + n), rec.sr, 3, { minBars: 8, maxBars: 8 });
+    const { audio } = makeSong(pieces.slice(12, 12 + n), rec.sr, 3, { bpm: 125, minBars: 8, maxBars: 8 });
     assert.ok(audio.peak > 0.1);
   }
   // Pieces left out never play, and a riff 8 beats long plays every 2 bars.
   const off = pieces.map((p, i) => (DEMO[i] === 'hat' ? { L: p.L.map(() => NaN), R: p.R } : p));
-  for (const v of makeSong(off, rec.sr, 5, { roles: DEMO.map(x => (x === 'hat' ? 'off' : x)) }).audio.L) assert.ok(Number.isFinite(v));
+  for (const v of makeSong(off, rec.sr, 5, { analysis, roles: DEMO.map(x => (x === 'hat' ? 'off' : x)) }).audio.L) assert.ok(Number.isFinite(v));
   const click = new Float32Array(3840); click[0] = 1;   // 8 beats at 1 kHz, a click at its start
   const long = [{ L: click, R: click }];
-  const { audio } = makeSong(long, 1000, 1, { roles: ['riff'], minBars: 8, maxBars: 8, humanize: 0 });
+  const { audio } = makeSong(long, 1000, 1, { bpm: 125, roles: ['riff'], minBars: 8, maxBars: 8, humanize: 0 });
   const clicks = [...audio.L.keys()].filter(j => audio.L[j] > 0.5).map(j => j / 1920);
   assert.ok(clicks.every(b => b % 2 === 0), `bars ${clicks}`);
 });
 
-test('the original layout plays its own riff sets, as long as they are still riffs', () => {
-  const sets = PASSION.riffSets.map(String);
+test('riff sets keep to riffs alike in notes', () => {
+  // The demo's riffs 3, 13-15 and 21 are in one key, 16-18 in another.
+  const group = i => ([2, 12, 13, 14, 20].includes(i) ? 'a' : 'b');
   for (let seed = 1; seed <= 10; seed++) {
-    const { info } = makeSong(pieces, rec.sr, seed, { roles: PASSION.roles, riffSets: PASSION.riffSets, layer: PASSION.layer });
-    assert.equal(new Set(info.riffSets.map(String)).size, 4);   // intro, verse, hook and bridge all differ
-    for (const set of info.riffSets) assert.ok(sets.includes(String(set)), String(set));
-    assert.equal(info.layer, PASSION.layer);
-  }
-  // Piece 13 set to something else: the sets with it are dropped, the rest still used.
-  const roles = PASSION.roles.map((x, i) => (i === 12 ? 'off' : x));
-  const left = PASSION.riffSets.filter(set => !set.includes(12)).map(String);
-  for (let seed = 1; seed <= 10; seed++) {
-    const { info } = makeSong(pieces, rec.sr, seed, { roles, riffSets: PASSION.riffSets });
-    for (const set of info.riffSets) assert.ok(left.includes(String(set)), String(set));
+    const { info } = makeSong(pieces, rec.sr, seed, { analysis });
+    for (const set of info.riffSets) assert.equal(new Set(set.map(group)).size, 1, String(set));
   }
 });
 
 test('bad settings and too few pieces are refused', () => {
   assert.throws(() => makeSong(pieces.slice(9, 12), rec.sr, 1), /riff or phrase/);
-  assert.throws(() => makeSong(pieces, rec.sr, 1, { roles: DEMO.slice(1) }), /a role for each/);
+  assert.throws(() => makeSong(pieces, rec.sr, 1, { analysis, roles: DEMO.slice(1) }), /a role for each/);
   assert.equal(ROLES.at(-1), 'off');
   assert.throws(() => makeSong(pieces, rec.sr, 1, { minBars: 30, maxBars: 25 }), /shortest first/);
   assert.throws(() => makeSong(pieces, rec.sr, 1, { minBars: 4, maxBars: 6 }), /8 bars/);

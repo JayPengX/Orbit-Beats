@@ -1,5 +1,5 @@
 // Passion Beats page: pick a recording, split it, set things, make songs.
-import { BPM, STYLES, SECTIONS, ROLES, MIN_BARS, PASSION, parseWav, splitPieces, guessRoles, makeSong, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
+import { STYLES, SECTIONS, ROLES, MIN_BARS, parseWav, splitPieces, analyzeRecording, guessRole, loopBeats, makeSong, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
 
 const $ = id => document.getElementById(id);
 const MAX_SONGS = 30, MAX_BARS = 64;
@@ -9,8 +9,10 @@ const ROLE_NAMES = { riff: 'Riff', phrase: 'Phrase', bass: 'Bass', hat: 'Hats', 
 
 let rec = null;        // { sr, L, R }
 let pieces = [];
-let roles = [];        // one per piece: the original layout or guessed, then as set
-let original = false;  // started from the original Passion layout
+let roles = [];        // one per piece: as heard, then as set
+let edited = new Set();  // pieces whose role was set by hand
+let heard = null;      // analyzeRecording's: tempo and each piece's analysis
+let bpm = 120;         // as heard, then as set
 let songs = [];        // { name, data, url }
 let busy = false;
 
@@ -43,13 +45,14 @@ function problem() {
   if (!styles.length) return 'Pick at least one drum style';
   if (seed && !(/^\d+$/.test(seed) && +seed <= 4294967295)) return 'Seed must be a whole number';
   if (pieces.length && !roles.some(x => x === 'riff' || x === 'phrase')) return 'Needs a riff or a phrase: set one under the pieces';
+  if (pieces.length && !(bpm >= 40 && bpm <= 250)) return 'Tempo must be 40 to 250 BPM';
   return '';
 }
 
 function update() {
   const { count, minBars, maxBars } = settings, bad = problem();
   // Songs are an even number of bars when the range has one, plus ~1.5 s for the last hit to ring.
-  const secs = bars => Math.round(bars * 4 * 60 / BPM + 1.5);
+  const secs = bars => Math.round(bars * 4 * 60 / bpm + 1.5);
   const lo = minBars % 2 && minBars < maxBars ? minBars + 1 : minBars, hi = maxBars % 2 && maxBars > minBars ? maxBars - 1 : maxBars;
   $('length-hint').textContent = minBars <= maxBars && minBars > 0
     ? (lo >= hi ? `About ${secs(lo)} sec each` : `About ${secs(lo)}–${secs(hi)} sec each`) : 'Shortest first';
@@ -117,7 +120,7 @@ async function load(get) {
   stopPiece();
   status('<b>Reading…</b>', 'busy');
   $('pieces').textContent = ''; $('pieces-hint').hidden = true;
-  pieces = []; roles = []; update();
+  pieces = []; roles = []; heard = null; $('tempo-row').hidden = true; update();
   await new Promise(r => setTimeout(r, 30));
   try { rec = await get(); } catch (e) {
     rec = null; $('resplit').disabled = true;
@@ -127,13 +130,18 @@ async function load(get) {
   split();
 }
 
-function split() {
+async function split() {
   if (!rec) return;
   stopPiece();
+  status('<b>Listening…</b>', 'busy');
+  await new Promise(r => setTimeout(r, 30));
   pieces = splitPieces(rec, { silenceDb: settings.silenceDb, minGap: settings.minGap });
-  original = pieces.length === PASSION.roles.length;
-  roles = original ? [...PASSION.roles] : guessRoles(pieces, rec.sr);
-  const B = 60 / BPM * rec.sr, len = rec.L.length / rec.sr;
+  heard = analyzeRecording(pieces, rec.sr);
+  bpm = heard.bpm; roles = [...heard.roles]; edited = new Set();
+  $('bpm').value = bpm;
+  $('bpm-hint').textContent = heard.detected ? 'Heard from the recording' : "Couldn't hear it: set it";
+  $('tempo-row').hidden = !pieces.length;
+  const len = rec.L.length / rec.sr;
   const time = `${Math.floor(len / 60)}:${String(Math.round(len % 60)).padStart(2, '0')}`;
   const khz = `${+(rec.sr / 1000).toFixed(1)} kHz`;
   if (!pieces.length) {
@@ -144,7 +152,7 @@ function split() {
 }
 
 function showPieces() {
-  const B = 60 / BPM * rec.sr, grid = $('pieces');
+  const B = 60 / bpm * rec.sr, grid = $('pieces');
   grid.textContent = '';
   pieces.forEach((p, i) => {
     const tile = document.createElement('div'), beats = p.L.length / B;
@@ -155,18 +163,21 @@ function showPieces() {
     grid.append(tile);
   });
   $('pieces-hint').hidden = !pieces.length;
-  // A 24-piece recording starts from the original layout; either way round can be switched.
-  $('roles-line').hidden = pieces.length !== PASSION.roles.length;
-  $('roles-from').textContent = original ? 'Roles: the original Passion layout' : 'Roles: guessed from the sound';
-  $('roles-switch').textContent = original ? 'Guess instead' : 'Use the original';
   update();
 }
-$('roles-switch').onclick = () => {
-  stopPiece();
-  original = !original;
-  roles = original ? [...PASSION.roles] : guessRoles(pieces, rec.sr);
+
+// A new tempo: roles heard again at it (but not ones set by hand), and loop lengths.
+function setTempo(v) {
+  bpm = Math.round(v * 10) / 10;
+  $('bpm').value = bpm;
+  if (!heard || !(bpm >= 40 && bpm <= 250)) return update();
+  roles = heard.analyses.map((a, i) => (edited.has(i) ? roles[i] : guessRole(a, bpm)));
+  $('bpm-hint').textContent = bpm === heard.detected ? 'Heard from the recording' : `Set by hand · heard ${heard.detected ?? 'nothing'}`;
   showPieces();
-};
+}
+$('bpm').addEventListener('change', () => setTempo(+$('bpm').value));
+$('bpm-half').onclick = () => setTempo(bpm / 2);
+$('bpm-double').onclick = () => setTempo(bpm * 2);
 
 $('file').addEventListener('change', () => { const f = $('file').files[0]; if (f) load(() => readFile(f)); $('file').value = ''; });
 $('demo').onclick = () => load(async () => demoRecording());
@@ -188,7 +199,7 @@ function stopPiece() {
 }
 $('pieces').addEventListener('change', e => {
   const tile = e.target.closest('.piece'); if (!tile) return;
-  roles[+tile.dataset.i] = e.target.value;
+  roles[+tile.dataset.i] = e.target.value; edited.add(+tile.dataset.i);
   tile.classList.toggle('off', e.target.value === 'off'); update();
 });
 $('pieces').addEventListener('click', e => {
@@ -237,7 +248,7 @@ $('go').onclick = async () => {
   const { count, minBars, maxBars, styles, humanize, bits } = settings;
   const seed = settings.seed ? +settings.seed : Math.floor(Math.random() * 1e9);
   $('out').hidden = false; $('songs').textContent = ''; $('zip').disabled = true;
-  $('out-meta').textContent = `${count} song${count === 1 ? '' : 's'} · seed ${seed} · ${bits === 32 ? '32-bit float' : '16-bit'} WAV`;
+  $('out-meta').textContent = `${count} song${count === 1 ? '' : 's'} · ${bpm} BPM · seed ${seed} · ${bits === 32 ? '32-bit float' : '16-bit'} WAV`;
   $('go').disabled = true; update();
   const list = batch(count, seed);
   for (let k = 0; k < list.length; k++) {
@@ -246,7 +257,8 @@ $('go').onclick = async () => {
     if (k === 0) $('out').scrollIntoView({ behavior: 'smooth', block: 'start' });
     await new Promise(r => setTimeout(r, 0));
     const { name, seed: s } = list[k];
-    const { audio, info } = makeSong(pieces, rec.sr, s, { roles, ...(original && { riffSets: PASSION.riffSets, layer: PASSION.layer }), minBars, maxBars, styles, humanize: humanize / 100 });
+    const analysis = { ...heard, bpm, loops: heard.analyses.map(a => loopBeats(a, bpm)) };
+    const { audio, info } = makeSong(pieces, rec.sr, s, { analysis, roles, minBars, maxBars, styles, humanize: humanize / 100 });
     const data = encodeWav(audio, bits), url = URL.createObjectURL(new Blob([data], { type: 'audio/wav' }));
     songs.push({ name, data, url });
     $('songs').append(songItem({ name, url, info, bits }));
