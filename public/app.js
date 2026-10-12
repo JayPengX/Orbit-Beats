@@ -1,5 +1,5 @@
 // Passion Beats page: pick a recording, split it, set things, make songs.
-import { BPM, STYLES, SECTIONS, ROLES, MIN_BARS, parseWav, splitPieces, guessRoles, makeSong, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
+import { BPM, STYLES, SECTIONS, ROLES, MIN_BARS, PASSION, parseWav, splitPieces, guessRoles, makeSong, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
 
 const $ = id => document.getElementById(id);
 const MAX_SONGS = 30, MAX_BARS = 64;
@@ -9,7 +9,8 @@ const ROLE_NAMES = { riff: 'Riff', phrase: 'Phrase', bass: 'Bass', hat: 'Hats', 
 
 let rec = null;        // { sr, L, R }
 let pieces = [];
-let roles = [];        // one per piece: guessed, then as set
+let roles = [];        // one per piece: the original layout or guessed, then as set
+let original = false;  // started from the original Passion layout
 let songs = [];        // { name, data, url }
 let busy = false;
 
@@ -130,7 +131,8 @@ function split() {
   if (!rec) return;
   stopPiece();
   pieces = splitPieces(rec, { silenceDb: settings.silenceDb, minGap: settings.minGap });
-  roles = guessRoles(pieces, rec.sr);
+  original = pieces.length === PASSION.roles.length;
+  roles = original ? [...PASSION.roles] : guessRoles(pieces, rec.sr);
   const B = 60 / BPM * rec.sr, len = rec.L.length / rec.sr;
   const time = `${Math.floor(len / 60)}:${String(Math.round(len % 60)).padStart(2, '0')}`;
   const khz = `${+(rec.sr / 1000).toFixed(1)} kHz`;
@@ -138,7 +140,11 @@ function split() {
     status('<b>No pieces</b> · see Splitting', 'bad');
     $('split-more').open = true;
   } else status(`<b>${pieces.length} piece${pieces.length === 1 ? '' : 's'}</b> · ${khz} · ${time}`);
-  const grid = $('pieces');
+  showPieces();
+}
+
+function showPieces() {
+  const B = 60 / BPM * rec.sr, grid = $('pieces');
   grid.textContent = '';
   pieces.forEach((p, i) => {
     const tile = document.createElement('div'), beats = p.L.length / B;
@@ -149,8 +155,18 @@ function split() {
     grid.append(tile);
   });
   $('pieces-hint').hidden = !pieces.length;
+  // A 24-piece recording starts from the original layout; either way round can be switched.
+  $('roles-line').hidden = pieces.length !== PASSION.roles.length;
+  $('roles-from').textContent = original ? 'Roles: the original Passion layout' : 'Roles: guessed from the sound';
+  $('roles-switch').textContent = original ? 'Guess instead' : 'Use the original';
   update();
 }
+$('roles-switch').onclick = () => {
+  stopPiece();
+  original = !original;
+  roles = original ? [...PASSION.roles] : guessRoles(pieces, rec.sr);
+  showPieces();
+};
 
 $('file').addEventListener('change', () => { const f = $('file').files[0]; if (f) load(() => readFile(f)); $('file').value = ''; });
 $('demo').onclick = () => load(async () => demoRecording());
@@ -230,7 +246,7 @@ $('go').onclick = async () => {
     if (k === 0) $('out').scrollIntoView({ behavior: 'smooth', block: 'start' });
     await new Promise(r => setTimeout(r, 0));
     const { name, seed: s } = list[k];
-    const { audio, info } = makeSong(pieces, rec.sr, s, { roles, minBars, maxBars, styles, humanize: humanize / 100 });
+    const { audio, info } = makeSong(pieces, rec.sr, s, { roles, ...(original && { riffSets: PASSION.riffSets, layer: PASSION.layer }), minBars, maxBars, styles, humanize: humanize / 100 });
     const data = encodeWav(audio, bits), url = URL.createObjectURL(new Blob([data], { type: 'audio/wav' }));
     songs.push({ name, data, url });
     $('songs').append(songItem({ name, url, info, bits }));

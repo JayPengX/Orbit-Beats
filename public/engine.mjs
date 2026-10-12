@@ -13,6 +13,16 @@ export const SECTIONS = ['intro', 'verse', 'hook', 'break', 'bridge', 'outro'];
 export const ROLES = ['riff', 'phrase', 'bass', 'hat', 'fill', 'kick', 'sub', 'snare', 'tick', 'roll', 'off'];
 export const LOOP_ROLES = ['riff', 'phrase', 'bass', 'hat', 'fill'];
 
+// The original 24-piece "Passion" recording's layout, which the arrangement
+// was made on: each piece's role, the riff sets that go together, and the
+// riff laid over hooks (pieces counted from 0).
+export const PASSION = {
+  roles: ['phrase', 'phrase', 'phrase', 'phrase', 'hat', 'fill', 'hat', 'hat', 'hat', 'kick', 'tick', 'snare',
+    'riff', 'riff', 'riff', 'riff', 'riff', 'riff', 'bass', 'bass', 'riff', 'kick', 'roll', 'sub'],
+  riffSets: [[12, 13, 14, 13], [15, 16, 17, 16], [12, 14], [15, 17], [20, 20, 14, 14], [13, 12, 13, 14], [16, 15, 16, 17], [20, 12, 20, 13]],
+  layer: 20,
+};
+
 // Arrangement rules (see README, "How it works"):
 // a hook may lift to a related groove, never a foreign one;
 const FAMILY = { four: ['four', 'broken'], broken: ['broken', 'four'], hiphop: ['hiphop', 'trap'], trap: ['trap', 'hiphop'], half: ['half', 'hiphop'] };
@@ -127,11 +137,13 @@ export function splitPieces({ sr, L, R }, { silenceDb = -90, minGap = 0.2 } = {}
 
 // ---- Roles ----
 
-// The loop length of a piece `beats` long: the longest usual length that
-// fits, so a tail ringing on past the loop doesn't count.
+// The loop length of a piece `beats` long: the longest whole power of two
+// beats that fits (1, 2, 4, 8, 16, …), so a tail ringing on past the loop
+// doesn't count. Recorded pieces often carry a beat or so of tail.
 export function loopBeats(beats) {
-  if (beats >= 15.75) return 4 * Math.floor((beats + 0.25) / 4);
-  return [1, 2, 3, 4, 6, 8, 12].filter(x => x <= beats + 0.25).at(-1) ?? 1;
+  let p = 1;
+  while (p * 2 <= beats + 0.25) p *= 2;
+  return p;
 }
 
 // What can be heard of a piece: how long it is, how many hits start in it,
@@ -329,11 +341,17 @@ export function planSong(R, minBars, maxBars) {
 // Riff sets: a pattern over a few riffs (as numbered in a shuffled order).
 const PATTERNS = [[0, 1, 2, 1], [0, 1], [0, 0, 1, 1], [0, 1, 0, 2], [0]];
 
+// The roles to start from: the original layout for a 24-piece recording,
+// else guessed from the audio.
+export const defaultRoles = (pieces, sr) => (pieces.length === PASSION.roles.length ? [...PASSION.roles] : guessRoles(pieces, sr));
+
 // One song from `pieces` (from splitPieces), each in its role in `roles`
-// (one per piece, guessed from the audio when not given). It needs a riff
-// or a phrase; any other role may be missing, and what it plays is then
-// left out (or played by the nearest role there is).
-export function makeSong(pieces, sr, seed, { roles = guessRoles(pieces, sr), minBars = 25, maxBars = 29, styles = STYLES, humanize = 1 } = {}) {
+// (one per piece; defaultRoles when not given). It needs a riff or a
+// phrase; any other role may be missing, and what it plays is then left out
+// (or played by the nearest role there is). `riffSets` and `layer` are riff
+// sets that go together and a riff for over hooks (as in PASSION); the ones
+// still riffs are used, else they're made up from the riffs.
+export function makeSong(pieces, sr, seed, { roles = defaultRoles(pieces, sr), riffSets, layer: layerRiff, minBars = 25, maxBars = 29, styles = STYLES, humanize = 1 } = {}) {
   if (roles.length !== pieces.length) throw new Error(`Need a role for each of the ${pieces.length} pieces`);
   const pool = Object.fromEntries(ROLES.map(x => [x, []]));
   roles.forEach((x, i) => pool[x]?.push(i));
@@ -347,18 +365,30 @@ export function makeSong(pieces, sr, seed, { roles = guessRoles(pieces, sr), min
   // Choices made once, so what repeats sounds the same each time.
   const style = R.choice(styles), kin = FAMILY[style].filter(x => styles.includes(x));
   const hookStyle = R.random() < 0.4 ? R.choice(kin) : style;          // every hook the same groove
-  // Intro/outro, verse, hook and bridge riff sets, each starting further on
-  // in the riffs, so they differ when there are riffs enough.
-  const order = r.sample(riffs.length, riffs.length).map(i => riffs[i]), step = Math.max(1, Math.floor(riffs.length / 4));
-  const [introSet, verseSet, hookSet, bridgeSet] = [0, 1, 2, 3].map(j => R.choice(PATTERNS).map(x => order[(j * step + x) % order.length]));
-  const layer = pick(riffs.filter(x => !hookSet.includes(x)));         // another riff over hooks
+  // Intro/outro, verse, hook and bridge riff sets: three of the given sets
+  // and another for the bridge, or else each made up starting further on in
+  // the riffs, so they differ when there are riffs enough.
+  const given = (riffSets ?? []).filter(set => set.every(i => roles[i] === 'riff'));
+  let introSet, verseSet, hookSet, bridgeSet;
+  if (given.length >= 4) {
+    [introSet, verseSet, hookSet] = r.sample(given.length, 3).map(i => given[i]);
+    bridgeSet = R.choice(given.filter(x => ![introSet, verseSet, hookSet].includes(x)));
+  } else {
+    const order = r.sample(riffs.length, riffs.length).map(i => riffs[i]), step = Math.max(1, Math.floor(riffs.length / 4));
+    [introSet, verseSet, hookSet, bridgeSet] = [0, 1, 2, 3].map(j => R.choice(PATTERNS).map(x => order[(j * step + x) % order.length]));
+  }
+  const layer = roles[layerRiff] === 'riff' ? layerRiff : pick(riffs.filter(x => !hookSet.includes(x)));   // another riff over hooks
   const hookLayer = layer != null && R.random() < 0.5;
   const bassMode = R.choice(pool.bass.length > 1 ? ['alt', 'one', 'one', 'sparse'] : pool.bass.length ? ['one', 'sparse'] : ['none']);
   const bassA = pick(pool.bass), bassB = pick(pool.bass, [bassA]);
-  const verseHat = pick(pool.hat), hookHat = pick(pool.hat, [verseHat]), breakHat = pick(pool.hat);
-  // The kit: a kick and a heavier one (two kicks if there are), an 808, and
-  // the rest; a missing kick or 808 is played by the other.
-  const kicks = r.sample(pool.kick.length, pool.kick.length).map(i => pool.kick[i]);
+  // A break gets the shortest hat loop (a shaker); a hook a hat other than
+  // the verse's, and other than the shaker when there's a choice.
+  const shortest = Math.min(...pool.hat.map(i => pieces[i].L.length));
+  const breakHat = pool.hat.find(i => pieces[i].L.length === shortest) ?? null;
+  const verseHat = pick(pool.hat), hookHat = pick(pool.hat, pool.hat.length > 2 ? [verseHat, breakHat] : [verseHat]);
+  // The kit: the first kick in the recording, a second as the heavier one,
+  // an 808, and the rest; a missing kick or 808 is played by the other.
+  const kicks = pool.kick;
   const kick = kicks[0] ?? pick(pool.sub), heavy = kicks[1] ?? kick, snare = pick(pool.snare);
   const kit = { kick, heavy, sub: pick(pool.sub) ?? heavy, snare, tick: pick(pool.tick), roll: pick(pool.roll) ?? snare, fill: pick(pool.fill) };
 
@@ -422,7 +452,7 @@ export function makeSong(pieces, sr, seed, { roles = guessRoles(pieces, sr), min
   });
   s.hit(R.choice([kit.heavy, kit.sub]), bars * 4);   // one last hit on the next downbeat
   const audio = s.render();
-  return { audio, info: { style, alt: hookStyle, bass: bassMode, bars, beats: bars * 4, seconds: audio.L.length / sr, peak: audio.peak, plan: plan.map(([t, , L]) => [t, L]) } };
+  return { audio, info: { style, alt: hookStyle, bass: bassMode, riffSets: [introSet, verseSet, hookSet, bridgeSet], layer, bars, beats: bars * 4, seconds: audio.L.length / sr, peak: audio.peak, plan: plan.map(([t, , L]) => [t, L]) } };
 }
 
 // "Passion DD-MM-YYYY HH-MM", in local time.

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { STYLES, ROLES, FORMS, makeRng, parseWav, splitPieces, guessRoles, loopBeats, planSong, makeSong, batch, songName, encodeWav, zipParts, crc32, demoRecording } from '../public/engine.mjs';
+import { STYLES, ROLES, PASSION, FORMS, makeRng, parseWav, splitPieces, guessRoles, defaultRoles, loopBeats, planSong, makeSong, batch, songName, encodeWav, zipParts, crc32, demoRecording } from '../public/engine.mjs';
 
 const rec = demoRecording();
 const pieces = splitPieces(rec);
@@ -91,7 +91,10 @@ test('settings: drum styles, humanize off, a fixed length', () => {
 
 test('the roles are heard from the audio', () => {
   assert.deepEqual(guessRoles(pieces, rec.sr), DEMO);
-  assert.deepEqual([0.5, 1, 1.9, 2, 2.3, 3.1, 4.6, 7.8, 8.4, 12, 17].map(loopBeats), [1, 1, 2, 2, 2, 3, 4, 8, 8, 12, 16]);   // a tail doesn't count
+  assert.deepEqual([0.5, 1, 1.9, 2, 3, 3.9, 4.9, 6, 7.8, 9, 12, 17].map(loopBeats), [1, 1, 2, 2, 2, 4, 4, 4, 8, 8, 8, 16]);   // a tail doesn't count
+  // 24 pieces start from the original layout; the demo's guesses match it but for its 4-beat phrase
+  assert.deepEqual(defaultRoles(pieces, rec.sr), PASSION.roles);
+  assert.deepEqual(DEMO.map((x, i) => (i === 2 ? 'phrase' : x)), PASSION.roles);
 });
 
 test('any number of pieces, in any roles: what is missing is left out', () => {
@@ -112,6 +115,23 @@ test('any number of pieces, in any roles: what is missing is left out', () => {
   const { audio } = makeSong(long, 1000, 1, { roles: ['riff'], minBars: 8, maxBars: 8, humanize: 0 });
   const clicks = [...audio.L.keys()].filter(j => audio.L[j] > 0.5).map(j => j / 1920);
   assert.ok(clicks.every(b => b % 2 === 0), `bars ${clicks}`);
+});
+
+test('the original layout plays its own riff sets, as long as they are still riffs', () => {
+  const sets = PASSION.riffSets.map(String);
+  for (let seed = 1; seed <= 10; seed++) {
+    const { info } = makeSong(pieces, rec.sr, seed, { roles: PASSION.roles, riffSets: PASSION.riffSets, layer: PASSION.layer });
+    assert.equal(new Set(info.riffSets.map(String)).size, 4);   // intro, verse, hook and bridge all differ
+    for (const set of info.riffSets) assert.ok(sets.includes(String(set)), String(set));
+    assert.equal(info.layer, PASSION.layer);
+  }
+  // Piece 13 set to something else: the sets with it are dropped, the rest still used.
+  const roles = PASSION.roles.map((x, i) => (i === 12 ? 'off' : x));
+  const left = PASSION.riffSets.filter(set => !set.includes(12)).map(String);
+  for (let seed = 1; seed <= 10; seed++) {
+    const { info } = makeSong(pieces, rec.sr, seed, { roles, riffSets: PASSION.riffSets });
+    for (const set of info.riffSets) assert.ok(left.includes(String(set)), String(set));
+  }
 });
 
 test('bad settings and too few pieces are refused', () => {

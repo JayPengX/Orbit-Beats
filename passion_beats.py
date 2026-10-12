@@ -24,6 +24,11 @@ pc = {}
 
 # what a piece does in a song (the same as public/engine.mjs; see the README)
 ROLES = ['riff','phrase','bass','hat','fill','kick','sub','snare','tick','roll','off']
+# the original 24-piece "Passion" recording's layout, which the arrangement was
+# made on: roles, the riff sets that go together, and the riff over hooks
+PASSION_ROLES = dict(enumerate(['phrase']*4 + ['hat','fill','hat','hat','hat','kick','tick','snare'] + ['riff']*6 + ['bass','bass','riff','kick','roll','sub'], 1))
+RIFFSETS = [[13,14,15,14],[16,17,18,17],[13,15],[16,18],[21,21,15,15],[14,13,14,15],[17,16,17,18],[21,13,21,14]]
+LAYER = 21
 
 def load_pieces(path, pieces_dir=None, silence_db=-90, min_gap=0.2):
     """Split the recording on runs of silence and store pieces in `pc`, each
@@ -50,9 +55,11 @@ def load_pieces(path, pieces_dir=None, silence_db=-90, min_gap=0.2):
     return len(pc)
 
 def loop_beats(beats):
-    """The loop length of a piece `beats` long: the longest usual length that fits."""
-    if beats >= 15.75: return 4 * int((beats + 0.25) // 4)
-    return max([x for x in (1, 2, 3, 4, 6, 8, 12) if x <= beats + 0.25], default=1)
+    """The loop length of a piece `beats` long: the longest whole power of two
+    beats that fits, so a tail ringing on past the loop doesn't count."""
+    p = 1
+    while p * 2 <= beats + 0.25: p *= 2
+    return p
 
 def features(x):
     """What can be heard of a piece: length, hits, sustain, brightness, low end, pitchedness."""
@@ -195,7 +202,7 @@ class Song:
         idx=np.where(np.abs(y).max(1)>1e-5)[0]; y=y[:idx[-1]+1+int(0.5*sr)]
         wavfile.write(path,sr,y.astype(np.float32)); return len(y)/sr, float(np.abs(y).max())
 
-def make(seed,path,styles,humanize,roles):
+def make(seed,path,styles,humanize,roles,riff_sets=(),layer_riff=None):
     """One song; roles: {piece number: role}. Needs a riff or a phrase; what a
     missing role plays is left out (or played by the nearest role there is)."""
     r=np.random.default_rng(seed); R=random.Random(seed)
@@ -208,15 +215,25 @@ def make(seed,path,styles,humanize,roles):
     style=R.choice(styles); kin=[x for x in FAMILY[style] if x in styles]
     hook_style=R.choice(kin) if R.random()<0.4 else style          # every hook the same groove
     # intro/outro, verse, hook and bridge riff sets, each further on in the riffs
-    order=[riffs[i] for i in r.permutation(len(riffs))]; step=max(1,len(riffs)//4)
-    intro_set,verse_set,hook_set,bridge_set=[[order[(j*step+x)%len(order)] for x in R.choice(PATTERNS)] for j in range(4)]
-    layer=pick([x for x in riffs if x not in hook_set])            # another riff over hooks
+    # three of the given sets that are still riffs and another for the bridge,
+    # or else each made up further on in the riffs
+    given=[x for x in riff_sets if all(roles.get(i)=='riff' for i in x)]
+    if len(given)>=4:
+        intro_set,verse_set,hook_set=[given[i] for i in r.choice(len(given),3,replace=False)]
+        bridge_set=R.choice([x for x in given if x not in (intro_set,verse_set,hook_set)])
+    else:
+        order=[riffs[i] for i in r.permutation(len(riffs))]; step=max(1,len(riffs)//4)
+        intro_set,verse_set,hook_set,bridge_set=[[order[(j*step+x)%len(order)] for x in R.choice(PATTERNS)] for j in range(4)]
+    layer=layer_riff if roles.get(layer_riff)=='riff' else pick([x for x in riffs if x not in hook_set])   # another riff over hooks
     hook_layer=layer is not None and R.random()<0.5
     bass_mode=R.choice(['alt','one','one','sparse'] if len(pool['bass'])>1 else ['one','sparse'] if pool['bass'] else ['none'])
     bass_a=pick(pool['bass']); bass_b=pick(pool['bass'],[bass_a])
-    verse_hat=pick(pool['hat']); hook_hat=pick(pool['hat'],[verse_hat]); break_hat=pick(pool['hat'])
-    # the kit: a kick and a heavier one (two kicks if there are), an 808, and the rest
-    kicks=[pool['kick'][i] for i in r.permutation(len(pool['kick']))]
+    # a break gets the shortest hat loop (a shaker); a hook a hat other than the
+    # verse's, and other than the shaker when there's a choice
+    break_hat=min(pool['hat'],key=lambda i:len(pc[i]),default=None)
+    verse_hat=pick(pool['hat']); hook_hat=pick(pool['hat'],[verse_hat,break_hat] if len(pool['hat'])>2 else [verse_hat])
+    # the kit: the first kick in the recording, a second as the heavier one, an 808, and the rest
+    kicks=pool['kick']
     kick=kicks[0] if kicks else pick(pool['sub']); heavy=kicks[1] if len(kicks)>1 else kick
     snare=pick(pool['snare']); sub=pick(pool['sub'])
     roll=pick(pool['roll'])
@@ -286,6 +303,7 @@ def main():
     ap.add_argument('--min-gap', type=float, default=0.2, help='shortest silence between pieces, seconds (default 0.2)')
     ap.add_argument('--styles', default='four,hiphop,trap,half,broken', help='drum styles songs pick from (default all)')
     ap.add_argument('--humanize', type=float, default=100, help='swing and timing drift, percent (default 100; 0 is a strict grid)')
+    ap.add_argument('--guess', action='store_true', help='guess 24 pieces\' roles from the sound, not the original Passion layout')
     ap.add_argument('--roles', default='', help='set pieces\' roles, e.g. 3=riff,6-8=hat,12=off (roles: ' + ','.join(ROLES) + ')')
     a = ap.parse_args()
     if not 8 <= a.min_bars <= a.max_bars: ap.error('need 8 <= --min-bars <= --max-bars')
@@ -296,7 +314,8 @@ def main():
     MIN_BARS, MAX_BARS = a.min_bars, a.max_bars
     n = load_pieces(a.input, a.save_pieces, a.silence_db, a.min_gap); print(f'found {n} pieces')
     if not n: sys.exit('no pieces; try a different --silence-db or --min-gap')
-    roles = {i: guess_role(features(p)) for i, p in pc.items()}
+    original = n == len(PASSION_ROLES) and not a.guess   # 24 pieces: the original layout
+    roles = dict(PASSION_ROLES) if original else {i: guess_role(features(p)) for i, p in pc.items()}
     for part in filter(None, a.roles.split(',')):   # 3=riff, 6-8=hat
         try:
             nums, role = part.split('='); lo, _, hi = nums.partition('-'); lo = int(lo); hi = int(hi or lo)
@@ -304,7 +323,7 @@ def main():
         if role not in ROLES: ap.error(f'--roles: {role!r} is not one of ' + ','.join(ROLES))
         if not 1 <= lo <= hi <= n: ap.error(f'--roles: pieces are 1 to {n}')
         for i in range(lo, hi + 1): roles[i] = role
-    print('roles:', ' '.join(f'{i}={roles[i]}' for i in sorted(roles)))
+    print('roles (original Passion layout):' if original else 'roles (guessed):', ' '.join(f'{i}={roles[i]}' for i in sorted(roles)))
     if not any(x in ('riff', 'phrase') for x in roles.values()): sys.exit('needs a riff or a phrase; set one with --roles')
     os.makedirs(a.out, exist_ok=True)
     # named for when they're made: now, then a minute later for each next song
@@ -313,7 +332,7 @@ def main():
         while os.path.exists(path := f"{a.out}/Passion {t:%d-%m-%Y %H-%M}.wav"):   # never overwrite
             t += datetime.timedelta(minutes=1)
         t += datetime.timedelta(minutes=1)
-        info = make(rnd.randint(0, 10**9), path, styles, a.humanize / 100, roles)
+        info = make(rnd.randint(0, 10**9), path, styles, a.humanize / 100, roles, RIFFSETS if original else (), LAYER if original else None)
         over = f" peaks +{20*np.log10(info['peak']):.1f} dB" if info['peak'] > 1 else ''
         print(os.path.basename(path), info['beats'], 'beats', info['dur'], 's', info['style'], '-'.join(info['sections']) + over)
 

@@ -93,6 +93,8 @@ button { cursor: pointer; }
 .piece button.on { background: var(--accent); color: var(--accent-ink); }
 .piece button.on span { color: inherit; opacity: 0.85; }
 .hint { margin: 8px 0 0; font-size: 13px; color: var(--text-2); white-space: nowrap; }
+.hint .link { border: 0; background: none; padding: 0; color: var(--accent); font-size: inherit; }
+#roles-line { margin-top: 4px; }
 .hint[hidden] { display: none; }
 
 details { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
@@ -191,7 +193,8 @@ footer a { color: inherit; }
     <button class="demo" id="demo" type="button">Or try a demo recording</button>
     <div class="status" id="status" hidden><span class="dot"></span><span id="status-text"></span></div>
     <div class="pieces" id="pieces" aria-label="Pieces: tap one to hear it"></div>
-    <p class="hint" id="pieces-hint" hidden>Tap a piece to hear it · roles are guessed, change any</p>
+    <p class="hint" id="pieces-hint" hidden>Tap a piece to hear it · change any role</p>
+    <p class="hint" id="roles-line" hidden><span id="roles-from"></span> · <button class="link" id="roles-switch" type="button"></button></p>
     <details id="split-more">
       <summary>Splitting</summary>
       <div class="row">

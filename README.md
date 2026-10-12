@@ -22,9 +22,27 @@ by one or all in a zip. It all runs in the browser: nothing is uploaded.
 
 ## Roles
 
-Each piece's role is guessed from how it sounds. On the page, each piece
-has a menu to change it. In the script, use `--roles 3=riff,6-8=hat,12=off`
-(it prints the roles it uses).
+A recording of 24 pieces starts from the original "Passion" layout, which
+the arrangement was made on:
+
+| Pieces | Role |
+|---|---|
+| 1–4 | Phrases |
+| 5 | Shaker (the shortest hat loop, for breaks) |
+| 6 | Fill |
+| 7–9 | Hats |
+| 10, 22 | Kicks (22 the heavier) |
+| 11 | Tick |
+| 12 | Snare |
+| 13–18, 21 | Riffs, in the riff sets that go together (21 also over hooks) |
+| 19, 20 | Bass |
+| 23 | Roll |
+| 24 | 808 |
+
+Any other number of pieces has each piece's role guessed from how it sounds
+(**Guess instead** on the page, or `--guess` in the script, does that for 24
+pieces too). On the page, each piece has a menu to change its role. In the
+script, use `--roles 3=riff,6-8=hat,12=off` (it prints the roles it uses).
 
 | Role | What it is | How it's heard |
 |---|---|---|
@@ -40,14 +58,15 @@ has a menu to change it. In the script, use `--roles 3=riff,6-8=hat,12=off`
 | Roll | A short roll | Three hits or more, under 1.75 beats |
 | Not used | Left out | |
 
-A loop repeats every 1, 2, 3, 4, 6, 8 or 12 beats (or a multiple of 4),
-whichever is the longest that fits its length, so a tail ringing past the
-loop doesn't count.
+A loop repeats every 1, 2, 4, 8 or 16 beats (and so on), whichever is the
+longest that fits its length, so a tail ringing past the loop doesn't
+count: a riff recorded as 5 beats (4 and a tail) loops every 4.
 
-Songs work with whatever roles there are. Riff sets for the intro, verse,
-hook and bridge are drawn from the riffs (phrases stand in if there are
+Songs work with whatever roles there are. In the original layout, the
+intro, verse, hook and bridge each get one of its riff sets (as long as
+their riffs are still riffs). Otherwise riff sets are drawn from the riffs (phrases stand in if there are
 none, and the other way round). The hook may add another riff on top. With
-two kicks, one plays light parts and the other heavy ones. A missing kick
+two kicks, the first plays light parts and the second heavy ones. A missing kick
 or 808 is played by the other, a missing roll by the snare, and a missing
 fill by a stutter. Anything else that's missing is left out: with no drums
 the song is just its riffs.
@@ -63,7 +82,7 @@ the song is just its riffs.
 | Seed | `--seed` | The same seed makes the same songs (the page and the script have different random numbers, so not the same songs as each other) |
 | Format | | 32-bit float or 16-bit WAV (the script writes 32-bit float) |
 | Splitting | `--silence-db` / `--min-gap` | What counts as silence, and the shortest gap between pieces (default -90 dB, 0.2 s) |
-| Roles | `--roles` | Each piece's role, as guessed or as set (see Roles) |
+| Roles | `--roles` / `--guess` | Each piece's role: the original layout for 24 pieces, else guessed, or as set (see Roles) |
 | | `--save-pieces folder/` | Also save the split pieces |
 | | `--out folder/` | Where songs go (default `songs/`) |
 
