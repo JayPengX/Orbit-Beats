@@ -76,16 +76,22 @@ button { cursor: pointer; }
 .status.busy .dot { background: var(--text-3); }
 .status b { font-weight: 600; }
 .status .file { color: var(--text-2); overflow: hidden; text-overflow: clip; min-width: 0; }
-.pieces { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 12px; }
+.pieces { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 6px; margin-top: 12px; }
 .pieces:empty { display: none; }
-.piece {
-  border: 0; border-radius: 10px; background: var(--fill); padding: 7px 0 6px; text-align: center;
+.piece { border-radius: 10px; background: var(--fill); overflow: hidden; }
+.piece button {
+  display: block; width: 100%; border: 0; background: none; padding: 7px 0 4px; text-align: center;
   font-variant-numeric: tabular-nums; line-height: 1.15;
 }
 .piece b { display: block; font-size: 15px; font-weight: 600; }
 .piece span { display: block; font-size: 11px; color: var(--text-2); }
-.piece.on { background: var(--accent); color: var(--accent-ink); }
-.piece.on span { color: inherit; opacity: 0.85; }
+.piece select {
+  display: block; width: 100%; border: 0; border-top: 1px solid var(--fill-2); background: none;
+  padding: 5px 4px 6px; font-size: 13px; text-align: center; text-align-last: center; color: var(--text);
+}
+.piece.off { opacity: 0.5; }
+.piece button.on { background: var(--accent); color: var(--accent-ink); }
+.piece button.on span { color: inherit; opacity: 0.85; }
 .hint { margin: 8px 0 0; font-size: 13px; color: var(--text-2); white-space: nowrap; }
 .hint[hidden] { display: none; }
 
@@ -179,13 +185,13 @@ footer a { color: inherit; }
     <div class="head"><span class="step">1</span><h2 id="h-rec">Recording</h2></div>
     <label class="drop" id="drop">
       <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10M21 12h0"/></svg>
-      <div><b>Choose a recording</b><span>WAV is best · 24 pieces split by silence</span></div>
+      <div><b>Choose a recording</b><span>WAV is best · pieces split by silence</span></div>
       <input type="file" id="file" accept="audio/*,.wav">
     </label>
     <button class="demo" id="demo" type="button">Or try a demo recording</button>
     <div class="status" id="status" hidden><span class="dot"></span><span id="status-text"></span></div>
     <div class="pieces" id="pieces" aria-label="Pieces: tap one to hear it"></div>
-    <p class="hint" id="pieces-hint" hidden>Tap a piece to hear it · numbers are beats</p>
+    <p class="hint" id="pieces-hint" hidden>Tap a piece to hear it · roles are guessed, change any</p>
     <details id="split-more">
       <summary>Splitting</summary>
       <div class="row">

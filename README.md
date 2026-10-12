@@ -4,39 +4,53 @@ Arranges one recording of beat pieces (separated by silence) into new
 songs, using the pieces exactly as recorded.
 
 **https://jaypengx.github.io/Passion-Beats/**: the page. Choose a recording
-(or try the demo), set things, make songs, play them and download them one
+(or try the demo), check the roles it hears, set things, make songs, play them and download them one
 by one or all in a zip. It all runs in the browser: nothing is uploaded.
 
 `passion_beats.py` is the same thing on the command line.
 
 ## The recording
 
-- 24 pieces in the order below, with silence (0.2 s or more) between them.
+- Any number of pieces, with silence (0.2 s or more) between them.
 - Recorded at 125 BPM.
+- At least one riff or phrase; everything else is optional.
 - WAV is best (any PCM or float WAV). On the page, anything the browser can
   play (m4a, mp3, …) works too; it's decoded at 48 kHz.
 - Phone audio isn't digitally silent between pieces: if the count is off,
   raise **Silence below** (say to -60 dB) under **Splitting** on the page, or
   `--silence-db -60` in the script.
 
-| Pieces | Role |
-|---|---|
-| 1–4 | Short phrases (2, 2, 4, 2 beats) |
-| 5 | Shaker loop (2 beats) |
-| 6 | Fill (4 beats) |
-| 7–9 | Hat loops (8, 4, 4 beats) |
-| 10, 22 | Kicks |
-| 11 | Tick |
-| 12 | Snare |
-| 13–18, 21 | Riffs (4 beats) |
-| 19, 20 | Bass (4 beats) |
-| 23 | Roll |
-| 24 | 808 |
+## Roles
 
-The roles are set for the original "Passion" recording: `PERIOD`,
-`RIFFSETS` and `HATS` at the top of `public/engine.mjs` (and `period`,
-`RIFFSETS`, `HATS` in the script), with drums, fills and bass using piece
-numbers in their code.
+Each piece's role is guessed from how it sounds. On the page, each piece
+has a menu to change it. In the script, use `--roles 3=riff,6-8=hat,12=off`
+(it prints the roles it uses).
+
+| Role | What it is | How it's heard |
+|---|---|---|
+| Riff | A loop of notes, 3 beats or more | Repeats (several hits, or keeps sounding), pitched, little low end |
+| Phrase | A short loop of notes, or a pitched one-shot | The same, under 3 beats |
+| Bass | A low loop of notes | Pitched, mostly under 150 Hz |
+| Hats | A hi-hat or shaker loop | Repeats, noisy, bright (above ~7 kHz) |
+| Fill | A drum loop or fill | Repeats, noisy, not as bright |
+| Kick | A kick | One hit, mostly low end, done within 1 s |
+| 808 | A long low hit | The same, ringing past 1 s |
+| Snare | A snare or clap | One noisy hit |
+| Tick | A short click or hat hit | One very bright hit |
+| Roll | A short roll | Three hits or more, under 1.75 beats |
+| Not used | Left out | |
+
+A loop repeats every 1, 2, 3, 4, 6, 8 or 12 beats (or a multiple of 4),
+whichever is the longest that fits its length, so a tail ringing past the
+loop doesn't count.
+
+Songs work with whatever roles there are. Riff sets for the intro, verse,
+hook and bridge are drawn from the riffs (phrases stand in if there are
+none, and the other way round). The hook may add another riff on top. With
+two kicks, one plays light parts and the other heavy ones. A missing kick
+or 808 is played by the other, a missing roll by the snare, and a missing
+fill by a stutter. Anything else that's missing is left out: with no drums
+the song is just its riffs.
 
 ## Settings
 
@@ -49,6 +63,7 @@ numbers in their code.
 | Seed | `--seed` | The same seed makes the same songs (the page and the script have different random numbers, so not the same songs as each other) |
 | Format | | 32-bit float or 16-bit WAV (the script writes 32-bit float) |
 | Splitting | `--silence-db` / `--min-gap` | What counts as silence, and the shortest gap between pieces (default -90 dB, 0.2 s) |
+| Roles | `--roles` | Each piece's role, as guessed or as set (see Roles) |
 | | `--save-pieces folder/` | Also save the split pieces |
 | | `--out folder/` | Where songs go (default `songs/`) |
 
@@ -59,7 +74,8 @@ sample rate.
 
 ## How it works
 
-1. Cuts the recording into pieces at each run of silence.
+1. Cuts the recording into pieces at each run of silence, and hears each
+   one's role.
 2. Plans the song (below), to an even number of bars in the Length range
    (an odd one only if that's all the range allows).
 3. Places the pieces on the 125 BPM grid and adds them up.
@@ -84,7 +100,7 @@ keeps them exactly, a 16-bit WAV clips them, and the page shows by how much
   a break drops the drums and bass. A hook may lift to a related groove
   (four-on-floor ↔ broken, hip-hop ↔ trap), never a foreign one.
 - **Energy builds.** The first verse's bass comes in halfway; the last
-  hook adds the extra riff layer.
+  hook adds another riff on top.
 - **Variation at phrase ends.** A riff only lays out on the last bar of a
   4-bar phrase, and an 8-bar section may get a small turnaround fill at
   its middle.
@@ -98,6 +114,7 @@ keeps them exactly, a 16-bit WAV clips them, and the page shows by how much
 
     python3 -m pip install --user numpy scipy
     python3 passion_beats.py all_beats.wav --count 20 --out songs/
+    python3 passion_beats.py all_beats.wav --roles 3=riff,12=off
 
 ## Development
 

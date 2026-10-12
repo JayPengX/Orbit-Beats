@@ -5,15 +5,13 @@
 // Audio is { sr, L, R } with L and R Float32Arrays (R may be L for mono).
 
 export const BPM = 125;
-export const PIECES = 24;
 export const STYLES = ['four', 'hiphop', 'trap', 'half', 'broken'];
 export const SECTIONS = ['intro', 'verse', 'hook', 'break', 'bridge', 'outro'];
 
-// Piece roles, for the original 24-piece "Passion" recording (as in the .py).
-// Loop length in beats for each repeating piece; the others are one-shots.
-export const PERIOD = { 1: 2, 2: 2, 3: 4, 4: 2, 5: 2, 6: 4, 7: 8, 8: 4, 9: 4, 13: 4, 14: 4, 15: 4, 16: 4, 17: 4, 18: 4, 19: 4, 20: 4, 21: 4 };
-export const RIFFSETS = [[13, 14, 15, 14], [16, 17, 18, 17], [13, 15], [16, 18], [21, 21, 15, 15], [14, 13, 14, 15], [17, 16, 17, 18], [21, 13, 21, 14]];
-export const HATS = [7, 8, 9, 5];
+// What a piece does in a song. Loops repeat every `loopBeats` beats; the
+// others are one-shots. 'off' leaves a piece out.
+export const ROLES = ['riff', 'phrase', 'bass', 'hat', 'fill', 'kick', 'sub', 'snare', 'tick', 'roll', 'off'];
+export const LOOP_ROLES = ['riff', 'phrase', 'bass', 'hat', 'fill'];
 
 // Arrangement rules (see README, "How it works"):
 // a hook may lift to a related groove, never a foreign one;
@@ -127,15 +125,101 @@ export function splitPieces({ sr, L, R }, { silenceDb = -90, minGap = 0.2 } = {}
   return segs.filter(([a, b]) => b - a >= minLen).map(([a, b]) => ({ L: L.slice(a, b), R: R === L ? L.slice(a, b) : R.slice(a, b) }));
 }
 
+// ---- Roles ----
+
+// The loop length of a piece `beats` long: the longest usual length that
+// fits, so a tail ringing on past the loop doesn't count.
+export function loopBeats(beats) {
+  if (beats >= 15.75) return 4 * Math.floor((beats + 0.25) / 4);
+  return [1, 2, 3, 4, 6, 8, 12].filter(x => x <= beats + 0.25).at(-1) ?? 1;
+}
+
+// What can be heard of a piece: how long it is, how many hits start in it,
+// whether it keeps sounding or dies away, how bright it is, how much is
+// low end, and how pitched (a note) rather than noisy (a drum) it is.
+export function features({ L, R }, sr) {
+  const n = L.length, m = new Float32Array(n);
+  for (let j = 0; j < n; j++) m[j] = (L[j] + R[j]) / 2;
+  const hop = Math.max(1, Math.round(sr / 100)), F = Math.max(1, Math.ceil(n / hop)), env = new Float32Array(F);   // 10 ms loudness
+  for (let f = 0; f < F; f++) {
+    const a = f * hop, b = Math.min(n, a + hop);
+    let s = 0; for (let j = a; j < b; j++) s += m[j] * m[j];
+    env[f] = Math.sqrt(s / Math.max(1, b - a));
+  }
+  const peak = Math.max(...env);
+  let last = F - 1; while (last > 0 && env[last] < peak * 0.0316) last--;   // rings until 30 dB down
+  let onsets = 0;
+  for (let f = 0, prev = -9; f < F; f++)   // a jump within 20 dB of the peak, 50 ms apart
+    if (env[f] > peak * 0.1 && env[f] > 1.6 * Math.max(env[f - 1] ?? 0, env[f - 2] ?? 0, env[f - 3] ?? 0) && f - prev >= 5) { onsets++; prev = f; }
+  let e1 = 0, e2 = 0;
+  for (let f = 0; f <= last; f++) f < (last + 1) / 2 ? (e1 += env[f] ** 2) : (e2 += env[f] ** 2);
+  // Brightness: the rms frequency, from how much the wave changes sample to
+  // sample. Low end: what gets through a 150 Hz low-pass (two poles).
+  let E = 0, D = 0, lowE = 0, y1 = 0, y2 = 0;
+  const a = 1 - Math.exp(-2 * Math.PI * 150 / sr);
+  for (let j = 0; j < n; j++) {
+    const x = m[j]; E += x * x; if (j) D += (x - m[j - 1]) ** 2;
+    y1 += a * (x - y1); y2 += a * (y1 - y2); lowE += y2 * y2;
+  }
+  return {
+    beats: n / (60 / BPM * sr), ring: (last + 1) * hop / sr, onsets,
+    sustain: Math.sqrt(e2 / Math.max(1e-20, e1)),   // the second half against the first
+    bright: E > 0 ? sr / Math.PI * Math.asin(Math.sqrt(Math.min(1, D / E / 4))) : 0,
+    low: E > 0 ? lowE / E : 0,
+    pitched: pitchedness(m, sr, env, hop, peak),
+  };
+}
+
+// How much the loud parts repeat themselves at a pitch between 50 and 1000
+// Hz (0 is noise, 1 a steady note): the median over up to 8 moments of the
+// autocorrelation's highest peak past its first dip, at about 16 kHz.
+function pitchedness(m, sr, env, hop, peak) {
+  const d = Math.max(1, Math.floor(sr / 16000)), s2 = sr / d, nd = Math.floor(m.length / d), x = new Float32Array(nd);
+  for (let i = 0; i < nd; i++) { let s = 0; for (let k = 0; k < d; k++) s += m[i * d + k]; x[i] = s / d; }
+  const W = Math.round(0.064 * s2), lo = Math.round(s2 / 1000), hi = Math.round(s2 / 50);
+  const loud = []; env.forEach((e, f) => { if (e > peak * 0.3) loud.push(f); });
+  const k = Math.min(8, loud.length), out = [], c = new Float64Array(W + hi + 1);
+  for (let q = 0; q < k; q++) {
+    const st = Math.floor(loud[Math.floor(q * loud.length / k)] * hop / d);
+    if (st + W + hi > nd) continue;
+    for (let i = 0; i < W + hi; i++) c[i + 1] = c[i] + x[st + i] ** 2;
+    let best = 0, dipped = false;
+    for (let t = lo; t <= hi; t++) {
+      let s = 0; for (let i = 0; i < W; i++) s += x[st + i] * x[st + i + t];
+      const r = s / Math.sqrt(c[W] * (c[t + W] - c[t]) + 1e-20);
+      if (r < 0) dipped = true; else if (dipped) best = Math.max(best, r);
+    }
+    out.push(best);
+  }
+  return out.length ? out.sort((a, b) => a - b)[Math.floor(out.length / 2)] : 0;
+}
+
+// A role for a piece, from what can be heard of it (see README, "Roles").
+export function guessRole(f) {
+  const loop = f.beats >= 1.75 && (f.onsets >= 2 || f.sustain >= 0.3);
+  const tonal = f.pitched >= 0.75 || f.bright < 2000;
+  if (loop) {
+    if (!tonal) return f.bright > 7000 ? 'hat' : 'fill';
+    return f.low > 0.3 ? 'bass' : f.beats < 3 ? 'phrase' : 'riff';
+  }
+  if (f.onsets >= 3) return 'roll';
+  if (f.low > 0.3) return f.ring > 1 ? 'sub' : 'kick';
+  if (f.bright > 7000) return 'tick';
+  return tonal ? 'phrase' : 'snare';
+}
+
+export const guessRoles = (pieces, sr) => pieces.map(p => guessRole(features(p, sr)));
+
 // ---- Songs ----
 
 // A song is the pieces exactly as recorded, placed on the 125 BPM grid and
 // summed: no volume changes, panning, cutting or effects. Pieces may overlap.
-// Humanize only moves when a piece starts.
+// Humanize only moves when a piece starts. Pieces are by index; null is none.
 class Song {
   constructor(bars, r, pieces, sr, humanize) {
     this.r = r; this.py = makeRng(r.int(0, 1e9 - 1)); this.pc = pieces;
     this.sr = sr; this.B = 60 / BPM * sr; this.bars = bars;
+    this.per = pieces.map(p => loopBeats(p.L.length / this.B));
     const longest = Math.max(...pieces.map(p => p.L.length));   // the last pieces play out in full
     const len = Math.floor((bars * 4 + 2) * this.B) + longest;
     this.L = new Float32Array(len); this.R = new Float32Array(len);
@@ -144,57 +228,60 @@ class Song {
     this.rest = new Set();                              // stop bars: loops and drums lay out
   }
   hit(i, beat, tight = false) {   // piece i, as recorded, from `beat`
-    const { r, sr, B } = this, src = this.pc[i - 1];
+    if (i == null) return;
+    const { r, sr, B } = this, src = this.pc[i];
     if (Math.abs((beat % 0.5) - 0.25) < 1e-6) beat += this.swing;
     const a = Math.max(0, Math.round(beat * B + r.normal(0, this.loose * (tight ? 0.4 : 1)) * sr));
     const end = Math.min(this.L.length, a + src.L.length);
     for (let k = 0, j = a; j < end; k++, j++) { this.L[j] += src.L[k]; this.R[j] += src.R[k]; }
   }
-  loop(i, bar, nbars) {   // piece i every PERIOD[i] beats; the last may run on
-    const p = PERIOD[i], end = (bar + nbars) * 4;
+  span(i) { return i == null ? 1 : Math.max(1, Math.ceil(this.per[i] / 4)); }   // whole bars a loop takes
+  loop(i, bar, nbars) {   // piece i every loop length; the last may run on
+    if (i == null) return;
+    const p = this.per[i], end = (bar + nbars) * 4;
     for (let t = bar * 4; t < end - 1e-9; t += p) if (!this.rest.has(Math.floor(t / 4))) this.hit(i, t, true);
   }
-  phrases(bar, nbars) {
+  phrases(bar, nbars, pool) {   // short pieces one after another, each where it fits
     const end = (bar + nbars) * 4;
     for (let t = bar * 4; t < end - 1e-9;) {
-      let i = this.py.choice([1, 2, 1, 4, 2, 3]);
-      i = end - t >= 4 && this.r.random() < 0.2 ? 3 : (i !== 3 ? i : 1);
-      if (t + PERIOD[i] > end) i = 1;
-      this.hit(i, t); t += PERIOD[i];
+      const fit = pool.filter(i => this.per[i] <= end - t + 1e-9);
+      if (!fit.length) break;
+      const i = this.py.choice(fit);
+      this.hit(i, t); t += this.per[i];
     }
   }
-  drums(style, bar, nbars) {
+  drums(style, bar, nbars, k) {   // k: the song's drum kit
     const { r, py } = this;
     for (let br = bar; br < bar + nbars; br++) {
       if (this.rest.has(br)) continue;
       const t = br * 4;
       if (style === 'four') {
-        for (let k = 0; k < 4; k++) this.hit(10, t + k);
-        if (r.random() < 0.15) this.hit(10, t + 3.5);
+        for (let q = 0; q < 4; q++) this.hit(k.kick, t + q);
+        if (r.random() < 0.15) this.hit(k.kick, t + 3.5);
       } else if (style === 'hiphop') {
-        this.hit(22, t); this.hit(12, t + 2.5);
-        if (r.random() < 0.35) this.hit(22, t + 1.75);
-        if (r.random() < 0.2) this.hit(10, t + 3.75);
+        this.hit(k.heavy, t); this.hit(k.snare, t + 2.5);
+        if (r.random() < 0.35) this.hit(k.heavy, t + 1.75);
+        if (r.random() < 0.2) this.hit(k.kick, t + 3.75);
       } else if (style === 'trap') {
-        this.hit(24, t); this.hit(10, t + 1.5); this.hit(24, t + 2.75);
-        if (r.random() < 0.3) this.hit(24, t + 3.5);
+        this.hit(k.sub, t); this.hit(k.kick, t + 1.5); this.hit(k.sub, t + 2.75);
+        if (r.random() < 0.3) this.hit(k.sub, t + 3.5);
       } else if (style === 'half') {
-        this.hit(12, t);
-        if (r.random() < 0.5) this.hit(22, t + 2.75);
+        this.hit(k.snare, t);
+        if (r.random() < 0.5) this.hit(k.heavy, t + 2.75);
       } else if (style === 'broken') {
-        for (const q of py.choice([[0, 1.5, 2.5], [0, 0.75, 2.25, 3], [0, 2, 2.75], [0, 1.25, 2.5, 3.5]])) this.hit(py.choice([10, 22, 24]), t + q);
+        for (const q of py.choice([[0, 1.5, 2.5], [0, 0.75, 2.25, 3], [0, 2, 2.75], [0, 1.25, 2.5, 3.5]])) this.hit(py.choice([k.kick, k.heavy, k.sub]), t + q);
       }
       if (r.random() < 0.35)   // ticks between the hits
-        for (const q of py.choice([[0.5], [1.5, 3.5], [0.5, 1.5, 2.5, 3.5]])) this.hit(11, t + q);
+        for (const q of py.choice([[0.5], [1.5, 3.5], [0.5, 1.5, 2.5, 3.5]])) this.hit(k.tick, t + q);
     }
   }
-  fill(bar, kinds) {   // the end of `bar`
-    const t = bar * 4, kind = this.py.choice(kinds);
-    if (kind === 'roll') this.hit(23, t + 3);
-    else if (kind === 'roll2') { this.hit(23, t + 3); this.hit(23, t + 3.5); }
-    else if (kind === 'stutter') for (const q of [2.5, 3, 3.25, 3.5, 3.75]) this.hit(this.py.choice([10, 12]), t + q);
-    else if (kind === 'fill6') this.hit(6, t, true);
-    else if (kind === 'tick') for (const q of [3, 3.25, 3.5, 3.75]) this.hit(11, t + q);
+  fill(bar, kinds, k) {   // the end of `bar`
+    const t = bar * 4, pick = this.py.choice(kinds), kind = pick === 'fill' && k.fill == null ? 'stutter' : pick;   // no fill loop: a stutter
+    if (kind === 'roll') this.hit(k.roll, t + 3);
+    else if (kind === 'roll2') { this.hit(k.roll, t + 3); this.hit(k.roll, t + 3.5); }
+    else if (kind === 'stutter') for (const q of [2.5, 3, 3.25, 3.5, 3.75]) this.hit(this.py.choice([k.kick, k.snare]), t + q);
+    else if (kind === 'fill') this.hit(k.fill, t, true);
+    else if (kind === 'tick') for (const q of [3, 3.25, 3.5, 3.75]) this.hit(k.tick, t + q);
     // 'drop': no fill
   }
   render() {
@@ -239,21 +326,41 @@ export function planSong(R, minBars, maxBars) {
   return plan;
 }
 
-// One song from `pieces` (at least 24, from splitPieces).
-export function makeSong(pieces, sr, seed, { minBars = 25, maxBars = 29, styles = STYLES, humanize = 1 } = {}) {
-  if (pieces.length < PIECES) throw new Error(`Need ${PIECES} pieces, found ${pieces.length}`);
+// Riff sets: a pattern over a few riffs (as numbered in a shuffled order).
+const PATTERNS = [[0, 1, 2, 1], [0, 1], [0, 0, 1, 1], [0, 1, 0, 2], [0]];
+
+// One song from `pieces` (from splitPieces), each in its role in `roles`
+// (one per piece, guessed from the audio when not given). It needs a riff
+// or a phrase; any other role may be missing, and what it plays is then
+// left out (or played by the nearest role there is).
+export function makeSong(pieces, sr, seed, { roles = guessRoles(pieces, sr), minBars = 25, maxBars = 29, styles = STYLES, humanize = 1 } = {}) {
+  if (roles.length !== pieces.length) throw new Error(`Need a role for each of the ${pieces.length} pieces`);
+  const pool = Object.fromEntries(ROLES.map(x => [x, []]));
+  roles.forEach((x, i) => pool[x]?.push(i));
+  const riffs = pool.riff.length ? pool.riff : pool.phrase, phrases = pool.phrase.length ? pool.phrase : riffs;
+  if (!riffs.length) throw new Error('Needs at least one riff or phrase');
   if (!(minBars >= MIN_BARS && minBars <= maxBars)) throw new Error(`Length must be ${MIN_BARS} bars or more, shortest first`);
   if (!styles.length) throw new Error('Pick at least one drum style');
   const r = makeRng(seed), R = makeRng(seed ^ 0x5bd1e995);
+  const pick = (xs, not = []) => { const ok = xs.filter(x => !not.includes(x)); return ok.length ? R.choice(ok) : xs.length ? R.choice(xs) : null; };
 
   // Choices made once, so what repeats sounds the same each time.
   const style = R.choice(styles), kin = FAMILY[style].filter(x => styles.includes(x));
   const hookStyle = R.random() < 0.4 ? R.choice(kin) : style;          // every hook the same groove
-  const rs = r.sample(RIFFSETS.length, 3).map(i => RIFFSETS[i]);       // intro/outro, verse, hook
-  const bridgeSet = R.choice(RIFFSETS.filter(x => !rs.includes(x)));    // a bridge contrasts
-  const bassMode = R.choice(['alt', '19', '20', 'sparse']);
-  const verseHat = R.choice(HATS), hookHat = R.choice([7, 8, 9].filter(h => h !== verseHat));
-  const hookLayer = R.random() < 0.5;                                   // riff 21 over every hook
+  // Intro/outro, verse, hook and bridge riff sets, each starting further on
+  // in the riffs, so they differ when there are riffs enough.
+  const order = r.sample(riffs.length, riffs.length).map(i => riffs[i]), step = Math.max(1, Math.floor(riffs.length / 4));
+  const [introSet, verseSet, hookSet, bridgeSet] = [0, 1, 2, 3].map(j => R.choice(PATTERNS).map(x => order[(j * step + x) % order.length]));
+  const layer = pick(riffs.filter(x => !hookSet.includes(x)));         // another riff over hooks
+  const hookLayer = layer != null && R.random() < 0.5;
+  const bassMode = R.choice(pool.bass.length > 1 ? ['alt', 'one', 'one', 'sparse'] : pool.bass.length ? ['one', 'sparse'] : ['none']);
+  const bassA = pick(pool.bass), bassB = pick(pool.bass, [bassA]);
+  const verseHat = pick(pool.hat), hookHat = pick(pool.hat, [verseHat]), breakHat = pick(pool.hat);
+  // The kit: a kick and a heavier one (two kicks if there are), an 808, and
+  // the rest; a missing kick or 808 is played by the other.
+  const kicks = r.sample(pool.kick.length, pool.kick.length).map(i => pool.kick[i]);
+  const kick = kicks[0] ?? pick(pool.sub), heavy = kicks[1] ?? kick, snare = pick(pool.snare);
+  const kit = { kick, heavy, sub: pick(pool.sub) ?? heavy, snare, tick: pick(pool.tick), roll: pick(pool.roll) ?? snare, fill: pick(pool.fill) };
 
   const plan = planSong(R, minBars, maxBars), bars = plan.at(-1)[1] + plan.at(-1)[2];
   const hooks = plan.filter(([t]) => t === 'hook').length;
@@ -263,58 +370,57 @@ export function makeSong(pieces, sr, seed, { minBars = 25, maxBars = 29, styles 
   // a stop bar (everything lays out but the fill). Fills fit where they lead:
   // a build into a hook, something light into a verse, next to nothing into
   // a quiet section.
-  const INTO = { hook: ['roll', 'roll2', 'stutter', 'fill6'], verse: ['roll', 'roll2', 'tick', 'drop'], break: ['drop', 'tick'], bridge: ['drop', 'tick'], outro: ['roll', 'roll2', 'stutter'] };
+  const INTO = { hook: ['roll', 'roll2', 'stutter', 'fill'], verse: ['roll', 'roll2', 'tick', 'drop'], break: ['drop', 'tick'], bridge: ['drop', 'tick'], outro: ['roll', 'roll2', 'stutter'] };
   const into = plan.map(([, b, L], idx) => {
     const nb = b + L - 1, next = plan[idx + 1]?.[0];
     if (!next) return [nb, ['roll', 'roll2', 'stutter']];   // the ending
-    if (next === 'hook' && L >= 4 && R.random() < 0.35) { s.rest.add(nb); return [nb, ['fill6', 'stutter']]; }
+    if (next === 'hook' && L >= 4 && R.random() < 0.35) { s.rest.add(nb); return [nb, ['fill', 'stutter']]; }
     return [nb, INTO[next]];
   });
 
-  const bass = (b, n, from = 0) => {
-    for (let k = from; k < n; k++) {
-      if (bassMode === 'sparse' && r.random() < 0.4) continue;
-      const i = bassMode === 'alt' ? [19, 20][k % 2] : bassMode === 'sparse' ? R.choice([19, 20]) : +bassMode;
-      s.loop(i, b + k, 1);
+  // Loops one after another from bar b, each for the whole bars it takes;
+  // `skip` may leave one out.
+  const walk = (b, n, next, from = 0, skip = () => false) => {
+    for (let k = from, j = 0; k < n; j++) {
+      const i = next(j), span = Math.min(n - k, s.span(i));
+      if (!skip(k, span)) s.loop(i, b + k, span);
+      k += span;
     }
   };
-  const riff = (b, n, set) => {
-    for (let k = 0; k < n; k++) {
-      if (k % 4 === 3 && k < n - 1 && r.random() < 0.2) continue;   // lay out at a phrase's end, not mid-phrase
-      s.loop(set[k % set.length], b + k, 1);
-    }
-  };
+  const bass = (b, n, from = 0) => walk(b, n, j => bassMode === 'alt' ? [bassA, bassB][j % 2] : bassMode === 'sparse' ? (r.random() < 0.4 ? null : R.choice(pool.bass)) : bassA, from);
+  const riff = (b, n, set) =>   // lay out at a phrase's end, not mid-phrase
+    walk(b, n, j => set[j % set.length], 0, (k, span) => (k + span) % 4 === 0 && k + span < n && r.random() < 0.2);
   let verseNo = 0, hookNo = 0;
   plan.forEach(([t, b, L], idx) => {
     if (t === 'intro') {   // previews: hats then a riff, a riff, or phrases
-      const c = R.choice(['riff', 'phr', 'hats']);
-      if (c === 'riff') riff(b, L, rs[0]);
-      else if (c === 'phr') s.phrases(b, L);
-      else { s.loop(verseHat, b, L); s.loop(rs[0][0], b + Math.floor(L / 2), L - Math.floor(L / 2)); }
+      const c = R.choice(verseHat == null ? ['riff', 'phr'] : ['riff', 'phr', 'hats']);
+      if (c === 'riff') riff(b, L, introSet);
+      else if (c === 'phr') s.phrases(b, L, phrases);
+      else { s.loop(verseHat, b, L); s.loop(introSet[0], b + Math.floor(L / 2), L - Math.floor(L / 2)); }
     } else if (t === 'verse') {   // the first verse builds: bass comes in halfway
       verseNo++;
-      riff(b, L, rs[1]); bass(b, L, verseNo === 1 ? Math.floor(L / 2) : 0);
-      s.drums(style, b, L); s.loop(verseHat, b, L);
-      if (R.random() < 0.4) s.phrases(b + L - 4, 4);
+      riff(b, L, verseSet); bass(b, L, verseNo === 1 ? Math.floor(L / 2) : 0);
+      s.drums(style, b, L, kit); s.loop(verseHat, b, L);
+      if (R.random() < 0.4) s.phrases(b + L - 4, 4, phrases);
     } else if (t === 'hook') {   // the last hook is the fullest
       hookNo++;
-      riff(b, L, rs[2]); bass(b, L); s.drums(hookStyle, b, L); s.loop(hookHat, b, L);
-      if (hookLayer || hookNo === hooks) riff(b, L, [21]);
+      riff(b, L, hookSet); bass(b, L); s.drums(hookStyle, b, L, kit); s.loop(hookHat, b, L);
+      if (layer != null && (hookLayer || hookNo === hooks)) riff(b, L, [layer]);
     } else if (t === 'break') {   // strip back: no drums, no bass
-      s.phrases(b, L);
-      if (R.random() < 0.6) s.loop(5, b, L);
+      s.phrases(b, L, phrases);
+      if (R.random() < 0.6) s.loop(breakHat, b, L);
     } else if (t === 'bridge') {   // contrast: another riff set, half-time
-      riff(b, L, bridgeSet); s.drums('half', b, L);
+      riff(b, L, bridgeSet); s.drums('half', b, L, kit);
       if (R.random() < 0.5) bass(b, L);
     } else if (t === 'outro') {   // the intro's riff again, winding down
-      riff(b, L, rs[0]);
-      if (R.random() < 0.6) s.drums(style, b, Math.floor(L / 2));
+      riff(b, L, introSet);
+      if (R.random() < 0.6) s.drums(style, b, Math.floor(L / 2), kit);
       s.loop(verseHat, b, L);
     }
-    if (L === 8 && (t === 'verse' || t === 'hook') && R.random() < 0.3) s.fill(b + 3, ['tick', 'roll']);   // mid-section turnaround
-    s.fill(...into[idx]);
+    if (L === 8 && (t === 'verse' || t === 'hook') && R.random() < 0.3) s.fill(b + 3, ['tick', 'roll'], kit);   // mid-section turnaround
+    s.fill(...into[idx], kit);
   });
-  s.hit(R.choice([22, 24]), bars * 4);   // one last hit on the next downbeat
+  s.hit(R.choice([kit.heavy, kit.sub]), bars * 4);   // one last hit on the next downbeat
   const audio = s.render();
   return { audio, info: { style, alt: hookStyle, bass: bassMode, bars, beats: bars * 4, seconds: audio.L.length / sr, peak: audio.peak, plan: plan.map(([t, , L]) => [t, L]) } };
 }
@@ -392,7 +498,7 @@ export function zipParts(files, date = new Date()) {
   return [...parts, ...central, end];
 }
 
-// ---- A demo recording: 24 synthesized pieces in the roles above ----
+// ---- A demo recording: 24 synthesized pieces, laid out as in the README ----
 
 // Laid out like the real one (silence, piece, silence, …), with a quiet
 // noise floor inside each piece the way a phone mic has.
@@ -406,7 +512,7 @@ export function demoRecording(sr = 48000) {
     for (let k = 0; k < n; k++) x[a + k] += fn(k / sr);
   };
   const kick = (x, b, g = 1, d = 0.18, lo = 48) => { let ph = 0; at(x, b, t => { ph += 2 * Math.PI * (lo + 110 * env(t, 0.03)) / sr; return g * Math.sin(ph) * env(t, d); }, d * 6); };
-  const snare = (x, b, g = 1) => at(x, b, t => g * (0.55 * noise() * env(t, 0.06) + 0.4 * Math.sin(2 * Math.PI * 190 * t) * env(t, 0.04)), 0.35);
+  const snare = (x, b, g = 1) => { let lp = 0; at(x, b, t => { lp += 0.3 * (noise() - lp); return g * (1.1 * lp * env(t, 0.06) + 0.4 * Math.sin(2 * Math.PI * 190 * t) * env(t, 0.04)); }, 0.35); };   // noise under ~2.5 kHz
   const hat = (x, b, g = 0.35, d = 0.025) => { let p = 0; at(x, b, t => { const w = noise(), y = w - p; p = w; return g * y * env(t, d); }, d * 8); };
   const pluck = (x, b, m, beats, g = 0.32) => at(x, b, t => g * Math.min(1, t / 0.003) * env(t, 0.22) *
     (Math.sin(2 * Math.PI * hz(m) * t) + 0.5 * Math.sin(4 * Math.PI * hz(m) * t) + 0.25 * Math.sin(6 * Math.PI * hz(m) * t)), beats * 60 / BPM);
