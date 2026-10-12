@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PIECES, STYLES, makeRng, parseWav, splitPieces, makeSong, batch, encodeWav, zipParts, crc32, demoRecording } from '../public/engine.mjs';
+import { PIECES, STYLES, FORMS, makeRng, parseWav, splitPieces, planSong, makeSong, batch, songName, encodeWav, zipParts, crc32, demoRecording } from '../public/engine.mjs';
 
 const rec = demoRecording();
 const pieces = splitPieces(rec);
@@ -25,25 +25,64 @@ test('a short pause inside a piece, or a click between pieces, splits nothing', 
   assert.equal(splitPieces({ sr, L, R: L }, { minGap: 0.05 }).length, 2);
 });
 
-test('songs keep to the length asked, never clip, and are the same for the same seed', () => {
+test('songs keep to the length asked and are the same for the same seed', () => {
   for (let seed = 1; seed <= 8; seed++) {
     const { audio, info } = makeSong(pieces, rec.sr, seed, { minBars: 25, maxBars: 29 });
-    assert.ok(info.bars >= 25 && info.bars <= 29, `bars ${info.bars}`);
+    assert.ok([26, 28].includes(info.bars), `bars ${info.bars}`);   // even, in the range
     assert.equal(info.plan.reduce((s, [, n]) => s + n, 0), info.bars);
-    assert.equal(info.plan[0][0], 'intro'); assert.equal(info.plan.at(-1)[0], 'outro');
-    let peak = 0;
-    for (const v of audio.L) { assert.ok(Number.isFinite(v)); peak = Math.max(peak, Math.abs(v)); }
-    assert.ok(peak > 0.8 && peak <= 0.89 + 1e-6, `peak ${peak}`);
-    assert.ok(Math.abs(info.seconds - info.beats * 0.48) < 1, `${info.seconds}s for ${info.beats} beats`);
+    for (const v of audio.L) assert.ok(Number.isFinite(v));
+    // the bars, then the last hit ringing out, then 0.5 s
+    assert.ok(info.seconds > info.beats * 0.48 && info.seconds < info.beats * 0.48 + 3, `${info.seconds}s for ${info.beats} beats`);
   }
   const a = makeSong(pieces, rec.sr, 42).audio.L, b = makeSong(pieces, rec.sr, 42).audio.L;
   assert.deepEqual(a, b);
+});
+
+test('a song is the pieces exactly as recorded: no volume change, panning or effects, overlaps left as they add up', () => {
+  // Every piece a single sample of 0.25 (left) and -0.5 (right): on a strict
+  // grid, every sample of the song must be a whole number of those.
+  const sr = 1000, unit = Array.from({ length: PIECES }, () => {
+    const L = new Float32Array(40), R = new Float32Array(40); L[0] = 0.25; R[0] = -0.5; return { L, R };
+  });
+  const { audio, info } = makeSong(unit, sr, 7, { humanize: 0 });
+  let most = 0;
+  for (let j = 0; j < audio.L.length; j++) {
+    const k = audio.L[j] / 0.25;
+    assert.equal(k, Math.round(k)); assert.ok(audio.R[j] === -2 * audio.L[j]);
+    most = Math.max(most, k);
+  }
+  assert.ok(most >= 4, `overlaps add up: ${most} pieces at once`);
+  assert.equal(info.peak, most * 0.5);   // the right side, unscaled
+  // and the real demo goes past full scale, untouched
+  assert.ok(makeSong(pieces, rec.sr, 1).info.peak > 1);
+});
+
+test('song forms follow the rules: phrases in fours, a hook after a verse, ending on a hook', () => {
+  const R = makeRng(5);
+  for (let k = 0; k < 300; k++) {
+    const lo = 8 + Math.floor(R.random() * 50), hi = lo + Math.floor(R.random() * 6);
+    const plan = planSong(R, lo, Math.min(hi, 64)), bars = plan.reduce((s, [, , n]) => s + n, 0);
+    const body = plan.slice(1, -1), types = body.map(([t]) => t);
+    assert.ok(bars >= lo && bars <= Math.min(hi, 64), `${bars} in ${lo}-${hi}`);
+    assert.equal(plan[0][0], 'intro'); assert.equal(plan.at(-1)[0], 'outro');
+    assert.ok(FORMS.some(f => f.join() === types.join()), types.join());
+    assert.equal(types.at(-1), 'hook');
+    for (let i = 1; i < types.length; i++) assert.notEqual(types[i], types[i - 1]);
+    if (types.length > 1) assert.equal(types[types.indexOf('hook') - 1], 'verse');
+    for (const [t, , n] of body) assert.ok((t === 'verse' || t === 'hook' ? [4, 8] : [2, 4]).includes(n), `${t} ${n}`);
+    plan.reduce((at, [, b, n]) => { assert.equal(b, at); return at + n; }, 0);
+  }
 });
 
 test('settings: drum styles, humanize off, a fixed length', () => {
   for (let seed = 1; seed <= 5; seed++) {
     const { info } = makeSong(pieces, rec.sr, seed, { styles: ['trap'], humanize: 0, minBars: 12, maxBars: 12 });
     assert.equal(info.style, 'trap'); assert.equal(info.alt, 'trap'); assert.equal(info.bars, 12);
+  }
+  for (let seed = 1; seed <= 20; seed++) {   // hooks only lift to a related groove
+    const { info } = makeSong(pieces, rec.sr, seed, { minBars: 8, maxBars: 8 });
+    const ok = { four: ['four', 'broken'], broken: ['broken', 'four'], hiphop: ['hiphop', 'trap'], trap: ['trap', 'hiphop'], half: ['half', 'hiphop'] };
+    assert.ok(ok[info.style].includes(info.alt), `${info.style} -> ${info.alt}`);
   }
 });
 
@@ -54,12 +93,13 @@ test('bad settings and too few pieces are refused', () => {
   assert.throws(() => makeSong(pieces, rec.sr, 1, { styles: [] }), /drum style/);
 });
 
-test("a batch's names never repeat and its seeds follow the batch seed", () => {
-  const a = batch(30, 7), b = batch(30, 7);
-  assert.deepEqual(a, b);
-  assert.equal(new Set(a.map(s => s.name)).size, 30);
-  for (const { name } of a) assert.match(name, /^Passion_([01]\d|2[0-3])-[0-5]\d$/);
-  assert.notDeepEqual(batch(30, 8), a);
+test('songs are named for when they are made, a minute apart, and their seeds follow the batch seed', () => {
+  const start = new Date(2026, 11, 31, 23, 58);   // 31 Dec 2026, 23:58 local
+  const a = batch(4, 7, start);
+  assert.deepEqual(a.map(s => s.name), ['Passion 31-12-2026 23-58', 'Passion 31-12-2026 23-59', 'Passion 01-01-2027 00-00', 'Passion 01-01-2027 00-01']);
+  assert.equal(songName(new Date(2026, 0, 5, 7, 3)), 'Passion 05-01-2026 07-03');
+  assert.deepEqual(batch(4, 7, start), a);
+  assert.notDeepEqual(batch(4, 8, start).map(s => s.seed), a.map(s => s.seed));
 });
 
 test('WAVs: 16-bit and 32-bit float out read back in; 8-bit mono and 24-bit read', () => {

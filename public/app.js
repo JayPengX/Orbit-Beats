@@ -13,7 +13,7 @@ let busy = false;
 
 // ---- Settings, remembered on this device ----
 
-const settings = { count: 20, minBars: 25, maxBars: 29, styles: [...STYLES], humanize: 100, seed: '', bits: 16, silenceDb: -90, minGap: 0.2 };
+const settings = { count: 20, minBars: 25, maxBars: 29, styles: [...STYLES], humanize: 100, seed: '', bits: 32, silenceDb: -90, minGap: 0.2 };
 try { Object.assign(settings, JSON.parse(localStorage.getItem('passion-beats') || '{}')); } catch {}
 const save = () => { try { localStorage.setItem('passion-beats', JSON.stringify(settings)); } catch {} };
 
@@ -44,9 +44,11 @@ function problem() {
 
 function update() {
   const { count, minBars, maxBars } = settings, bad = problem();
-  const secs = bars => Math.round(bars * 4 * 60 / BPM);
+  // Songs are an even number of bars when the range has one, plus ~1.5 s for the last hit to ring.
+  const secs = bars => Math.round(bars * 4 * 60 / BPM + 1.5);
+  const lo = minBars % 2 && minBars < maxBars ? minBars + 1 : minBars, hi = maxBars % 2 && maxBars > minBars ? maxBars - 1 : maxBars;
   $('length-hint').textContent = minBars <= maxBars && minBars > 0
-    ? (minBars === maxBars ? `${secs(minBars)} sec each` : `${secs(minBars)}–${secs(maxBars)} sec each`) : 'Shortest first';
+    ? (lo >= hi ? `About ${secs(lo)} sec each` : `About ${secs(lo)}–${secs(hi)} sec each`) : 'Shortest first';
   $('count-down').disabled = busy || count <= 1;
   $('count-up').disabled = busy || count >= MAX_SONGS;
   $('error').textContent = bad;
@@ -189,13 +191,15 @@ $('legend').innerHTML = SECTIONS.map(s => `<span><i style="background:var(--${s}
 
 const DOWN = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12M6 11l6 6 6-6M5 20h14"/></svg>';
 
-function songItem({ name, url, info }) {
+function songItem({ name, url, info, bits }) {
   const li = document.createElement('li');
   li.className = 'song';
   const s = Math.round(info.seconds), time = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  // Where overlaps add up past full scale: kept in 32-bit float, clipped in 16-bit.
+  const over = info.peak > 1 ? ` · ${bits === 32 ? 'peaks' : 'clips'} +${(20 * Math.log10(info.peak)).toFixed(1)} dB` : '';
   li.innerHTML = `
     <div class="line"><span class="name">${name}</span><a class="save" href="${url}" download="${name}.wav" aria-label="Download ${name}.wav">${DOWN}</a></div>
-    <div class="info">${time} · ${info.beats} beats · ${STYLE_NAMES[info.style]}</div>
+    <div class="info">${time} · ${info.beats} beats · ${STYLE_NAMES[info.style]}${over}</div>
     <div class="plan" role="img" aria-label="${info.plan.map(([t, n]) => `${t} ${n} bars`).join(', ')}">
       ${info.plan.map(([t, n]) => `<i style="flex:${n};background:var(--${t})" title="${SECTION_NAMES[t]} · ${n} bars"></i>`).join('')}
     </div>
@@ -223,7 +227,7 @@ $('go').onclick = async () => {
     const { audio, info } = makeSong(pieces.slice(0, PIECES), rec.sr, s, { minBars, maxBars, styles, humanize: humanize / 100 });
     const data = encodeWav(audio, bits), url = URL.createObjectURL(new Blob([data], { type: 'audio/wav' }));
     songs.push({ name, data, url });
-    $('songs').append(songItem({ name, url, info }));
+    $('songs').append(songItem({ name, url, info, bits }));
   }
   $('busy').textContent = '';
   $('zip').disabled = false;
