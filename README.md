@@ -9,6 +9,8 @@ songs, play them and download them one by one or all in a zip. It all runs in th
 
 `passion_beats.py` is the same thing on the command line.
 
+**Without a connection**: everything runs on the device, and `sw.js` keeps the page's files, so it opens and works offline.
+
 ## The recording
 
 - Any number of pieces, with silence (0.2 s or more) between them.

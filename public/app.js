@@ -277,3 +277,6 @@ $('zip').onclick = () => {
 };
 
 showSettings();
+
+// Opens without a connection (sw.js keeps the page's files): nothing here needs the network.
+if ('serviceWorker' in navigator && window.isSecureContext) navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).catch(() => {});
