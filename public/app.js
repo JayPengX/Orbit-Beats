@@ -214,6 +214,7 @@ $('pieces').addEventListener('click', e => {
   const src = ctx.createBufferSource(); src.buffer = ab; src.connect(ctx.destination);
   src.onended = () => { if (playing && playing.src === src) stopPiece(); };
   ctx.resume(); src.start();
+  btn.style.setProperty('--beat', `${60 / bpm}s`);
   btn.classList.add('on'); playing = { src, btn };
 });
 document.addEventListener('play', () => stopPiece(), true);
@@ -234,7 +235,7 @@ function songItem({ name, url, info, bits }) {
     <div class="line"><span class="name">${name}</span><a class="save" href="${url}" download="${name}.wav" aria-label="Download ${name}.wav">${DOWN}</a></div>
     <div class="info">${time} · ${info.beats} beats · ${STYLE_NAMES[info.style]}${over}</div>
     <div class="plan" role="img" aria-label="${info.plan.map(([t, n]) => `${t} ${n} bars`).join(', ')}">
-      ${info.plan.map(([t, n]) => `<i style="flex:${n};background:var(--${t})" title="${SECTION_NAMES[t]} · ${n} bars"></i>`).join('')}
+      ${info.plan.map(([t, n], k) => `<i style="flex:${n};background:var(--${t});--k:${k}" title="${SECTION_NAMES[t]} · ${n} bars"></i>`).join('')}
     </div>
     <audio controls preload="none" src="${url}"></audio>`;
   return li;
