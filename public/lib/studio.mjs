@@ -686,12 +686,14 @@ export function mountStudio(panel, api) {
     schedule();
     raf = requestAnimationFrame(paintNow);
     paintPlay();
+    api.live?.(true, { title: W('樂器', 'Instruments'), stop });
   }
   function stop() {
     if (!playing) return;
     playing = false;
     clearInterval(timer);
     cancelAnimationFrame(raf);
+    api.live?.(false);
     for (const b of panel.querySelectorAll('.now')) b.classList.remove('now');
     shownStep = -1;
     paintPlay();
@@ -702,7 +704,14 @@ export function mountStudio(panel, api) {
     const per = 60 / api.tempo() / 4;
     const cl = heard();
     const n = STEPS * cl.bars;
-    while (nextTime < c.currentTime + 0.12) {
+    // (Back from a stretch the phone held the clock up, locked or in another
+    // app: the steps it missed are let go, not played all at once.)
+    if (nextTime < c.currentTime - 0.05) {
+      const k = Math.ceil((c.currentTime - nextTime) / per);
+      nextTime += k * per;
+      nextStep += k;
+    }
+    while (nextTime < c.currentTime + api.ahead(0.12)) {
       const s = nextStep % n;
       const at = nextTime + swingOf(cl, s) * per;
       for (const x of stepHits(cl, s)) fire(x.inst, x.midi, x.len, at, x.gain);

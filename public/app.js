@@ -685,6 +685,48 @@ const audioCtx = () => {
   return ctx;
 };
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && wake());
+// How far ahead 樂器 and 即興 lay their notes: a moment on the screen (a tap
+// heard at once), two seconds off it (locked or in another app, where the
+// phone runs the page's clock only now and then).
+const ahead = secs => (document.visibilityState === 'hidden' ? 2 : secs);
+// 樂器 and 即興 kept going off the screen: iOS lets a page's sound play on
+// locked only while it plays something itself, so a near-silent loop plays
+// beside them (and the lock screen gets their name and a ■ that stops them).
+const hum = new Audio();
+hum.loop = true;
+hum.setAttribute('playsinline', '');
+hum.disableRemotePlayback = true;
+let humUrl = '';
+function humWav() {
+  const sr = 8000;
+  const n = sr; // a second, looped
+  const b = new DataView(new ArrayBuffer(44 + n * 2));
+  const str = (o, s) => [...s].forEach((ch, i) => b.setUint8(o + i, ch.charCodeAt(0)));
+  str(0, 'RIFF'), b.setUint32(4, 36 + n * 2, true), str(8, 'WAVEfmt '), b.setUint32(16, 16, true), b.setUint16(20, 1, true), b.setUint16(22, 1, true);
+  b.setUint32(24, sr, true), b.setUint32(28, sr * 2, true), b.setUint16(32, 2, true), b.setUint16(34, 16, true), str(36, 'data'), b.setUint32(40, n * 2, true);
+  // (Not pure zeros, which a phone may take for nothing playing: the quietest whisper, far under hearing.)
+  for (let i = 0; i < n; i++) b.setInt16(44 + i * 2, i % 2 ? 1 : -1, true);
+  return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
+}
+let liveStop = null;
+function live(on, o = {}) {
+  if (!on) {
+    if (liveStop)
+      try {
+        if (navigator.mediaSession) navigator.mediaSession.playbackState = 'paused';
+      } catch {}
+    liveStop = null;
+    if (!hum.paused) hum.pause();
+    return;
+  }
+  liveStop = o.stop || null;
+  if (!humUrl) hum.src = humUrl = humWav();
+  hum.play().catch(() => {});
+  claimSession({ title: o.title || 'Orbit Beats', artist: 'Orbit Beats', play: () => {}, pause: () => liveStop?.(), next: null });
+  try {
+    if (navigator.mediaSession) navigator.mediaSession.playbackState = 'playing';
+  } catch {}
+}
 document.addEventListener('pointerdown', () => ctx && ctx.state !== 'running' && ctx.resume().catch(() => {}), true);
 // Everything that plays, stopped (before something else plays).
 function quiet({ keep: but = '' } = {}) {
@@ -1686,12 +1728,16 @@ async function boot() {
     key: () => kitKey(),
     add: clip => addClip(clip),
     audio: audioCtx,
+    ahead,
+    live,
     quiet: () => quiet({ keep: 'studio' }),
     goMake: () => showTab('make')
   });
   jam = mountJam($('panel-jam'), {
     kit: () => ({ pieces, roles, bpm, sr, heard, print }),
     audio: audioCtx,
+    ahead,
+    live,
     quiet: () => quiet({ keep: 'jam' }),
     styles: () => cfg().styles,
     // (The built-in set made in a worker of its own: not queued behind 聽's songs.)
