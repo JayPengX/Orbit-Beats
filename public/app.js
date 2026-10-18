@@ -215,7 +215,7 @@ function problem() {
   if (minBars > maxBars) return W('最短比最長還長', 'Shortest length is over the longest');
   if (!styles.length) return W('至少選一種鼓的風格', 'Pick at least one drum style');
   if (seed && !(/^\d+$/.test(seed) && +seed <= 4294967295)) return W('種子要是整數', 'Seed must be a whole number');
-  if (pieces.length && !roles.some(x => x === 'riff' || x === 'phrase')) return W('需要一段 Riff 或樂句：設一段，或到「樂器」做一段', 'Needs a riff or a phrase: set one, or make one in Studio');
+  if (pieces.length && !roles.some(x => x === 'riff' || x === 'phrase')) return simple() ? W('聽不出旋律：到「樂器」做一段旋律', 'No tune heard: make a melody in Studio') : W('需要一段 Riff 或樂句：設一段，或到「樂器」做一段', 'Needs a riff or a phrase: set one, or make one in Studio');
   if (pieces.length && !(bpm >= 40 && bpm <= 250)) return W('速度要 40 到 250 BPM', 'Tempo must be 40 to 250 BPM');
   return '';
 }
