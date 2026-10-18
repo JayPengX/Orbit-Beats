@@ -254,32 +254,77 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .lib-head h2 { margin: 0; font-size: 28px; font-weight: 700; }
 .lib-head small { color: var(--text-2); font-size: 13px; white-space: nowrap; }
 
-/* 樂器 */
-.studio-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
-.studio-top .q-seg { flex: 1; }
-.sq { display: grid; grid-template-columns: 26px repeat(8, minmax(0, 1fr)); gap: 3px; margin-top: 12px; }
-.sq .corner { position: sticky; top: 0; z-index: 2; background: var(--card); }
-.sq .lane {
-  position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: center; height: 28px;
-  background: var(--card); font-size: 11.5px; font-weight: 600; white-space: nowrap; color: var(--text-2); font-variant-numeric: tabular-nums;
+/* 樂器: ▶, 🎲 and the chips; the grid a lane a drum (its colour, its name
+   over it) and 16 steps across, four to a beat; 存成片段 under it. The steps
+   are as wide as the card allows, gaps drawn inside them, so each is a
+   finger-sized target even at 320 px. */
+.studio .head { gap: 8px; }
+.studio .head .q-seg { flex: 0 1 180px; }
+.st-top { display: flex; align-items: center; gap: 8px; }
+.st-play {
+  flex: none; width: 52px; height: 52px; border: 0; border-radius: 50%; padding: 0; display: grid; place-items: center;
+  background: var(--accent); color: var(--accent-ink); box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 38%, transparent);
+  touch-action: manipulation; transition: transform var(--q-dur-snappy) var(--q-spring-snappy), background-color .15s;
 }
-.sq .lane.root { color: var(--accent); }
-.sq .stepno { display: flex; align-items: center; justify-content: flex-end; padding-right: 4px; height: 28px; font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
-.sq .stepno.beat { color: var(--text-2); font-weight: 600; }
-.sq .gap { margin-top: 4px; }
-.sq .stepno.bar { border-top: 1px solid var(--line); padding-top: 2px; }
-.sq .cell {
-  height: 28px; border-radius: 7px; border: 0; padding: 0; background: var(--fill); min-width: 0;
-  transition: background-color .12s, transform var(--q-dur-snappy) var(--q-spring-snappy);
+.st-play svg { width: 24px; height: 24px; fill: currentColor; }
+.st-play.on { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
+.st-play:active { transform: scale(0.9); }
+.st-top .st-dice { background: var(--accent-soft); box-shadow: none; }
+.st-chips { flex: 1; }
+.st-chips.st-along { -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px, #000 88%, transparent); mask-image: linear-gradient(90deg, transparent, #000 28px, #000 88%, transparent); }
+.st-pages { display: flex; gap: 6px; margin-top: 12px; }
+.st-pages[hidden] { display: none; }
+.st-pages button { flex: 1; height: 30px; border: 0; border-radius: 15px; background: var(--fill); font-size: 13px; font-weight: 600; color: var(--text-2); touch-action: manipulation; white-space: nowrap; }
+.st-pages button[aria-pressed="true"] { background: var(--text); color: var(--card); }
+.st-pages button.now:not([aria-pressed="true"]) { box-shadow: inset 0 0 0 2px var(--accent); }
+.st-grid { margin-top: 10px; }
+.st-head, .st-cells { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); }
+.st-head span { position: relative; height: 16px; padding-left: 3px; font-size: 11px; font-weight: 600; line-height: 16px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.st-head span.beat { color: var(--text-2); }
+.st-head span::after { content: ""; position: absolute; left: 50%; bottom: 1px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--accent); opacity: 0; transition: opacity .06s; }
+.st-head span.now::after { opacity: 1; }
+.st-lane { --c: var(--accent); margin-top: 4px; }
+.st-name { display: flex; align-items: center; gap: 5px; height: 17px; padding-left: 3px; font-size: 12px; font-weight: 600; white-space: nowrap; color: color-mix(in srgb, var(--c) 58%, var(--text)); }
+.st-name i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); flex: none; }
+.st-lane.root .st-name span::after { content: " ●"; font-size: 8px; vertical-align: 2px; }
+.st-cells .cell {
+  position: relative; height: 34px; min-width: 0; border: 0; padding: 0; background: none;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
 }
-.sq .cell.beat { background: var(--fill-2); }
-.sq .cell.on { background: var(--accent); }
-.sq .cell.held { background: color-mix(in srgb, var(--accent) 45%, var(--fill)); }
-.sq .cell.now { box-shadow: inset 0 0 0 2px var(--text); }
-.sq .cell:active { transform: scale(0.88); }
-.transport { display: flex; gap: 8px; margin-top: 14px; }
-.transport .q-btn { flex: 1; }
-.studio-note { margin: 10px 0 0; font-size: 13px; color: var(--text-2); white-space: nowrap; }
+.st-cells .cell::before {
+  content: ""; position: absolute; inset: 2px 1.5px; border-radius: 6px;
+  background: color-mix(in srgb, var(--c) 14%, var(--fill));
+  transition: background-color .12s, transform var(--q-dur-snappy) var(--q-spring-snappy), box-shadow .08s;
+}
+.st-cells .cell.alt::before { background: color-mix(in srgb, var(--c) 7%, var(--fill-2)); }
+.st-cells .cell.g0::before { left: 3.5px; }
+.st-cells .cell.g3::before { right: 3.5px; }
+.st-cells .cell.held::before { background: color-mix(in srgb, var(--c) 42%, var(--fill)); }
+.st-cells .cell.on::before { background: var(--c); }
+.st-cells .cell.on.soft::before { background: color-mix(in srgb, var(--c) 48%, var(--fill)); }
+/* An accent: a white dot in it; a chord: a ring. */
+.st-cells .cell.accent::after { content: ""; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.08); }
+.st-cells .cell.chord::before { box-shadow: inset 0 0 0 2px rgba(255,255,255,.75); }
+.st-cells .cell.now::before { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--text) 45%, transparent); }
+.st-cells .cell.on.now::before { transform: scale(1.1); box-shadow: 0 0 10px color-mix(in srgb, var(--c) 70%, transparent); }
+.st-cells .cell:active::before { transform: scale(0.84); }
+.st-more { display: block; margin: 8px auto 0; height: 32px; padding: 0 14px; border: 0; border-radius: 16px; background: none; color: var(--accent); font-size: 14px; font-weight: 600; touch-action: manipulation; }
+.st-more[hidden] { display: none; }
+.st-actions { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.st-icon { flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%; padding: 0; display: grid; place-items: center; background: var(--fill); color: var(--text); touch-action: manipulation; transition: transform var(--q-dur-snappy) var(--q-spring-snappy); }
+.st-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.st-icon:active { transform: scale(0.9); }
+.st-icon:disabled { opacity: .35; }
+.st-add {
+  flex: 1; min-width: 0; height: 48px; border: 0; border-radius: 24px; padding: 0 12px; background: var(--accent); color: var(--accent-ink);
+  font-size: clamp(14px, 4.3vw, 16px); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; touch-action: manipulation;
+  transition: transform var(--q-dur-snappy) var(--q-spring-snappy), opacity .15s;
+}
+.st-add:active { transform: scale(0.96); }
+.st-add:disabled { opacity: .4; }
+.st-pro > :first-child { margin-top: 12px; border-top: 1px solid var(--line); }
+/* (At 320 the card gives the grid its side margins: 16 steps of 18 px.) */
+@media (max-width: 360px) { .card.studio { margin-inline: -8px; padding-inline: 8px; } }
 .mine-list { list-style: none; margin: 0; padding: 0; }
 .mine-list li { display: flex; align-items: center; gap: 10px; min-height: 44px; border-top: 1px solid var(--line); }
 .mine-list li:first-child { border-top: 0; }
@@ -318,7 +363,7 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 @keyframes pb-rise-x { from { opacity: 0; transform: translate(-50%, 16px); } }
 @keyframes pb-grow { from { transform: scaleX(0); } }
 @media (prefers-reduced-motion: reduce) {
-  .piece button, .song .play, .song .act, .chip, .sq .cell { transition: none; }
+  .piece button, .song .play, .song .act, .chip, .st-grid .cell::before { transition: none; }
   .piece button.on, .song, .song .plan i, .song .plan .sec, .jam-pad.on, .player, .song .act.kept svg { animation: none; }
 }
 
@@ -335,15 +380,11 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .player .repeat b { position: absolute; right: 1px; bottom: 1px; font-size: 9px; line-height: 1; }
 
 /* 樂器: the drums' two sets, the clip's tools, the shelf. */
-.studio-tools { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+.studio-tools { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
 .studio-tools .mini { padding: 0 4px; font-size: 13px; white-space: nowrap; }
 .studio-tools .mini[hidden] { display: none; }
 .studio-tools .mini[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
 .studio-tools .mini:disabled { opacity: .4; }
-.sq .cell.accent { background: color-mix(in srgb, var(--accent) 100%, #000 18%); box-shadow: inset 0 0 0 2px var(--accent-ink); }
-.sq .cell.chord { background: var(--q-purple); }
-.sq .cell.on.soft { background: color-mix(in srgb, var(--accent) 50%, var(--fill)); box-shadow: inset 0 0 0 1.5px var(--accent); }
-.sq .cell { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .chain-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .chain { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; margin-top: 8px; }
 .chain .slot { height: 32px; min-width: 0; padding: 0; border: 0; border-radius: 8px; background: var(--fill); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -524,9 +565,6 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
   .radio-art img, .radio-card { transition: none; }
 }
 
-/* 樂器 in 簡單: write one again, or add it, right above the grid. */
-.easy-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
-.easy-row .q-btn { min-height: 50px; padding: 0 10px; font-size: 15px; white-space: nowrap; }
 .q-btn.solid { background: var(--accent); color: var(--accent-ink); }
 .easy-hint { text-align: center; }
 

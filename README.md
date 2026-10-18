@@ -15,13 +15,13 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
   length and feel, the mixer as it opens, 16-bit): it never reads or writes
   進階's, so 進階 is as it was on the way back. Its 做歌 is one button,
   🎲 隨機做一批: six songs from your pieces when they have a tune, else on
-  the built-in band. 樂器 starts from a clip written for you with big
-  再編一次 and 存成片段; 即興 is the pads and ● 錄一段. 進階 shows every tool
+  the built-in band. 樂器 starts from a clip written for you (▶, 🎲,
+  the groove chips, 存成片段); 即興 is the pads and ● 錄一段. 進階 shows every tool
   below. The choice is a setting on the Pass, in the ? sheet and 更多設定.
   Each control only one of them shows carries `data-ctl`, hidden by one
   stylesheet rule per name.
-- **Words** (`lib/help.mjs`): 22 music words (BPM, swing, riff, hi-hat, 808,
-  chords, key, sections, chain, stems, MIDI, velocity, choke, snap…) in
+- **Words** (`lib/help.mjs`): 23 music words (BPM, swing, riff, hi-hat, 808,
+  chords, key, sections, chain, stems, MIDI, velocity, steps, choke, snap…) in
   everyday words, zh and en; a ⓘ beside a control opens one, eight with
   ▶ the same bar without it and with it. The ? sheet lists them all and
   opens the full guide (the kit's `help.mjs`, in the Quadra Pass sheet).
@@ -63,11 +63,17 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
     from its start, hold it to loop it (the player's § repeat); the one playing
     is lit and follows seeks (`lib/sections.mjs`).
   - **樂器** (Studio): clips on the app's own instruments (`lib/synth.mjs`,
-    drums or melody) on a vertical 16th-note grid, 1, 2 or 4 bars, with
+    drums or melody). On top ▶, 🎲 (a beat in another groove, or another
+    melody) and chips: a groove's writes a beat in it and plays, an
+    instrument's switches the notes to it. The grid is a lane a drum (its
+    colour and name over it; only the drums in use and kick, snare, hat,
+    the rest behind ＋ 更多鼓) or a note, 16 steps across in four beats
+    (fits 320 px at 18 px a step), a bar at a time, the step playing lit.
+    Under it ↶ 復原, 清除, ♡ 收藏 and 存成片段; ⓘ explains the taps. 1, 2 or 4 bars, with
     accents, a long press for each hit's 力度 (輕, 中, 重), chords, swing,
     undo, ⧉ 複製, ♡ 收藏 (to the shelf; delete and 清除 have 復原), tap tempo and MIDI out. Up to four 段落 (A–D) and a
     串接 of them (A A B A, up to 8) that plays, renders and exports in order.
-    It loops as you tap; 自動編 writes a start; 存成片段 renders the chain into the kit.
+    It loops as you tap; 存成片段 renders the chain into the kit.
   做歌 pieces: ⋯ → 刪除, 全部清除 (asks first), both with 復原 for 5 s; 存成套組 / 我的套組 keep named kits on this phone (`lib/kitops.mjs`, IndexedDB `named`).
   - **即興** (Jam): pads over a groove. It opens on **內建**, the app's own
     band as 16 coloured pads (`lib/jamset.mjs`: 聽's band from `radioKit`,
