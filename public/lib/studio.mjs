@@ -148,7 +148,7 @@ export function mountStudio(panel, api) {
   const undoBtn = h('button', { class: 'mini', type: 'button', text: W('↶ 復原', '↶ Undo'), disabled: true });
   const copyBtn = h('button', { class: 'mini', type: 'button', text: W('⧉ 複製', '⧉ Copy'), 'aria-label': W('第一小節複製到每一小節', 'Bar 1 over every bar') });
   const chordBtn = h('button', { class: 'mini', type: 'button', text: W('和弦', 'Chords'), 'aria-pressed': String(st.chord) });
-  const saveBtn = h('button', { class: 'mini', type: 'button', text: W('♡ 收藏', '♡ Save to shelf'), 'aria-label': W('收藏到下方的收藏架', 'Save to the shelf below') });
+  const saveBtn = h('button', { class: 'q-btn tinted', type: 'button', text: W('♡ 收藏', '♡ Save to shelf'), 'aria-label': W('收藏到下方的收藏架', 'Save to the shelf below') });
   const midiBtn = h('button', { class: 'mini', type: 'button', text: 'MIDI' });
   const addBtn = h('button', { class: 'primary', type: 'button' });
   const patSeg = h('div', { class: 'seg pats' });
@@ -156,6 +156,7 @@ export function mountStudio(panel, api) {
   const loopSeg = h('div', { class: 'seg' });
   const chainSlots = h('div', { class: 'chain' });
   const note = h('p', { class: 'studio-note' });
+  const shelfNote = h('p', { class: 'studio-note', text: W('♡ 收藏：先放在下方收藏架，之後再改', '♡ Save to shelf: keep it below, edit later') });
   const tip = h('p', { class: 'studio-note' });
   const shelfList = h('ul', { class: 'mine-list' });
   const shelfCard = h('section', { class: 'card' }, [h('div', { class: 'head' }, [h('h2', { text: W('收藏架', 'Shelf') })]), shelfList]);
@@ -184,12 +185,14 @@ export function mountStudio(panel, api) {
       swingRow,
       patRow,
       chainRow,
-      h('div', { class: 'studio-tools' }, [undoBtn, copyBtn, chordBtn, saveBtn, midiBtn]),
+      h('div', { class: 'studio-tools' }, [undoBtn, copyBtn, chordBtn, midiBtn]),
       tip,
       grid,
       h('div', { class: 'transport' }, [playBtn, autoBtn, clearBtn]),
       addBtn,
-      note
+      h('div', { class: 'transport' }, [saveBtn]),
+      note,
+      shelfNote
     ]),
     shelfCard
   );
@@ -231,7 +234,7 @@ export function mountStudio(panel, api) {
     addBtn.textContent = W('存成片段（去做歌）', 'Save as piece (for Make)');
     const role = INSTRUMENT_ROLE[st.inst] || 'riff';
     tip.textContent = drums ? W('點：打 · 再點：重音 · 長按：力度', 'Tap: hit · again: accent · hold: level') : st.chord ? W('點一個音放進三和弦 · 長按：力度', 'Tap: its triad · hold: level') : W('點：放進 · 再點：拿掉 · 長按：力度', 'Tap: in · again: out · hold: level');
-    note.textContent = drums ? W('存成片段：放進「做歌」當素材，整段是過門，每種鼓也會用在歌裡。♡ 收藏：先放在下方收藏架，之後再改', 'Save as piece: sent to Make as song material (a fill; each drum joins your songs). ♡ Save to shelf: keep it below to edit later') : W(`存成片段：放進「做歌」當${name(ROLE_NAMES, role)}。♡ 收藏：先放在下方收藏架，之後再改`, `Save as piece: sent to Make as a ${name(ROLE_NAMES, role)}. ♡ Save to shelf: keep it below to edit later`);
+    note.textContent = drums ? W('存成片段：放進「做歌」當素材，鼓也會用在歌裡', 'Save as piece: song material in Make, drums too') : W(`存成片段：放進「做歌」當${name(ROLE_NAMES, role)}`, `Save as piece: goes to Make as a ${name(ROLE_NAMES, role)}`);
     paintPlay();
     drawShelf();
   }

@@ -113,7 +113,6 @@ button { cursor: pointer; }
 .status b { font-weight: 600; }
 .pieces { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 6px; margin-top: 12px; }
 .pieces:empty { display: none; }
-.ways { flex-wrap: wrap; }
 .way.danger { background: var(--fill); color: var(--bad, #d70015); }
 .piece { position: relative; }
 .piece .more { position: absolute; top: 0; right: 0; width: 32px; height: 32px; padding: 0; border: 0; background: none; color: var(--text-2); font-size: 16px; line-height: 1; }
@@ -426,11 +425,15 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
         <button class="way" id="record" type="button"><span class="rec-dot" aria-hidden="true"></span><span id="record-text" data-en="Record">用麥克風錄</span></button>
         <button class="way" id="add" type="button" hidden data-en="Add files">再加檔案</button>
         <button class="way" id="demo" type="button" data-en="Demo">試試示範</button>
-        <button class="way" id="my-kits" type="button" data-en="My kits">我的套組</button>
         <button class="way" id="to-studio" type="button" data-en="Use Studio">用樂器做</button>
       </div>
       <input type="file" id="more" accept="audio/*,.wav" multiple hidden>
       <div class="status" id="status" hidden><span class="dot"></span><span id="status-text"></span></div>
+      <div class="ways" id="kit-tools">
+        <button class="way" id="my-kits" type="button" data-en="My kits">我的套組</button>
+        <button class="way" id="save-kit" type="button" hidden data-en="Save as kit">存成套組</button>
+        <button class="way danger" id="clear-all" type="button" hidden data-en="Clear all">全部清除</button>
+      </div>
       <div class="row tempo note" id="tempo-row" hidden>
         <label class="label" for="bpm"><span data-en="Tempo">速度</span><small id="bpm-hint"></small></label>
         <div class="ctl">
@@ -443,10 +446,6 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
       </div>
       <div class="pieces" id="pieces" aria-label="片段：點一下試聽" data-en-label="Pieces: tap one to hear it"></div>
       <p class="hint" id="pieces-hint" hidden data-en="Tap to hear · roles are guesses, tap to change">點片段試聽 · 角色是聽出來的，可以改</p>
-      <div class="ways" id="kit-tools">
-        <button class="way" id="save-kit" type="button" hidden data-en="Save as kit">存成套組</button>
-        <button class="way danger" id="clear-all" type="button" hidden data-en="Clear all">全部清除</button>
-      </div>
       <details id="split-more">
         <summary data-en="Splitting">切片</summary>
         <div class="row">

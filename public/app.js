@@ -479,7 +479,8 @@ function split() {
 function kitStatus() {
   const len = sources.reduce((s, x) => s + x.L.length, 0) / sr;
   const time = `${Math.floor(len / 60)}:${String(Math.round(len % 60) % 60).padStart(2, '0')}`;
-  const files = sources.length > 1 ? W(` · ${sources.length} 個檔`, ` · ${sources.length} files`) : '';
+  const nFiles = new Set(sources.map(x => x.name)).size;
+  const files = nFiles > 1 ? W(` · ${nFiles} 個檔`, ` · ${nFiles} files`) : '';
   if (!pieces.length) {
     status(`<b>${W('沒有切出片段', 'No pieces')}</b> · ${W('看「切片」', 'see Splitting')}`, 'bad');
     $('split-more').open = true;
