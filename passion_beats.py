@@ -6,15 +6,23 @@ Usage:
   python passion_beats.py all_beats.wav --count 20 --out songs/
   python passion_beats.py all_beats.wav --count 5 --min-bars 25 --max-bars 29 --seed 42
 
+  python passion_beats.py all_beats.wav --plan intro:4,verse:8,pre:2,hook:8,outro:4 --stems
+  python passion_beats.py all_beats.wav --raw
+
 Input: one WAV with each piece separated by silence (>0.2 s), all at one tempo.
 Any number of pieces. The tempo and each piece's role (riff, bass, kick, ...)
 are heard from the audio; --bpm and --roles set them instead.
-Songs use the pieces exactly as recorded (no volume changes or effects); where
-they overlap they add up, kept as-is in the 32-bit float WAV.
+Songs come out mixed (the same mixer as the page's, public/lib/mix.mjs): each
+piece on its bus (drums, hats, bass, keys) at its level, an echo and a room,
+the bass and riffs pumping under the kick, filter sweeps through the intro,
+pre-hooks and breaks, then one loudness held under -1 dBFS by a look-ahead
+limiter. --raw uses the pieces exactly as recorded instead (no volume changes
+or effects); where they overlap they add up, kept as-is in the 32-bit float WAV.
 """
 import argparse, datetime, os, random, sys
 import numpy as np
 from scipy.io import wavfile
+from scipy.signal import lfilter
 
 sr = 48000
 B = 60 / 120 * sr   # samples per beat, once the tempo is known
@@ -235,19 +243,31 @@ def guess_role(a, bpm):
 
 # Arrangement rules (the same as public/engine.mjs; see the README):
 # a hook may lift to a related groove, never a foreign one;
-FAMILY = {'four':['four','broken','house'],'broken':['broken','four'],'hiphop':['hiphop','trap','boombap'],'trap':['trap','hiphop','drill'],'half':['half','hiphop'],'house':['house','four','jersey','amapiano'],'dembow':['dembow','afro'],'afro':['afro','dembow','amapiano'],'drill':['drill','trap'],'boombap':['boombap','hiphop'],'jersey':['jersey','house'],'amapiano':['amapiano','house','afro']}
-STYLES = ['four','hiphop','trap','half','broken','house','dembow','afro','drill','boombap','jersey','amapiano']
-# the body is verse-hook pairs, maybe a break first, maybe a break or bridge
-# before a last hook; verses and hooks are 4 or 8 bars, breaks and bridges 2 or 4.
-LENS = {'verse':[4,8],'hook':[4,8],'break':[2,4],'bridge':[2,4]}
-FORMS = [['hook']] + [lead + ['verse','hook']*k + end for k in range(1,5) for lead in ([],['break']) for end in ([],['break','hook'],['bridge','hook'])]
+FAMILY = {'four':['four','broken','house','techno'],'broken':['broken','four','garage','dnb'],'hiphop':['hiphop','trap','boombap','lofi'],'trap':['trap','hiphop','drill','phonk'],
+          'half':['half','hiphop'],'house':['house','four','jersey','amapiano','garage'],'dembow':['dembow','afro','reggae','baile'],'afro':['afro','dembow','amapiano'],
+          'drill':['drill','trap'],'boombap':['boombap','hiphop','lofi'],'jersey':['jersey','house','baile'],'amapiano':['amapiano','house','afro'],
+          'lofi':['lofi','boombap','hiphop'],'funk':['funk','broken','boombap'],'garage':['garage','house','broken'],'dnb':['dnb','broken'],
+          'reggae':['reggae','dembow'],'phonk':['phonk','trap','drill'],'baile':['baile','dembow','jersey'],'techno':['techno','four','house']}
+STYLES = ['four','hiphop','trap','half','broken','house','dembow','afro','drill','boombap','jersey','amapiano','lofi','funk','garage','dnb','reggae','phonk','baile','techno']
+SECTIONS = ['intro','verse','pre','hook','break','bridge','outro']
+# the body is verse-hook pairs (each verse maybe with a pre-hook before its
+# hook, every one the same), maybe a break first, maybe a break or bridge
+# before a last hook; verses and hooks are 4 or 8 bars, pre-hooks, breaks and
+# bridges 2 or 4: phrases come in fours.
+LENS = {'verse':[4,8],'pre':[2,4],'hook':[4,8],'break':[2,4],'bridge':[2,4]}
+FORMS = [['hook']] + [lead + (['verse','pre','hook'] if pre else ['verse','hook'])*k + end
+                      for pre in (False, True) for k in range(1,5) for lead in ([],['break']) for end in ([],['break','hook'],['bridge','hook'])]
 PATTERNS = [[0,1,2,1],[0,1],[0,0,1,1],[0,1,0,2],[0]]   # riff sets, over a shuffled order of riffs
-# fills fit where they lead
-INTO = {'hook':['roll','roll2','stutter','fill'],'verse':['roll','roll2','tick','drop'],'break':['drop','tick'],'bridge':['drop','tick'],'outro':['roll','roll2','stutter']}
+# fills fit where they lead: a build into a hook, something light into a
+# verse, next to nothing into a quiet section (a pre-hook's riser is its own)
+INTO = {'hook':['roll','roll2','stutter','fill'],'verse':['roll','roll2','tick','drop'],'pre':['tick','drop'],'break':['drop','tick'],
+        'bridge':['drop','tick'],'outro':['roll','roll2','stutter'],'intro':['drop','tick']}
+MAX_PLAN_BARS = 128
 
-def fits(form, bars):   # every choice of section lengths adding up to `bars`
+def fits(form, bars):   # every choice of section lengths adding up to `bars` (pruned: 24 forms of up to 15 sections)
     if not form: return [[]] if bars == 0 else []
-    return [[L] + rest for L in LENS[form[0]] if L <= bars for rest in fits(form[1:], bars - L)]
+    least = sum(LENS[t][0] for t in form[1:]); most = sum(LENS[t][-1] for t in form[1:])
+    return [[L] + rest for L in LENS[form[0]] if least <= bars - L <= most for rest in fits(form[1:], bars - L)]
 
 def plan_song(R):
     """[(type, first bar, bars)]: an even number of bars when the range has one."""
@@ -258,27 +278,131 @@ def plan_song(R):
         for outro in ((3,) if target % 2 else (2, 4)):
             for k, form in enumerate(FORMS):
                 for lens in fits(form, target - intro - outro): choices.setdefault(k, []).append((intro, lens, outro))
+    if not choices: sys.exit(f'no song form fits {target} bars')
     k = R.choice(sorted(choices)); form = FORMS[k]; intro, lens, outro = R.choice(choices[k])
     plan = [('intro', 0, intro)]; bar = intro
     for t, L in zip(form, lens): plan.append((t, bar, L)); bar += L
     return plan + [('outro', bar, outro)]
 
+def plan_of(text):
+    """An arrangement as asked ('intro:4,verse:8,pre:2,hook:8,outro:4'): each a
+    known section of 1 to 16 bars, 128 bars at most in all. -> the plan"""
+    plan = []; bar = 0
+    for part in filter(None, text.split(',')):
+        t, _, n = part.partition(':')
+        if t not in SECTIONS or not n.isdigit() or not 1 <= int(n) <= 16: raise ValueError(f'not a section: {part!r} (like hook:8; sections: {",".join(SECTIONS)}, 1-16 bars)')
+        plan.append((t, bar, int(n))); bar += int(n)
+    if not plan: raise ValueError('an arrangement needs a section')
+    if bar > MAX_PLAN_BARS: raise ValueError(f'{MAX_PLAN_BARS} bars at most')
+    return plan
+
+# Each groove's bar of drums from beat t (s: the song, k: its kit). The
+# s.r.random() calls are the groove's chances, as in public/engine.mjs.
+def _four(s,t,k):
+    for q in range(4): s.hit(k['kick'],t+q)
+    if s.r.random()<0.15: s.hit(k['kick'],t+3.5)
+def _hiphop(s,t,k):
+    s.hit(k['heavy'],t); s.hit(k['snare'],t+2.5)
+    if s.r.random()<0.35: s.hit(k['heavy'],t+1.75)
+    if s.r.random()<0.2: s.hit(k['kick'],t+3.75)
+def _trap(s,t,k):
+    s.hit(k['sub'],t); s.hit(k['kick'],t+1.5); s.hit(k['sub'],t+2.75)
+    if s.r.random()<0.3: s.hit(k['sub'],t+3.5)
+def _half(s,t,k):
+    s.hit(k['snare'],t)
+    if s.r.random()<0.5: s.hit(k['heavy'],t+2.75)
+def _broken(s,t,k):
+    for q in s.py.choice([[0,1.5,2.5],[0,0.75,2.25,3],[0,2,2.75],[0,1.25,2.5,3.5]]): s.hit(s.py.choice([k['kick'],k['heavy'],k['sub']]),t+q)
+def _house(s,t,k):   # four on the floor, the clap on 2 and 4, a tick on every off-beat
+    for q in range(4): s.hit(k['kick'],t+q)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in (0.5,1.5,2.5,3.5): s.hit(k['tick'],t+q)
+def _dembow(s,t,k):   # reggaeton's: the kick on the beat, the snare's 3+3+2 against it
+    for q in range(4): s.hit(k['kick'],t+q)
+    for q in (0.75,1.5,2.75,3.5): s.hit(k['snare'],t+q)
+def _afro(s,t,k):   # afrobeats': a kick that skips, the snare on 2 and 4, a shaker's push
+    for q in (0,1.5,2.5): s.hit(k['heavy'],t+q)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    if s.r.random()<0.5: s.hit(k['snare'],t+3.75)
+    for q in (0.5,1.75,2.25,3.25): s.hit(k['tick'],t+q)
+def _drill(s,t,k):   # drill's: the 808 sliding round the kick, the snare late on 3 and pushed, its hats in threes
+    s.hit(k['sub'],t); s.hit(k['heavy'],t+2.75)
+    if s.r.random()<0.5: s.hit(k['sub'],t+1.5)
+    s.hit(k['snare'],t+2); s.hit(k['snare'],t+3.5 if s.r.random()<0.5 else t+3.75)
+    for q in (0,0.75,1.5,2.25,3,3.75): s.hit(k['tick'],t+q)
+def _boombap(s,t,k):   # boom bap's: the kick's skip, the snare on 2 and 4, eighth-note hats
+    s.hit(k['heavy'],t); s.hit(k['kick'],t+2.5)
+    if s.r.random()<0.5: s.hit(k['kick'],t+1.75)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in (0.5,1.5,2.5,3.5): s.hit(k['tick'],t+q)
+def _jersey(s,t,k):   # Jersey club's: the kicks' bounce, the clap on 2 and 4
+    for q in (0,1,2,2.75,3.5): s.hit(k['kick'],t+q)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    if s.r.random()<0.4: s.hit(k['snare'],t+3.75)
+def _amapiano(s,t,k):   # amapiano's: the kick on the beat, the log drum's syncopation, a rim on 4, a shaker on every off-16th
+    for q in range(4): s.hit(k['kick'],t+q)
+    for q in (0.75,2.25,3.5): s.hit(k['sub'],t+q)
+    s.hit(k['snare'],t+3)
+    for q in np.arange(0.25,4,0.5): s.hit(k['tick'],t+q)
+def _lofi(s,t,k):   # lo-fi's: a lazy kick, the snare on 2 and 4, eighth hats with some left out
+    s.hit(k['heavy'],t); s.hit(k['kick'],t+2.5)
+    if s.r.random()<0.5: s.hit(k['kick'],t+2.75)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in np.arange(0,4,0.5):
+        if s.r.random()<0.8: s.hit(k['tick'],t+q)
+def _funk(s,t,k):   # funk's: the kick on 1, its push and the and of 3, ghost notes round the backbeat, sixteenths on the hat
+    s.hit(k['heavy'],t); s.hit(k['kick'],t+0.75); s.hit(k['kick'],t+2.5)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    if s.r.random()<0.5: s.hit(k['roll'],t+1.75)
+    if s.r.random()<0.5: s.hit(k['roll'],t+3.25)
+    for q in np.arange(0,4,0.25): s.hit(k['tick'],t+q)
+def _garage(s,t,k):   # UK garage's two-step: no kick on 3, the kick skipping late, the snare on 2 and 4
+    s.hit(k['kick'],t); s.hit(k['kick'],t+2.75)
+    if s.r.random()<0.4: s.hit(k['kick'],t+1.75)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in (0.5,1.5,2.5,3.5): s.hit(k['tick'],t+q)
+def _dnb(s,t,k):   # drum and bass's two-step at double time, twice a bar; sixteenth hats, some of the off ones left out
+    for h in (0,2):
+        s.hit(k['heavy'],t+h); s.hit(k['snare'],t+h+0.5); s.hit(k['kick'],t+h+1.25); s.hit(k['snare'],t+h+1.5)
+    for q in np.arange(0,4,0.25):
+        if q%0.5==0 or s.r.random()<0.5: s.hit(k['tick'],t+q)
+def _reggae(s,t,k):   # reggae's one drop: nothing on 1, the kick and the snare together on 3, the hat on the off-beats
+    s.hit(k['heavy'],t+2); s.hit(k['snare'],t+2)
+    if s.r.random()<0.3: s.hit(k['kick'],t+3.5)
+    for q in (0.5,1.5,2.5,3.5): s.hit(k['tick'],t+q)
+def _phonk(s,t,k):   # phonk's: the 808 on 1 and the and of 3, a kick between, the snare on 2 and 4, hats rolling at the end
+    s.hit(k['sub'],t); s.hit(k['kick'],t+1.75); s.hit(k['sub'],t+2.5)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in (0,0.5,1,1.5,2,2.5,3,3.25,3.5,3.75): s.hit(k['tick'],t+q)
+def _baile(s,t,k):   # baile funk's tamborzão: the kick's 3-3-2 twice, the snare on its gaps
+    for q in (0,0.75,2,2.75): s.hit(k['kick'],t+q)
+    s.hit(k['snare'],t+1.5); s.hit(k['snare'],t+3.5)
+    if s.r.random()<0.5: s.hit(k['snare'],t+1.25)
+    for q in (0.5,1,2.5,3): s.hit(k['tick'],t+q)
+def _techno(s,t,k):   # techno's: the heavy kick on every beat, the hat on the off-beats, a clap that comes and goes
+    for q in range(4): s.hit(k['heavy'],t+q)
+    for q in (0.5,1.5,2.5,3.5): s.hit(k['tick'],t+q)
+    if s.r.random()<0.5: s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    if s.r.random()<0.3: s.hit(k['tick'],t+3.75)
+GROOVES = {x: globals()['_' + x] for x in STYLES}
+# the grooves whose hats are part of them: no extra ticks
+FULL_HATS = {'drill','boombap','amapiano','lofi','funk','garage','dnb','reggae','phonk','baile','techno'}
+
 class Song:
-    """The pieces exactly as recorded, placed on the recording's beat grid and
-    summed: no volume changes, panning, cutting or effects; pieces may overlap.
-    Humanize only moves when a piece starts."""
+    """The pieces placed on the recording's beat grid: each hit noted as it's
+    decided (`events`: piece, beat, the sample it starts on), then summed on
+    the buses and mixed, or with --raw summed exactly as recorded. Pieces may
+    overlap. Humanize only moves when a piece starts."""
     def __init__(s,bars,rng,humanize,loops):   # pieces by number; None is none; loops: loop lengths in beats
         s.r=rng; s.py=random.Random(int(rng.integers(1e9))); s.bars=bars; s.rest=set()   # stop bars
-        s.per=loops
-        s.buf=np.zeros((int((bars*4+2)*B)+max(len(p) for p in pc.values()),2),np.float32)
+        s.per=loops; s.events=[]
         s.swing=rng.uniform(0,0.06)*humanize        # fraction of a beat pushed on off-16ths
         s.loose=rng.uniform(0.004,0.012)*humanize   # timing sd in seconds
     def hit(s,i,beat,tight=False):
         if i is None: return
-        src=pc[i]
+        at=beat
         if abs(beat%0.5-0.25)<1e-6: beat+=s.swing
-        a=max(0,int(round(beat*B+s.r.normal(0,s.loose*(0.4 if tight else 1))*sr)))
-        b=min(len(s.buf),a+len(src)); s.buf[a:b]+=src[:b-a]
+        s.events.append((i,at,max(0,jround(beat*B+s.r.normal(0,s.loose*(0.4 if tight else 1))*sr))))
     def span(s,i): return 1 if i is None else max(1,-(-s.per[i]//4))   # whole bars a loop takes
     def loop(s,i,bar,nbars):   # piece i every loop length; the last may run on
         if i is None: return
@@ -293,58 +417,16 @@ class Song:
             if not fit: break
             i=s.py.choice(fit); s.hit(i,t); t+=s.per[i]
     def drums(s,style,bar,nbars,k):   # k: the song's drum kit
-        r=s.r
         for br in range(bar,bar+nbars):
             if br in s.rest: continue
             t=br*4
-            if style=='four':
-                for q in range(4): s.hit(k['kick'],t+q)
-                if r.random()<0.15: s.hit(k['kick'],t+3.5)
-            elif style=='hiphop':
-                s.hit(k['heavy'],t); s.hit(k['snare'],t+2.5)
-                if r.random()<0.35: s.hit(k['heavy'],t+1.75)
-                if r.random()<0.2: s.hit(k['kick'],t+3.75)
-            elif style=='trap':
-                s.hit(k['sub'],t); s.hit(k['kick'],t+1.5); s.hit(k['sub'],t+2.75)
-                if r.random()<0.3: s.hit(k['sub'],t+3.5)
-            elif style=='half':
-                s.hit(k['snare'],t)
-                if r.random()<0.5: s.hit(k['heavy'],t+2.75)
-            elif style=='broken':
-                for q in s.py.choice([[0,1.5,2.5],[0,0.75,2.25,3],[0,2,2.75],[0,1.25,2.5,3.5]]): s.hit(s.py.choice([k['kick'],k['heavy'],k['sub']]),t+q)
-            elif style=='house':   # four on the floor, the clap on 2 and 4, a tick on every off-beat
-                for q in range(4): s.hit(k['kick'],t+q)
-                s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
-                for q in (0.5,1.5,2.5,3.5): s.hit(k['tick'],t+q)
-            elif style=='dembow':   # reggaeton's: the kick on the beat, the snare's 3+3+2 against it
-                for q in range(4): s.hit(k['kick'],t+q)
-                for q in (0.75,1.5,2.75,3.5): s.hit(k['snare'],t+q)
-            elif style=='afro':   # afrobeats': a kick that skips, the snare on 2 and 4, a shaker's push
-                for q in (0,1.5,2.5): s.hit(k['heavy'],t+q)
-                s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
-                if r.random()<0.5: s.hit(k['snare'],t+3.75)
-                for q in (0.5,1.75,2.25,3.25): s.hit(k['tick'],t+q)
-            elif style=='drill':   # drill's: the 808 sliding round the kick, the snare late on 3 and pushed, its hats in threes
-                s.hit(k['sub'],t); s.hit(k['heavy'],t+2.75)
-                if r.random()<0.5: s.hit(k['sub'],t+1.5)
-                s.hit(k['snare'],t+2); s.hit(k['snare'],t+3.5 if r.random()<0.5 else t+3.75)
-                for q in (0,0.75,1.5,2.25,3,3.75): s.hit(k['tick'],t+q)
-            elif style=='boombap':   # boom bap's: the kick's skip, the snare on 2 and 4, eighth-note hats
-                s.hit(k['heavy'],t); s.hit(k['kick'],t+2.5)
-                if r.random()<0.5: s.hit(k['kick'],t+1.75)
-                s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
-                for q in (0.5,1.5,2.5,3.5): s.hit(k['tick'],t+q)
-            elif style=='jersey':   # Jersey club's: the kicks' bounce, the clap on 2 and 4
-                for q in (0,1,2,2.75,3.5): s.hit(k['kick'],t+q)
-                s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
-                if r.random()<0.4: s.hit(k['snare'],t+3.75)
-            elif style=='amapiano':   # amapiano's: the kick on the beat, the log drum's syncopation, a rim on 4, a shaker on every off-16th
-                for q in range(4): s.hit(k['kick'],t+q)
-                for q in (0.75,2.25,3.5): s.hit(k['sub'],t+q)
-                s.hit(k['snare'],t+3)
-                for q in (0.25,0.75,1.25,1.75,2.25,2.75,3.25,3.75): s.hit(k['tick'],t+q)
-            if r.random()<0.35 and style not in ('drill','boombap','amapiano'):   # ticks between the hits
+            GROOVES.get(style,_four)(s,t,k)
+            if s.r.random()<0.35 and style not in FULL_HATS:   # ticks between the hits
                 for q in s.py.choice([[0.5],[1.5,3.5],[0.5,1.5,2.5,3.5]]): s.hit(k['tick'],t+q)
+    def build(s,bar,nbars,k):   # a pre-hook's riser: the snare (or a roll) a beat apart, then eighths, then sixteenths
+        for j in range(nbars):
+            step=0.25 if j==nbars-1 else 0.5 if j>=nbars/2 else 1
+            for q in np.arange(0,4-1e-9,step): s.hit(k['snare'] if k['snare'] is not None else k['roll'],(bar+j)*4+q,tight=True)
     def fill(s,bar,kinds,k):   # the end of `bar`
         t=bar*4; kind=s.py.choice(kinds)
         if kind=='fill' and k['fill'] is None: kind='stutter'   # no fill loop: a stutter
@@ -355,15 +437,196 @@ class Song:
         elif kind=='fill': s.hit(k['fill'],t,tight=True)
         elif kind=='tick':
             for q in [3,3.25,3.5,3.75]: s.hit(k['tick'],t+q)
-    def render(s,path):   # the last notes ring out, then 0.5 s; overlaps are left as they add up
-        y=s.buf
-        idx=np.where(np.abs(y).max(1)>1e-5)[0]; y=y[:idx[-1]+1+int(0.5*sr)]
-        wavfile.write(path,sr,y.astype(np.float32)); return len(y)/sr, float(np.abs(y).max())
+        # 'drop': no fill
 
-def make(seed,path,styles,humanize,roles,loops,chroma):
+# ---- The mixer (the same steps as public/lib/mix.mjs; see the README) ----
+# Each piece plays on its bus (drums, hats, bass, the riffs and phrases as
+# keys), each bus its level; the riffs into an echo (a dotted eighth left, an
+# eighth right) and a room, the snare a little of the room too; the bass and
+# the riffs ducking under the kick (the pump); the riffs opening up through
+# the intro, rising out of the way over a pre-hook, muffled in a break; the
+# hats a little to one side. Then one loudness, held under -1 dBFS by a
+# limiter that looks ahead, so nothing clips whatever the format.
+
+BUSES = ['drums','hats','bass','keys']
+BUS_OF = dict(riff='keys',phrase='keys',bass='bass',hat='hats',tick='hats',fill='drums',kick='drums',sub='drums',snare='drums',roll='drums')
+MIX = dict(on=True,drums=0,hats=-2,bass=-1,keys=-1,reverb=0.25,delay=0.2,pump=0.3,sweep=True,width=0.4,fade=False)   # levels in dB, the rest 0-1
+LIMITS = dict(drums=(-24,6),hats=(-24,6),bass=(-24,6),keys=(-24,6),reverb=(0,1),delay=(0,1),pump=(0,1),width=(0,1))
+db_gain = lambda d: 10 ** (d / 20)
+CEILING = db_gain(-1)
+BLOCK = 256   # a sweep's cutoff moves by blocks
+
+def mix_of(m):   # any mixer as a whole one: every number in its range, what's missing as it opens
+    out = dict(MIX)
+    for k, (lo, hi) in LIMITS.items():
+        if m.get(k) is not None and np.isfinite(m[k]): out[k] = min(hi, max(lo, float(m[k])))
+    for k in ('on','sweep','fade'):
+        if isinstance(m.get(k), bool): out[k] = m[k]
+    return out
+
+def coef(hz): return 1 - np.exp(-2 * np.pi * min(hz, sr * 0.45) / sr)
+
+def lowpass(x, c, s0=0.0):   # one pole (6 dB an octave): s += c (x - s), from state s0 (lfilter's zi is (1-c) s0)
+    return lfilter([c], [1, c - 1], x, zi=[(1 - c) * s0])[0]
+
+def one_pole(x, hz, kind='lp'):
+    lp = lowpass(x, coef(hz))
+    return lp if kind == 'lp' else x - lp
+
+def sweep(x, kind, a, b, f0, f1, edge=512, poles=2):
+    """A low- or high-pass over [a, b) of x in place, its cutoff moving from f0 to
+    f1 (exponentially, by blocks), faded in over the `edge` samples before a and
+    out over those after b, so it never clicks."""
+    lo, hi = max(0, a - edge), min(len(x), b + edge)
+    if hi <= lo: return
+    dry = x[lo:hi].copy(); wet = np.empty_like(dry); st = np.zeros(poles)
+    for blk in range(lo, hi, BLOCK):
+        mid = min(max((blk + BLOCK / 2 - a) / max(1, b - a), 0), 1)
+        c = coef(f0 * (f1 / f0) ** mid); y = dry[blk - lo:blk - lo + BLOCK]
+        for p in range(poles):
+            lp = lowpass(y, c, st[p]); st[p] = lp[-1]
+            y = lp if kind == 'lp' else y - lp
+        wet[blk - lo:blk - lo + len(y)] = y
+    j = np.arange(lo, hi)
+    w = np.where(j < a, (j - lo) / max(1, a - lo), np.where(j >= b, 1 - (j - b) / max(1, hi - b), 1))
+    x[lo:hi] = dry + w * (wet - dry)
+
+# Delays whose feedback is d samples back: worked a block of d at a time, each
+# block from the one before (lfilter with a d-long denominator is O(n d)).
+def comb(x, d, fb):   # y[n] = x[n-d] + fb y[n-d]: an echo every d samples, each fb as loud
+    y = np.zeros(len(x))
+    for k in range(d, len(x), d):
+        e = min(len(x), k + d); y[k:e] = x[k - d:e - d] + fb * y[k - d:e - d]
+    return y
+
+def allpass(x, d, g):   # y[n] = -g x[n] + x[n-d] + g y[n-d]: smears without colouring
+    y = -g * x
+    for k in range(d, len(x), d):
+        e = min(len(x), k + d); y[k:e] += x[k - d:e - d] + g * y[k - d:e - d]
+    return y
+
+def room(send):
+    """A room (Schroeder's: four combs side by side, fb 0.82, a quarter each,
+    then two all-passes in a row, g 0.5) from a mono send, a little different
+    each side. -> L, R"""
+    k = sr / 44100
+    def side(spread):
+        v = sum(comb(send, jround((d + spread) * k), 0.82) for d in (1116, 1188, 1277, 1356)) * 0.25
+        for d in (556, 441): v = allpass(v, jround((d + spread) * k), 0.5)
+        return v
+    return side(0), side(23)
+
+def duck(n, kicks, depth):   # a bus's gain: 1, dipping by `depth` at each kick and back over half a beat
+    g = np.ones(n)
+    if not depth: return g
+    ln = max(1, jround(B / 2)); curve = 1 - depth * (1 - np.arange(ln) / ln) ** 2
+    for p in kicks:
+        a, e = max(0, p), min(n, p + ln)
+        if a < e: g[a:e] = np.minimum(g[a:e], curve[a - p:e - p])
+    return g
+
+def limit_gain(L, R, ceiling=CEILING):
+    """The gain that keeps L and R under `ceiling`, looking ahead: each block of
+    64 samples at most the gain its loudest neighbour needs, let back up over
+    80 ms, eased between the blocks; never a sample past the ceiling."""
+    n = len(L); blk = 64; nb = max(1, -(-n // blk))
+    p = np.zeros(nb * blk); p[:n] = np.maximum(np.abs(L), np.abs(R)); p = p.reshape(nb, blk).max(1)
+    raw = np.where(p > ceiling, ceiling / np.maximum(p, 1e-30), 1.0)
+    need = np.minimum(raw, np.minimum(np.r_[1, raw[:-1]], np.r_[raw[1:], 1]))
+    # G[b] = min(need[b], G[b-1] + rel), unrolled: the least of need[k] + rel (b - k)
+    rel = blk / (0.08 * sr); ks = np.arange(nb)
+    G = rel * ks + np.minimum.accumulate(need - rel * ks)
+    c = (np.arange(n) - blk / 2) / blk   # where between the blocks' centres
+    b0 = np.clip(np.floor(c), 0, nb - 1).astype(int); b1 = np.minimum(nb - 1, b0 + 1); f = np.clip(c - b0, 0, 1)
+    return np.minimum(G[b0] + (G[b1] - G[b0]) * f, raw[np.arange(n) // blk])
+
+def mixdown(place, n, plan, kicks, m, stems=False):
+    """`place(bus, L, R)` sums a bus's hits into L and R and says whether it had
+    any; `kicks`: where each kick and 808 starts; `plan`: the sections. ->
+    L, R, {stem: (L, R)} (the buses and 'fx', the echo's and room's), and how
+    far past full scale the loudest moment went before it was brought down (dB)."""
+    L = np.zeros(n); R = np.zeros(n); out = {}
+    send = np.zeros(n) if m['reverb'] else None   # into the room, mono
+    bar = lambda k: jround(k * 4 * B)
+    sections = [(t, bar(b), bar(b + ln)) for t, b, ln in plan]
+    pump = None
+    for name in BUSES:
+        bL = np.zeros(n); bR = np.zeros(n)
+        if not place(name, bL, bR): continue
+        if m['sweep'] and name in ('keys', 'bass'):   # the riffs opening up, rising out of the way, muffled
+            for t, a, b in sections:
+                o = (dict(kind='lp', f0=350, f1=16000) if t == 'intro' and name == 'keys' else
+                     dict(kind='hp', f0=30, f1=400 if name == 'bass' else 900) if t == 'pre' else
+                     dict(kind='lp', f0=1400, f1=1400) if t == 'break' and name == 'keys' else None)
+                if o: sweep(bL, a=a, b=b, **o); sweep(bR, a=a, b=b, **o)
+        gain = db_gain(m[name])
+        left = gain * (1 - 0.35 * m['width']) if name == 'hats' else gain   # (the hats a little to the right)
+        depth = m['pump'] if name == 'bass' else m['pump'] * 0.6 if name == 'keys' else 0
+        g = 1
+        if depth:
+            if pump is None: pump = duck(n, kicks, 1)   # the full dip, scaled for each bus
+            g = 1 - depth * (1 - pump)
+        bL *= left * g; bR *= gain * g
+        if send is not None:   # the riffs to the room; the drums' top (the snare), from the left, as the page does
+            if name == 'keys': send += (bL + bR) * 0.25 * m['reverb']
+            elif name == 'drums': send += one_pole(bL, 300, 'hp') * 0.2 * m['reverb']
+        if name == 'keys' and m['delay']:   # the echo: the riffs as they were, darkened at 3 kHz
+            dark = one_pole((bL + bR) / 2, 3000); amt = m['delay'] * 0.45
+            bL += comb(dark, max(1, jround(0.75 * B)), 0.35) * amt
+            bR += comb(dark, max(1, jround(0.5 * B)), 0.35) * amt
+        L += bL; R += bR
+        if stems: out[name] = (bL, bR)
+    if send is not None:
+        rL, rR = room(one_pole(send, 5000))   # the room's input darkened
+        k = (1 - m['width']) / 2              # narrower: each side some of the other
+        rL, rR = rL * (1 - k) + rR * k, rR * (1 - k) + rL * k
+        L += rL; R += rR
+        if stems: out['fx'] = (rL, rR)
+    if m['fade']:   # the outro fades away to nothing by the song's last bar
+        o = next((s for s in sections if s[0] == 'outro'), None)
+        if o:
+            _, a, b = o; j = np.arange(a, n)
+            env = np.where(j >= b, 0, np.cos((j - a) / max(1, b - a) * (np.pi / 2)) ** 2)
+            for x in [L, R] + [x for s in out.values() for x in s]: x[a:] *= env
+    # one loudness: the loudest moment 3 dB past the ceiling, then held under it
+    peak = max(np.abs(L).max(), np.abs(R).max()) if n else 0
+    makeup = CEILING * np.sqrt(2) / peak if peak > 0 else 1
+    L *= makeup; R *= makeup
+    g = limit_gain(L, R); L *= g; R *= g
+    for x in [x for s in out.values() for x in s]: x *= makeup * g
+    return L, R, out, (20 * np.log10(peak) if peak > 0 else -np.inf)
+
+def render(s, roles, plan, m, stems=False):
+    """The hits summed and mixed (m: the mixer, None for the pieces exactly as
+    recorded, overlaps left as they add up, kept as-is in the 32-bit float WAV).
+    -> L, R, {stem: (L, R)}, over (dB, mixed only)"""
+    mixed = m is not None
+    n = int((s.bars * 4 + 2) * B) + max(len(p) for p in pc.values()) + (2 * sr if mixed else 0)   # the last pieces in full (and the room's tail)
+    def place(L, R, evs):
+        for i, _, a in evs:
+            src = pc[i]; e = min(n, a + len(src)); L[a:e] += src[:e - a, 0]; R[a:e] += src[:e - a, 1]
+        return bool(evs)
+    by_bus = {b: [e for e in s.events if BUS_OF.get(roles[e[0]]) == b] for b in BUSES}
+    over = None
+    if not mixed:
+        L = np.zeros(n); R = np.zeros(n); place(L, R, s.events); parts = {}
+        if stems:
+            for b in BUSES:
+                if by_bus[b]: parts[b] = (np.zeros(n), np.zeros(n)); place(*parts[b], by_bus[b])
+    else:
+        kicks = [a for i, _, a in s.events if roles[i] in ('kick', 'sub')]
+        L, R, parts, over = mixdown(lambda b, bL, bR: place(bL, bR, by_bus[b]), n, plan, kicks, m, stems)
+    idx = np.where(np.maximum(np.abs(L), np.abs(R)) > 1e-5)[0]
+    ln = min(n, (idx[-1] if len(idx) else 0) + 1 + int(0.5 * sr))   # the last notes ring out, then 0.5 s
+    return L[:ln], R[:ln], {k: (a[:ln], b[:ln]) for k, (a, b) in parts.items()}, over
+
+def write_wav(path, L, R): wavfile.write(path, sr, np.stack([L, R], 1).astype(np.float32))
+
+def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arranged=None):
     """One song; roles, loops (in beats) and chroma: {piece number: ...}. Needs a
     riff or a phrase; what a missing role plays is left out (or played by the
-    nearest role there is)."""
+    nearest role there is). mix: the mixer (None: the pieces exactly as
+    recorded); stems: also each bus as its own WAV; arranged: a plan by hand."""
     r=np.random.default_rng(seed); R=random.Random(seed)
     pool={x:[i for i in sorted(roles) if roles[i]==x] for x in ROLES}
     riffs=pool['riff'] or pool['phrase']; phrases=pool['phrase'] or riffs
@@ -400,14 +663,17 @@ def make(seed,path,styles,humanize,roles,loops,chroma):
     roll=pick(pool['roll'])
     kit=dict(kick=kick,heavy=heavy,sub=heavy if sub is None else sub,snare=snare,tick=pick(pool['tick']),
              roll=snare if roll is None else roll,fill=pick(pool['fill']))
-    plan=plan_song(R); bars=plan[-1][1]+plan[-1][2]; hooks=sum(t=='hook' for t,_,_ in plan)
+    drawn=plan_song(R)   # (drawn even when arranged by hand, so every later choice is the seed's)
+    plan=arranged or drawn; bars=plan[-1][1]+plan[-1][2]; hooks=sum(t=='hook' for t,_,_ in plan)
     s=Song(bars,r,humanize,loops)
     # how each section hands over, decided first: the bar before a hook may be
-    # a stop bar, where everything lays out but the fill
+    # a stop bar, where everything lays out but the fill; a pre-hook's riser
+    # runs straight into its hook
     into=[]
     for idx,(t,b,L) in enumerate(plan):
         nb=b+L-1; nxt=plan[idx+1][0] if idx<len(plan)-1 else None
-        if nxt is None: into.append((nb,['roll','roll2','stutter']))
+        if nxt is None: into.append((nb,['roll','roll2','stutter']))   # the ending
+        elif t=='pre': into.append((nb,['drop']))
         elif nxt=='hook' and L>=4 and R.random()<0.35: s.rest.add(nb); into.append((nb,['fill','stutter']))
         else: into.append((nb,INTO[nxt]))
     def walk(b,n,nxt,start=0,skip=lambda k,span:False):   # loops one after another, each for the whole bars it takes
@@ -430,7 +696,10 @@ def make(seed,path,styles,humanize,roles,loops,chroma):
         elif t=='verse':   # the first verse builds: bass comes in halfway
             verse_no+=1
             riff(b,L,verse_set); bass(b,L,L//2 if verse_no==1 else 0); s.drums(style,b,L,kit); s.loop(verse_hat,b,L)
-            if R.random()<0.4: s.phrases(b+L-4,4,phrases)
+            # (its last 4 bars, or all of a shorter verse arranged by hand: never into the bars before it)
+            if R.random()<0.4: s.phrases(b+L-min(4,L),min(4,L),phrases)
+        elif t=='pre':   # the lift: the verse's riffs and hat, no kick, a riser into the hook
+            riff(b,L,verse_set); s.loop(verse_hat,b,L); s.build(b,L,kit)
         elif t=='hook':   # the last hook is the fullest
             hook_no+=1
             riff(b,L,hook_set); bass(b,L); s.drums(hook_style,b,L,kit); s.loop(hook_hat,b,L)
@@ -448,8 +717,12 @@ def make(seed,path,styles,humanize,roles,loops,chroma):
         if L==8 and t in ('verse','hook') and R.random()<0.3: s.fill(b+3,['tick','roll'],kit)   # mid-section turnaround
         s.fill(*into[idx],kit)
     s.hit(R.choice([kit['heavy'],kit['sub']]),bars*4)   # one last hit on the next downbeat
-    dur,peak=s.render(path)
-    return dict(style=style,alt=hook_style,bars=bars,beats=bars*4,dur=round(dur,1),peak=peak,sections=[p[0] for p in plan],bass=bass_mode)
+    yL,yR,parts,over=render(s,roles,plan,mix,stems)
+    write_wav(path,yL,yR)
+    for name,(a,b) in parts.items(): write_wav(f'{path[:-4]} - {name}.wav',a,b)
+    peak=float(max(np.abs(yL).max(),np.abs(yR).max())) if len(yL) else 0.0
+    return dict(style=style,alt=hook_style,bars=bars,beats=bars*4,dur=round(len(yL)/sr,1),peak=peak,over=over,
+                plan=[(t,L) for t,_,L in plan],sections=[p[0] for p in plan],bass=bass_mode,stems=sorted(parts),events=len(s.events))
 
 MIN_BARS, MAX_BARS = 25, 29   # 4 beats per bar -> 100-116 beats
 
@@ -462,10 +735,22 @@ def main():
     ap.add_argument('--save-pieces', default=None, help='folder to also save the split pieces')
     ap.add_argument('--silence-db', type=float, default=-90, help='quieter than this is silence (default -90)')
     ap.add_argument('--min-gap', type=float, default=0.2, help='shortest silence between pieces, seconds (default 0.2)')
-    ap.add_argument('--styles', default=','.join(STYLES), help='drum styles songs pick from (default all)')
+    ap.add_argument('--styles', default=','.join(STYLES), help='drum styles songs pick from (default all: ' + ','.join(STYLES) + ')')
     ap.add_argument('--humanize', type=float, default=100, help='swing and timing drift, percent (default 100; 0 is a strict grid)')
     ap.add_argument('--bpm', type=float, default=None, help='the tempo the pieces were recorded at (default: heard from them)')
     ap.add_argument('--roles', default='', help='set pieces\' roles, e.g. 3=riff,6-8=hat,12=off (roles: ' + ','.join(ROLES) + ')')
+    ap.add_argument('--plan', default=None, help='arrange every song by hand, e.g. intro:4,verse:8,pre:2,hook:8,outro:4 (sections: '
+                    + ','.join(SECTIONS) + '; 1-16 bars each, 128 in all; overrides --min-bars/--max-bars)')
+    mx = ap.add_argument_group('the mixer (on unless --raw)')
+    mx.add_argument('--raw', action='store_true', help='no mixer: the pieces exactly as recorded, overlaps adding up past full scale')
+    mx.add_argument('--levels', default='', help='bus levels in dB, -24 to 6, e.g. drums=0,hats=-2,bass=-1,keys=-1 (those are the defaults)')
+    mx.add_argument('--reverb', type=float, default=MIX['reverb'], help=f"the room, 0-1 (default {MIX['reverb']})")
+    mx.add_argument('--delay', type=float, default=MIX['delay'], help=f"the riffs' echo, 0-1 (default {MIX['delay']})")
+    mx.add_argument('--pump', type=float, default=MIX['pump'], help=f"the bass and riffs ducking under the kick, 0-1 (default {MIX['pump']})")
+    mx.add_argument('--width', type=float, default=MIX['width'], help=f"the hats off-centre and the room's width, 0-1 (default {MIX['width']})")
+    mx.add_argument('--fade', action='store_true', help='fade the outro away to nothing')
+    mx.add_argument('--no-sweep', action='store_true', help='no filter sweeps (intro opening up, pre-hook rising, break muffled)')
+    ap.add_argument('--stems', action='store_true', help="also write each bus as its own WAV ('<song> - drums.wav', ...; mixed: and 'fx', the echo and room)")
     a = ap.parse_args()
     if not 8 <= a.min_bars <= a.max_bars: ap.error('need 8 <= --min-bars <= --max-bars')
     if a.count < 1: ap.error('--count must be 1 or more')
@@ -473,6 +758,21 @@ def main():
     if not styles or set(styles) - set(FAMILY): ap.error('--styles: any of '+','.join(STYLES))
     if not 0 <= a.humanize <= 200: ap.error('--humanize must be 0 to 200')
     if a.bpm is not None and not 40 <= a.bpm <= 250: ap.error('--bpm must be 40 to 250')
+    try: arranged = plan_of(a.plan) if a.plan is not None else None
+    except ValueError as e: ap.error(f'--plan: {e}')
+    mix = None
+    if not a.raw:
+        m = dict(reverb=a.reverb, delay=a.delay, pump=a.pump, width=a.width, fade=a.fade, sweep=not a.no_sweep)
+        for k in ('reverb', 'delay', 'pump', 'width'):
+            if not LIMITS[k][0] <= m[k] <= LIMITS[k][1]: ap.error(f'--{k} must be 0 to 1')
+        for part in filter(None, a.levels.split(',')):
+            bus, _, db = part.partition('=')
+            try: db = float(db)
+            except ValueError: db = None
+            if bus not in BUSES or db is None or not -24 <= db <= 6: ap.error(f'--levels: {part!r} is not like keys=-3 (buses: {",".join(BUSES)}; -24 to 6 dB)')
+            m[bus] = db
+        mix = mix_of(m)
+    elif a.levels or a.fade or a.no_sweep: print('(--raw: the mixer settings are ignored)')
     MIN_BARS, MAX_BARS = a.min_bars, a.max_bars
     n = load_pieces(a.input, a.save_pieces, a.silence_db, a.min_gap); print(f'found {n} pieces')
     if not n: sys.exit('no pieces; try a different --silence-db or --min-gap')
@@ -500,9 +800,10 @@ def main():
         while os.path.exists(path := f"{a.out}/Beats {t:%d-%m-%Y %H-%M}.wav"):   # never overwrite
             t += datetime.timedelta(minutes=1)
         t += datetime.timedelta(minutes=1)
-        info = make(rnd.randint(0, 10**9), path, styles, a.humanize / 100, roles, loops, chroma)
+        info = make(rnd.randint(0, 10**9), path, styles, a.humanize / 100, roles, loops, chroma, mix, a.stems, arranged)
+        style = info['style'] + (f"/{info['alt']}" if info['alt'] != info['style'] else '')
         over = f" peaks +{20*np.log10(info['peak']):.1f} dB" if info['peak'] > 1 else ''
-        print(os.path.basename(path), info['beats'], 'beats', info['dur'], 's', info['style'], '-'.join(info['sections']) + over)
+        print(os.path.basename(path), info['beats'], 'beats', info['dur'], 's', style, '-'.join(info['sections']) + over)
 
 if __name__ == '__main__':
     main()
