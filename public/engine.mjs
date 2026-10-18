@@ -324,9 +324,14 @@ function renderSong(s, { roles, plan, mix, stems = false }) {
   const longest = Math.max(0, ...pc.map(p => p.L.length));   // the last pieces play out in full
   const n = Math.floor((s.bars * 4 + 2) * B) + longest + (mixed ? 2 * sr : 0);   // (and the room's tail)
   const place = (L, R, list) => {
-    for (const { i, a } of list) {
-      const src = pc[i], end = Math.min(L.length, a + src.L.length);
-      for (let k = 0, j = a; j < end; k++, j++) { L[j] += src.L[k]; R[j] += src.R[k]; }
+    for (const { i, a, g = 1, n } of list) {
+      // (A jam's hit: its pad's level `g`, and a choked one cut at `n` samples, faded over 4 ms so it doesn't click.)
+      const src = pc[i], len = n ? Math.min(n, src.L.length) : src.L.length, end = Math.min(L.length, a + len);
+      const fade = n && n < src.L.length ? Math.max(1, Math.min(len, Math.round(0.004 * sr))) : 0;
+      for (let k = 0, j = a; j < end; k++, j++) {
+        const w = fade && k >= len - fade ? g * (len - k) / fade : g;
+        L[j] += src.L[k] * w; R[j] += src.R[k] * w;
+      }
     }
   };
   let L, R, over = null, parts = null;
@@ -540,10 +545,17 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   return { audio, events: s.events, stems: parts, info: { seed, detail, key: keyOf(riffs.map(i => pieceChroma(pieces[i], sr))), bpm, style, alt: hookStyle, bass: bassMode, riffSets: [introSet, verseSet, hookSet, bridgeSet], layer, bars, beats: bars * 4, seconds: audio.L.length / sr, peak: audio.peak, over: audio.over, mixed: Boolean(m), plan: plan.map(([t, , L]) => [t, L]) } };
 }
 
-// Hits placed by hand (即興, the jam's pads): [{ i, beat }] on the grid at
+// Hits placed by hand (即興, the jam's pads): [{ i, beat, g?, len? }] (g: the
+// pad's level; len: beats until it was choked) on the grid at
 // `bpm`, no humanize, mixed (or not) as a song is, its sections `plan`
 // ([[type, bars], …]; one verse of its length when not given).
 // -> { audio, info, events, stems }
+const eventOf = (e, B) => {
+  const ev = { i: e.i, beat: e.beat, a: Math.round(e.beat * B) };
+  if (Number.isFinite(e.g) && e.g >= 0 && e.g !== 1) ev.g = Math.min(1, e.g);
+  if (Number.isFinite(e.len) && e.len > 0) ev.n = Math.max(1, Math.round(e.len * B));
+  return ev;
+};
 export function renderEvents(pieces, sr, bpm, roles, hits, { mix = null, stems = false, plan: sections = null } = {}) {
   if (roles.length !== pieces.length) throw new Error(`Need a role for each of the ${pieces.length} pieces`);
   const lastBeat = Math.max(0, ...hits.map(e => e.beat));
@@ -551,7 +563,7 @@ export function renderEvents(pieces, sr, bpm, roles, hits, { mix = null, stems =
   // (Its own plan, verses of 16 bars, isn't held to an arrangement's 128: a long take is still a song.)
   const plan = sections ? planOf(sections) : Array.from({ length: Math.ceil(bars / 16) }, (_, k) => ['verse', k * 16, Math.min(16, bars - k * 16)]);
   const s = new Song(bars, makeRng(1), pieces, sr, 0, bpm, roles.map(() => 4));
-  for (const e of hits) if (e.i >= 0 && e.i < pieces.length && roles[e.i] !== 'off' && e.beat >= 0) s.events.push({ i: e.i, beat: e.beat, a: Math.round(e.beat * s.B) });
+  for (const e of hits) if (e.i >= 0 && e.i < pieces.length && roles[e.i] !== 'off' && e.beat >= 0) s.events.push(eventOf(e, s.B));
   const m = mix && mix.on !== false ? mixOf(mix) : null;
   const { audio, stems: parts } = renderSong(s, { roles, plan, mix: m, stems });
   return { audio, events: s.events, stems: parts, info: { bpm, bars, beats: bars * 4, seconds: audio.L.length / sr, peak: audio.peak, over: audio.over, mixed: Boolean(m), plan: plan.map(([t, , L]) => [t, L]), key: null, style: null } };

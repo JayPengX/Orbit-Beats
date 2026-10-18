@@ -344,6 +344,15 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .jam-pad.on { background: var(--accent); color: var(--accent-ink); }
 .jam-pad.on small { color: inherit; opacity: .85; }
 .jam-pad.hit { transform: scale(0.92); background: color-mix(in srgb, var(--accent) 55%, var(--fill)); }
+.jam-pad { position: relative; overflow: hidden; -webkit-touch-callout: none; }
+.jam-pad:not(.leveled) .lvl { display: none; }
+.jam-pad .lvl { position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--lvl, 1) * 100%); background: var(--accent); opacity: .55; }
+.jam-pad.on .lvl { background: var(--accent-ink); }
+.jam-pad.muted { opacity: .4; }
+.jam-pad[data-choke]:not([data-choke=""])::after { content: attr(data-choke); position: absolute; top: 5px; right: 7px; font-size: 10px; font-weight: 700; color: var(--text-2); }
+.jam-pad.on::after { color: inherit; }
+.jam-pad-sheet input[type="range"] { width: 150px; }
+.jam-pad-sheet .pct { width: 40px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
 .stack > .q-seg { margin-top: 8px; }
 .jam-rec.on { background: var(--q-red); color: #fff; }
 
@@ -351,6 +360,13 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .lib-tools { display: flex; gap: 8px; align-items: center; margin: 0 0 12px; }
 .lib-tools input { flex: 1; min-width: 0; height: 36px; border: 0; border-radius: 10px; background: var(--fill); padding: 0 12px; font: inherit; color: inherit; }
 .lib-tools select { height: 36px; border: 0; border-radius: 10px; background: var(--fill); padding: 0 8px; font: inherit; color: inherit; }
+/* 歌單: playlists. */
+.lib-lists .q-list { margin: -6px -16px -16px; background: none; }
+.lib-nav { display: flex; justify-content: space-between; align-items: center; margin: 0 0 4px; }
+.lib-back, .lib-more { height: 36px; border: 0; background: none; color: var(--accent); font-size: 17px; padding: 0 4px; white-space: nowrap; }
+.lib-more { width: 44px; font-size: 22px; font-weight: 700; }
+.lib-head h2 { min-width: 0; overflow-wrap: anywhere; }
+.card > .primary:first-child { margin-top: 0; margin-bottom: 8px; }
 
 footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 8px; white-space: nowrap; }
 </style>
