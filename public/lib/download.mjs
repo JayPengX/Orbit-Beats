@@ -23,5 +23,6 @@ export async function shareFile(blob, filename, { title = filename, text = '' } 
   download(blob, filename);
   return 'downloaded';
 }
-// A name a file can have anywhere (no / \ : * ? " < > |).
-export const fileName = s => String(s || 'Orbit Beats').replace(/[\\/:*?"<>|]+/g, '-').trim().slice(0, 80) || 'Orbit Beats';
+// A name a file can have anywhere (no / \ : * ? " < > | or control
+// characters; no space at either end, even once cut to 80).
+export const fileName = s => String(s || 'Orbit Beats').replace(/[\\/:*?"<>|\x00-\x1f]+/g, '-').trim().slice(0, 80).trim() || 'Orbit Beats';

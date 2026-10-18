@@ -513,7 +513,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
       verseNo++;
       riff(b, L, verseSet); bass(b, L, verseNo === 1 ? Math.floor(L / 2) : 0);
       s.drums(style, b, L, kit); s.loop(verseHat, b, L);
-      if (R.random() < 0.4) s.phrases(b + L - 4, 4, phrases);
+      if (R.random() < 0.4) s.phrases(b + L - Math.min(4, L), Math.min(4, L), phrases);   // (a verse under 4 bars: its own bars, never before the song)
     } else if (t === 'pre') {   // the lift: the verse's riffs and hat, no kick, a riser into the hook
       riff(b, L, verseSet); s.loop(verseHat, b, L); s.build(b, L, kit);
     } else if (t === 'hook') {   // the last hook is the fullest
@@ -548,7 +548,8 @@ export function renderEvents(pieces, sr, bpm, roles, hits, { mix = null, stems =
   if (roles.length !== pieces.length) throw new Error(`Need a role for each of the ${pieces.length} pieces`);
   const lastBeat = Math.max(0, ...hits.map(e => e.beat));
   const bars = Math.max(1, Math.ceil((lastBeat + 1e-9) / 4));
-  const plan = planOf(sections || [['verse', Math.min(16, bars)], ...(bars > 16 ? Array.from({ length: Math.ceil((bars - 16) / 16) }, (_, k) => ['verse', Math.min(16, bars - 16 - k * 16)]) : [])]);
+  // (Its own plan, verses of 16 bars, isn't held to an arrangement's 128: a long take is still a song.)
+  const plan = sections ? planOf(sections) : Array.from({ length: Math.ceil(bars / 16) }, (_, k) => ['verse', k * 16, Math.min(16, bars - k * 16)]);
   const s = new Song(bars, makeRng(1), pieces, sr, 0, bpm, roles.map(() => 4));
   for (const e of hits) if (e.i >= 0 && e.i < pieces.length && roles[e.i] !== 'off' && e.beat >= 0) s.events.push({ i: e.i, beat: e.beat, a: Math.round(e.beat * s.B) });
   const m = mix && mix.on !== false ? mixOf(mix) : null;

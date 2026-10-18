@@ -30,7 +30,7 @@ function render(recipe, stems = false) {
     minBars: recipe.minBars,
     maxBars: recipe.maxBars,
     styles: recipe.styles,
-    humanize: recipe.humanize / 100,
+    humanize: (Number.isFinite(recipe.humanize) ? recipe.humanize : 100) / 100,   // (a recipe without it: as the page opens, not NaN, a silent song)
     detail: recipe.detail ?? null,
     style: recipe.style ?? null,
     weights: recipe.weights ?? null,

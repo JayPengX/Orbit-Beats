@@ -32,10 +32,11 @@ export function maker(url) {
   }
   const call = (fn, ...args) =>
     new Promise((resolve, reject) => {
-      const onPage = () => fallback().then(m => resolve(m[fn](...args)), reject);
+      // (A call that throws on the page rejects: never left waiting.)
+      const onPage = () => fallback().then(m => m[fn](...args)).then(resolve, reject);
       if (!worker) return onPage();
       const id = ++n;
-      waiting.set(id, { resolve, reject, retry: () => (fn === 'setKit' ? onPage() : last ? fallback().then(m => (m.setKit(last), resolve(m[fn](...args))), reject) : onPage()) });
+      waiting.set(id, { resolve, reject, retry: () => (fn === 'setKit' ? onPage() : last ? fallback().then(m => (m.setKit(last), m[fn](...args))).then(resolve, reject) : onPage()) });
       worker.postMessage({ id, fn, args });
     });
   let last = null;
