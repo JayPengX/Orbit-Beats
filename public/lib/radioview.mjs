@@ -129,14 +129,15 @@ export function mountRadio(panel, api) {
       cutTo(item);
       return fill();
     }
+    // (Files: main's swap, step for step: nothing more between one song and the next.)
     const was = cur;
     cur = item;
     audio.loop = false;
-    audio.src = urlOf(item);
+    audio.src = item.url || urlOf(item);
     if (want) audio.play().catch(() => retry());
     if (was) setTimeout(() => drop(was), 4000);
     paint();
-    claim();
+    api.session(session());
     fill();
   }
   // A play() refused (iOS between songs, a stretch the phone couldn't read): the next one, once.
@@ -301,6 +302,7 @@ export function mountRadio(panel, api) {
     if (t.feed.item && t.feed.item !== cur && !q.ready.includes(t.feed.item)) q.ready.unshift(t.feed.item);
     tape = null;
     taped = false;
+    audio.disableRemotePlayback = false;
     try {
       t.enc?.close();
     } catch {}
@@ -462,25 +464,14 @@ export function mountRadio(panel, api) {
     pause: () => pause(),
     next: () => skip()
   });
-  // The lock screen's card (Now Playing): its words and buttons, playing or
-  // paused, where in the song. Set when the song changes or you tap, never
-  // from the player's own events: a song change fires pause and play, and
-  // answering those held up the next song's start.
-  let placed = 0;
+  // The lock screen's card (Now Playing): its words and buttons, and playing
+  // or paused when you tap. A song change sets only its words (as main does),
+  // never from the player's own events.
   function claim() {
     api.session(session());
-    const ms = navigator.mediaSession;
-    if (!ms) return;
     try {
-      ms.playbackState = want ? 'playing' : 'paused';
+      if (navigator.mediaSession) navigator.mediaSession.playbackState = want ? 'playing' : 'paused';
     } catch {}
-    // (Where in the song: a second on, once it plays.)
-    clearTimeout(placed);
-    placed = setTimeout(() => {
-      try {
-        if (cur && ms.setPositionState) ms.setPositionState({ duration: cur.seconds, position: Math.max(0, Math.min(cur.seconds, songTime())), playbackRate: 1 });
-      } catch {}
-    }, 1000);
   }
 
   // ---- Keeping it going ----
