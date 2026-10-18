@@ -13,12 +13,17 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
   - **做歌** (Make): pieces in, a 情境 mood (放鬆, 熱血, 律動, 經典), the drum
     styles, how many songs, and 更多設定. Each song has a title, length,
     groove and key, ▶ in the player over the tab bar, ♡ to keep it, and ⋯
-    (變奏一首, 換個鼓, 分享, 下載 WAV).
+    (變奏一首, 換個鼓, 編排, 分享, 下載 WAV, 分軌 stems, MIDI).
   - **樂器** (Studio): clips on the app's own instruments (`lib/synth.mjs`,
-    drums or melody) on a vertical 16th-note grid. It loops as you tap;
-    自動編 writes a start; 加進片段 renders it into the kit.
+    drums or melody) on a vertical 16th-note grid, 1, 2 or 4 bars, with
+    accents, chords, swing, undo, ⧉ 複製, ♡ 收藏, tap tempo and MIDI out.
+    It loops as you tap; 自動編 writes a start; 加進片段 renders it into the kit.
+  - **即興** (Jam): the kit as pads over a groove made of its own drums.
+    Loops start on the next bar, one-shots snap to 1/16, 1/8, the beat or
+    自由; ● 錄一段 turns a take into a song.
   - **歌單** (Library): kept songs (IndexedDB, 16-bit WAV). Play, share,
-    rename, delete, vary. 依你的口味 leans new batches toward the styles you
+    rename, delete, vary; search by name, groove or key, four orders, and
+    a zip of what's shown. 依你的口味 leans new batches toward the styles you
     keep.
 - **Pieces in:** one recording split on its silences, a sample pack (many
   files, each split), or the microphone, in any mix.
@@ -31,11 +36,17 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 - **Key:** from the riffs' notes (a DFT at each note's pitch,
   Krumhansl–Kessler profiles).
 - **Arrangement:** the usual song form. Phrases in fours, intro → verse/hook
-  pairs → bridge or break → last hook → outro. The same riff set per
+  pairs (a 導歌 pre-hook lift before some hooks) → bridge or break → last
+  hook → outro. The same riff set per
   section type, energy building to the last hook, fills at phrase ends,
   and a clean ending.
 - **Drum styles:** four-on-floor, hip-hop, trap, half-time, broken, house,
-  dembow, afrobeats, drill, boom bap, Jersey club, amapiano.
+  dembow, afrobeats, drill, boom bap, Jersey club, amapiano, lo-fi, funk,
+  UK garage, drum & bass, reggae, phonk, baile, techno.
+- **Mix** (on by default, 更多設定): buses for drums, hats, bass and melody,
+  echo and room, sidechain pump, sweeps into hooks, a limiter at -1 dBFS;
+  stems add up to the mix. Off, the pieces play exactly as recorded.
+- **Making** runs in a worker (`lib/maker.mjs`), so the page never stalls.
 - **Saved:**
   - On the phone: the last kit's sound and the kept songs.
   - On the Pass (app `beats`, `{ v: 1, settings, kits, taste }`): settings,
@@ -45,8 +56,9 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 
 ## Decisions in force
 
-- Pieces are never changed: no volume, panning, fades or effects. Overlaps
-  that clip are left (32-bit float keeps them; the page shows the peak).
+- The mixer is on by default (the owner's call). With it off, pieces are
+  never changed: no volume, panning, fades or effects, and overlaps that
+  clip are left (32-bit float keeps them; the page shows the peak).
 - No sound ever leaves the phone.
 - `engine.mjs` and `passion_beats.py` stay in step.
 
@@ -60,6 +72,11 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 | `lib/sources.mjs` | Files to one rate, split on silence |
 | `lib/kits.mjs` | Fingerprint, the Pass payload, the phone's kit and songs |
 | `lib/synth.mjs`, `lib/studio.mjs` | Instruments and 自動編; the 樂器 tab |
+| `lib/mix.mjs` | The mixer, stems, limiter |
+| `lib/make.mjs`, `lib/maker.mjs`, `lib/maker.worker.mjs` | Making songs in a worker |
+| `lib/jam.mjs`, `lib/jamview.mjs` | 即興: timing; the pads |
+| `lib/library.mjs` | 歌單: search, order, zip |
+| `lib/midi.mjs`, `lib/tap.mjs`, `lib/download.mjs`, `lib/names.mjs` | MIDI files, tap tempo, saving, names |
 
 ## Run and test
 
@@ -79,4 +96,5 @@ python3 passion_beats.py all_beats.wav --count 20 --out songs/
 
 Its flags: `--bpm`, `--roles 3=riff,12=off`, `--styles`, `--humanize`,
 `--seed`, `--min-bars` / `--max-bars`, `--silence-db -60`,
-`--save-pieces`. A push to `main` tests and deploys to Pages.
+`--save-pieces`, `--raw` (no mix), `--levels`, `--reverb`, `--delay`,
+`--pump`, `--width`, `--fade`, `--no-sweep`, `--stems`, `--plan`. A push to `main` tests and deploys to Pages.
