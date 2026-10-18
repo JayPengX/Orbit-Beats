@@ -26,7 +26,9 @@ import { libraryView, nameSheet } from './lib/library.mjs';
 import { mountStudio } from './lib/studio.mjs';
 import { mountJam } from './lib/jamview.mjs';
 import { W, en, lang } from './lib/lang.mjs';
-import { shows, levelCss, GUIDE_MOODS, GUIDE_START, guideNext, guideStepNo, shouldGuide } from './lib/easy.mjs';
+import { shows, levelCss, makeSettings } from './lib/easy.mjs';
+import { MOODS, radioPick } from './lib/radio.mjs';
+import { mountRadio } from './lib/radioview.mjs';
 import { TERM_ORDER, EXAMPLES, term, info } from './lib/help.mjs';
 import * as kitQ from '#kit/quadra.mjs';
 
@@ -34,14 +36,6 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const MAX_SONGS = 30;
 const MAX_BARS = 64;
-// 情境: a mood picks the grooves (and how loose they're played) for you.
-const MOODS = {
-  all: { zh: '全部', en: 'All', styles: STYLES, humanize: 100 },
-  chill: { zh: '放鬆', en: 'Chill', styles: ['half', 'hiphop', 'boombap', 'afro', 'amapiano', 'lofi', 'reggae'], humanize: 130 },
-  hype: { zh: '熱血', en: 'Hype', styles: ['trap', 'drill', 'four', 'jersey', 'phonk', 'dnb', 'techno', 'baile'], humanize: 60 },
-  groove: { zh: '律動', en: 'Groove', styles: ['house', 'afro', 'dembow', 'amapiano', 'broken', 'funk', 'garage'], humanize: 100 },
-  classic: { zh: '經典', en: 'Classic', styles: ['boombap', 'hiphop', 'half', 'four', 'funk', 'reggae'], humanize: 140 }
-};
 // A key as words: "A 小調", "E♭ major".
 const keyName = k => (k ? `${NOTE_NAMES[k.tonic]} ${k.minor ? W('小調', 'minor') : W('大調', 'major')}` : '');
 // Each song's title, from its seed: two words that go together (霓虹夜行, Neon Drive).
@@ -61,6 +55,7 @@ const ICON = {
   repeat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l3 3-3 3"/><path d="M4 11V9a4 4 0 0 1 4-4h12"/><path d="M7 22l-3-3 3-3"/><path d="M20 13v2a4 4 0 0 1-4 4H4"/></svg>'
 };
 const TAB_ICONS = {
+  listen: '<path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4.5" height="7" rx="1.6"/><rect x="16.5" y="14" width="4.5" height="7" rx="1.6"/>',
   make: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
   studio: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 4v9M12 4v9M16 4v9M3 13h18"/>',
   jam: '<rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/>',
@@ -113,6 +108,8 @@ if (!kept.settings) {
 }
 let settings = settingsOf(kept.settings, DEFAULTS);
 const simple = () => settings.level !== 'pro';
+// What songs are made on: Advanced's settings, or Simple's own fixed ones (lib/easy.mjs), never mixed.
+const cfg = () => makeSettings(settings.level, settings);
 // The level on the page: body.lv-simple or body.lv-pro.
 function applyLevel() {
   document.body.classList.toggle('lv-simple', simple());
@@ -124,6 +121,8 @@ function setLevel(v) {
   settings.level = v;
   save();
   applyLevel();
+  // (Simple splits on its own settings too: the kit split again only when the two differ.)
+  if (sources.length && (makeSettings('simple', settings).silenceDb !== settings.silenceDb || makeSettings('simple', settings).minGap !== settings.minGap)) split();
   update();
   studio?.shown?.();
   toast(v === 'pro' ? W('進階：所有工具都在', 'Advanced: every tool shown') : W('簡單：只留做歌需要的', 'Simple: just what you need'), { ms: 1600 });
@@ -154,24 +153,25 @@ function keepKit() {
 
 // ---- Tabs ----
 
-const TABS = ['make', 'studio', 'jam', 'library'];
-const TAB_NAMES = { make: ['做歌', 'Make'], studio: ['樂器', 'Studio'], jam: ['即興', 'Jam'], library: ['歌單', 'Library'] };
+const TABS = ['listen', 'make', 'studio', 'jam', 'library'];
+const TAB_NAMES = { listen: ['聽', 'Listen'], make: ['做歌', 'Make'], studio: ['樂器', 'Studio'], jam: ['即興', 'Jam'], library: ['歌單', 'Library'] };
 const tabs = tabBar({
   tabs: TABS.map(id => ({ id, label: name(TAB_NAMES, id), icon: TAB_ICONS[id] })),
   onSelect: id => showTab(id),
   label: W('分頁', 'Tabs')
 });
-let tabNow = 'make';
+let tabNow = 'listen';
 function showTab(id) {
   tabs.select(id);
   tabNow = id;
   if (id === 'library') lib.draw();
+  if (id === 'listen') radio?.warm();
   if (id === 'studio') studio?.shown();
   else studio?.hidden();
   if (id === 'jam') jam?.shown();
   else jam?.hidden();
 }
-const firstTab = () => (TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'make');
+const firstTab = () => (TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'listen');
 
 // ---- Settings (做歌) ----
 
@@ -208,11 +208,13 @@ function tasteHint() {
   $('taste-row').hidden = !top.length;
   $('taste-hint').textContent = !settings.smart ? W('關著：每種一樣多', 'Off: every style alike') : W(`多做你收藏的 ${top.join('、')}`, `More of what you keep: ${top.join(', ')}`);
 }
-const weights = () => (settings.smart && Object.keys(kept.taste || {}).length ? kept.taste : null);
+const weights = () => (cfg().smart && Object.keys(kept.taste || {}).length ? kept.taste : null);
 
 // What's wrong with the settings, if anything.
 function problem() {
-  const { count, minBars, maxBars, styles, seed } = settings;
+  const { count, minBars, maxBars, styles, seed } = cfg();
+  // (Simple with no tune in the pieces, or none: the app's own band plays.)
+  if (simple()) return '';
   if (!(count >= 1 && count <= MAX_SONGS)) return W(`首數要 1 到 ${MAX_SONGS}`, `Songs must be 1 to ${MAX_SONGS}`);
   if (!(minBars >= MIN_BARS && maxBars <= MAX_BARS)) return W(`長度要 ${MIN_BARS} 到 ${MAX_BARS} 小節`, `Length must be ${MIN_BARS} to ${MAX_BARS} bars`);
   if (minBars > maxBars) return W('最短比最長還長', 'Shortest length is over the longest');
@@ -224,7 +226,7 @@ function problem() {
 }
 // Songs are an even number of bars when the range has one, plus ~1.5 s for the last hit to ring.
 function lengthText() {
-  const { minBars, maxBars } = settings;
+  const { minBars, maxBars } = cfg();
   const secs = bars => Math.round((bars * 4 * 60) / bpm + 1.5);
   const lo = minBars % 2 && minBars < maxBars ? minBars + 1 : minBars;
   const hi = maxBars % 2 && maxBars > minBars ? maxBars - 1 : maxBars;
@@ -238,16 +240,22 @@ function mixText() {
   const bits = [m.reverb ? W(`殘響 ${Math.round(m.reverb * 100)}%`, `Room ${Math.round(m.reverb * 100)}%`) : '', m.delay ? W('回音', 'Echo') : '', m.pump ? W('側鏈', 'Pump') : '', m.fade ? W('淡出', 'Fade') : ''].filter(Boolean);
   return [W('開', 'On'), ...bits].join(' · ');
 }
+// Simple's batch is the kit's when it has a tune, else the app's own band's.
+const ownBand = () => simple() && !(pieces.length && roles.some(x => x === 'riff' || x === 'phrase'));
 function update() {
-  const { count } = settings;
+  const { count } = cfg();
   const bad = problem();
   $('more-hint').textContent = simple() ? `${lengthText()} · ${W('簡單模式', 'Simple')}` : `${lengthText()} · ${W('人味', 'Humanize')} ${settings.humanize}%`;
   $('mix-hint').textContent = mixText();
   $('count-down').disabled = busy || count <= 1;
   $('count-up').disabled = busy || count >= MAX_SONGS;
   $('error').textContent = bad;
-  if (!busy) {
-    $('go').textContent = !pieces.length ? W('先放片段，或到「樂器」做', 'Add pieces, or make some in Studio') : count >= 1 && count <= MAX_SONGS ? W(`做 ${count} 首`, `Make ${count} song${count === 1 ? '' : 's'}`) : W('做歌', 'Make songs');
+  if (!busy && simple()) {
+    $('go').textContent = W('🎲 隨機做一批', '🎲 Make a random batch');
+    $('go').disabled = false;
+    $('easy-hint').textContent = ownBand() ? W(`${count} 首，用內建的樂器`, `${count} songs on the built-in band`) : W(`${count} 首，用你的 ${pieces.length} 個片段`, `${count} songs from your ${pieces.length} pieces`);
+  } else if (!busy) {
+    $('go').textContent = !pieces.length ? W('先放片段，或到「樂器」做', 'Add pieces or use Studio') : count >= 1 && count <= MAX_SONGS ? W(`做 ${count} 首`, `Make ${count} song${count === 1 ? '' : 's'}`) : W('做歌', 'Make songs');
     $('go').disabled = !!bad || !pieces.length;
   }
 }
@@ -474,7 +482,6 @@ async function load(get, add = false) {
   kitShown();
   split();
   saveLast(sources);
-  guideKit();
 }
 // The ways in, as the kit stands: 再加檔案 once there is one, 示範 only before.
 function kitShown() {
@@ -497,7 +504,7 @@ function clearPieces() {
 function split() {
   if (!sources.length) return;
   stopPiece();
-  pieces = splitAll(sources, { silenceDb: settings.silenceDb, minGap: settings.minGap });
+  pieces = splitAll(sources, { silenceDb: cfg().silenceDb, minGap: cfg().minGap });
   heard = analyzeRecording(pieces, sr);
   print = fingerprint(sources);
   bpm = heard.bpm;
@@ -661,16 +668,29 @@ $('record').onclick = async () => {
 if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') $('record').hidden = true;
 
 // One sound for the whole app (the pieces, the instruments, the pads): made on the first tap.
+// (iOS plays it as music, not as a ringtone's sound, so the silent switch doesn't mute it; and
+// one stopped by a call, Siri or the screen locking is started again when it's wanted.)
 let ctx = null;
+const wanted = () => Boolean(studio?.playing() || jam?.playing() || playing || example);
+const wake = () => ctx && ctx.state !== 'running' && wanted() && ctx.resume().catch(() => {});
 const audioCtx = () => {
-  ctx ||= new AudioContext();
-  ctx.resume();
+  if (!ctx) {
+    try {
+      if (navigator.audioSession) navigator.audioSession.type = 'playback';
+    } catch {}
+    ctx = new AudioContext();
+    ctx.addEventListener?.('statechange', wake);
+  }
+  if (ctx.state !== 'running') ctx.resume().catch(() => {});
   return ctx;
 };
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && wake());
+document.addEventListener('pointerdown', () => ctx && ctx.state !== 'running' && ctx.resume().catch(() => {}), true);
 // Everything that plays, stopped (before something else plays).
 function quiet({ keep: but = '' } = {}) {
   stopPiece();
   stopExample();
+  if (but !== 'radio') radio?.stop();
   if (but !== 'song') stopSong();
   if (but !== 'studio') studio?.stop();
   if (but !== 'jam') jam?.stop();
@@ -899,7 +919,7 @@ const lib = libraryView({
 function songRow(song, { lib: inLib = false, list = null } = {}) {
   const li = h('li', { class: 'song', 'data-id': song.id });
   const info = song.info;
-  const what = [timeText(info.seconds), info.style ? name(STYLE_NAMES, info.style) : W('即興', 'Jam'), keyName(info.key)].filter(Boolean).join(' · ');
+  const what = [timeText(info.seconds), info.style ? name(STYLE_NAMES, info.style) : W('即興', 'Jam'), keyName(info.key)].filter(Boolean);
   const plan = info.plan.map(([t, n]) => `${name(SECTION_NAMES, t)} ${n} ${W('小節', 'bars')}`).join(', ');
   const play = h('button', { class: 'play', type: 'button', 'aria-label': W(`播放 ${song.name}`, `Play ${song.name}`), html: ICON.play, onclick: () => toggleSong(song) });
   const heart = h('button', { class: `act heart${lib.has(song.id) ? ' kept' : ''}`, type: 'button', 'aria-label': W('收藏', 'Keep'), 'aria-pressed': String(lib.has(song.id)), html: lib.has(song.id) ? ICON.hearted : ICON.heart, onclick: () => keepSong(song) });
@@ -913,7 +933,7 @@ function songRow(song, { lib: inLib = false, list = null } = {}) {
     bar.append(h('button', { type: 'button', class: 'sec', 'data-k': String(k), style: { flex: String(s.bars), background: `var(--${s.type})`, '--k': String(k) }, 'aria-label': `${label} ${s.bars} ${W('小節', 'bars')}`, text: labelFits(s.bars, total, width, em) ? label : '' }));
     holdable(bar.lastChild, () => seekBar(song, s.bar), () => loopSection(song, s.bar));
   });
-  li.append(h('div', { class: 'line' }, [play, h('div', { class: 'what' }, [h('span', { class: 'name', text: song.name }), h('span', { class: 'info', text: what })]), heart, more]), bar);
+  li.append(h('div', { class: 'line' }, [play, h('div', { class: 'what' }, [h('span', { class: 'name', text: song.name }), h('span', { class: 'info' }, what.flatMap((w, i) => [...(i ? [' · '] : []), h('span', { text: w })]))]), heart, more]), bar);
   litAt = '';
   if (nowPlaying?.id === song.id) markRow(li, true);
   return li;
@@ -925,6 +945,7 @@ function markRow(li, on) {
   b.innerHTML = on && !audio.paused ? ICON.pause : ICON.play;
 }
 function refreshHearts(id) {
+  radio?.refresh();
   for (const li of rowsOf(id)) {
     const b = li.querySelector('.heart');
     const k = lib.has(id);
@@ -942,11 +963,14 @@ async function kitToMaker() {
   kitSent = now;
 }
 // A recipe as this batch's settings make it (a song made from another keeps that one's).
-const recipeOf = (over = {}) => ({ print, minBars: settings.minBars, maxBars: settings.maxBars, styles: [...settings.styles], humanize: settings.humanize, mix: { ...settings.mix }, weights: weights(), detail: null, style: null, plan: null, ...over });
+const recipeOf = (over = {}) => {
+  const c = cfg();
+  return { print, minBars: c.minBars, maxBars: c.maxBars, styles: [...c.styles], humanize: c.humanize, mix: { ...c.mix }, weights: weights(), detail: null, style: null, plan: null, ...over };
+};
 // One song made from a recipe: { id, name, info, data, url, bits, recipe }.
 async function makeOne(recipe, title) {
   await kitToMaker();
-  const bits = settings.bits;
+  const bits = cfg().bits;
   const { info, wav } = await make.song(recipe, bits);
   // (Kept with the groove it got instead of the taste it leaned on: made again, for its stems or
   // a variation, it's the same song whatever the taste is by then.)
@@ -959,20 +983,21 @@ async function makeOne(recipe, title) {
 const fromRecipe = (from, over) => ({ ...from.recipe, ...over });
 
 $('go').onclick = () => makeBatch();
-// A batch of `count` songs (the guide's: one), in place of the last.
-async function makeBatch(count = settings.count) {
+// A batch of `count` songs, in place of the last.
+async function makeBatch(count = cfg().count) {
+  if (ownBand()) return bandBatch(count);
   if (busy || problem() || !pieces.length) return;
   busy = true;
   quiet();
   for (const s of songs) URL.revokeObjectURL(s.url);
   songs = [];
-  const { bits } = settings;
-  const seed = settings.seed ? +settings.seed : Math.floor(Math.random() * 1e9);
+  const { bits, mix } = cfg();
+  const seed = cfg().seed ? +cfg().seed : Math.floor(Math.random() * 1e9);
   $('out').hidden = false;
   $('songs').textContent = '';
   $('zip').disabled = true;
   const lean = weights() ? W(` · 依你的口味`, ` · your taste`) : '';
-  $('out-meta').textContent = `${bpm} BPM · ${W('種子', 'seed')} ${seed} · ${bits === 32 ? W('32 位元', '32-bit') : W('16 位元', '16-bit')} · ${settings.mix.on ? W('混音', 'mixed') : W('原音', 'raw')}${lean}`;
+  $('out-meta').textContent = `${bpm} BPM · ${W('種子', 'seed')} ${seed} · ${bits === 32 ? W('32 位元', '32-bit') : W('16 位元', '16-bit')} · ${mix.on ? W('混音', 'mixed') : W('原音', 'raw')}${lean}`;
   $('go').disabled = true;
   update();
   const list = batch(count, seed);
@@ -995,6 +1020,44 @@ async function makeBatch(count = settings.count) {
   $('zip').disabled = !songs.length;
   busy = false;
   update();
+}
+
+// 簡單's batch with no tune in the pieces (or none): songs on the app's own band, each a groove of its own.
+async function bandBatch(count) {
+  if (busy) return;
+  busy = true;
+  quiet();
+  for (const s of songs) URL.revokeObjectURL(s.url);
+  songs = [];
+  $('out').hidden = false;
+  $('songs').textContent = '';
+  $('zip').disabled = true;
+  $('go').disabled = true;
+  update();
+  const recent = [];
+  try {
+    for (let k = 0; k < count; k++) {
+      $('go').textContent = W(`第 ${k + 1} / ${count} 首…`, `Making ${k + 1} of ${count}…`);
+      $('busy').textContent = W(`正在做第 ${k + 1} / ${count} 首…`, `Making song ${k + 1} of ${count}…`);
+      if (k === 0) $('out').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const spec = radioPick('all', recent);
+      recent.push(spec.style);
+      const song = await bandSong(spec);
+      songs.push(song);
+      $('songs').append(songRow(song));
+    }
+  } catch (e) {
+    toast(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`), { tone: 'bad' });
+  }
+  $('busy').textContent = '';
+  $('zip').disabled = !songs.length;
+  busy = false;
+  update();
+}
+// A song on the app's own band (聽's, or 簡單's batch): { id, name, info, data, url, bits, recipe }.
+async function bandSong(spec) {
+  const { info, wav } = await make.radioWav(spec);
+  return { id: `radio:${spec.seed}:${spec.mood}:${info.style}`, name: songTitle(spec.seed), info, data: wav, url: URL.createObjectURL(new Blob([wav], { type: 'audio/wav' })), bits: 16, recipe: { print: 'radio', radio: info.radio } };
 }
 
 // A song made from another (a variation, another groove, an arrangement), in the batch right under it.
@@ -1036,7 +1099,7 @@ function songMenu(song, anchor, inLib, list = null) {
       : []),
     { label: W('分享', 'Share'), icon: '↗', onClick: () => shareSong(song) },
     { label: W('下載 WAV', 'Download WAV'), icon: '↓', onClick: () => downloadSong(song) },
-    { label: W('存成檔案', 'Save as file'), icon: '▤', onClick: () => saveProject(song) },
+    ...(song.recipe?.radio ? [] : [{ label: W('存成檔案', 'Save as file'), icon: '▤', onClick: () => saveProject(song) }]),
     ...(can && shows(settings.level, 'make-stems') ? [{ label: W('下載分軌', 'Download stems'), icon: '≡', onClick: () => stemsOf(song) }] : []),
     ...(can && shows(settings.level, 'make-midi') ? [{ label: W('匯出 MIDI', 'Export MIDI'), icon: '♪', onClick: () => midiOf(song) }] : []),
     ...(inLib
@@ -1141,14 +1204,18 @@ async function urlOf(song) {
   return urls.get(song.id);
 }
 // `loop`: the section to repeat in a song not yet playing (held from its row).
+let playFrom = 'make'; // the list the song plays from (on to its next whatever tab is open by then)
 async function playSong(song, at = 0, loop = null) {
   quiet({ keep: 'song' });
+  playFrom = tabNow === 'library' ? 'library' : 'make';
   if (nowPlaying) for (const li of rowsOf(nowPlaying.id)) markRow(li, false);
   if (nowPlaying?.id !== song.id) loopAt = loop;
   nowPlaying = song;
   audio.src = await urlOf(song);
   audio.currentTime = at;
-  await audio.play().catch(() => {});
+  // (A play refused, iOS between songs with the screen locked: once more a moment later.)
+  await audio.play().catch(() => new Promise(r => setTimeout(r, 300)).then(() => audio.play()).catch(() => {}));
+  claimSession({ title: song.name, artist: 'Orbit Beats', album: song.info.style ? name(STYLE_NAMES, song.info.style) : W('即興', 'Jam'), play: () => audio.play(), pause: () => audio.pause(), next: () => nextSong() });
   $('player').hidden = false;
   document.body.classList.add('playing');
   $('player-name').textContent = song.name;
@@ -1258,11 +1325,17 @@ for (const ev of ['timeupdate', 'play', 'pause', 'loadedmetadata', 'seeked']) au
 audio.addEventListener('ended', () => {
   paintPlayer();
   if (repeat === 'section' && loopAt) return void ((audio.currentTime = loopAt.from), audio.play().catch(() => {}));
-  // On to the next in the same list (the batch or 歌單).
-  const list = tabNow === 'library' ? lib.shown() : songs;
-  const i = list.findIndex(s => s.id === nowPlaying?.id);
-  if (i >= 0 && list[i + 1]) playSong(list[i + 1]);
+  nextSong();
 });
+// On to the next in the list it played from (the batch or 歌單), whatever tab is open now.
+function nextSong() {
+  const list = playFrom === 'library' ? lib.shown() : songs;
+  const i = list.findIndex(s => s.id === nowPlaying?.id);
+  if (i >= 0 && list[i + 1]) {
+    const from = playFrom;
+    playSong(list[i + 1]).then(() => (playFrom = from));
+  }
+}
 $('player-play').onclick = () => (audio.paused ? audio.play().catch(() => {}) : audio.pause());
 $('player-x').onclick = closePlayer;
 // The bar: a tap or a drag along it moves the song there.
@@ -1279,13 +1352,17 @@ $('player-bar').addEventListener('pointerdown', e => {
   addEventListener('pointermove', move);
   addEventListener('pointerup', up);
 });
-// The lock screen's controls and its title (iOS's Now Playing).
-if ('mediaSession' in navigator) {
-  navigator.mediaSession.setActionHandler?.('play', () => audio.play());
-  navigator.mediaSession.setActionHandler?.('pause', () => audio.pause());
-  audio.addEventListener('play', () => {
-    if (nowPlaying && globalThis.MediaMetadata) navigator.mediaSession.metadata = new MediaMetadata({ title: nowPlaying.name, artist: 'Orbit Beats' });
-  });
+// The lock screen's controls and its title (iOS's Now Playing): whatever played last (a song, or 聽) has them.
+function claimSession({ title, artist, album = '', play, pause, next = null }) {
+  const ms = navigator.mediaSession;
+  if (!ms) return;
+  try {
+    if (globalThis.MediaMetadata) ms.metadata = new MediaMetadata({ title, artist, album, artwork: [{ src: new URL('./icons/icon-512.png', location.href).href, sizes: '512x512', type: 'image/png' }] });
+  } catch {}
+  for (const [action, fn] of [['play', play], ['pause', pause], ['nexttrack', next]])
+    try {
+      ms.setActionHandler(action, fn);
+    } catch {}
 }
 
 // ---- Keep, share, download ----
@@ -1385,7 +1462,7 @@ async function stemsOf(song) {
   toast(W('正在做分軌…', 'Making the stems…'), { ms: 1600 });
   try {
     await kitToMaker();
-    const zip = await make.stems(song.recipe, settings.bits, { title: fileName(song.name), names: busNames() });
+    const zip = await make.stems(song.recipe, cfg().bits, { title: fileName(song.name), names: busNames() });
     download(new Blob([zip], { type: 'application/zip' }), `${fileName(song.name)} · ${W('分軌', 'Stems')}.zip`);
   } catch (e) {
     toast(W(`做不出來：${e.message}`, `Couldn't make them: ${e.message}`), { tone: 'bad' });
@@ -1440,14 +1517,26 @@ $('zip').onclick = () => zipOf(songs, 'Orbit Beats.zip');
 
 let studio = null;
 let jam = null;
+let radio = null;
+// ♡ on 聽: the song whole into 歌單 (made again from its seed), or out again.
+async function keepRadio(item) {
+  const id = `radio:${item.spec.seed}:${item.spec.mood}:${item.info.style}`;
+  const there = lib.has(id);
+  if (!there) toast(W('存到歌單中…', 'Keeping it…'), { ms: 1200 });
+  try {
+    await keepSong(there ? { id, info: item.info } : await bandSong({ ...item.spec, style: item.info.style }).then(s => ({ ...s, name: item.title })));
+  } catch (e) {
+    toast(W(`存不下來：${e.message}`, `Couldn't keep it: ${e.message}`), { tone: 'bad' });
+  }
+}
 // A song from the jam's take: into the batch, played.
 async function jamSong(hits, beats) {
   try {
     await kitToMaker();
-    const recipe = { print, jam: hits, plan: null, mix: { ...settings.mix }, at: Date.now() };
-    const { info, wav } = await make.song(recipe, settings.bits);
+    const recipe = { print, jam: hits, plan: null, mix: { ...cfg().mix }, at: Date.now() };
+    const { info, wav } = await make.song(recipe, cfg().bits);
     const at = new Date();
-    const song = { id: recipeId(recipe), name: `${W('即興', 'Jam')} ${at.getHours()}:${String(at.getMinutes()).padStart(2, '0')}`, info, data: wav, url: URL.createObjectURL(new Blob([wav], { type: 'audio/wav' })), bits: settings.bits, recipe };
+    const song = { id: recipeId(recipe), name: `${W('即興', 'Jam')} ${at.getHours()}:${String(at.getMinutes()).padStart(2, '0')}`, info, data: wav, url: URL.createObjectURL(new Blob([wav], { type: 'audio/wav' })), bits: cfg().bits, recipe };
     songs.unshift(song);
     $('out').hidden = false;
     $('songs').prepend(songRow(song));
@@ -1460,7 +1549,7 @@ async function jamSong(hits, beats) {
 }
 
 
-// ---- Words, help and the guided first song ----
+// ---- Words and help ----
 
 // ⓘ anywhere (the page, 樂器, 即興, a sheet): the word in everyday words, and
 // where there's one, the same bar without it and with it.
@@ -1534,7 +1623,7 @@ function explain(id) {
     body: h('div', { class: 'card sheet-card' }, [h('p', { class: 'term-text', text: t.text }), listen])
   });
 }
-// The ? at the top: 簡單 / 進階, the guide again, the words, and the full guide (the kit's, in the Quadra Pass sheet).
+// The ? at the top: 簡單 / 進階, the words, and the full guide (the kit's, in the Quadra Pass sheet).
 function helpSheet() {
   const s = sheet({
     title: W('說明', 'Help'),
@@ -1542,7 +1631,6 @@ function helpSheet() {
     body: [
       h('div', { class: 'card sheet-card' }, [
         levelRow(),
-        h('button', { class: 'more-row row', type: 'button', onclick: () => (s.close(), replayGuide()) }, [h('span', { class: 'label' }, [h('span', { text: W('新手引導', 'Getting started') }), h('small', { text: W('一步一步做出第一首歌', 'Your first song, step by step') })]), h('span', { class: 'chev', 'aria-hidden': 'true', text: '›' })]),
         h('button', { class: 'more-row row', type: 'button', onclick: () => (s.close(), kitQ.openHelp ? kitQ.openHelp(q) : (location.hash = 'help=beats')) }, [h('span', { class: 'label' }, [h('span', { text: W('完整說明', 'The full guide') }), h('small', { text: W('每個分頁、每個功能', 'Every tab and tool') })]), h('span', { class: 'chev', 'aria-hidden': 'true', text: '›' })])
       ]),
       h('div', { class: 'card sheet-card' }, [
@@ -1557,116 +1645,12 @@ function helpSheet() {
   });
 }
 
-// The guided first song (lib/easy.mjs): a card on top of 做歌, one question at a time.
-let guide = { step: null };
-function guideTo(ev) {
-  guide = guideNext(guide, ev);
-  drawGuide();
-}
-function guideDone(ev = { type: 'done' }) {
-  guideTo(ev);
-  if (!settings.guided) {
-    settings.guided = true;
-    save();
-  }
-}
-function replayGuide() {
-  showTab('make');
-  guideTo({ type: 'replay' });
-  scrollTo({ top: 0, behavior: 'smooth' });
-}
-const choice = (icon, title, sub, onclick) => h('button', { class: 'choice', type: 'button', onclick }, [h('i', { 'aria-hidden': 'true', text: icon }), h('div', {}, [h('b', { text: title }), h('span', { text: sub })])]);
-function drawGuide(note = '') {
-  const card = $('guide');
-  const step = guide.step;
-  card.hidden = !step;
-  if (step) $('panel-make').dataset.guide = step;
-  else delete $('panel-make').dataset.guide;
-  if (!step) return card.replaceChildren();
-  const head = [
-    h('button', { class: 'skip', type: 'button', text: step === 'tweak' ? W('完成', 'Done') : W('略過', 'Skip'), onclick: () => guideDone(step === 'tweak' ? { type: 'done' } : { type: 'skip' }) }),
-    h('p', { class: 'step', text: W(`第一首歌 · ${guideStepNo(step)} / 4`, `Your first song · ${guideStepNo(step)} of 4`) })
-  ];
-  const back = h('button', { class: 'back', type: 'button', text: W('‹ 上一步', '‹ Back'), onclick: () => guideTo({ type: 'back' }) });
-  const moodOf = id => GUIDE_MOODS.find(m => m.id === id);
-  let body = [];
-  if (step === 'mood')
-    body = [
-      h('h2', { text: W('想要什麼感覺？', 'What should it feel like?') }),
-      h('p', { text: W('選一個，鼓的打法交給我們。', 'Pick one; we’ll pick the drums.') }),
-      h('div', { class: 'choices' }, GUIDE_MOODS.map(m => choice(m.icon, W(m.zh[0], m.en[0]), W(m.zh[1], m.en[1]), () => pickMood(m.id))))
-    ];
-  else if (step === 'sound')
-    body = [
-      h('h2', { text: W('用什麼聲音？', 'Which sounds?') }),
-      h('p', { text: note || (m => W(`${m.icon} ${m.zh[0]}，好。歌要用一些聲音來做：`, `${m.icon} ${m.en[0]}, got it. A song is made of a few sounds:`))(moodOf(guide.mood) || GUIDE_MOODS[0]) }),
-      h('div', { class: 'choices one' }, [
-        ...(pieces.length ? [choice('🎛️', W('用現在的片段', 'The pieces you have'), W(`已經放進 ${pieces.length} 段`, `${pieces.length} already in`), () => guideMake({ type: 'current' }))] : []),
-        choice('🎁', W('用示範聲音', 'Use the demo sounds'), W('馬上就能聽', 'Ready right now'), () => guideMake({ type: 'demo' })),
-        choice('🎤', W('用我的聲音', 'Use my own sounds'), W('錄一段，或選聲音檔', 'Record, or pick files'), () => guideTo({ type: 'mine' }))
-      ]),
-      back
-    ];
-  else if (step === 'mine')
-    body = [
-      h('h2', { text: W('放進你的聲音', 'Add your sounds') }),
-      h('p', { text: W('在下面錄一段：拍手、敲桌子、哼一句都行，每個聲音之間停一下。或選手機裡的聲音檔。放好就自動做歌。', 'Record below: claps, taps on a table, a hummed line, with a short pause between sounds. Or pick sound files. The song is made as soon as they’re in.') }),
-      back
-    ];
-  else if (step === 'making') body = [h('h2', {}, [h('span', { class: 'spin', 'aria-hidden': 'true', text: '◌' }), ' ', W('正在做你的歌…', 'Making your song…')]), h('p', { text: W('幾秒就好，做好會自動播放。', 'A few seconds; it plays when it’s ready.') })];
-  else if (step === 'tweak') {
-    const song = songs[0];
-    body = [
-      h('h2', { text: W('做好了，正在播！', 'Done, and playing!') }),
-      h('p', { text: W('想試試別的樣子？點一個：', 'Want it a bit different? Try one:') }),
-      h('div', { class: 'tweaks' }, [
-        h('button', { class: 'q-btn tinted', type: 'button', text: W('✦ 變奏一首', '✦ A variation'), disabled: !song, onclick: () => song && another(song, fromRecipe(song, { detail: Math.floor(Math.random() * 1e9) }), `${baseTitle(song)} · ${W('變奏', 'Var.')} ${nth(baseTitle(song))}`) }),
-        h('button', { class: 'q-btn tinted', type: 'button', text: W('♫ 換個鼓', '♫ Other drums'), disabled: !song, onclick: () => song && pickGroove(song) })
-      ]),
-      h('p', { class: 'keep-tip', text: W('喜歡就按歌右邊的 ♡，它會存到「歌單」。想多做幾首，按「完成」再按「做歌」。', 'Like it? Tap the ♡ beside it to keep it in Library. For more songs, tap Done, then Make.') })
-    ];
-  }
-  card.replaceChildren(...head, ...body);
-}
-function pickMood(id) {
-  const m = MOODS[id];
-  settings.styles = [...m.styles];
-  settings.humanize = m.humanize;
-  settings.mood = id;
-  save();
-  showSettings();
-  guideTo({ type: 'mood', mood: id });
-}
-// Sounds picked: the demo's (in place of none), the pieces in, or yours once they're in; then one song, played.
-async function guideMake(ev) {
-  guideTo(ev);
-  if (ev.type === 'demo') await load(async () => [{ name: 'demo', ...demoRecording() }], false);
-  if (guide.step !== 'making') return;
-  const bad = !pieces.length ? W('沒有聽到聲音，再試一次', 'No sounds were heard; try again') : problem();
-  if (bad) {
-    guideTo({ type: 'failed' });
-    return drawGuide(roles.some(r => r === 'riff' || r === 'phrase') || !pieces.length ? bad : W('你的聲音裡聽不出旋律：先用示範聲音，或在「樂器」做一段旋律。', 'No tune was heard in your sounds: use the demo, or make a melody in Studio.'));
-  }
-  await makeBatch(1);
-  if (!songs.length) {
-    guideTo({ type: 'failed' });
-    return drawGuide(W('做不出來，換個聲音試試', 'Couldn’t make it; try other sounds'));
-  }
-  guideTo({ type: 'made' });
-  playSong(songs[0]);
-  scrollTo({ top: 0, behavior: 'smooth' });
-}
-// Your own sounds in, while the guide waits for them.
-function guideKit() {
-  if (guide.step === 'mine' && pieces.length) guideMake({ type: 'kit' });
-}
-
 // ---- Opening ----
 
 const BUILD = document.querySelector('meta[name="build-version"]')?.content || 'dev';
 window.__fxStarted = true;
 const gated = installGate('beats', lang);
-watchUpdates({ current: BUILD, key: 'orbitBeats', cachePrefix: 'beats-', busy: () => busy || Boolean(recorder) || !audio.paused || Boolean(studio?.playing()) || Boolean(jam?.playing()) || Boolean(document.querySelector('.q-sheet, dialog[open]')) });
+watchUpdates({ current: BUILD, key: 'orbitBeats', cachePrefix: 'beats-', busy: () => busy || Boolean(recorder) || !audio.paused || Boolean(radio?.playing()) || Boolean(studio?.playing()) || Boolean(jam?.playing()) || Boolean(document.querySelector('.q-sheet, dialog[open]')) });
 topActions(q, { help: helpSheet });
 
 // Everything drawn before the loading screen lifts: the settings, the last
@@ -1675,6 +1659,16 @@ topActions(q, { help: helpSheet });
 async function boot() {
   showSettings();
   paintRepeat();
+  radio = mountRadio($('panel-listen'), {
+    make,
+    quiet: () => quiet({ keep: 'radio' }),
+    title: seed => songTitle(seed),
+    keep: item => keepRadio(item),
+    kept: id => lib.has(id),
+    session: o => claimSession(o),
+    mood: settings.radioMood,
+    setMood: m => ((settings.radioMood = m), save())
+  });
   studio = mountStudio($('panel-studio'), {
     tempo: () => (pieces.length ? bpm : settings.studioBpm),
     setTempo: v => ((settings.studioBpm = v), save()),
@@ -1690,7 +1684,7 @@ async function boot() {
     kit: () => ({ pieces, roles, bpm, sr, heard, print }),
     audio: audioCtx,
     quiet: () => quiet({ keep: 'jam' }),
-    styles: () => settings.styles,
+    styles: () => cfg().styles,
     take: (hits, beats) => jamSong(hits, beats),
     goMake: () => showTab('make')
   });
@@ -1703,8 +1697,6 @@ async function boot() {
   kitShown();
   showTab(firstTab());
   await lib.read();
-  if (shouldGuide({ guided: settings.guided })) guide = { ...GUIDE_START };
-  drawGuide();
   $('loading').hidden = true;
   const first = await q.start().catch(() => null);
   const theirs = decode(first?.payload || 'null');
@@ -1713,8 +1705,6 @@ async function boot() {
   if (encode(kept) !== before) {
     settings = settingsOf(kept.settings, settings);
     applyLevel();
-    // (Another phone's settings say the guide's done or skipped: not asked again, unless it's under way.)
-    if (settings.guided && guide.step === 'mood') guideTo({ type: 'skip' });
     showSettings();
     if (sources.length && kept.kits[print] && !edited.size) split();
   }

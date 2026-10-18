@@ -1,7 +1,8 @@
 # Orbit Beats
 
-Arranges your own beat pieces into new songs, using each piece exactly as
-recorded. Everything runs on the phone; no sound is uploaded. Signs in
+Music that never stops (聽, songs made from nothing on the app's own
+instruments), and your own beat pieces arranged into new songs, each piece
+exactly as recorded. Everything runs on the phone; no sound is uploaded. Signs in
 with the Quadra Pass. `passion_beats.py` is the same engine on the command
 line.
 
@@ -9,29 +10,38 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 
 ## How it works
 
-- **簡單 / 進階** (`lib/easy.mjs`): everyone opens 簡單 (settings kept
-  before it existed too, the owner's call), which shows what making a song
-  needs: 做歌 is the mood, how many, 做 and the kit's tools (我的套組, 全部清除,
-  a piece's ⋯); 樂器 starts from a clip written for you with big 再編一次 and
-  存成片段 over the grid, clear, 存成片段 and ♡ 收藏 below it; 即興 is the
-  pads and ● 錄一段. 進階 shows every tool below, once picked. The choice is
-  a setting on the Pass. It's in
-  the ? sheet (top right) and in 更多設定. Each control only one of them
-  shows carries `data-ctl`, hidden by one stylesheet rule per name.
-- **The guided first song:** once for everyone, 做歌 opens on four steps: a
-  mood, the demo's sounds, your own (record or files) or the pieces in, one song
-  made and played, then 變奏一首 or 換個鼓 and ♡ to keep it. Skip or finish
-  and it's done (the setting `guided`); the ? sheet plays it again.
+- **簡單 / 進階** (`lib/easy.mjs`): everyone opens 簡單 (the owner's call).
+  簡單 makes songs on settings of its own, fixed (every groove, the usual
+  length and feel, the mixer as it opens, 16-bit): it never reads or writes
+  進階's, so 進階 is as it was on the way back. Its 做歌 is one button,
+  🎲 隨機做一批: six songs from your pieces when they have a tune, else on
+  the built-in band. 樂器 starts from a clip written for you with big
+  再編一次 and 存成片段; 即興 is the pads and ● 錄一段. 進階 shows every tool
+  below. The choice is a setting on the Pass, in the ? sheet and 更多設定.
+  Each control only one of them shows carries `data-ctl`, hidden by one
+  stylesheet rule per name.
 - **Words** (`lib/help.mjs`): 22 music words (BPM, swing, riff, hi-hat, 808,
   chords, key, sections, chain, stems, MIDI, velocity, choke, snap…) in
   everyday words, zh and en; a ⓘ beside a control opens one, eight with
   ▶ the same bar without it and with it. The ? sheet lists them all and
   opens the full guide (the kit's `help.mjs`, in the Quadra Pass sheet).
 - **Tabs:**
+  - **聽** (Listen, the first screen; `lib/radio.mjs`, `lib/radioview.mjs`):
+    one play button and the moods (隨機, 放鬆, 熱血, 律動, 經典, or one groove).
+    Each song is its own band on the app's instruments: a groove of the mood
+    (never the one just played), its tempo, a key, four chords, chords,
+    melodies, an arpeggio, two bass lines, hats and drums as four-bar loops,
+    arranged by the engine in sections of four or eight bars and mixed.
+    The worker makes them two ahead; each is cut just before its last hit and
+    that hit's ring plays under the next one's intro, in one `<audio>` (it
+    plays on with the screen locked; lock-screen title, play/pause, next).
+    If the next isn't made by the outro, the last hook plays again from its
+    bar line. ♡ keeps the whole song in 歌單; ⏭ the next.
   - **做歌** (Make): pieces in, a 情境 mood (放鬆, 熱血, 律動, 經典), the drum
     styles, how many songs, and 更多設定. Each song has a title, length,
     groove and key, ▶ in the player over the tab bar, ♡ to keep it, and ⋯
-    (變奏一首, 換個鼓, 編排, 分享, 下載 WAV, 存成檔案, 分軌 stems, MIDI). Under each song is its
+    (變奏一首, 換個鼓, 編排, 分享, 下載 WAV, 存成檔案, 分軌 stems, MIDI). A song
+    plays on into the next of the list it was started from. Under each song is its
     section strip (前奏 主歌 導歌 副歌 …, wide as they are long): tap one to play
     from its start, hold it to loop it (the player's § repeat); the one playing
     is lit and follows seeks (`lib/sections.mjs`).
@@ -79,7 +89,7 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 - **Saved:**
   - On the phone: the last kit's sound and the kept songs.
   - On the Pass (app `beats`, `{ v: 1, settings, kits, taste }`): settings
-    (簡單 / 進階 and whether the guide is done among them),
+    (簡單 / 進階 and what 聽 plays among them),
     and each kit's tempo and hand-set roles, keyed by a fingerprint of its
     sound. The newest 40 kits.
 - **Offline:** works fully (`sw.js` keeps every file).
@@ -90,6 +100,13 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
   never changed: no volume, panning, fades or effects, and overlaps that
   clip are left (32-bit float keeps them; the page shows the peak).
 - No sound ever leaves the phone.
+- Nothing goes silent by accident: a song's every second sounds (the
+  tests listen to twenty radio songs back to back); a break with nothing
+  short enough still plays its shortest phrase; a worker that stops
+  answering hands its work to the page after 90 s; the instruments and pads
+  play as music (iOS's silent switch doesn't mute them) and start again
+  after a call or Siri.
+- The guided first song is retired (聽 is the way in now).
 - `engine.mjs` and `passion_beats.py` stay in step.
 
 ## Files (`public/`)
@@ -109,7 +126,8 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 | `lib/jam.mjs`, `lib/jamview.mjs` | 即興: timing; the pads |
 | `lib/library.mjs` | 歌單: search, order, zip |
 | `lib/sections.mjs` | 做歌: section times and the playing section |
-| `lib/easy.mjs`, `lib/help.mjs` | 簡單 / 進階 and the guided first song; the music words and their examples |
+| `lib/radio.mjs`, `lib/radioview.mjs` | 聽: songs out of nothing, the join between them; its screen and player |
+| `lib/easy.mjs`, `lib/help.mjs` | 簡單 / 進階 and 簡單's fixed settings; the music words and their examples |
 | `lib/project.mjs` | 存成檔案 / 打開檔案: a song's settings (no sound) as a versioned `.orbitbeats.json` |
 | `lib/midi.mjs`, `lib/tap.mjs`, `lib/download.mjs`, `lib/names.mjs` | MIDI files, tap tempo, saving, names |
 
