@@ -171,7 +171,7 @@ export function mountRadio(panel, api) {
     q.ready = [];
     q.gen++;
     last = [];
-    q.skip = Boolean(cur && want);
+    q.skip = Boolean(cur);
     if (!want) start();
     else fill();
     paintNext();
@@ -241,6 +241,7 @@ export function mountRadio(panel, api) {
   // (A stretch the phone couldn't play: on to the next.)
   audio.addEventListener('error', () => cur && want && audio.src === cur.url && (q.ready.length ? advance() : retry()));
   for (const ev of ['play', 'pause']) audio.addEventListener(ev, paint);
+  audio.addEventListener('playing', () => (retried = 0));
   // Back on the screen after a call or Siri: the music was asked for, so it goes on.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && want && cur && audio.paused) audio.play().catch(() => {});
