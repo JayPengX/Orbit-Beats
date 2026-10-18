@@ -23,7 +23,7 @@ test("the Pass's payload: newer settings win, each kit the newer, the newest for
   assert.equal(m.kits.ka.bpm, 90, 'ours is newer');
   assert.equal(m.kits.kb.bpm, 120);
   assert.deepEqual(decode(encode(m)), m);
-  assert.deepEqual(decode('{oops'), { v: 1, settings: null, kits: {} });
+  assert.deepEqual(decode('{oops'), { v: 1, settings: null, kits: {}, taste: {} });
   const many = { v: 1, settings: null, kits: Object.fromEntries(Array.from({ length: 50 }, (_, i) => [`k${i}`, { bpm: 100, roles: {}, at: i }])) };
   const kept = merge(many, { v: 1, settings: null, kits: {} });
   assert.equal(Object.keys(kept.kits).length, MOST_KITS);

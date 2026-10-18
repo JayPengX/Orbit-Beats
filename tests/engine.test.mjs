@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { STYLES, ROLES, FORMS, makeRng, parseWav, splitPieces, analyzeRecording, planSong, makeSong, batch, songName, encodeWav, zipParts, crc32, demoRecording } from '../public/engine.mjs';
+import { STYLES, ROLES, FORMS, FAMILY, keyOf, makeRng, parseWav, splitPieces, analyzeRecording, planSong, makeSong, batch, songName, encodeWav, zipParts, crc32, demoRecording } from '../public/engine.mjs';
 
 const rec = demoRecording();
 const pieces = splitPieces(rec);
@@ -100,9 +100,45 @@ test('settings: drum styles, humanize off, a fixed length', () => {
   }
   for (let seed = 1; seed <= 20; seed++) {   // hooks only lift to a related groove
     const { info } = makeSong(pieces, rec.sr, seed, { analysis, minBars: 8, maxBars: 8 });
-    const ok = { four: ['four', 'broken', 'house'], broken: ['broken', 'four'], hiphop: ['hiphop', 'trap'], trap: ['trap', 'hiphop'], half: ['half', 'hiphop'], house: ['house', 'four'], dembow: ['dembow', 'afro'], afro: ['afro', 'dembow'] };
-    assert.ok(ok[info.style].includes(info.alt), `${info.style} -> ${info.alt}`);
+    assert.ok(FAMILY[info.style].includes(info.alt), `${info.style} -> ${info.alt}`);
   }
+});
+
+test('the new grooves (drill, boom bap, Jersey club, amapiano) each play their own drums', () => {
+  const made = new Set();
+  for (const style of ['drill', 'boombap', 'jersey', 'amapiano']) {
+    const { audio, info } = makeSong(pieces, rec.sr, 7, { analysis, styles: [style], humanize: 0, minBars: 12, maxBars: 12 });
+    assert.equal(info.style, style);
+    assert.ok(FAMILY[style].includes(info.alt));
+    let e = 0;
+    for (let i = 0; i < audio.L.length; i += 7) e += audio.L[i] * audio.L[i];
+    made.add(Math.round(e));
+  }
+  assert.equal(made.size, 4, 'four different grooves');
+});
+
+test('a variation: the same form, groove and riff sets, played anew; a groove asked for; a style liked comes up more', () => {
+  const a = makeSong(pieces, rec.sr, 42, { analysis, minBars: 16, maxBars: 16 }).info;
+  const b = makeSong(pieces, rec.sr, 42, { analysis, minBars: 16, maxBars: 16, detail: 99 }).info;
+  assert.deepEqual([b.style, b.alt, b.plan, b.riffSets], [a.style, a.alt, a.plan, a.riffSets]);
+  assert.equal(b.detail, 99);
+  const c = makeSong(pieces, rec.sr, 42, { analysis, minBars: 16, maxBars: 16, style: 'amapiano' }).info;
+  assert.equal(c.style, 'amapiano');
+  assert.deepEqual(c.plan, a.plan);
+  let trap = 0;
+  for (let seed = 1; seed <= 60; seed++) if (makeSong(pieces, rec.sr, seed, { analysis, minBars: 8, maxBars: 8, weights: { trap: 30 } }).info.style === 'trap') trap++;
+  assert.ok(trap > 25, `trap ${trap} of 60`);
+});
+
+test('the key: heard from the riffs\' notes', () => {
+  const pc = notes => { const c = new Array(12).fill(0); for (const n of notes) c[n % 12] += 1; const m = Math.hypot(...c); return c.map(v => v / m); };
+  assert.deepEqual(keyOf([pc([57, 60, 64, 57, 62, 64, 67, 69, 72])]).minor, true);   // A minor
+  assert.equal(keyOf([pc([57, 60, 64, 57, 62, 64, 67, 69, 72])]).tonic, 9);
+  assert.equal(keyOf([pc([60, 64, 67, 60, 65, 69, 67, 71, 72, 62])]).tonic, 0);   // C major
+  assert.equal(keyOf([]), null);
+  // The demo's riffs (A C E D G B): C major, or its relative A minor.
+  const { info } = makeSong(pieces, rec.sr, 3, { analysis, minBars: 8, maxBars: 8 });
+  assert.ok((info.key.tonic === 0 && !info.key.minor) || (info.key.tonic === 9 && info.key.minor), JSON.stringify(info.key));
 });
 
 test('the demo: its tempo, roles and loop lengths are heard, at any tempo', () => {

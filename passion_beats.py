@@ -235,7 +235,8 @@ def guess_role(a, bpm):
 
 # Arrangement rules (the same as public/engine.mjs; see the README):
 # a hook may lift to a related groove, never a foreign one;
-FAMILY = {'four':['four','broken','house'],'broken':['broken','four'],'hiphop':['hiphop','trap'],'trap':['trap','hiphop'],'half':['half','hiphop'],'house':['house','four'],'dembow':['dembow','afro'],'afro':['afro','dembow']}
+FAMILY = {'four':['four','broken','house'],'broken':['broken','four'],'hiphop':['hiphop','trap','boombap'],'trap':['trap','hiphop','drill'],'half':['half','hiphop'],'house':['house','four','jersey','amapiano'],'dembow':['dembow','afro'],'afro':['afro','dembow','amapiano'],'drill':['drill','trap'],'boombap':['boombap','hiphop'],'jersey':['jersey','house'],'amapiano':['amapiano','house','afro']}
+STYLES = ['four','hiphop','trap','half','broken','house','dembow','afro','drill','boombap','jersey','amapiano']
 # the body is verse-hook pairs, maybe a break first, maybe a break or bridge
 # before a last hook; verses and hooks are 4 or 8 bars, breaks and bridges 2 or 4.
 LENS = {'verse':[4,8],'hook':[4,8],'break':[2,4],'bridge':[2,4]}
@@ -323,7 +324,26 @@ class Song:
                 s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
                 if r.random()<0.5: s.hit(k['snare'],t+3.75)
                 for q in (0.5,1.75,2.25,3.25): s.hit(k['tick'],t+q)
-            if r.random()<0.35:   # ticks between the hits
+            elif style=='drill':   # drill's: the 808 sliding round the kick, the snare late on 3 and pushed, its hats in threes
+                s.hit(k['sub'],t); s.hit(k['heavy'],t+2.75)
+                if r.random()<0.5: s.hit(k['sub'],t+1.5)
+                s.hit(k['snare'],t+2); s.hit(k['snare'],t+3.5 if r.random()<0.5 else t+3.75)
+                for q in (0,0.75,1.5,2.25,3,3.75): s.hit(k['tick'],t+q)
+            elif style=='boombap':   # boom bap's: the kick's skip, the snare on 2 and 4, eighth-note hats
+                s.hit(k['heavy'],t); s.hit(k['kick'],t+2.5)
+                if r.random()<0.5: s.hit(k['kick'],t+1.75)
+                s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+                for q in (0.5,1.5,2.5,3.5): s.hit(k['tick'],t+q)
+            elif style=='jersey':   # Jersey club's: the kicks' bounce, the clap on 2 and 4
+                for q in (0,1,2,2.75,3.5): s.hit(k['kick'],t+q)
+                s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+                if r.random()<0.4: s.hit(k['snare'],t+3.75)
+            elif style=='amapiano':   # amapiano's: the kick on the beat, the log drum's syncopation, a rim on 4, a shaker on every off-16th
+                for q in range(4): s.hit(k['kick'],t+q)
+                for q in (0.75,2.25,3.5): s.hit(k['sub'],t+q)
+                s.hit(k['snare'],t+3)
+                for q in (0.25,0.75,1.25,1.75,2.25,2.75,3.25,3.75): s.hit(k['tick'],t+q)
+            if r.random()<0.35 and style not in ('drill','boombap','amapiano'):   # ticks between the hits
                 for q in s.py.choice([[0.5],[1.5,3.5],[0.5,1.5,2.5,3.5]]): s.hit(k['tick'],t+q)
     def fill(s,bar,kinds,k):   # the end of `bar`
         t=bar*4; kind=s.py.choice(kinds)
@@ -366,6 +386,7 @@ def make(seed,path,styles,humanize,roles,loops,chroma):
     others=sorted([x for x in riffs if x not in hook_set],key=lambda x:-alike(x,hook_set[0]))
     layer=others[0] if others else None                            # another riff over hooks: the most alike in notes
     hook_layer=layer is not None and R.random()<0.5
+    layer_fits=layer is not None and alike(layer,hook_set[0])>=0.45   # only one alike enough in notes: no clash on top
     bass_mode=R.choice(['alt','one','one','sparse'] if len(pool['bass'])>1 else ['one','sparse'] if pool['bass'] else ['none'])
     bass_a=pick(pool['bass']); bass_b=pick(pool['bass'],[bass_a])
     # a break gets the shortest hat loop (a shaker); a hook a hat other than the
@@ -413,7 +434,7 @@ def make(seed,path,styles,humanize,roles,loops,chroma):
         elif t=='hook':   # the last hook is the fullest
             hook_no+=1
             riff(b,L,hook_set); bass(b,L); s.drums(hook_style,b,L,kit); s.loop(hook_hat,b,L)
-            if layer is not None and (hook_layer or hook_no==hooks): riff(b,L,[layer])
+            if layer_fits and (hook_layer or hook_no==hooks): riff(b,L,[layer])
         elif t=='break':   # strip back: no drums, no bass
             s.phrases(b,L,phrases)
             if R.random()<0.6: s.loop(break_hat,b,L)
@@ -441,7 +462,7 @@ def main():
     ap.add_argument('--save-pieces', default=None, help='folder to also save the split pieces')
     ap.add_argument('--silence-db', type=float, default=-90, help='quieter than this is silence (default -90)')
     ap.add_argument('--min-gap', type=float, default=0.2, help='shortest silence between pieces, seconds (default 0.2)')
-    ap.add_argument('--styles', default='four,hiphop,trap,half,broken,house,dembow,afro', help='drum styles songs pick from (default all)')
+    ap.add_argument('--styles', default=','.join(STYLES), help='drum styles songs pick from (default all)')
     ap.add_argument('--humanize', type=float, default=100, help='swing and timing drift, percent (default 100; 0 is a strict grid)')
     ap.add_argument('--bpm', type=float, default=None, help='the tempo the pieces were recorded at (default: heard from them)')
     ap.add_argument('--roles', default='', help='set pieces\' roles, e.g. 3=riff,6-8=hat,12=off (roles: ' + ','.join(ROLES) + ')')
@@ -449,7 +470,7 @@ def main():
     if not 8 <= a.min_bars <= a.max_bars: ap.error('need 8 <= --min-bars <= --max-bars')
     if a.count < 1: ap.error('--count must be 1 or more')
     styles = [x for x in a.styles.split(',') if x]
-    if not styles or set(styles) - set(FAMILY): ap.error('--styles: any of four,hiphop,trap,half,broken,house,dembow,afro')
+    if not styles or set(styles) - set(FAMILY): ap.error('--styles: any of '+','.join(STYLES))
     if not 0 <= a.humanize <= 200: ap.error('--humanize must be 0 to 200')
     if a.bpm is not None and not 40 <= a.bpm <= 250: ap.error('--bpm must be 40 to 250')
     MIN_BARS, MAX_BARS = a.min_bars, a.max_bars

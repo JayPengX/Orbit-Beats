@@ -55,6 +55,8 @@
 <link rel="modulepreload" href="./lib/sources.mjs">
 <link rel="modulepreload" href="./lib/kits.mjs">
 <link rel="modulepreload" href="./lib/lang.mjs">
+<link rel="modulepreload" href="./lib/synth.mjs">
+<link rel="modulepreload" href="./lib/studio.mjs">
 <style>
 :root {
   /* The family's kit (Shared-Proxy kit/quadra.css): iOS 27's colours, light
@@ -72,22 +74,20 @@ body {
   font: 15px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
-main { max-width: 560px; margin: 0 auto; padding: 8px 16px max(32px, env(safe-area-inset-bottom)); }
+/* Room at the foot for the tab bar, and the player over it when a song plays. */
+main { max-width: 560px; margin: 0 auto; padding: 8px 16px calc(112px + env(safe-area-inset-bottom)); }
+body.playing main { padding-bottom: calc(184px + env(safe-area-inset-bottom)); }
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
-.nowrap { white-space: nowrap; }
-
+.tab-panel[hidden] { display: none; }
 
 .card { background: var(--card); border-radius: var(--q-r-card); padding: 16px; margin-bottom: 16px; }
 .card[hidden] { display: none; }
 .head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; min-height: 32px; }
 .head h2 { margin: 0; font-size: 17px; font-weight: 600; white-space: nowrap; flex: 1; min-width: 0; }
-.step {
-  width: 24px; height: 24px; border-radius: 50%; flex: none; display: grid; place-items: center;
-  background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 700;
-}
+.head svg { flex: none; width: 22px; height: 22px; color: var(--accent); }
 
-/* 1. Recording */
+/* 片段 */
 .drop {
   display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 12px;
   border: 1.5px dashed var(--line); background: var(--fill); cursor: pointer;
@@ -111,7 +111,6 @@ button { cursor: pointer; }
 .status.bad .dot { background: var(--danger); }
 .status.busy .dot { background: var(--text-3); }
 .status b { font-weight: 600; }
-.status .file { color: var(--text-2); overflow: hidden; text-overflow: clip; min-width: 0; }
 .pieces { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 6px; margin-top: 12px; }
 .pieces:empty { display: none; }
 .piece { border-radius: 10px; background: var(--fill); overflow: hidden; }
@@ -126,14 +125,15 @@ button { cursor: pointer; }
   padding: 5px 4px 6px; font-size: 13px; text-align: center; text-align-last: center; color: var(--text);
 }
 .piece.off { opacity: 0.5; }
+.piece.mine b::after { content: "♪"; margin-left: 2px; color: var(--accent); font-size: 11px; vertical-align: 2px; }
 .piece button.on { background: var(--accent); color: var(--accent-ink); }
 .piece button.on span { color: inherit; opacity: 0.85; }
 .hint { margin: 8px 0 0; font-size: 13px; color: var(--text-2); white-space: nowrap; }
+.hint[hidden] { display: none; }
 .tempo { margin-top: 6px; }
 .tempo[hidden] { display: none; }
 .num.tempo-num { width: 64px; }
 .mini { border: 0; background: var(--fill); border-radius: 8px; height: 32px; min-width: 36px; padding: 0 8px; font-size: 14px; font-weight: 600; }
-.hint[hidden] { display: none; }
 
 details { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
 summary { cursor: pointer; color: var(--text-2); font-size: 14px; list-style: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
@@ -141,11 +141,12 @@ summary::-webkit-details-marker { display: none; }
 summary::before { content: ""; width: 6px; height: 6px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); transition: transform .15s; margin: 0 3px; }
 details[open] summary::before { transform: rotate(45deg); }
 
-/* settings rows */
+/* Rows of settings */
 .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 6px 0; }
-.row + .row, .row + .stack, .stack + .row { border-top: 1px solid var(--line); }
-.row > label, .row > .label, .stack > .label { font-weight: 500; white-space: nowrap; }
+.row + .row, .row + .stack, .stack + .row, .stack + .stack { border-top: 1px solid var(--line); }
+.row > label, .row > .label, .stack > .label { font-weight: 500; white-space: nowrap; min-width: 0; }
 .row small, .stack small { display: block; font-size: 12px; font-weight: 400; color: var(--text-2); white-space: nowrap; }
+.row[hidden] { display: none; }
 .stack { padding: 10px 0; }
 .ctl { display: flex; align-items: center; gap: 6px; white-space: nowrap; flex: none; }
 .num {
@@ -161,16 +162,22 @@ details[open] summary::before { transform: rotate(45deg); }
 .stepper .num { width: 44px; background: none; }
 .unit { color: var(--text-2); font-size: 14px; }
 .chips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.chips.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.chips.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .chip {
-  flex: 1 1 0; min-width: 0; height: 34px; border-radius: 17px; border: 0; background: var(--fill);
+  min-width: 0; height: 34px; border-radius: 17px; border: 0; background: var(--fill);
   font-size: 13px; font-weight: 500; white-space: nowrap; padding: 0 4px;
+  transition: background-color .2s, color .2s, transform var(--q-dur-snappy) var(--q-spring-snappy);
 }
+.chip:active { transform: scale(0.95); }
 .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
 .seg { display: flex; background: var(--fill); border-radius: 999px; padding: 2px; }
 .seg button { border: 0; background: none; height: 32px; padding: 0 12px; border-radius: 999px; font-size: 14px; white-space: nowrap; }
 .seg button[aria-pressed="true"] { background: var(--q-elevated); font-weight: 600; box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 3px 1px rgba(0,0,0,.04); }
 input[type="range"] { width: 120px; accent-color: var(--accent); }
 .val { width: 44px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); font-size: 14px; }
+.more-row { width: 100%; border: 0; background: none; text-align: left; }
+.more-row .chev { color: var(--text-3); font-size: 18px; }
 
 .primary {
   display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 50px; margin-top: 14px;
@@ -187,27 +194,96 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .error { margin: 10px 0 0; color: var(--danger); font-size: 14px; white-space: nowrap; }
 .error:empty { display: none; }
 
-/* 3. Songs */
+/* Songs (做歌's batch and 歌單 alike) */
 .meta { margin: -6px 0 12px; color: var(--text-2); font-size: 13px; white-space: nowrap; }
 .legend { display: grid; grid-template-columns: repeat(6, auto); justify-content: start; gap: 6px 14px; margin-bottom: 4px; font-size: 12px; color: var(--text-2); }
 .legend span { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
 .legend i { width: 8px; height: 8px; border-radius: 2px; flex: none; }
 @media (max-width: 420px) { .legend { grid-template-columns: repeat(3, auto); } }
 .songs { list-style: none; margin: 0; padding: 0; }
-.song { padding: 14px 0; border-top: 1px solid var(--line); }
+.song { padding: 12px 0; border-top: 1px solid var(--line); }
 .song:first-child { border-top: 0; }
 .song .line { display: flex; align-items: center; gap: 10px; }
-.song .name { flex: 1; min-width: 0; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.song .info { color: var(--text-2); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.song .save {
-  width: 34px; height: 34px; border-radius: 17px; display: grid; place-items: center; flex: none;
+.song .play {
+  width: 40px; height: 40px; border-radius: 50%; border: 0; flex: none; display: grid; place-items: center;
   background: var(--accent-soft); color: var(--accent);
+  transition: transform var(--q-dur-snappy) var(--q-spring-snappy), background-color .2s, color .2s;
 }
-.plan { display: flex; gap: 2px; height: 8px; margin: 10px 0; border-radius: 4px; overflow: hidden; }
+.song .play:active { transform: scale(0.9); }
+.song.now .play { background: var(--accent); color: var(--accent-ink); }
+.song .play svg { width: 18px; height: 18px; }
+.song .what { flex: 1; min-width: 0; }
+.song .name { display: block; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+.song .info { display: block; color: var(--text-2); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; overflow: hidden; }
+.song .act {
+  width: 36px; height: 36px; border-radius: 18px; border: 0; display: grid; place-items: center; flex: none;
+  background: none; color: var(--text-2);
+  transition: transform var(--q-dur-snappy) var(--q-spring-snappy), color .2s;
+}
+.song .act:active { transform: scale(0.85); }
+.song .act svg { width: 22px; height: 22px; }
+.song .act.kept { color: var(--accent); }
+.song .act.kept svg { animation: pb-pop .35s var(--q-spring-snappy); }
+@keyframes pb-pop { 40% { transform: scale(1.3); } }
+.plan { display: flex; gap: 2px; height: 6px; margin: 10px 0 0 50px; border-radius: 3px; overflow: hidden; position: relative; }
 .plan i { display: block; min-width: 2px; }
-.song audio { display: block; width: 100%; height: 40px; }
+.song.now .plan::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--at, 0%); background: color-mix(in srgb, var(--q-label) 28%, transparent); }
 .busy-line { color: var(--text-2); font-size: 14px; padding: 14px 0 2px; white-space: nowrap; border-top: 1px solid var(--line); }
 .busy-line:empty { display: none; }
+.lib-head { display: flex; align-items: baseline; justify-content: space-between; margin: 4px 4px 10px; }
+.lib-head h2 { margin: 0; font-size: 28px; font-weight: 700; }
+.lib-head small { color: var(--text-2); font-size: 13px; white-space: nowrap; }
+
+/* 樂器 */
+.studio-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.studio-top .q-seg { flex: 1; }
+.sq { display: grid; grid-template-columns: 26px repeat(8, minmax(0, 1fr)); gap: 3px; margin-top: 12px; }
+.sq .corner { position: sticky; top: 0; z-index: 2; background: var(--card); }
+.sq .lane {
+  position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: center; height: 28px;
+  background: var(--card); font-size: 11.5px; font-weight: 600; white-space: nowrap; color: var(--text-2); font-variant-numeric: tabular-nums;
+}
+.sq .lane.root { color: var(--accent); }
+.sq .stepno { display: flex; align-items: center; justify-content: flex-end; padding-right: 4px; height: 28px; font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.sq .stepno.beat { color: var(--text-2); font-weight: 600; }
+.sq .gap { margin-top: 4px; }
+.sq .stepno.bar { border-top: 1px solid var(--line); padding-top: 2px; }
+.sq .cell {
+  height: 28px; border-radius: 7px; border: 0; padding: 0; background: var(--fill); min-width: 0;
+  transition: background-color .12s, transform var(--q-dur-snappy) var(--q-spring-snappy);
+}
+.sq .cell.beat { background: var(--fill-2); }
+.sq .cell.on { background: var(--accent); }
+.sq .cell.held { background: color-mix(in srgb, var(--accent) 45%, var(--fill)); }
+.sq .cell.now { box-shadow: inset 0 0 0 2px var(--text); }
+.sq .cell:active { transform: scale(0.88); }
+.transport { display: flex; gap: 8px; margin-top: 14px; }
+.transport .q-btn { flex: 1; }
+.studio-note { margin: 10px 0 0; font-size: 13px; color: var(--text-2); white-space: nowrap; }
+.mine-list { list-style: none; margin: 0; padding: 0; }
+.mine-list li { display: flex; align-items: center; gap: 10px; min-height: 44px; border-top: 1px solid var(--line); }
+.mine-list li:first-child { border-top: 0; }
+.mine-list .t { flex: 1; min-width: 0; white-space: nowrap; }
+.mine-list .t small { display: block; color: var(--text-2); font-size: 12px; }
+
+/* The player: over the tab bar while a song plays */
+.player {
+  position: fixed; z-index: 55; left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--q-bar-gap, 12px) + 74px);
+  width: min(calc(100vw - 32px), 528px); display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 8px;
+  border-radius: 22px; background: var(--q-glass, var(--card)); -webkit-backdrop-filter: var(--q-glass-blur); backdrop-filter: var(--q-glass-blur);
+  box-shadow: var(--q-glass-rim, none), var(--q-glass-drop, 0 8px 24px rgba(0,0,0,.18));
+  animation: pb-rise var(--q-dur-smooth) var(--q-spring-smooth) both;
+}
+.player[hidden] { display: none; }
+.player .play { width: 40px; height: 40px; border-radius: 50%; border: 0; flex: none; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); }
+.player .play svg { width: 18px; height: 18px; }
+.player .what { flex: 1; min-width: 0; }
+.player b { display: block; font-size: 14px; white-space: nowrap; overflow: hidden; }
+.player .bar { position: relative; height: 4px; margin-top: 6px; border-radius: 2px; background: var(--fill-2); overflow: hidden; touch-action: none; }
+.player .bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--accent); border-radius: 2px; }
+.player time { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; flex: none; }
+.player .x { width: 30px; height: 30px; border: 0; border-radius: 50%; background: none; color: var(--text-2); font-size: 15px; flex: none; }
 
 /* Movement: a piece playing pulses on the beat (--beat, its tempo's); a
    song made rises in and its sections grow across; a tap gives way. */
@@ -217,13 +293,13 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 @keyframes pb-beat { 0% { box-shadow: inset 0 0 0 0 rgba(255,255,255,.35); } 15% { box-shadow: inset 0 0 0 3px rgba(255,255,255,.35); } 100% { box-shadow: inset 0 0 0 0 rgba(255,255,255,0); } }
 .song { animation: pb-rise var(--q-dur-smooth) var(--q-spring-smooth) both; }
 .song .plan i { transform-origin: left; animation: pb-grow .6s var(--q-spring-smooth) both; animation-delay: calc(min(var(--k, 0) * 40ms, 400ms) + 120ms); }
-.song .save { transition: transform var(--q-dur-snappy) var(--q-spring-snappy); }
-.song .save:active { transform: scale(0.9); }
 @keyframes pb-rise { from { opacity: 0; transform: translateY(12px); } }
+.player { animation-name: pb-rise-x; }
+@keyframes pb-rise-x { from { opacity: 0; transform: translate(-50%, 16px); } }
 @keyframes pb-grow { from { transform: scaleX(0); } }
 @media (prefers-reduced-motion: reduce) {
-  .piece button, .song .save { transition: none; }
-  .piece button.on, .song, .song .plan i { animation: none; }
+  .piece button, .song .play, .song .act, .chip, .sq .cell { transition: none; }
+  .piece button.on, .song, .song .plan i, .player, .song .act.kept svg { animation: none; }
 }
 
 footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 8px; white-space: nowrap; }
@@ -243,101 +319,100 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
         <p id="badge" class="q-status" aria-live="polite" data-en="Your beat pieces, new songs">你的節拍片段，排成新歌</p>
       </div>
     </div>
+    <nav id="tabs" class="q-tabbar" role="tablist"></nav>
     <div id="top-actions" class="q-actions"></div>
   </div>
 </header>
 <main>
-  <section class="card" aria-labelledby="h-rec">
-    <div class="head"><span class="step">1</span><h2 id="h-rec" data-en="Pieces">片段</h2></div>
-    <label class="drop" id="drop">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10M21 12h0"/></svg>
-      <div><b data-en="Choose recordings or samples">選錄音或取樣檔</b><span data-en="One file or a whole pack · split by silence">一個檔或一整包 · 依安靜切開</span></div>
-      <input type="file" id="file" accept="audio/*,.wav" multiple>
-    </label>
-    <div class="ways">
-      <button class="way" id="record" type="button"><span class="rec-dot" aria-hidden="true"></span><span id="record-text" data-en="Record">用麥克風錄</span></button>
-      <button class="way" id="add" type="button" hidden data-en="Add files">再加檔案</button>
-      <button class="way" id="demo" type="button" data-en="Demo">試試示範</button>
-    </div>
-    <input type="file" id="more" accept="audio/*,.wav" multiple hidden>
-    <div class="status" id="status" hidden><span class="dot"></span><span id="status-text"></span></div>
-    <div class="row tempo" id="tempo-row" hidden>
-      <label for="bpm"><span data-en="Tempo">速度</span><small id="bpm-hint"></small></label>
-      <div class="ctl">
-        <button class="mini" type="button" id="bpm-half" aria-label="速度減半" data-en-label="Half the tempo">½</button>
-        <input class="num tempo-num" id="bpm" type="number" min="40" max="250" step="0.1" inputmode="decimal">
-        <span class="unit">BPM</span>
-        <button class="mini" type="button" id="bpm-double" aria-label="速度加倍" data-en-label="Double the tempo">×2</button>
+  <div id="panel-make" class="tab-panel" role="tabpanel">
+    <section class="card" aria-labelledby="h-rec">
+      <div class="head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10"/></svg><h2 id="h-rec" data-en="Pieces">片段</h2></div>
+      <label class="drop" id="drop">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
+        <div><b data-en="Choose recordings or samples">選錄音或取樣檔</b><span data-en="One file or a whole pack · split by silence">一個檔或一整包 · 依安靜切開</span></div>
+        <input type="file" id="file" accept="audio/*,.wav" multiple>
+      </label>
+      <div class="ways">
+        <button class="way" id="record" type="button"><span class="rec-dot" aria-hidden="true"></span><span id="record-text" data-en="Record">用麥克風錄</span></button>
+        <button class="way" id="add" type="button" hidden data-en="Add files">再加檔案</button>
+        <button class="way" id="demo" type="button" data-en="Demo">試試示範</button>
+        <button class="way" id="to-studio" type="button" data-en="Use Studio">用樂器做</button>
       </div>
-    </div>
-    <div class="pieces" id="pieces" aria-label="片段：點一下試聽" data-en-label="Pieces: tap one to hear it"></div>
-    <p class="hint" id="pieces-hint" hidden data-en="Tap a piece to hear it · roles are heard, change any">點片段試聽 · 角色是聽出來的，可以改</p>
-    <details id="split-more">
-      <summary data-en="Splitting">切片</summary>
+      <input type="file" id="more" accept="audio/*,.wav" multiple hidden>
+      <div class="status" id="status" hidden><span class="dot"></span><span id="status-text"></span></div>
+      <div class="row tempo" id="tempo-row" hidden>
+        <label for="bpm"><span data-en="Tempo">速度</span><small id="bpm-hint"></small></label>
+        <div class="ctl">
+          <button class="mini" type="button" id="bpm-half" aria-label="速度減半" data-en-label="Half the tempo">½</button>
+          <input class="num tempo-num" id="bpm" type="number" min="40" max="250" step="0.1" inputmode="decimal">
+          <span class="unit">BPM</span>
+          <button class="mini" type="button" id="bpm-double" aria-label="速度加倍" data-en-label="Double the tempo">×2</button>
+        </div>
+      </div>
+      <div class="pieces" id="pieces" aria-label="片段：點一下試聽" data-en-label="Pieces: tap one to hear it"></div>
+      <p class="hint" id="pieces-hint" hidden data-en="Tap a piece to hear it · roles are heard, change any">點片段試聽 · 角色是聽出來的，可以改</p>
+      <details id="split-more">
+        <summary data-en="Splitting">切片</summary>
+        <div class="row">
+          <label for="silence"><span data-en="Silence below">安靜門檻</span><small data-en="Raise it for noisy phone audio">手機錄的雜音多就調高</small></label>
+          <div class="ctl"><input class="num" id="silence" type="number" min="-140" max="-30" step="5" value="-90"><span class="unit">dB</span></div>
+        </div>
+        <div class="row">
+          <label for="gap"><span data-en="Shortest gap">最短間隔</span><small data-en="Silence between two pieces">兩段之間的安靜</small></label>
+          <div class="ctl"><input class="num" id="gap" type="number" min="0.05" max="3" step="0.05" value="0.2"><span class="unit" data-en="sec">秒</span></div>
+        </div>
+        <button class="secondary" id="resplit" type="button" disabled data-en="Split again">重新切片</button>
+      </details>
+    </section>
+
+    <section class="card" aria-labelledby="h-set">
+      <div class="head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg><h2 id="h-set" data-en="Make songs">做歌</h2></div>
+      <div class="stack">
+        <div class="label"><span data-en="Mood">情境</span><small id="mood-hint" data-en="Picks the grooves for you">幫你挑節奏</small></div>
+        <div class="chips five" id="moods"></div>
+      </div>
+      <div class="stack">
+        <div class="label"><span data-en="Drums">鼓的風格</span><small data-en="Each song picks its grooves from these">每首從這些挑節奏</small></div>
+        <div class="chips" id="styles"></div>
+      </div>
+      <div class="row" id="taste-row" hidden>
+        <label for="smart"><span data-en="Lean to your taste">依你的口味</span><small id="taste-hint"></small></label>
+        <span id="smart-slot"></span>
+      </div>
       <div class="row">
-        <label for="silence"><span data-en="Silence below">安靜門檻</span><small data-en="Raise it for noisy phone audio">手機錄的雜音多就調高</small></label>
-        <div class="ctl"><input class="num" id="silence" type="number" min="-140" max="-30" step="5" value="-90"><span class="unit">dB</span></div>
+        <label for="count" data-en="Songs">首數</label>
+        <div class="stepper">
+          <button type="button" id="count-down" aria-label="少一首" data-en-label="Fewer songs">−</button>
+          <input class="num" id="count" type="number" min="1" max="30" value="8" inputmode="numeric">
+          <button type="button" id="count-up" aria-label="多一首" data-en-label="More songs">+</button>
+        </div>
       </div>
-      <div class="row">
-        <label for="gap"><span data-en="Shortest gap">最短間隔</span><small data-en="Silence between two pieces">兩段之間的安靜</small></label>
-        <div class="ctl"><input class="num" id="gap" type="number" min="0.05" max="3" step="0.05" value="0.2"><span class="unit" data-en="sec">秒</span></div>
-      </div>
-      <button class="secondary" id="resplit" type="button" disabled data-en="Split again">重新切片</button>
-    </details>
-  </section>
+      <button class="more-row row" id="more-settings" type="button"><span class="label"><span data-en="More settings">更多設定</span><small id="more-hint"></small></span><span class="chev" aria-hidden="true">›</span></button>
+      <button class="primary" id="go" type="button" disabled></button>
+      <p class="error" id="error" role="alert"></p>
+    </section>
 
-  <section class="card" aria-labelledby="h-set">
-    <div class="head"><span class="step">2</span><h2 id="h-set" data-en="Settings">設定</h2></div>
-    <div class="row">
-      <label for="count" data-en="Songs">首數</label>
-      <div class="stepper">
-        <button type="button" id="count-down" aria-label="少一首" data-en-label="Fewer songs">−</button>
-        <input class="num" id="count" type="number" min="1" max="50" value="20" inputmode="numeric">
-        <button type="button" id="count-up" aria-label="多一首" data-en-label="More songs">+</button>
-      </div>
-    </div>
-    <div class="row">
-      <div class="label"><span data-en="Length">長度</span><small id="length-hint"></small></div>
-      <div class="ctl">
-        <input class="num short" id="min-bars" type="number" min="8" max="64" value="25" inputmode="numeric" aria-label="最短（小節）" data-en-label="Shortest, in bars">
-        <span class="unit">–</span>
-        <input class="num short" id="max-bars" type="number" min="8" max="64" value="29" inputmode="numeric" aria-label="最長（小節）" data-en-label="Longest, in bars">
-        <span class="unit" data-en="bars">小節</span>
-      </div>
-    </div>
-    <div class="stack">
-      <div class="label"><span data-en="Drums">鼓的風格</span><small data-en="Each song picks its grooves from these">每首從這些挑節奏</small></div>
-      <div class="chips" id="styles"></div>
-    </div>
-    <div class="row">
-      <label for="humanize"><span data-en="Humanize">人味</span><small data-en="Swing and timing drift">搖擺和時間的飄移</small></label>
-      <div class="ctl"><input id="humanize" type="range" min="0" max="200" step="10" value="100"><span class="val" id="humanize-val">100%</span></div>
-    </div>
-    <div class="row">
-      <label for="seed"><span data-en="Seed">種子</span><small data-en="Same seed, same songs">同一個種子，同樣的歌</small></label>
-      <input class="num wide" id="seed" type="text" inputmode="numeric" placeholder="隨機" data-en-placeholder="Random" autocomplete="off">
-    </div>
-    <div class="row">
-      <div class="label" data-en="Format">格式</div>
-      <div class="seg" id="format">
-        <button type="button" data-bits="32" aria-pressed="true" data-en="32-bit float">32 位元浮點</button>
-        <button type="button" data-bits="16" aria-pressed="false" data-en="16-bit">16 位元</button>
-      </div>
-    </div>
-    <button class="primary" id="go" type="button" disabled></button>
-    <p class="error" id="error" role="alert"></p>
-  </section>
+    <section class="card" id="out" aria-labelledby="h-out" hidden>
+      <div class="head"><h2 id="h-out" data-en="Songs">新歌</h2><button class="secondary" id="zip" type="button" disabled data-en="Download all">全部下載</button></div>
+      <p class="meta" id="out-meta"></p>
+      <div class="legend" id="legend"></div>
+      <ol class="songs" id="songs"></ol>
+      <div class="busy-line" id="busy"></div>
+    </section>
+    <footer data-en="Runs on your phone · nothing is uploaded">全部在手機上做 · 什麼都不上傳</footer>
+  </div>
 
-  <section class="card" id="out" aria-labelledby="h-out" hidden>
-    <div class="head"><span class="step">3</span><h2 id="h-out" data-en="Songs">歌</h2><button class="secondary" id="zip" type="button" disabled data-en="Download all">全部下載</button></div>
-    <p class="meta" id="out-meta"></p>
-    <div class="legend" id="legend"></div>
-    <ol class="songs" id="songs"></ol>
-    <div class="busy-line" id="busy"></div>
-  </section>
+  <div id="panel-studio" class="tab-panel" role="tabpanel" hidden></div>
 
-  <footer data-en="Runs on your phone · nothing is uploaded">全部在手機上做 · 什麼都不上傳</footer>
+  <div id="panel-library" class="tab-panel" role="tabpanel" hidden></div>
 </main>
+
+<div class="player" id="player" hidden>
+  <button class="play" id="player-play" type="button" aria-label="暫停"></button>
+  <div class="what"><b id="player-name"></b><div class="bar" id="player-bar"><i id="player-at"></i></div></div>
+  <time id="player-time">0:00</time>
+  <button class="x" id="player-x" type="button" aria-label="關閉播放器" data-en-label="Close the player">✕</button>
+</div>
 <script type="module" src="./app.js"></script>
 </body>
 </html>

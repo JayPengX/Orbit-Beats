@@ -30,15 +30,23 @@ export function fingerprint(sources) {
 }
 
 export function decode(text) {
+  const none = { v: 1, settings: null, kits: {}, taste: {} };
   try {
     const p = JSON.parse(text || 'null');
-    if (!p || p.v !== 1) return { v: 1, settings: null, kits: {} };
-    return { v: 1, settings: p.settings && typeof p.settings === 'object' ? p.settings : null, kits: p.kits && typeof p.kits === 'object' ? p.kits : {} };
+    if (!p || p.v !== 1) return none;
+    return { v: 1, settings: p.settings && typeof p.settings === 'object' ? p.settings : null, kits: p.kits && typeof p.kits === 'object' ? p.kits : {}, taste: tasteOf(p.taste) };
   } catch {
-    return { v: 1, settings: null, kits: {} };
+    return none;
   }
 }
-export const encode = p => JSON.stringify({ v: 1, settings: p.settings || null, kits: p.kits || {} });
+export const encode = p => JSON.stringify({ v: 1, settings: p.settings || null, kits: p.kits || {}, taste: p.taste || {} });
+// The styles of the songs kept (歌單): { style: how many }, what a batch leans to.
+const tasteOf = t => Object.fromEntries(Object.entries(t && typeof t === 'object' ? t : {}).filter(([k, v]) => /^[a-z]+$/.test(k) && Number.isFinite(v) && v > 0).map(([k, v]) => [k, Math.min(999, Math.round(v))]));
+export function liked(taste, style, d = 1) {
+  const t = { ...taste, [style]: Math.max(0, (taste?.[style] || 0) + d) };
+  if (!t[style]) delete t[style];
+  return t;
+}
 
 // The settings as kept: only the known keys, with when they were set.
 export function keptSettings(settings, at = Date.now()) {
@@ -56,7 +64,10 @@ export function merge(a, b) {
   const newest = Object.entries(kits)
     .sort((x, y) => (y[1].at || 0) - (x[1].at || 0))
     .slice(0, MOST_KITS);
-  return { v: 1, settings, kits: Object.fromEntries(newest) };
+  // (Taste: each style's larger count, the phones' kept songs not added twice.)
+  const taste = { ...(a.taste || {}) };
+  for (const [k, v] of Object.entries(b.taste || {})) taste[k] = Math.max(taste[k] || 0, v);
+  return { v: 1, settings, kits: Object.fromEntries(newest), taste };
 }
 
 // A kit's entry: its tempo when set by hand (or as heard, to skip hearing it
@@ -71,21 +82,27 @@ export function kitEntry(bpm, roles, edited, at = Date.now()) {
 
 const DB = 'orbit-beats';
 const STORE = 'kit';
+// (Version 2: the songs kept, 歌單, each its WAV and how it was made.)
+const SONGS = 'songs';
 function open() {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') return reject(new Error('no IndexedDB'));
-    const req = indexedDB.open(DB, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+    const req = indexedDB.open(DB, 2);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
+      if (!db.objectStoreNames.contains(SONGS)) db.createObjectStore(SONGS, { keyPath: 'id' });
+    };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
 }
-async function run(mode, fn) {
+async function run(mode, fn, store = STORE) {
   const db = await open();
   try {
     return await new Promise((resolve, reject) => {
-      const tx = db.transaction(STORE, mode);
-      const req = fn(tx.objectStore(STORE));
+      const tx = db.transaction(store, mode);
+      const req = fn(tx.objectStore(store));
       tx.oncomplete = () => resolve(req?.result);
       tx.onerror = () => reject(tx.error);
       tx.onabort = () => reject(tx.error);
@@ -102,3 +119,16 @@ export async function loadLast() {
   return kept?.sources?.length ? kept.sources.map(x => ({ name: x.name, sr: x.sr, L: x.L, R: x.R || x.L })) : null;
 }
 export const forgetLast = () => run('readwrite', s => s.delete('last')).catch(() => {});
+
+// ---- The songs kept (歌單): on this phone only, never sent anywhere ----------------
+// { id, name, at, seconds, bpm, style, alt, key, plan, wav: Blob, recipe: { seed, detail, print, minBars, maxBars, styles, humanize } }
+export const saveSong = song => run('readwrite', s => s.put(song), SONGS);
+export const deleteSong = id => run('readwrite', s => s.delete(id), SONGS);
+export async function listSongs() {
+  const all = (await run('readonly', s => s.getAll(), SONGS).catch(() => null)) || [];
+  return all.sort((a, b) => b.at - a.at);
+}
+export async function renameSong(id, name) {
+  const song = await run('readonly', s => s.get(id), SONGS);
+  if (song) await saveSong({ ...song, name });
+}

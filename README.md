@@ -1,7 +1,7 @@
 # Orbit Beats
 
-Orbit Beats (was Passion Beats; the repo keeps its name, so its address
-stays) arranges beat pieces into new songs, using the pieces exactly as
+Orbit Beats (was Passion Beats; the repo Orbit-Beats since 2026-10-18,
+the old address redirects here) arranges beat pieces into new songs, using the pieces exactly as
 recorded. An Orbit app on the Quadra Pass and the family's kit
 (`Shared-Proxy/kit/`): Chinese first, English for readers who pick it.
 
@@ -11,6 +11,40 @@ download them one by one or all in a zip. It all runs on the phone:
 nothing is uploaded.
 
 `passion_beats.py` is the same thing on the command line.
+
+## The page's three tabs
+
+- **做歌 / Make**: the pieces (below), a **情境 / Mood** that picks the
+  grooves for you (全部, 放鬆 chill, 熱血 hype, 律動 groove, 經典 classic,
+  each its styles and how loose they're played), the drum styles, how many
+  songs, and **更多設定 / More settings** (length, humanize, seed, format)
+  in a sheet. Each song gets a title from its seed (霓虹夜行, Neon Drive),
+  its length, groove and key (heard from the riffs' notes: a DFT at each
+  note's pitch, Krumhansl–Kessler's profiles), a ▶ that plays it in the
+  player over the tab bar (the lock screen's controls too), **♡** to keep it
+  and **⋯**: **變奏一首 / A variation** (the same form, groove and riff sets,
+  its fills, timing and riff lay-outs played anew), **換個鼓 / Another groove**
+  (the same song on another style), **分享 / Share** (the WAV through the
+  phone's share sheet; downloaded where a browser can't share files) and
+  **下載 WAV**.
+- **樂器 / Studio**: make clips on the app's own instruments
+  (`lib/synth.mjs`, no samples): **鼓組** (kick, snare, clap, closed and
+  open hat, rim, tom, 808) or **旋律** (electric piano, pluck, bass, lead,
+  pad, bell) on a grid of 16ths, a bar or two, drawn as a tracker (the
+  drums or the key's 8 notes across, the steps down: it fits a phone).
+  It loops live as you tap; **自動編 / Write one** writes a start in a
+  groove (each style the engine plays) or in the key (the kit's, or yours:
+  a phrase on the chord tones that answers itself and ends home; a bass on
+  roots and fifths). **加進片段 / Add to pieces** renders it at the kit's
+  tempo into the kit: a melody as a riff (a bass line as bass), a drum loop
+  as a fill and each drum used as a one-shot (kick, snare, tick, 808), so
+  the songs' grooves play your sounds. With no recording at all, a kit
+  made here alone makes songs.
+- **歌單 / Library**: the songs kept (♡), on this phone (IndexedDB, as
+  16-bit WAVs), played, shared, renamed, deleted, varied again while the
+  kit that made them is loaded. **Your taste**: each style's count of songs
+  kept goes to the Pass; with **依你的口味 / Lean to your taste** on, a
+  batch's grooves lean to them (each style weighted 1 + its count).
 
 ## The pieces
 
@@ -124,9 +158,9 @@ drums the song is just its riffs.
 
 | Page | Script | |
 |---|---|---|
-| Songs | `--count` | How many (page: up to 30; default 20) |
+| Songs | `--count` | How many (page: up to 30, default 8; the script's default 20) |
 | Length | `--min-bars` / `--max-bars` | Bars of 4 beats, 8 or more (default 25–29, so songs of 26 or 28 bars, about 51–55 s) |
-| Drums | `--styles` | The drum styles songs pick from: four-on-floor, hip-hop, trap, half-time, broken, house (the clap on 2 and 4, a tick on every off-beat), dembow (reggaeton: the kick on the beat, the snare's 3+3+2), afrobeats (a skipping kick, a shaker's push) |
+| Drums | `--styles` | The drum styles songs pick from: four-on-floor, hip-hop, trap, half-time, broken, house (the clap on 2 and 4, a tick on every off-beat), dembow (reggaeton: the kick on the beat, the snare's 3+3+2), afrobeats (a skipping kick, a shaker's push), drill (the 808 round the kick, the snare late on 3, hats in threes), boom bap (the kick's skip, eighth-note hats), Jersey club (the kicks' bounce, the clap on 2 and 4), amapiano (the kick on the beat, the log drum's syncopation, a rim on 4, a shaker on every off-16th) |
 | Humanize | `--humanize` | Swing and timing drift, 0–200% (0 is a strict grid) |
 | Seed | `--seed` | The same seed makes the same songs (the page and the script have different random numbers, so not the same songs as each other) |
 | Format | | 32-bit float or 16-bit WAV (the script writes 32-bit float) |
@@ -169,7 +203,8 @@ keeps them exactly, a 16-bit WAV clips them, and the page shows by how much
   a break drops the drums and bass. A hook may lift to a related groove
   (four-on-floor ↔ broken, hip-hop ↔ trap), never a foreign one.
 - **Energy builds.** The first verse's bass comes in halfway; the last
-  hook adds another riff on top.
+  hook adds another riff on top, only one alike enough in notes to the
+  hook's (so in its key: nothing clashes).
 - **Variation at phrase ends.** A riff only lays out on the last bar of a
   4-bar phrase, and an 8-bar section may get a small turnaround fill at
   its middle.
@@ -190,8 +225,10 @@ keeps them exactly, a 16-bit WAV clips them, and the page shows by how much
 - `public/`: the page (`index.html`, `app.js`, `engine.mjs`, the port of
   the script, and `analyze.mjs`, the hearing; `lib/sources.mjs`, a kit's
   files at one rate and split; `lib/kits.mjs`, the fingerprint, the Pass's
-  payload and the phone's copy; `lib/lang.mjs`; all but `app.js` with no
-  DOM, so they're testable).
+  payload (settings, kits, taste), the phone's copy of the last kit and the
+  songs kept; `lib/synth.mjs`, the instruments, clips and 自動編;
+  `lib/studio.mjs`, the 樂器 tab; `lib/lang.mjs`; all but `app.js` and
+  `lib/studio.mjs` with no DOM, so they're testable).
 - `npm test`: the tests (Node 22), the analysis's on made-up sample packs
   (`tests/kits.mjs`) among them.
 - Every push to `main` runs the tests and deploys `public/` to Pages

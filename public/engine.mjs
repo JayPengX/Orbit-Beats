@@ -8,7 +8,7 @@
 import { analyzeRecording } from './analyze.mjs';
 export { analyzeRecording, analyzePiece, detectTempo, guessRole, loopBeats } from './analyze.mjs';
 
-export const STYLES = ['four', 'hiphop', 'trap', 'half', 'broken', 'house', 'dembow', 'afro'];
+export const STYLES = ['four', 'hiphop', 'trap', 'half', 'broken', 'house', 'dembow', 'afro', 'drill', 'boombap', 'jersey', 'amapiano'];
 export const SECTIONS = ['intro', 'verse', 'hook', 'break', 'bridge', 'outro'];
 
 // What a piece does in a song. Loops repeat every so many beats (a loop
@@ -18,7 +18,7 @@ export const ROLES = ['riff', 'phrase', 'bass', 'hat', 'fill', 'kick', 'sub', 's
 
 // Arrangement rules (see README, "How it works"):
 // a hook may lift to a related groove, never a foreign one;
-export const FAMILY = { four: ['four', 'broken', 'house'], broken: ['broken', 'four'], hiphop: ['hiphop', 'trap'], trap: ['trap', 'hiphop'], half: ['half', 'hiphop'], house: ['house', 'four'], dembow: ['dembow', 'afro'], afro: ['afro', 'dembow'] };
+export const FAMILY = { four: ['four', 'broken', 'house'], broken: ['broken', 'four'], hiphop: ['hiphop', 'trap', 'boombap'], trap: ['trap', 'hiphop', 'drill'], half: ['half', 'hiphop'], house: ['house', 'four', 'jersey', 'amapiano'], dembow: ['dembow', 'afro'], afro: ['afro', 'dembow', 'amapiano'], drill: ['drill', 'trap'], boombap: ['boombap', 'hiphop'], jersey: ['jersey', 'house'], amapiano: ['amapiano', 'house', 'afro'] };
 // and the song's body is verse–hook pairs, maybe a break first, maybe a
 // break or bridge before a last hook. Verses and hooks are 4 or 8 bars,
 // breaks and bridges 2 or 4: phrases come in fours.
@@ -201,8 +201,27 @@ class Song {
         this.hit(k.snare, t + 1); this.hit(k.snare, t + 3);
         if (r.random() < 0.5) this.hit(k.snare, t + 3.75);
         for (const q of [0.5, 1.75, 2.25, 3.25]) this.hit(k.tick, t + q);
+      } else if (style === 'drill') {   // drill's: the 808 sliding round the kick, the snare late on 3 and pushed, its hats in threes
+        this.hit(k.sub, t); this.hit(k.heavy, t + 2.75);
+        if (r.random() < 0.5) this.hit(k.sub, t + 1.5);
+        this.hit(k.snare, t + 2); this.hit(k.snare, r.random() < 0.5 ? t + 3.5 : t + 3.75);
+        for (const q of [0, 0.75, 1.5, 2.25, 3, 3.75]) this.hit(k.tick, t + q);
+      } else if (style === 'boombap') {   // boom bap's: the kick's skip, the snare on 2 and 4, eighth-note hats
+        this.hit(k.heavy, t); this.hit(k.kick, t + 2.5);
+        if (r.random() < 0.5) this.hit(k.kick, t + 1.75);
+        this.hit(k.snare, t + 1); this.hit(k.snare, t + 3);
+        for (let q = 0.5; q < 4; q += 1) this.hit(k.tick, t + q);
+      } else if (style === 'jersey') {   // Jersey club's: the kicks' bounce (1, 2, 3, 3½ and the run at the end), the clap on 2 and 4
+        for (const q of [0, 1, 2, 2.75, 3.5]) this.hit(k.kick, t + q);
+        this.hit(k.snare, t + 1); this.hit(k.snare, t + 3);
+        if (r.random() < 0.4) this.hit(k.snare, t + 3.75);
+      } else if (style === 'amapiano') {   // amapiano's: the kick on the beat, the log drum's syncopation (the 808), a rim on 4, a shaker on every off-16th
+        for (let q = 0; q < 4; q++) this.hit(k.kick, t + q);
+        for (const q of [0.75, 2.25, 3.5]) this.hit(k.sub, t + q);
+        this.hit(k.snare, t + 3);
+        for (let q = 0.25; q < 4; q += 0.5) this.hit(k.tick, t + q);
       }
-      if (r.random() < 0.35)   // ticks between the hits
+      if (r.random() < 0.35 && !['drill', 'boombap', 'amapiano'].includes(style))   // ticks between the hits
         for (const q of py.choice([[0.5], [1.5, 3.5], [0.5, 1.5, 2.5, 3.5]])) this.hit(k.tick, t + q);
     }
   }
@@ -268,7 +287,11 @@ const alike = (a, b) => a && b ? a.reduce((s, v, k) => s + v * b[k], 0) : 0;
 // and loop length; `bpm` and `roles` set those instead. It needs a riff or a
 // phrase; any other role may be missing, and what it plays is then left out
 // (or played by the nearest role there is).
-export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25, maxBars = 29, styles = STYLES, humanize = 1 } = {}) {
+// Options beyond the script's (the page's): `style` makes it that groove;
+// `detail` a variation of the song of `seed` (the same form, groove and
+// riff sets, its fills, timing and the riffs' lay-outs played anew);
+// `weights` ({ style: n }) leans the groove's choice to the styles liked.
+export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25, maxBars = 29, styles = STYLES, humanize = 1, style: forced = null, detail = null, weights = null } = {}) {
   analysis ??= analyzeRecording(pieces, sr, { bpm });
   bpm ??= analysis.bpm; roles ??= analysis.roles;
   const loops = bpm === analysis.bpm ? analysis.loops : analyzeRecording(pieces, sr, { bpm }).loops;
@@ -280,16 +303,18 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   if (!riffs.length) throw new Error('Needs at least one riff or phrase');
   if (!(minBars >= MIN_BARS && minBars <= maxBars)) throw new Error(`Length must be ${MIN_BARS} bars or more, shortest first`);
   if (!styles.length) throw new Error('Pick at least one drum style');
-  const r = makeRng(seed), R = makeRng(seed ^ 0x5bd1e995);
+  const r0 = makeRng(seed), R = makeRng(seed ^ 0x5bd1e995);
+  const r = detail == null ? r0 : makeRng(detail);
   const pick = (xs, not = []) => { const ok = xs.filter(x => !not.includes(x)); return ok.length ? R.choice(ok) : xs.length ? R.choice(xs) : null; };
 
   // Choices made once, so what repeats sounds the same each time.
-  const style = R.choice(styles), kin = FAMILY[style].filter(x => styles.includes(x));
+  const chosen = weights ? weighted(R, styles, weights) : R.choice(styles);
+  const style = forced && FAMILY[forced] ? forced : chosen, kin = FAMILY[style].filter(x => styles.includes(x) || x === style);
   const hookStyle = R.random() < 0.4 ? R.choice(kin) : style;          // every hook the same groove
   // Intro/outro, verse, hook and bridge riff sets, each led by a different
   // riff where there are riffs enough, with the riffs most alike in notes
   // to it (so in the same key) after it in the pattern.
-  const order = r.sample(riffs.length, riffs.length).map(i => riffs[i]), step = Math.max(1, Math.floor(riffs.length / 4));
+  const order = r0.sample(riffs.length, riffs.length).map(i => riffs[i]), step = Math.max(1, Math.floor(riffs.length / 4));
   const [introSet, verseSet, hookSet, bridgeSet] = [0, 1, 2, 3].map(j => {
     const lead = order[(j * step) % order.length];
     const kin = [lead, ...riffs.filter(x => x !== lead).sort((x, y) => alike(chroma[y], chroma[lead]) - alike(chroma[x], chroma[lead]))];
@@ -298,7 +323,9 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   // Another riff over hooks: the one most alike in notes not already there.
   const others = riffs.filter(x => !hookSet.includes(x)).sort((x, y) => alike(chroma[y], chroma[hookSet[0]]) - alike(chroma[x], chroma[hookSet[0]]));
   const layer = others[0] ?? null;
+  // (Only one alike enough in notes, so in the same key: no clash on top.)
   const hookLayer = layer != null && R.random() < 0.5;
+  const layerFits = layer != null && (!chroma[layer] || !chroma[hookSet[0]] || alike(chroma[layer], chroma[hookSet[0]]) >= 0.45);
   const bassMode = R.choice(pool.bass.length > 1 ? ['alt', 'one', 'one', 'sparse'] : pool.bass.length ? ['one', 'sparse'] : ['none']);
   const bassA = pick(pool.bass), bassB = pick(pool.bass, [bassA]);
   // A break gets the shortest hat loop (a shaker); a hook a hat other than
@@ -355,7 +382,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
     } else if (t === 'hook') {   // the last hook is the fullest
       hookNo++;
       riff(b, L, hookSet); bass(b, L); s.drums(hookStyle, b, L, kit); s.loop(hookHat, b, L);
-      if (layer != null && (hookLayer || hookNo === hooks)) riff(b, L, [layer]);
+      if (layerFits && (hookLayer || hookNo === hooks)) riff(b, L, [layer]);
     } else if (t === 'break') {   // strip back: no drums, no bass
       s.phrases(b, L, phrases);
       if (R.random() < 0.6) s.loop(breakHat, b, L);
@@ -372,7 +399,77 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   });
   s.hit(R.choice([kit.heavy, kit.sub]), bars * 4);   // one last hit on the next downbeat
   const audio = s.render();
-  return { audio, info: { bpm, style, alt: hookStyle, bass: bassMode, riffSets: [introSet, verseSet, hookSet, bridgeSet], layer, bars, beats: bars * 4, seconds: audio.L.length / sr, peak: audio.peak, plan: plan.map(([t, , L]) => [t, L]) } };
+  return { audio, info: { seed, detail, key: keyOf(riffs.map(i => pieceChroma(pieces[i], sr))), bpm, style, alt: hookStyle, bass: bassMode, riffSets: [introSet, verseSet, hookSet, bridgeSet], layer, bars, beats: bars * 4, seconds: audio.L.length / sr, peak: audio.peak, plan: plan.map(([t, , L]) => [t, L]) } };
+}
+
+// One of `xs` by weight (each at least 1, so a style not yet liked still comes up): one draw, as R.choice.
+export function weighted(R, xs, weights) {
+  const w = xs.map(x => 1 + Math.max(0, Number(weights[x]) || 0));
+  let t = R.random() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < xs.length; i++) if ((t -= w[i]) < 0) return xs[i];
+  return xs[xs.length - 1];
+}
+
+// The key a set of pieces is in, from their notes (chroma, 12 pitch
+// classes from C): Krumhansl and Kessler's major and minor profiles, the
+// best of the 24 by correlation. -> { tonic: 0–11, minor, fit } | null
+const MAJOR = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
+const MINOR = [6.33, 2.68, 3.52, 5.38, 2.6, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
+export function keyOf(chromas) {
+  const c = new Array(12).fill(0);
+  for (const x of chromas || []) if (x) for (let k = 0; k < 12; k++) c[k] += x[k] || 0;
+  if (!c.some(v => v > 0)) return null;
+  const corr = (a, b) => {
+    const ma = a.reduce((s, v) => s + v, 0) / 12, mb = b.reduce((s, v) => s + v, 0) / 12;
+    let n = 0, da = 0, db = 0;
+    for (let k = 0; k < 12; k++) { n += (a[k] - ma) * (b[k] - mb); da += (a[k] - ma) ** 2; db += (b[k] - mb) ** 2; }
+    return da && db ? n / Math.sqrt(da * db) : 0;
+  };
+  let best = null;
+  for (let tonic = 0; tonic < 12; tonic++)
+    for (const [minor, prof] of [[false, MAJOR], [true, MINOR]]) {
+      const rot = prof.map((_, k) => prof[(k - tonic + 12) % 12]);
+      const fit = corr(c, rot);
+      if (!best || fit > best.fit) best = { tonic, minor, fit: Math.round(fit * 100) / 100 };
+    }
+  return best;
+}
+export const NOTE_NAMES = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
+// A piece's notes as 12 pitch classes, finely (the analysis's chroma is
+// coarse, for telling riffs apart; a key needs each semitone): the first
+// two seconds brought down to ~12 kHz, each note from C2 to C7 measured on
+// its own (a windowed DFT at its pitch), the strongest counting most.
+const chromaMemo = new WeakMap();
+export function pieceChroma(p, sr) {
+  if (!chromaMemo.has(p.L)) chromaMemo.set(p.L, noteChroma(p.L, sr));
+  return chromaMemo.get(p.L);
+}
+export function noteChroma(L, sr) {
+  const k = Math.max(1, Math.floor(sr / 12000));
+  const rate = sr / k;
+  const n = Math.min(Math.floor(L.length / k), Math.round(2 * rate));
+  if (n < rate * 0.1) return null;
+  const x = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let s = 0;
+    for (let j = 0; j < k; j++) s += L[i * k + j] || 0;
+    x[i] = (s / k) * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (n - 1)));
+  }
+  const e = new Array(61).fill(0);
+  for (let m = 36; m <= 96; m++) {
+    const w = (2 * Math.PI * 440 * 2 ** ((m - 69) / 12)) / rate;
+    let re = 0, im = 0;
+    for (let i = 0; i < n; i++) { re += x[i] * Math.cos(w * i); im += x[i] * Math.sin(w * i); }
+    e[m - 36] = Math.hypot(re, im);
+  }
+  // (A note's own pitch over its harmonics: each one's energy less a share of what's an octave and a fifth under it.)
+  const c = new Array(12).fill(0);
+  for (let m = 36; m <= 96; m++) {
+    const own = e[m - 36] - 0.5 * (e[m - 48] || 0) - 0.3 * (e[m - 55] || 0);
+    if (own > 0) c[m % 12] += Math.sqrt(own);
+  }
+  const norm = Math.hypot(...c) || 1;
+  return c.map(v => v / norm);
 }
 
 // "Beats DD-MM-YYYY HH-MM", in local time.
