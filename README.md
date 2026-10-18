@@ -16,8 +16,10 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
     (變奏一首, 換個鼓, 編排, 分享, 下載 WAV, 分軌 stems, MIDI).
   - **樂器** (Studio): clips on the app's own instruments (`lib/synth.mjs`,
     drums or melody) on a vertical 16th-note grid, 1, 2 or 4 bars, with
-    accents, chords, swing, undo, ⧉ 複製, ♡ 收藏, tap tempo and MIDI out.
-    It loops as you tap; 自動編 writes a start; 加進片段 renders it into the kit.
+    accents, a long press for each hit's 力度 (輕, 中, 重), chords, swing,
+    undo, ⧉ 複製, ♡ 收藏, tap tempo and MIDI out. Up to four 段落 (A–D) and a
+    串接 of them (A A B A, up to 8) that plays, renders and exports in order.
+    It loops as you tap; 自動編 writes a start; 加進片段 renders the chain into the kit.
   - **即興** (Jam): the kit as pads over a groove made of its own drums.
     Loops start on the next bar, one-shots snap to 1/16, 1/8, the beat or
     自由; ● 錄一段 turns a take into a song.

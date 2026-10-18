@@ -146,6 +146,11 @@ details[open] summary::before { transform: rotate(45deg); }
 .row + .row, .row + .stack, .stack + .row, .stack + .stack { border-top: 1px solid var(--line); }
 .row > label, .row > .label, .stack > .label { font-weight: 500; white-space: nowrap; min-width: 0; }
 .row small, .stack small { display: block; font-size: 12px; font-weight: 400; color: var(--text-2); white-space: nowrap; }
+.row.note { flex-wrap: wrap; row-gap: 0; }
+.row.note > .label { display: contents; }
+.row.note > .label > span { order: 0; margin-right: auto; }
+.row.note > .ctl { order: 1; }
+.row.note > .label > small { order: 2; flex: 0 0 100%; }
 .row[hidden] { display: none; }
 .stack { padding: 10px 0; }
 .ctl { display: flex; align-items: center; gap: 6px; white-space: nowrap; flex: none; }
@@ -329,6 +334,17 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .studio-tools .mini:disabled { opacity: .4; }
 .sq .cell.accent { background: color-mix(in srgb, var(--accent) 100%, #000 18%); box-shadow: inset 0 0 0 2px var(--accent-ink); }
 .sq .cell.chord { background: var(--q-purple); }
+.sq .cell.on.soft { background: color-mix(in srgb, var(--accent) 50%, var(--fill)); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.sq .cell { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.chain-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.chain { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; margin-top: 8px; }
+.chain .slot { height: 32px; min-width: 0; padding: 0; border: 0; border-radius: 8px; background: var(--fill); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.chain .slot.edit { background: none; color: var(--accent); font-size: 20px; font-weight: 500; }
+.chain .slot.edit:nth-last-child(2) { grid-column: 9; }
+.chain .slot.edit:last-child { grid-column: 10; }
+.chain .slot:disabled { opacity: .35; }
+.chain .slot.now { box-shadow: inset 0 0 0 2px var(--text); }
+.chain-head .label { font-weight: 500; white-space: nowrap; min-width: 0; }
 
 /* 即興: the pads, the transport, the take. */
 .jam-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
@@ -390,8 +406,8 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
       </div>
       <input type="file" id="more" accept="audio/*,.wav" multiple hidden>
       <div class="status" id="status" hidden><span class="dot"></span><span id="status-text"></span></div>
-      <div class="row tempo" id="tempo-row" hidden>
-        <label for="bpm"><span data-en="Tempo">速度</span><small id="bpm-hint"></small></label>
+      <div class="row tempo note" id="tempo-row" hidden>
+        <label class="label" for="bpm"><span data-en="Tempo">速度</span><small id="bpm-hint"></small></label>
         <div class="ctl">
           <button class="mini" type="button" id="bpm-half" aria-label="速度減半" data-en-label="Half the tempo">½</button>
           <input class="num tempo-num" id="bpm" type="number" min="40" max="250" step="0.1" inputmode="decimal">
@@ -401,7 +417,7 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
         </div>
       </div>
       <div class="pieces" id="pieces" aria-label="片段：點一下試聽" data-en-label="Pieces: tap one to hear it"></div>
-      <p class="hint" id="pieces-hint" hidden data-en="Tap a piece to hear it · roles are heard, change any">點片段試聽 · 角色是聽出來的，可以改</p>
+      <p class="hint" id="pieces-hint" hidden data-en="Tap to hear · roles are guesses, tap to change">點片段試聽 · 角色是聽出來的，可以改</p>
       <details id="split-more">
         <summary data-en="Splitting">切片</summary>
         <div class="row">
