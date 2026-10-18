@@ -59,6 +59,10 @@ export const TERMS = {
     zh: { name: '力度', hint: '每一下打輕或打重', text: '每一下可以打輕、中或重：長按格子就能選。有輕有重，聽起來就像真的人在打。' },
     en: { name: 'Velocity', hint: 'How hard each hit is', text: 'Each hit can be soft, normal or hard: hold a square to choose. A mix of soft and hard sounds like a real player.' }
   },
+  step: {
+    zh: { name: '格子', hint: '點一下打，再點變重，長按選輕重', text: '一格是十六分音符，四格一拍：鼓點一下打、再點變重、第三下拿掉，旋律點一下放音、再點拿掉，長按選輕中重。播放時亮起來的那一直排，就是正在響的地方。' },
+    en: { name: 'Steps', hint: 'Tap: hit · again: accent · hold: level', text: 'Each square is a 16th note, four to a beat: drums, tap for a hit, again for an accent, a third time to take it out; melody, tap a note in, again to take it out; hold one for soft, normal or hard. While it plays, the lit column is where it is.' }
+  },
   choke: {
     zh: { name: '切音', hint: '新的一下切掉還在響的', text: '同一組的聲音會互相切掉：例如開鈸還在響時打閉鈸，就把它停住，像鼓手用腳踩住一樣。' },
     en: { name: 'Choke', hint: 'A new hit cuts the last one off', text: 'Sounds in one group cut each other off: a closed hat stops an open one still ringing, as a drummer’s foot would.' }
@@ -102,7 +106,7 @@ export const TERMS = {
 };
 
 // The order of the 名詞小辭典: from what a beginner meets first.
-export const TERM_ORDER = ['bpm', 'bar', 'section', 'riff', 'hat', 'sub', 'groove', 'swing', 'key', 'chord', 'velocity', 'loop', 'snap', 'choke', 'roles', 'mix', 'humanize', 'pattern', 'chain', 'seed', 'stems', 'midi'];
+export const TERM_ORDER = ['bpm', 'bar', 'section', 'riff', 'hat', 'sub', 'groove', 'swing', 'key', 'chord', 'velocity', 'step', 'loop', 'snap', 'choke', 'roles', 'mix', 'humanize', 'pattern', 'chain', 'seed', 'stems', 'midi'];
 
 export const term = (id, to = lang) => TERMS[id]?.[to === 'en' ? 'en' : 'zh'] || null;
 // A word's one-line hint, in the reader's language.

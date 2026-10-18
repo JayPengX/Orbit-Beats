@@ -1,6 +1,8 @@
-// 樂器: make your own clips on the app's instruments (lib/synth.mjs). A
-// grid of 16th notes, one, two or four bars: the drums' lanes (the kit, or
-// the percussion beside it), or the key's notes for an instrument; played
+// 樂器: make your own clips on the app's instruments (lib/synth.mjs). ▶, 🎲
+// and the grooves (or instruments) as chips on top; a grid of 16th notes,
+// one, two or four bars (a bar at a time), a lane each: the drums in use
+// (the kit, or the percussion beside it; the rest behind 更多鼓), or the
+// key's notes for an instrument; played
 // live as it loops (a tap on the grid is heard at once), written for you in
 // a groove or key (自動編), and added to the kit as pieces (加進片段) for the
 // songs. A drum tapped again is accented, a third time off; a long press sets
@@ -13,11 +15,11 @@
 // this phone (localStorage), so they're there the next time.
 import { h, segmented, toast, menu } from '#kit/ui.mjs';
 import { NOTE_NAMES } from '../engine.mjs';
-import { DRUMS, PERC, ALL_DRUMS, DRUM_NAMES, INSTRUMENTS, INSTRUMENT_NAMES, INSTRUMENT_ROLE, OCTAVE, NOTE_LEN, STEPS, BAR_CHOICES, GROOVE_STYLES, LEVELS, emptyDrums, emptyNotes, drumPattern, melody, scaleRows, voice, clipEmpty, clipOf, stepHits, swingOf, copyFirstBar, resizeClip, chainClips } from './synth.mjs';
+import { DRUMS, PERC, ALL_DRUMS, DRUM_NAMES, INSTRUMENTS, INSTRUMENT_NAMES, OCTAVE, NOTE_LEN, STEPS, BAR_CHOICES, GROOVE_STYLES, LEVELS, emptyDrums, emptyNotes, drumPattern, melody, scaleRows, voice, clipEmpty, clipOf, stepHits, swingOf, copyFirstBar, resizeClip, chainClips } from './synth.mjs';
 import { midiFile, clipTracks } from './midi.mjs';
 import { tapper } from './tap.mjs';
 import { download, fileName } from './download.mjs';
-import { STYLE_NAMES, ROLE_NAMES, name } from './names.mjs';
+import { STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
 import { info, hintOf } from './help.mjs';
 
@@ -32,6 +34,23 @@ const noteName = m => `${NOTE_NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
 export const MOST_PATS = 4;
 export const MOST_CHAIN = 8;
 export const PAT_NAMES = ['A', 'B', 'C', 'D'];
+// The grid's lanes: the drums the patterns use and the kit's core (kick,
+// snare, hat), in the set's order; every one with 更多鼓, or when nothing
+// of the set is in use.
+export const CORE_DRUMS = ['kick', 'snare', 'hat'];
+export function shownLanes(lanes, clips, all = false) {
+  if (all) return [...lanes];
+  const used = lanes.filter(d => CORE_DRUMS.includes(d) || clips.some(c => c?.steps?.[d]?.some(Boolean)));
+  return used.length ? used : [...lanes];
+}
+// 🎲's groove: any but the one now (r in [0, 1)).
+export function otherGroove(now, r = Math.random()) {
+  const rest = GROOVE_STYLES.filter(s => s !== now);
+  return rest[Math.min(rest.length - 1, Math.floor(r * rest.length))];
+}
+// Each lane's colour (the kit's, var(--q-…)): a drum its own; the notes, high to low.
+export const LANE_COLOR = { kick: 'orange', snare: 'red', clap: 'pink', hat: 'yellow', open: 'mint', rim: 'purple', tom: 'indigo', sub: 'blue', crash: 'yellow', ride: 'teal', shaker: 'green', cowbell: 'orange', conga: 'red', bongo: 'pink', snap: 'purple', perc: 'indigo' };
+const NOTE_COLOR = ['pink', 'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'indigo'];
 // A set of patterns: { pats: [clip…] (1–4, one kind, one length, one sound:
 // instrument, key, swing and 808 the first's), at: the one shown, chain:
 // [pattern…] (1–8) }. An older page kept a single clip: it's pattern A.
@@ -124,17 +143,18 @@ export function mountStudio(panel, api) {
   const eachClip = fn => [st.drums, st.notes].forEach(b => (b.pats = b.pats.map(fn)));
 
   // ---- Drawing ----
+  // Top: ▶, 🎲 and the grooves (or the instruments) as chips; the grid, one
+  // lane a drum (or a note), 16 steps across; under it 復原, 清除, ♡ and
+  // 存成片段. 進階's settings below.
   const modeSeg = segmented(
     [
       { id: 'drums', label: W('鼓組', 'Drums') },
-      { id: 'notes', label: W('旋律', 'Notes') }
+      { id: 'notes', label: W('旋律', 'Melody') }
     ],
-    { value: st.mode, label: W('樂器', 'Instrument'), onChange: id => ((st.mode = id), (undo.length = 0), keep(), draw()) }
+    { value: st.mode, label: W('樂器', 'Instrument'), onChange: id => ((st.mode = id), (undo.length = 0), (page = 0), keep(), fresh(), showChip(false)) }
   );
   const setSeg = h('div', { class: 'seg' });
   const barsSeg = h('div', { class: 'seg' });
-  const instChips = h('div', { class: 'chips three' });
-  const grooveSel = h('select', { class: 'num wide', 'aria-label': W('節奏', 'Groove') }, GROOVE_STYLES.map(s => h('option', { value: s, text: name(STYLE_NAMES, s) })));
   const tonicSel = h('select', { class: 'num short', 'aria-label': W('調', 'Key') }, NOTE_NAMES.map((n, i) => h('option', { value: String(i), text: n })));
   const modeSel = h('div', { class: 'seg' });
   const tempoIn = h('input', { class: 'num tempo-num', type: 'number', min: 60, max: 200, step: 1, inputmode: 'numeric', 'aria-label': W('速度', 'Tempo') });
@@ -142,35 +162,32 @@ export function mountStudio(panel, api) {
   const tempoSub = h('small');
   const swingIn = h('input', { type: 'range', min: 0, max: 0.6, step: 0.05, 'aria-label': W('搖擺', 'Swing') });
   const swingVal = h('span', { class: 'val' });
-  const grid = h('div', { class: 'sq', role: 'grid' });
-  const playBtn = h('button', { class: 'q-btn tinted', type: 'button' });
-  const autoBtn = h('button', { class: 'q-btn tinted', type: 'button', 'data-ctl': 'studio-auto', text: W('自動編', 'Write one') });
-  const clearBtn = h('button', { class: 'q-btn plain', type: 'button', text: W('清除', 'Clear'), 'aria-label': W('清除格子', 'Clear the grid') });
-  const undoBtn = h('button', { class: 'mini', type: 'button', text: W('↶ 復原', '↶ Undo'), disabled: true });
+  const playBtn = h('button', { class: 'st-play', type: 'button' });
+  const dice = h('button', { class: 'jam-dice st-dice', type: 'button', text: '🎲' });
+  const chips = h('div', { class: 'jam-chips st-chips', role: 'group' });
+  const pager = h('div', { class: 'st-pages' });
+  const grid = h('div', { class: 'st-grid', role: 'grid' });
+  const moreBtn = h('button', { class: 'st-more', type: 'button' });
+  const icon = (svg, label, cls = '') => h('button', { class: `st-icon ${cls}`, type: 'button', 'aria-label': label, title: label, html: `<svg viewBox="0 0 24 24" aria-hidden="true">${svg}</svg>` });
+  const undoBtn = icon('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>', W('復原', 'Undo'));
+  const clearBtn = icon('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>', W('清除格子', 'Clear the grid'));
+  const saveBtn = icon('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>', W('收藏到收藏架', 'Keep on the shelf'));
+  const addBtn = h('button', { class: 'st-add', type: 'button', text: W('存成片段', 'Save as piece') });
   const copyBtn = h('button', { class: 'mini', type: 'button', 'data-ctl': 'studio-copy', text: W('⧉ 複製', '⧉ Copy'), 'aria-label': W('第一小節複製到每一小節', 'Bar 1 over every bar') });
   const chordBtn = h('button', { class: 'mini', type: 'button', 'data-ctl': 'studio-chord', text: W('和弦', 'Chords'), 'aria-pressed': String(st.chord) });
-  const saveBtn = h('button', { class: 'q-btn tinted', type: 'button', text: W('♡ 收藏', '♡ Save to shelf'), 'aria-label': W('收藏到下方的收藏架', 'Save to the shelf below') });
   const midiBtn = h('button', { class: 'mini', type: 'button', 'data-ctl': 'studio-midi', text: 'MIDI' });
-  const addBtn = h('button', { class: 'primary', type: 'button' });
-  // 簡單: write one, again, or save it as a piece, right above the grid.
-  const easyAuto = h('button', { class: 'q-btn solid', type: 'button' });
-  const easyAdd = h('button', { class: 'q-btn tinted', type: 'button', text: W('＋ 存成片段', '＋ Save as piece') });
-  const easyRow = h('div', { class: 'easy-row', 'data-ctl': 'studio-easy' }, [easyAuto, easyAdd]);
   const patSeg = h('div', { class: 'seg pats' });
   const chainSub = h('small');
   const loopSeg = h('div', { class: 'seg' });
   const chainSlots = h('div', { class: 'chain' });
-  const note = h('p', { class: 'studio-note' });
-  const shelfNote = h('p', { class: 'studio-note', text: W('♡ 收藏：先放在下方收藏架，之後再改', '♡ Save to shelf: keep it below, edit later') });
-  const tip = h('p', { class: 'studio-note' });
   const shelfList = h('ul', { class: 'mine-list' });
   const shelfCard = h('section', { class: 'card' }, [h('div', { class: 'head' }, [h('h2', { text: W('收藏架', 'Shelf') })]), shelfList]);
+  let page = 0; // the bar shown, when the loop is longer than one
+  let more = false; // every drum of the set, not only the ones in use
 
   // A row: its name (and the word's ⓘ), a line under it, its control; ctl: which of 簡單 / 進階 shows it (lib/easy.mjs).
   const row = (label, sub, ctl, { only = null, term = null } = {}) => h('div', { class: sub ? 'row note' : 'row', 'data-ctl': only }, [h('div', { class: 'label' }, [h('span', {}, [label, ...(term ? [' ', info(term)] : [])]), sub]), ctl]);
   const setRow = row(W('鼓', 'Drums'), h('small', { text: W('一次八種', 'Eight at a time') }), setSeg, { only: 'studio-set' });
-  const grooveRow = row(W('節奏', 'Groove'), h('small', { text: W('編一段時鼓的打法', 'How the drums are written') }), grooveSel, { term: 'groove' });
-  const instRow = h('div', { class: 'stack' }, [h('div', { class: 'label' }, [h('span', { text: W('樂器', 'Instrument') })]), instChips]);
   const keyRow = row(W('調', 'Key'), h('small', { text: hintOf('key') }), h('div', { class: 'ctl' }, [tonicSel, modeSel]), { only: 'studio-key', term: 'key' });
   const tempoRow = row(W('速度', 'Tempo'), tempoSub, h('div', { class: 'ctl' }, [tempoIn, h('span', { class: 'unit', text: 'BPM' }), tapBtn]), { only: 'studio-tempo', term: 'bpm' });
   const lenRow = row(W('長度', 'Length'), h('small', { text: W('一個循環幾小節', 'Bars in one loop') }), barsSeg, { only: 'studio-length', term: 'bar' });
@@ -179,47 +196,45 @@ export function mountStudio(panel, api) {
   const chainRow = h('div', { class: 'stack', 'data-ctl': 'studio-chain' }, [h('div', { class: 'chain-head' }, [h('div', { class: 'label' }, [h('span', {}, [W('串接', 'Chain'), ' ', info('chain')]), chainSub]), loopSeg]), chainSlots]);
 
   panel.replaceChildren(
-    h('section', { class: 'card' }, [
-      h('div', { class: 'head' }, [h('h2', { text: W('樂器', 'Studio') })]),
-      h('div', { class: 'studio-top' }, [modeSeg]),
-      instRow,
-      setRow,
-      grooveRow,
-      easyRow,
-      keyRow,
-      lenRow,
-      tempoRow,
-      swingRow,
-      patRow,
-      chainRow,
-      h('div', { class: 'studio-tools' }, [undoBtn, copyBtn, chordBtn, midiBtn]),
-      tip,
+    h('section', { class: 'card studio' }, [
+      h('div', { class: 'head' }, [h('h2', { text: W('樂器', 'Studio') }), modeSeg, info('step')]),
+      h('div', { class: 'st-top' }, [playBtn, dice, chips]),
+      pager,
       grid,
-      h('div', { class: 'transport' }, [playBtn, autoBtn, clearBtn]),
-      addBtn,
-      h('div', { class: 'transport' }, [saveBtn]),
-      note,
-      shelfNote
+      moreBtn,
+      h('div', { class: 'st-actions' }, [undoBtn, clearBtn, saveBtn, addBtn]),
+      h('div', { class: 'st-pro' }, [setRow, keyRow, lenRow, tempoRow, swingRow, patRow, chainRow, h('div', { class: 'studio-tools', 'data-ctl': 'studio-tools' }, [copyBtn, chordBtn, midiBtn])])
     ]),
     shelfCard
   );
 
   function drawControls() {
     const drums = st.mode === 'drums';
-    instRow.hidden = drums;
     setRow.hidden = !drums;
-    grooveRow.hidden = !drums;
     keyRow.hidden = drums;
     chordBtn.hidden = drums;
     chordBtn.setAttribute('aria-pressed', String(st.chord));
-    instChips.replaceChildren(...INSTRUMENTS.map(i => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(st.inst === i), text: name(INSTRUMENT_NAMES, i), onclick: () => setInst(i) })));
+    // The chips: the grooves (a tap writes a beat in it and plays), or the instruments.
+    chips.setAttribute('aria-label', drums ? W('節奏', 'Groove') : W('樂器', 'Instrument'));
+    chips.replaceChildren(
+      ...(drums ? GROOVE_STYLES : INSTRUMENTS).map(id =>
+        h('button', {
+          class: 'chip',
+          type: 'button',
+          'data-id': id,
+          'aria-pressed': String(id === (drums ? st.groove : st.inst)),
+          text: drums ? name(STYLE_NAMES, id) : name(INSTRUMENT_NAMES, id),
+          onclick: () => (drums ? setGroove(id) : setInst(id))
+        })
+      )
+    );
+    dice.setAttribute('aria-label', drums ? W('隨機換一個鼓', 'A random new beat') : W('隨機編一段旋律', 'A random new melody'));
     setSeg.replaceChildren(
       ...[
         ['kit', W('鼓組', 'Kit')],
         ['perc', W('打擊', 'Perc')]
       ].map(([id, label]) => h('button', { type: 'button', 'aria-pressed': String(st.set === id), text: label, onclick: () => ((st.set = id), keep(), draw()) }))
     );
-    grooveSel.value = st.groove;
     const k = keyNow();
     tonicSel.value = String(k.tonic);
     modeSel.replaceChildren(
@@ -238,35 +253,53 @@ export function mountStudio(panel, api) {
     copyBtn.disabled = st.bars < 2;
     drawPatterns();
     undoBtn.disabled = !undo.length;
-    addBtn.textContent = W('存成片段（去做歌）', 'Save as piece (for Make)');
-    const role = INSTRUMENT_ROLE[st.inst] || 'riff';
-    tip.replaceChildren(drums ? W('點：打 · 再點：重音 · 長按：力度', 'Tap: hit · again: accent · hold: level') : st.chord ? W('點一個音放進三和弦 · 長按：力度', 'Tap: its triad · hold: level') : W('點：放進 · 再點：拿掉 · 長按：力度', 'Tap: in · again: out · hold: level'), ' ', info(!drums && st.chord ? 'chord' : 'velocity'));
-    note.textContent = drums ? W('存成片段：放進「做歌」當素材，鼓也會用在歌裡', 'Save as piece: song material in Make, drums too') : W(`存成片段：放進「做歌」當${name(ROLE_NAMES, role)}`, `Save as piece: goes to Make as a ${name(ROLE_NAMES, role)}`);
     paintPlay();
     drawShelf();
   }
-  // The grid as a tracker: the drums (or the key's notes, low to high) across
-  // the top, the 16ths going down, a beat's number at each beat. Fits a
-  // phone's width at any length (a longer loop is longer down the page).
+  // The chip lit scrolled into sight (after 🎲 picked one off to the side).
+  function showChip(smooth = true) {
+    const b = chips.querySelector('[aria-pressed="true"]');
+    if (!b || !chips.clientWidth) return;
+    const x = b.getBoundingClientRect().left - chips.getBoundingClientRect().left;
+    if (x < 0 || x + b.offsetWidth > chips.clientWidth - 24) chips.scrollTo?.({ left: Math.max(0, chips.scrollLeft + x - 8), behavior: smooth ? 'smooth' : 'auto' });
+  }
+  // The grid: a lane a drum (only the ones in use and the kit's core, the
+  // rest behind 更多鼓) or a note of the key (high to low), its name over it,
+  // and the bar shown as 16 steps across, four to a beat.
+  function lanesNow() {
+    if (st.mode === 'notes') return rows();
+    return shownLanes(lanes(), bank().pats, more);
+  }
   function drawGrid() {
-    const n = STEPS * st.bars;
-    const rs = rows();
-    const cells = [h('span', { class: 'corner', 'aria-hidden': 'true' })];
-    rs.forEach(r => {
-      const root = st.mode === 'notes' && r % 12 === keyNow().tonic;
-      cells.push(h('span', { class: `lane${root ? ' root' : ''}`, text: st.mode === 'drums' ? name(DRUM_NAMES, r) : noteName(r) }));
+    page = Math.min(page, st.bars - 1);
+    pager.hidden = st.bars < 2;
+    pager.replaceChildren(...Array.from({ length: st.bars }, (_, b) => h('button', { type: 'button', 'data-bar': String(b), 'aria-pressed': String(b === page), text: W(`第 ${b + 1} 小節`, `Bar ${b + 1}`), onclick: () => ((page = b), drawGrid()) })));
+    const drums = st.mode === 'drums';
+    const all = rows();
+    const shown = lanesNow();
+    const k = keyNow();
+    const at = page * STEPS;
+    const head = h('div', { class: 'st-head', 'aria-hidden': 'true' }, Array.from({ length: STEPS }, (_, c) => h('span', { 'data-s': String(at + c), class: c % 4 ? '' : 'beat', text: c % 4 ? '' : String(c / 4 + 1) })));
+    const lanesEls = shown.map((r, i) => {
+      const ri = all.indexOf(r);
+      const label = drums ? name(DRUM_NAMES, r) : noteName(r);
+      const root = !drums && r % 12 === k.tonic;
+      return h('div', { class: `st-lane${root ? ' root' : ''}`, role: 'row', style: `--c: var(--q-${drums ? LANE_COLOR[r] : NOTE_COLOR[i % NOTE_COLOR.length]})` }, [
+        h('div', { class: 'st-name' }, [h('i'), h('span', { text: label })]),
+        h(
+          'div',
+          { class: 'st-cells' },
+          Array.from({ length: STEPS }, (_, c) => h('button', { class: `cell g${c % 4}${Math.floor(c / 4) % 2 ? ' alt' : ''}`, type: 'button', role: 'gridcell', 'data-r': String(ri), 'data-s': String(at + c), 'aria-label': `${label} ${at + c + 1}` }))
+        )
+      ]);
     });
-    for (let s = 0; s < n; s++) {
-      const beat = s % 4 === 0;
-      cells.push(h('span', { class: `stepno${beat ? ' beat' : ''}${s && beat ? ' gap' : ''}${s && s % 16 === 0 ? ' bar' : ''}`, text: beat ? String(s / 4 + 1) : '' }));
-      rs.forEach((r, ri) => {
-        const label = st.mode === 'drums' ? name(DRUM_NAMES, r) : noteName(r);
-        cells.push(h('button', { class: `cell${Math.floor(s / 4) % 2 ? '' : ' beat'}${s && s % 4 === 0 ? ' gap' : ''}`, type: 'button', 'data-r': String(ri), 'data-s': String(s), 'aria-label': `${label} ${s + 1}` }));
-      });
-    }
-    grid.replaceChildren(...cells);
+    grid.replaceChildren(head, ...lanesEls);
+    const hidden = drums ? lanes().length - shown.length : 0;
+    moreBtn.hidden = !drums || (!more && !hidden);
+    moreBtn.textContent = more ? W('－ 收起', '－ Fewer drums') : W(`＋ 更多鼓（${hidden}）`, `＋ More drums (${hidden})`);
     paintCells();
   }
+  moreBtn.onclick = () => ((more = !more), drawGrid());
   function paintCells() {
     const rs = rows();
     const c = clip();
@@ -295,8 +328,7 @@ export function mountStudio(panel, api) {
     }
     const none = bank().chain.every(i => clipEmpty(bank().pats[i]));
     addBtn.disabled = none;
-    easyAdd.disabled = none;
-    easyAuto.textContent = clipEmpty(c) ? W('✦ 幫我編一段', '✦ Write one') : W('✦ 再編一次', '✦ Write again');
+    clearBtn.disabled = clipEmpty(c);
     saveBtn.disabled = clipEmpty(c);
     midiBtn.disabled = none;
     undoBtn.disabled = !undo.length;
@@ -326,6 +358,8 @@ export function mountStudio(panel, api) {
     const after = rows();
     st.notes.pats = st.notes.pats.map(c => ({ ...c, inst: i, notes: c.notes.map(x => ({ ...x, midi: after[before.indexOf(x.midi)] })).filter(x => x.midi != null) }));
     keep();
+    // (An empty grid gets a melody written for the instrument, playing.)
+    if (clipEmpty(clip())) return autoWrite();
     draw();
     audition(after[after.length - 1] ?? 60);
   }
@@ -349,10 +383,17 @@ export function mountStudio(panel, api) {
     keep();
     draw();
   }
-  grooveSel.addEventListener('change', () => {
-    st.groove = grooveSel.value;
-    keep();
-  });
+  // A groove's chip: a beat written in it, playing (its own chip again: another one).
+  function setGroove(g) {
+    st.groove = g;
+    autoWrite();
+  }
+  // 🎲: drums, a beat in another groove; notes, another melody in the key.
+  dice.onclick = () => {
+    if (st.mode === 'drums') st.groove = otherGroove(st.groove);
+    autoWrite();
+    showChip();
+  };
   tonicSel.addEventListener('change', () => setKey({ tonic: +tonicSel.value, minor: keyNow().minor }));
   const setTempo = v => {
     if (v >= 60 && v <= 200) api.setTempo(Math.round(v));
@@ -440,13 +481,9 @@ export function mountStudio(panel, api) {
     setClip(st.mode === 'drums' ? drumPattern(st.groove, seed, st.bars) : melody(keyNow(), st.inst, seed, st.bars));
     sameSound();
     keep();
-    drawControls();
-    paintCells();
+    draw();
     if (play && !playing) start();
   }
-  autoBtn.onclick = () => autoWrite();
-  easyAuto.onclick = () => autoWrite();
-  easyAdd.onclick = () => addBtn.click();
   clearBtn.onclick = () => {
     mark();
     const was = clip();
@@ -653,7 +690,7 @@ export function mountStudio(panel, api) {
     playing = false;
     clearInterval(timer);
     cancelAnimationFrame(raf);
-    for (const b of panel.querySelectorAll('.cell.now, .slot.now')) b.classList.remove('now');
+    for (const b of panel.querySelectorAll('.now')) b.classList.remove('now');
     shownStep = -1;
     paintPlay();
   }
@@ -679,11 +716,12 @@ export function mountStudio(panel, api) {
     while (queue.length > 1 && queue[1][0] <= t) queue.shift();
     const s = queue[0]?.[0] <= t ? queue[0][1] : -1;
     if (s !== shownStep) {
-      for (const b of panel.querySelectorAll('.cell.now, .slot.now')) b.classList.remove('now');
+      for (const b of panel.querySelectorAll('.now')) b.classList.remove('now');
       // (Playing the chain: the step lit when it's the pattern shown, and the chain's place.)
       const per = STEPS * st.bars;
       const k = st.loop === 'chain' && many() ? Math.floor(s / per) : -1;
-      if (s >= 0 && (k < 0 || bank().chain[k] === bank().at)) for (const b of grid.querySelectorAll(`.cell[data-s="${s % per}"]`)) b.classList.add('now');
+      if (s >= 0 && (k < 0 || bank().chain[k] === bank().at)) for (const b of grid.querySelectorAll(`[data-s="${s % per}"]`)) b.classList.add('now');
+      if (s >= 0 && st.bars > 1) pager.querySelector(`[data-bar="${Math.floor((s % per) / STEPS)}"]`)?.classList.add('now');
       if (k >= 0) chainSlots.querySelector(`.slot[data-k="${k}"]`)?.classList.add('now');
       shownStep = s;
     }
@@ -694,16 +732,22 @@ export function mountStudio(panel, api) {
     start();
   }
   function paintPlay() {
-    playBtn.textContent = playing ? W('■ 停止', '■ Stop') : W('▶ 播放', '▶ Play');
+    playBtn.classList.toggle('on', playing);
+    playBtn.setAttribute('aria-label', playing ? W('停止', 'Stop') : W('播放', 'Play'));
+    playBtn.innerHTML = playing ? '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2.5"/></svg>' : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l11-6.5a1 1 0 0 0 0-1.72l-11-6.5A1 1 0 0 0 8 5.5z"/></svg>';
   }
   playBtn.onclick = () => (playing ? stop() : start());
 
+  // (簡單 starts from 自動編: an empty grid, drums or melody, gets one written, waiting for ▶.)
+  function fresh() {
+    if (api.simple?.() && bank().chain.every(i => clipEmpty(bank().pats[i]))) autoWrite(false);
+    else draw();
+  }
   draw();
   return {
-    // (簡單 starts from 自動編: an empty grid gets one written, waiting for ▶.)
     shown: () => {
-      if (api.simple?.() && bank().chain.every(i => clipEmpty(bank().pats[i]))) autoWrite(false);
-      else drawControls();
+      fresh();
+      showChip(false);
     },
     hidden: () => stop(),
     stop,

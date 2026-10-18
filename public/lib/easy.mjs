@@ -17,13 +17,13 @@ export const PRO_ONLY = [
   'make-split', 'make-tempo', 'make-roles', 'make-moods', 'make-styles', 'make-taste', 'make-count', 'make-mix', 'make-more', 'make-meta', 'make-open',
   // 更多設定's own rows; a song's ⋯.
   'make-humanize', 'make-seed', 'make-format', 'make-arrange', 'make-stems', 'make-midi',
-  // 樂器: everything but the instrument, its groove, the grid, play, 再編一次, clear, 存成片段 and ♡ 收藏.
-  'studio-set', 'studio-key', 'studio-length', 'studio-tempo', 'studio-swing', 'studio-pattern', 'studio-chain', 'studio-copy', 'studio-chord', 'studio-midi', 'studio-auto',
+  // 樂器: everything but ▶, 🎲, the grooves or instruments, the grid, 復原, 清除, ♡ 收藏 and 存成片段.
+  'studio-set', 'studio-key', 'studio-length', 'studio-tempo', 'studio-swing', 'studio-pattern', 'studio-chain', 'studio-copy', 'studio-chord', 'studio-midi', 'studio-tools',
   // 即興: the groove's picker, the snap, the notes on levels and choke.
   'jam-groove', 'jam-snap', 'jam-note'
 ];
 // Only in Simple.
-export const SIMPLE_ONLY = ['make-easy', 'studio-easy', 'jam-easy'];
+export const SIMPLE_ONLY = ['make-easy', 'jam-easy'];
 export const levelOk = v => LEVELS.includes(v);
 // Whether a control shows at this level.
 export const shows = (level, ctl) => (level === 'pro' ? !SIMPLE_ONLY.includes(ctl) : !PRO_ONLY.includes(ctl));

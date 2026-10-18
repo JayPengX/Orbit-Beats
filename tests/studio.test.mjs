@@ -77,3 +77,20 @@ test('a hit’s level: soft, normal and accent heard, kept and written as MIDI v
   const nv = readMidi(midiFile({ bpm: 120, tracks: clipTracks(n, 'x') })).tracks[0].notes.map(x => x.vel);
   assert.ok(nv[0] < nv[1], `velocities ${nv}`);
 });
+
+test('the grid shows the drums in use and the kit’s core, in order; all of them with 更多鼓', async () => {
+  const { shownLanes, otherGroove, LANE_COLOR } = await import('../public/lib/studio.mjs');
+  const { DRUMS, PERC, ALL_DRUMS, GROOVE_STYLES, drumPattern } = await import('../public/lib/synth.mjs');
+  const trap = drums([['sub', 0], ['clap', 8], ['hat', 2]]);
+  assert.deepEqual(shownLanes(DRUMS, [trap]), ['kick', 'snare', 'clap', 'hat', 'sub']);
+  assert.deepEqual(shownLanes(DRUMS, [emptyDrums(1)]), ['kick', 'snare', 'hat'], 'an empty grid: the core');
+  assert.deepEqual(shownLanes(DRUMS, [emptyDrums(1), drums([['tom', 3]])]), ['kick', 'snare', 'hat', 'tom'], 'any pattern’s drums');
+  assert.deepEqual(shownLanes(DRUMS, [trap], true), DRUMS);
+  assert.deepEqual(shownLanes(PERC, [emptyDrums(1)]), PERC, 'nothing of the percussion in use: all of it');
+  assert.deepEqual(shownLanes(PERC, [drums([['conga', 1]])]), ['conga']);
+  for (const g of GROOVE_STYLES) assert.ok(shownLanes(DRUMS, [drumPattern(g, 3)]).length <= DRUMS.length);
+  for (let r = 0; r < 1; r += 0.01) assert.notEqual(otherGroove('trap', r), 'trap');
+  assert.ok(GROOVE_STYLES.includes(otherGroove('trap', 0.9999)));
+  assert.equal(new Set(Array.from({ length: 200 }, (_, k) => otherGroove('trap', k / 200))).size, GROOVE_STYLES.length - 1, '🎲 can land on every other groove');
+  for (const d of ALL_DRUMS) assert.ok(LANE_COLOR[d], `${d} has a colour`);
+});
