@@ -18,7 +18,7 @@ export const DRUMS = ['kick', 'snare', 'clap', 'hat', 'open', 'rim', 'tom', 'sub
 export const PERC = ['crash', 'ride', 'shaker', 'cowbell', 'conga', 'bongo', 'snap', 'perc'];
 export const ALL_DRUMS = [...DRUMS, ...PERC];
 export const DRUM_NAMES = {
-  kick: ['大鼓', 'Kick'], snare: ['小鼓', 'Snare'], clap: ['拍手', 'Clap'], hat: ['閉鈸', 'Hat'], open: ['開鈸', 'Open hat'], rim: ['邊擊', 'Rim'], tom: ['中鼓', 'Tom'], sub: ['808', '808'],
+  kick: ['大鼓', 'Kick'], snare: ['小鼓', 'Snare'], clap: ['拍手', 'Clap'], hat: ['閉鈸', 'Hat'], open: ['開鈸', 'Open'], rim: ['邊擊', 'Rim'], tom: ['中鼓', 'Tom'], sub: ['808', '808'],
   crash: ['銅鈸', 'Crash'], ride: ['疊音鈸', 'Ride'], shaker: ['沙鈴', 'Shaker'], cowbell: ['牛鈴', 'Cowbell'], conga: ['康加', 'Conga'], bongo: ['邦哥', 'Bongo'], snap: ['彈指', 'Snap'], perc: ['木魚', 'Block']
 };
 // The instruments that play notes, and the role each one's clip takes in a song.
@@ -276,9 +276,14 @@ export function voice(inst, midi = 36, sr = 48000, hold = 0.25) {
 
 // ---- Clips -----------------------------------------------------------------------------
 //
-// { kind: 'drums', bars, swing, steps: { kick: [0/1/2 × 16·bars], … }, pitch: 808's MIDI }   (2: an accent)
-// { kind: 'notes', inst, bars, swing, key: { tonic, minor }, notes: [{ step, midi, len, chord }] }   (len in 16ths; chord: its triad in the key)
+// { kind: 'drums', bars, swing, steps: { kick: [0/1/2/3 × 16·bars], … }, pitch: 808's MIDI }   (a hit's level: 1 normal, 2 accent, 3 soft)
+// { kind: 'notes', inst, bars, swing, key: { tonic, minor }, notes: [{ step, midi, len, chord, lv }] }   (len in 16ths; chord: its triad in the key; lv: 2 accent, 3 soft)
 export const STEPS = 16;
+// A hit's level (力度) as a loudness: 0 none, 1 normal, 2 accent, 3 soft
+// (soft came last, so clips kept before it read the same).
+export const LEVELS = [3, 1, 2];
+export const LEVEL_GAIN = [0, 1, 1.35, 0.55];
+export const levelGain = v => LEVEL_GAIN[v] ?? 1;
 export const BAR_CHOICES = [1, 2, 4];
 export const emptyDrums = (bars = 1) => ({ kind: 'drums', bars, swing: 0, pitch: 33, steps: Object.fromEntries(ALL_DRUMS.map(d => [d, new Array(STEPS * bars).fill(0)])) });
 export const emptyNotes = (inst = 'keys', bars = 1, key = null) => ({ kind: 'notes', inst, bars, swing: 0, key, notes: [] });
@@ -294,7 +299,7 @@ export function clipOf(c) {
     out.pitch = Number.isInteger(c.pitch) && c.pitch >= 24 && c.pitch <= 48 ? c.pitch : 33;
     for (const d of ALL_DRUMS) {
       const lane = Array.isArray(c.steps?.[d]) ? c.steps[d] : [];
-      for (let s = 0; s < STEPS * bars; s++) out.steps[d][s] = [0, 1, 2].includes(lane[s]) ? lane[s] : lane[s] ? 1 : 0;
+      for (let s = 0; s < STEPS * bars; s++) out.steps[d][s] = [0, 1, 2, 3].includes(lane[s]) ? lane[s] : lane[s] ? 1 : 0;
     }
     return out;
   }
@@ -303,7 +308,7 @@ export function clipOf(c) {
     const key = c.key && Number.isInteger(c.key.tonic) && c.key.tonic >= 0 && c.key.tonic < 12 ? { tonic: c.key.tonic, minor: Boolean(c.key.minor) } : null;
     const notes = (Array.isArray(c.notes) ? c.notes : [])
       .filter(n => n && Number.isInteger(n.step) && n.step >= 0 && n.step < STEPS * bars && Number.isInteger(n.midi) && n.midi >= 12 && n.midi <= 120)
-      .map(n => ({ step: n.step, midi: n.midi, len: Math.min(STEPS * 4, Math.max(1, Math.round(n.len) || 1)), ...(n.chord ? { chord: true } : {}) }));
+      .map(n => ({ step: n.step, midi: n.midi, len: Math.min(STEPS * 4, Math.max(1, Math.round(n.len) || 1)), ...(n.chord ? { chord: true } : {}), ...(n.lv === 2 || n.lv === 3 ? { lv: n.lv } : {}) }));
     return { kind: 'notes', inst, bars, swing, key, notes };
   }
   return null;
@@ -331,13 +336,13 @@ export function stepHits(clip, s) {
     for (const d of ALL_DRUMS) {
       const v = clip.steps[d]?.[s];
       if (!v) continue;
-      // (Off-beat hats a little softer: a hand's accents; an accent louder.)
-      const gain = (d === 'hat' && s % 2 ? 0.7 : 1) * (v === 2 ? 1.35 : 1);
+      // (Off-beat hats a little softer: a hand's accents; then the hit's level.)
+      const gain = (d === 'hat' && s % 2 ? 0.7 : 1) * levelGain(v);
       out.push({ inst: d, midi: d === 'sub' ? clip.pitch || 33 : 36, len: 1, gain });
     }
   } else
     for (const n of clip.notes)
-      if (n.step === s) for (const m of n.chord ? chordOf(n.midi, clip.key) : [n.midi]) out.push({ inst: clip.inst, midi: m, len: n.len || 1, gain: n.chord ? 0.62 : 1 });
+      if (n.step === s) for (const m of n.chord ? chordOf(n.midi, clip.key) : [n.midi]) out.push({ inst: clip.inst, midi: m, len: n.len || 1, gain: (n.chord ? 0.62 : 1) * levelGain(n.lv || 1) });
   return out;
 }
 export const swingOf = (clip, s) => (s % 2 ? clip.swing || 0 : 0);
@@ -376,6 +381,17 @@ export function copyFirstBar(clip) {
     const first = c.notes.filter(n => n.step < STEPS);
     c.notes = Array.from({ length: c.bars }, (_, b) => first.map(n => ({ ...n, step: n.step + b * STEPS }))).flat();
   }
+  return c;
+}
+// Clips of one kind and length played one after another (a chain, A A B A)
+// as one clip: the first's sound (instrument, key, swing, 808), all their bars.
+export function chainClips(list) {
+  const first = list[0];
+  const per = STEPS * first.bars;
+  const c = JSON.parse(JSON.stringify(first));
+  c.bars = first.bars * list.length;
+  if (c.kind === 'drums') for (const d of ALL_DRUMS) c.steps[d] = list.flatMap(x => (x.steps[d] || []).slice(0, per).concat(new Array(Math.max(0, per - (x.steps[d] || []).length)).fill(0)));
+  else c.notes = list.flatMap((x, k) => x.notes.map(n => ({ ...n, step: n.step + k * per })));
   return c;
 }
 // A clip at another length: longer repeats what's there, shorter keeps the start.

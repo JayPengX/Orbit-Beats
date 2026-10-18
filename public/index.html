@@ -113,6 +113,10 @@ button { cursor: pointer; }
 .status b { font-weight: 600; }
 .pieces { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 6px; margin-top: 12px; }
 .pieces:empty { display: none; }
+.way.danger { background: var(--fill); color: var(--bad, #d70015); }
+.piece { position: relative; }
+.piece .more { position: absolute; top: 0; right: 0; width: 44px; height: 44px; padding: 0; border: 0; background: none; color: var(--text-2); font-size: 16px; line-height: 1; }
+.toast-undo { border: 0; background: none; color: var(--accent); font: inherit; font-weight: 700; padding: 0 0 0 6px; }
 .piece { border-radius: 10px; background: var(--fill); overflow: hidden; }
 .piece button {
   display: block; width: 100%; border: 0; background: none; padding: 7px 0 4px; text-align: center;
@@ -146,6 +150,11 @@ main details[open] summary::before { transform: rotate(45deg); }
 .row + .row, .row + .stack, .stack + .row, .stack + .stack { border-top: 1px solid var(--line); }
 .row > label, .row > .label, .stack > .label { font-weight: 500; white-space: nowrap; min-width: 0; }
 .row small, .stack small { display: block; font-size: 12px; font-weight: 400; color: var(--text-2); white-space: nowrap; }
+.row.note { flex-wrap: wrap; row-gap: 0; }
+.row.note > .label { display: contents; }
+.row.note > .label > span { order: 0; margin-right: auto; }
+.row.note > .ctl { order: 1; }
+.row.note > .label > small { order: 2; flex: 0 0 100%; }
 .row[hidden] { display: none; }
 .stack { padding: 10px 0; }
 .ctl { display: flex; align-items: center; gap: 6px; white-space: nowrap; flex: none; }
@@ -231,10 +240,13 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 @keyframes pb-pop { 40% { transform: scale(1.3); } }
 .plan { display: flex; gap: 2px; height: 6px; margin: 10px 0 0 50px; border-radius: 3px; overflow: hidden; position: relative; }
 .plan i, .plan .sec { display: block; min-width: 2px; }
-.plan { height: 8px; }
-.plan .sec { border: 0; padding: 0; margin: 0; height: 100%; cursor: pointer; }
+.plan { height: 22px; border-radius: 6px; }
+.plan .sec { border: 0; padding: 0; margin: 0; height: 100%; cursor: pointer; color: #fff; font: 600 11px/22px var(--q-font, inherit); white-space: nowrap; overflow: hidden; text-align: center; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: opacity .2s; }
+.song.now .plan .sec { opacity: .55; }
+.song.now .plan .sec.lit { opacity: 1; }
+.plan .sec.loop { box-shadow: inset 0 0 0 2px var(--q-label); }
 .plan .sec:active { filter: brightness(1.2); }
-.song.now .plan::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--at, 0%); background: color-mix(in srgb, var(--q-label) 28%, transparent); }
+.song.now .plan::after { content: ""; pointer-events: none; position: absolute; inset: 0 auto 0 0; width: var(--at, 0%); background: color-mix(in srgb, var(--q-label) 28%, transparent); }
 .busy-line { color: var(--text-2); font-size: 14px; padding: 14px 0 2px; white-space: nowrap; border-top: 1px solid var(--line); }
 .busy-line:empty { display: none; }
 .lib-head { display: flex; align-items: baseline; justify-content: space-between; margin: 4px 4px 10px; }
@@ -329,6 +341,17 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .studio-tools .mini:disabled { opacity: .4; }
 .sq .cell.accent { background: color-mix(in srgb, var(--accent) 100%, #000 18%); box-shadow: inset 0 0 0 2px var(--accent-ink); }
 .sq .cell.chord { background: var(--q-purple); }
+.sq .cell.on.soft { background: color-mix(in srgb, var(--accent) 50%, var(--fill)); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.sq .cell { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.chain-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.chain { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; margin-top: 8px; }
+.chain .slot { height: 32px; min-width: 0; padding: 0; border: 0; border-radius: 8px; background: var(--fill); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.chain .slot.edit { background: none; color: var(--accent); font-size: 20px; font-weight: 500; }
+.chain .slot.edit:nth-last-child(2) { grid-column: 9; }
+.chain .slot.edit:last-child { grid-column: 10; }
+.chain .slot:disabled { opacity: .35; }
+.chain .slot.now { box-shadow: inset 0 0 0 2px var(--text); }
+.chain-head .label { font-weight: 500; white-space: nowrap; min-width: 0; }
 
 /* 即興: the pads, the transport, the take. */
 .jam-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
@@ -344,6 +367,15 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .jam-pad.on { background: var(--accent); color: var(--accent-ink); }
 .jam-pad.on small { color: inherit; opacity: .85; }
 .jam-pad.hit { transform: scale(0.92); background: color-mix(in srgb, var(--accent) 55%, var(--fill)); }
+.jam-pad { position: relative; overflow: hidden; -webkit-touch-callout: none; }
+.jam-pad:not(.leveled) .lvl { display: none; }
+.jam-pad .lvl { position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--lvl, 1) * 100%); background: var(--accent); opacity: .55; }
+.jam-pad.on .lvl { background: var(--accent-ink); }
+.jam-pad.muted { opacity: .4; }
+.jam-pad[data-choke]:not([data-choke=""])::after { content: attr(data-choke); position: absolute; top: 5px; right: 7px; font-size: 10px; font-weight: 700; color: var(--text-2); }
+.jam-pad.on::after { color: inherit; }
+.jam-pad-sheet input[type="range"] { width: 150px; }
+.jam-pad-sheet .pct { width: 40px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
 .stack > .q-seg { margin-top: 8px; }
 .jam-rec.on { background: var(--q-red); color: #fff; }
 
@@ -351,6 +383,59 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .lib-tools { display: flex; gap: 8px; align-items: center; margin: 0 0 12px; }
 .lib-tools input { flex: 1; min-width: 0; height: 36px; border: 0; border-radius: 10px; background: var(--fill); padding: 0 12px; font: inherit; color: inherit; }
 .lib-tools select { height: 36px; border: 0; border-radius: 10px; background: var(--fill); padding: 0 8px; font: inherit; color: inherit; }
+/* 歌單: playlists. */
+.lib-lists .q-list { margin: -6px -16px -16px; background: none; }
+.lib-nav { display: flex; justify-content: space-between; align-items: center; margin: 0 0 4px; }
+.lib-back, .lib-more { height: 36px; border: 0; background: none; color: var(--accent); font-size: 17px; padding: 0 4px; white-space: nowrap; }
+.lib-more { width: 44px; font-size: 22px; font-weight: 700; }
+.lib-head h2 { min-width: 0; overflow-wrap: anywhere; }
+.card > .primary:first-child { margin-top: 0; margin-bottom: 8px; }
+
+/* ⓘ: a word in everyday words (lib/help.mjs). */
+.info-btn { display: inline-grid; place-items: center; width: 22px; height: 22px; margin: -4px 0 -4px 2px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--accent); font-size: 15px; line-height: 1; vertical-align: middle; flex: none; }
+.legend-line { display: flex; align-items: flex-start; gap: 6px; }
+.legend-line .legend { flex: 1; min-width: 0; }
+.term-text { margin: 0 0 4px; font-size: 16px; line-height: 1.5; }
+.listen { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 14px; }
+.listen .q-btn { padding: 0 8px; font-size: 15px; white-space: nowrap; }
+.listen .q-btn.on { background: var(--accent); color: var(--accent-ink); }
+.terms { list-style: none; margin: 0; padding: 0; }
+.terms button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 6px 0; border: 0; border-top: 1px solid var(--line); background: none; text-align: left; }
+.terms li:first-child button { border-top: 0; }
+.terms button > div { flex: 1; min-width: 0; }
+.terms b { display: block; font-weight: 600; white-space: nowrap; }
+.terms small { display: block; color: var(--text-2); font-size: 13px; white-space: nowrap; }
+.terms .chev, .more-row .chev { color: var(--text-3); }
+
+/* The guided first song: one question at a time, big choices. */
+.guide .step { margin: 0 0 4px; color: var(--accent); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.guide h2 { margin: 0 0 4px; font-size: 22px; font-weight: 700; white-space: nowrap; }
+.guide p { margin: 0 0 14px; color: var(--text-2); font-size: 15px; }
+.guide .skip { float: right; height: 28px; margin: -4px -6px 0 0; padding: 0 8px; border: 0; background: none; color: var(--text-2); font-size: 15px; }
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.choices.one { grid-template-columns: 1fr; }
+.choice { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; padding: 14px; border: 0; border-radius: 16px; background: var(--fill); text-align: left; transition: transform var(--q-dur-snappy) var(--q-spring-snappy); }
+.choice:active { transform: scale(0.97); }
+.choice i { font-style: normal; font-size: 30px; line-height: 1.1; margin-bottom: 4px; }
+.choice b { display: block; font-size: 17px; font-weight: 600; white-space: nowrap; }
+.choice span { display: block; font-size: 13px; color: var(--text-2); white-space: nowrap; }
+.choices.one .choice { flex-direction: row; align-items: center; gap: 12px; }
+.choices.one .choice i { margin: 0; }
+.guide .back { margin-top: 12px; height: 32px; padding: 0; border: 0; background: none; color: var(--accent); font-size: 15px; }
+.guide .tweaks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.guide .tweaks .q-btn { white-space: nowrap; }
+.guide .keep-tip { margin: 14px 0 0; }
+.guide .spin { display: inline-block; animation: pb-spin 1s linear infinite; }
+@keyframes pb-spin { to { transform: rotate(360deg); } }
+/* While the guide asks, the rest of 做歌 waits (your own sounds: the pieces card; the song: the songs). */
+#panel-make[data-guide="mood"] > :not(#guide), #panel-make[data-guide="sound"] > :not(#guide),
+#panel-make[data-guide="mine"] > :not(#guide):not(.pieces-card),
+#panel-make[data-guide="making"] > :not(#guide):not(#out), #panel-make[data-guide="tweak"] > :not(#guide):not(#out) { display: none !important; }
+
+/* 樂器 in 簡單: write one again, or add it, right above the grid. */
+.easy-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.easy-row .q-btn { min-height: 50px; padding: 0 10px; font-size: 15px; white-space: nowrap; }
+.q-btn.solid { background: var(--accent); color: var(--accent-ink); }
 
 footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 8px; white-space: nowrap; }
 </style>
@@ -375,7 +460,8 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
 </header>
 <main>
   <div id="panel-make" class="tab-panel" role="tabpanel">
-    <section class="card" aria-labelledby="h-rec">
+    <section class="card guide" id="guide" aria-live="polite" hidden></section>
+    <section class="card pieces-card" aria-labelledby="h-rec">
       <div class="head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10"/></svg><h2 id="h-rec" data-en="Pieces">片段</h2></div>
       <label class="drop" id="drop">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
@@ -390,8 +476,13 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
       </div>
       <input type="file" id="more" accept="audio/*,.wav" multiple hidden>
       <div class="status" id="status" hidden><span class="dot"></span><span id="status-text"></span></div>
-      <div class="row tempo" id="tempo-row" hidden>
-        <label for="bpm"><span data-en="Tempo">速度</span><small id="bpm-hint"></small></label>
+      <div class="ways" id="kit-tools">
+        <button class="way" id="my-kits" type="button" data-en="My kits">我的套組</button>
+        <button class="way" id="save-kit" type="button" hidden data-en="Save as kit">存成套組</button>
+        <button class="way danger" id="clear-all" type="button" hidden data-en="Clear all">全部清除</button>
+      </div>
+      <div class="row tempo note" id="tempo-row" data-ctl="make-tempo" hidden>
+        <label class="label" for="bpm"><span><span data-en="Tempo">速度</span> <button class="info-btn" type="button" data-term="bpm" aria-label="說明：速度" data-en-label="What is tempo?">ⓘ</button></span><small id="bpm-hint"></small></label>
         <div class="ctl">
           <button class="mini" type="button" id="bpm-half" aria-label="速度減半" data-en-label="Half the tempo">½</button>
           <input class="num tempo-num" id="bpm" type="number" min="40" max="250" step="0.1" inputmode="decimal">
@@ -401,8 +492,8 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
         </div>
       </div>
       <div class="pieces" id="pieces" aria-label="片段：點一下試聽" data-en-label="Pieces: tap one to hear it"></div>
-      <p class="hint" id="pieces-hint" hidden data-en="Tap a piece to hear it · roles are heard, change any">點片段試聽 · 角色是聽出來的，可以改</p>
-      <details id="split-more">
+      <p class="hint" id="pieces-hint" hidden><span data-en="Tap one to hear it">點片段試聽</span><span data-ctl="make-roles"><span data-en=" · roles are guesses, tap to change"> · 角色是聽出來的，可以改</span> <button class="info-btn" type="button" data-term="roles" aria-label="說明：角色" data-en-label="What are roles?">ⓘ</button></span></p>
+      <details id="split-more" data-ctl="make-split">
         <summary data-en="Splitting">切片</summary>
         <div class="row">
           <label for="silence"><span data-en="Silence below">安靜門檻</span><small data-en="Raise it for noisy phone audio">手機錄的雜音多就調高</small></label>
@@ -422,11 +513,11 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
         <div class="label"><span data-en="Mood">情境</span><small id="mood-hint" data-en="Picks the grooves for you">幫你挑節奏</small></div>
         <div class="chips five" id="moods"></div>
       </div>
-      <div class="stack">
-        <div class="label"><span data-en="Drums">鼓的風格</span><small data-en="Each song picks its grooves from these">每首從這些挑節奏</small></div>
+      <div class="stack" data-ctl="make-styles">
+        <div class="label"><span><span data-en="Drums">鼓的風格</span> <button class="info-btn" type="button" data-term="groove" aria-label="說明：鼓的風格" data-en-label="What are drum styles?">ⓘ</button></span><small data-en="Each song picks its grooves from these">每首從這些挑節奏</small></div>
         <div class="chips" id="styles"></div>
       </div>
-      <div class="row" id="taste-row" hidden>
+      <div class="row" id="taste-row" data-ctl="make-taste" hidden>
         <label for="smart"><span data-en="Lean to your taste">依你的口味</span><small id="taste-hint"></small></label>
         <span id="smart-slot"></span>
       </div>
@@ -438,16 +529,18 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
           <button type="button" id="count-up" aria-label="多一首" data-en-label="More songs">+</button>
         </div>
       </div>
-      <button class="more-row row" id="mix-settings" type="button"><span class="label"><span data-en="Mix">混音</span><small id="mix-hint"></small></span><span class="chev" aria-hidden="true">›</span></button>
+      <button class="more-row row" id="mix-settings" type="button" data-ctl="make-mix"><span class="label"><span data-en="Mix">混音</span><small id="mix-hint"></small></span><span class="chev" aria-hidden="true">›</span></button>
       <button class="more-row row" id="more-settings" type="button"><span class="label"><span data-en="More settings">更多設定</span><small id="more-hint"></small></span><span class="chev" aria-hidden="true">›</span></button>
       <button class="primary" id="go" type="button" disabled></button>
       <p class="error" id="error" role="alert"></p>
+      <div class="ways"><button class="way" id="open-song" type="button" data-en="Open a file">打開檔案</button></div>
+      <input type="file" id="song-file" accept=".json,application/json" hidden>
     </section>
 
     <section class="card" id="out" aria-labelledby="h-out" hidden>
       <div class="head"><h2 id="h-out" data-en="Songs">新歌</h2><button class="secondary" id="zip" type="button" disabled data-en="Download all">全部下載</button></div>
-      <p class="meta" id="out-meta"></p>
-      <div class="legend" id="legend"></div>
+      <p class="meta" id="out-meta" data-ctl="make-meta"></p>
+      <div class="legend-line"><div class="legend" id="legend"></div><button class="info-btn" type="button" data-term="section" aria-label="說明：段落" data-en-label="What are sections?">ⓘ</button></div>
       <ol class="songs" id="songs"></ol>
       <div class="busy-line" id="busy"></div>
     </section>
