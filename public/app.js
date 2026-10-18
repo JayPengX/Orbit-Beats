@@ -1514,6 +1514,7 @@ async function boot() {
     tempo: () => (pieces.length ? bpm : settings.studioBpm),
     setTempo: v => ((settings.studioBpm = v), save()),
     hasKit: () => pieces.length > 0,
+    simple,
     key: () => kitKey(),
     add: clip => addClip(clip),
     audio: audioCtx,

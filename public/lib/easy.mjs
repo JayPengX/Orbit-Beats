@@ -15,7 +15,7 @@ export const PRO_ONLY = [
   // 更多設定's own rows; a song's ⋯.
   'make-humanize', 'make-seed', 'make-format', 'make-arrange', 'make-stems', 'make-midi',
   // 樂器: everything but the instrument, its groove, the grid, play, 再編一次 and 加進片段.
-  'studio-set', 'studio-key', 'studio-length', 'studio-tempo', 'studio-swing', 'studio-pattern', 'studio-chain', 'studio-copy', 'studio-chord', 'studio-midi', 'studio-auto', 'studio-note',
+  'studio-set', 'studio-key', 'studio-length', 'studio-tempo', 'studio-swing', 'studio-pattern', 'studio-chain', 'studio-copy', 'studio-chord', 'studio-midi', 'studio-auto', 'studio-note', 'studio-addend',
   // 即興: the groove's picker, the snap, the notes on levels and choke.
   'jam-groove', 'jam-snap', 'jam-note'
 ];

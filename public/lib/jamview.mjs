@@ -11,6 +11,7 @@ import { STYLES, drumKit, grooveHits, loopBeats } from '../engine.mjs';
 import { Jam, GRIDS, PAD, padsOf, padOf, gainOf, chokeKey, withPads } from './jam.mjs';
 import { ROLE_NAMES, STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
+import { info, hintOf } from './help.mjs';
 
 const AHEAD = 0.12; // seconds scheduled ahead of the clock
 const LATE = 0.03; // a tap this late (s) still counts as the step it missed
@@ -62,15 +63,19 @@ export function mountJam(panel, api) {
     ],
     { value: '16', label: W('對齊', 'Snap'), onChange: id => (grid = +id) }
   );
-  const note = h('p', { class: 'studio-note' });
-  const row = (label, sub, ctl) => h('div', { class: 'row' }, [h('div', { class: 'label' }, [h('span', { text: label }), sub ? h('small', { text: sub }) : null]), ctl]);
+  const note = h('p', { class: 'studio-note', 'data-ctl': 'jam-note' });
+  // 簡單: what the pads do, in two lines.
+  const easyNote = h('p', { class: 'studio-note', 'data-ctl': 'jam-easy' }, [W('點打擊墊就會響，↻ 的會一直循環', 'Tap a pad to play it; ↻ ones loop'), ' ', info('loop'), h('br'), W('按「● 錄一段」，再按一次就變成一首歌', 'Tap ● Record, then again: it’s a song')]);
+  // A row: its name (and the word's ⓘ), a line under it, its control; only: which of 簡單 / 進階 shows it.
+  const row = (label, sub, ctl, { only = null, term = null } = {}) => h('div', { class: 'row', 'data-ctl': only }, [h('div', { class: 'label' }, [h('span', {}, [label, ...(term ? [' ', info(term)] : [])]), sub ? h('small', { text: sub }) : null]), ctl]);
   const body = h('section', { class: 'card' }, [
     h('div', { class: 'head' }, [h('h2', { text: W('即興', 'Jam') })]),
     h('div', { class: 'jam-bar' }, [playBtn, recBtn, stopAllBtn]),
     beatDots,
     padGrid,
-    row(W('鼓', 'Groove'), W('用你的鼓打的節奏', 'Played on your drums'), h('div', { class: 'ctl' }, [grooveSw, styleSel])),
-    h('div', { class: 'stack' }, [h('div', { class: 'label' }, [h('span', { text: W('對齊', 'Snap') }), h('small', { text: W('單擊的片段對到這一格', 'One-shots land on this grid') })]), gridSeg]),
+    easyNote,
+    row(W('鼓', 'Groove'), W('用你的鼓打的節奏', 'Played on your drums'), h('div', { class: 'ctl' }, [grooveSw, styleSel]), { only: 'jam-groove', term: 'groove' }),
+    h('div', { class: 'stack', 'data-ctl': 'jam-snap' }, [h('div', { class: 'label' }, [h('span', {}, [W('對齊', 'Snap'), ' ', info('snap')]), h('small', { text: hintOf('snap') })]), gridSeg]),
     note
   ]);
   const none = h('section', { class: 'card' }, [
@@ -162,7 +167,7 @@ export function mountJam(panel, api) {
       body: h('div', { class: 'card sheet-card jam-pad-sheet' }, [
         row(W('音量', 'Level'), null, h('div', { class: 'ctl' }, [level, pct])),
         row(W('靜音', 'Mute'), null, mute),
-        h('div', { class: 'stack' }, [h('div', { class: 'label' }, [h('span', { text: W('切音', 'Choke') }), h('small', { text: W('同組的下一下切掉還在響的', 'A hit cuts its group’s last one') })]), choke])
+        h('div', { class: 'stack' }, [h('div', { class: 'label' }, [h('span', {}, [W('切音', 'Choke'), ' ', info('choke')]), h('small', { text: hintOf('choke') })]), choke])
       ])
     });
   }
