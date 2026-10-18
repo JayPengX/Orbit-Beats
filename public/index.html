@@ -64,7 +64,7 @@
   --bg: var(--q-page); --card: var(--q-surface); --fill: var(--q-fill-3); --fill-2: var(--q-fill-1); --line: var(--q-sep);
   --text: var(--q-label); --text-2: var(--q-label-2); --text-3: var(--q-label-3);
   --accent: var(--q-pink); --accent-ink: #ffffff; --accent-soft: color-mix(in srgb, var(--q-pink) 14%, transparent); --danger: var(--q-red); --ok: var(--q-green);
-  --intro: var(--q-gray); --verse: var(--q-blue); --hook: var(--q-pink); --break: var(--q-orange); --bridge: var(--q-purple); --outro: var(--q-gray-2);
+  --intro: var(--q-gray); --verse: var(--q-blue); --pre: var(--q-teal, #30b0c7); --hook: var(--q-pink); --break: var(--q-orange); --bridge: var(--q-purple); --outro: var(--q-gray-2);
   --q-accent: var(--q-pink);
 }
 * { box-sizing: border-box; }
@@ -230,7 +230,10 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .song .act.kept svg { animation: pb-pop .35s var(--q-spring-snappy); }
 @keyframes pb-pop { 40% { transform: scale(1.3); } }
 .plan { display: flex; gap: 2px; height: 6px; margin: 10px 0 0 50px; border-radius: 3px; overflow: hidden; position: relative; }
-.plan i { display: block; min-width: 2px; }
+.plan i, .plan .sec { display: block; min-width: 2px; }
+.plan { height: 8px; }
+.plan .sec { border: 0; padding: 0; margin: 0; height: 100%; cursor: pointer; }
+.plan .sec:active { filter: brightness(1.2); }
 .song.now .plan::after { content: ""; position: absolute; inset: 0 auto 0 0; width: var(--at, 0%); background: color-mix(in srgb, var(--q-label) 28%, transparent); }
 .busy-line { color: var(--text-2); font-size: 14px; padding: 14px 0 2px; white-space: nowrap; border-top: 1px solid var(--line); }
 .busy-line:empty { display: none; }
@@ -296,15 +299,58 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .piece button.on { animation: pb-beat var(--beat, 0.5s) ease-out infinite; }
 @keyframes pb-beat { 0% { box-shadow: inset 0 0 0 0 rgba(255,255,255,.35); } 15% { box-shadow: inset 0 0 0 3px rgba(255,255,255,.35); } 100% { box-shadow: inset 0 0 0 0 rgba(255,255,255,0); } }
 .song { animation: pb-rise var(--q-dur-smooth) var(--q-spring-smooth) both; }
-.song .plan i { transform-origin: left; animation: pb-grow .6s var(--q-spring-smooth) both; animation-delay: calc(min(var(--k, 0) * 40ms, 400ms) + 120ms); }
+.song .plan i, .song .plan .sec { transform-origin: left; animation: pb-grow .6s var(--q-spring-smooth) both; animation-delay: calc(min(var(--k, 0) * 40ms, 400ms) + 120ms); }
 @keyframes pb-rise { from { opacity: 0; transform: translateY(12px); } }
 .player { animation-name: pb-rise-x; }
 @keyframes pb-rise-x { from { opacity: 0; transform: translate(-50%, 16px); } }
 @keyframes pb-grow { from { transform: scaleX(0); } }
 @media (prefers-reduced-motion: reduce) {
   .piece button, .song .play, .song .act, .chip, .sq .cell { transition: none; }
-  .piece button.on, .song, .song .plan i, .player, .song .act.kept svg { animation: none; }
+  .piece button.on, .song, .song .plan i, .song .plan .sec, .jam-pad.on, .player, .song .act.kept svg { animation: none; }
 }
+
+/* 編排: a song's sections as a list to move, repeat and take out. */
+.arr { list-style: none; margin: 4px 0 10px; padding: 0; }
+.arr li { display: flex; align-items: center; gap: 6px; min-height: 44px; border-top: 1px solid var(--line); }
+.arr li:first-child { border-top: 0; }
+.arr li > i { width: 6px; height: 26px; border-radius: 3px; flex: none; }
+.arr .ctl { margin-left: auto; }
+.arr .mini:disabled { opacity: .4; }
+.player .repeat { position: relative; }
+.player .repeat svg { width: 17px; height: 17px; }
+.player .repeat[data-mode="one"], .player .repeat[data-mode="section"] { color: var(--accent); }
+.player .repeat b { position: absolute; right: 1px; bottom: 1px; font-size: 9px; line-height: 1; }
+
+/* 樂器: the drums' two sets, the clip's tools, the shelf. */
+.studio-tools { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+.studio-tools .mini { padding: 0 4px; font-size: 13px; white-space: nowrap; }
+.studio-tools .mini[hidden] { display: none; }
+.studio-tools .mini[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.studio-tools .mini:disabled { opacity: .4; }
+.sq .cell.accent { background: color-mix(in srgb, var(--accent) 100%, #000 18%); box-shadow: inset 0 0 0 2px var(--accent-ink); }
+.sq .cell.chord { background: var(--q-purple); }
+
+/* 即興: the pads, the transport, the take. */
+.jam-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.jam-bar .q-btn { flex: 1; }
+.jam-beat { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 0 0 12px; }
+.jam-beat i { height: 6px; border-radius: 3px; background: var(--fill); }
+.jam-beat i.on { background: var(--accent); }
+.pads { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.jam-pad { aspect-ratio: 1; border: 0; border-radius: 14px; background: var(--fill); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 15px; font-weight: 600; color: var(--text); touch-action: manipulation; user-select: none; -webkit-user-select: none; transition: transform var(--q-dur-snappy) var(--q-spring-snappy), background-color .15s; }
+.jam-pad small { font-size: 11px; font-weight: 400; color: var(--text-2); white-space: nowrap; }
+.jam-pad.loop { box-shadow: inset 0 0 0 2px var(--fill-2); }
+.jam-pad.wait { box-shadow: inset 0 0 0 2px var(--accent); }
+.jam-pad.on { background: var(--accent); color: var(--accent-ink); }
+.jam-pad.on small { color: inherit; opacity: .85; }
+.jam-pad.hit { transform: scale(0.92); background: color-mix(in srgb, var(--accent) 55%, var(--fill)); }
+.stack > .q-seg { margin-top: 8px; }
+.jam-rec.on { background: var(--q-red); color: #fff; }
+
+/* 歌單: search and order. */
+.lib-tools { display: flex; gap: 8px; align-items: center; margin: 0 0 12px; }
+.lib-tools input { flex: 1; min-width: 0; height: 36px; border: 0; border-radius: 10px; background: var(--fill); padding: 0 12px; font: inherit; color: inherit; }
+.lib-tools select { height: 36px; border: 0; border-radius: 10px; background: var(--fill); padding: 0 8px; font: inherit; color: inherit; }
 
 footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 8px; white-space: nowrap; }
 </style>
@@ -351,6 +397,7 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
           <input class="num tempo-num" id="bpm" type="number" min="40" max="250" step="0.1" inputmode="decimal">
           <span class="unit">BPM</span>
           <button class="mini" type="button" id="bpm-double" aria-label="速度加倍" data-en-label="Double the tempo">×2</button>
+          <button class="mini" type="button" id="bpm-tap" aria-label="跟著點拍子" data-en-label="Tap the tempo" data-en="Tap">點拍</button>
         </div>
       </div>
       <div class="pieces" id="pieces" aria-label="片段：點一下試聽" data-en-label="Pieces: tap one to hear it"></div>
@@ -391,6 +438,7 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
           <button type="button" id="count-up" aria-label="多一首" data-en-label="More songs">+</button>
         </div>
       </div>
+      <button class="more-row row" id="mix-settings" type="button"><span class="label"><span data-en="Mix">混音</span><small id="mix-hint"></small></span><span class="chev" aria-hidden="true">›</span></button>
       <button class="more-row row" id="more-settings" type="button"><span class="label"><span data-en="More settings">更多設定</span><small id="more-hint"></small></span><span class="chev" aria-hidden="true">›</span></button>
       <button class="primary" id="go" type="button" disabled></button>
       <p class="error" id="error" role="alert"></p>
@@ -408,6 +456,8 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
 
   <div id="panel-studio" class="tab-panel" role="tabpanel" hidden></div>
 
+  <div id="panel-jam" class="tab-panel" role="tabpanel" hidden></div>
+
   <div id="panel-library" class="tab-panel" role="tabpanel" hidden></div>
 </main>
 
@@ -415,6 +465,7 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
   <button class="play" id="player-play" type="button" aria-label="暫停"></button>
   <div class="what"><b id="player-name"></b><div class="bar" id="player-bar"><i id="player-at"></i></div></div>
   <time id="player-time">0:00</time>
+  <button class="x repeat" id="player-repeat" type="button" aria-label="播完接下一首" data-en-label="Then the next song"></button>
   <button class="x" id="player-x" type="button" aria-label="關閉播放器" data-en-label="Close the player">✕</button>
 </div>
 <script type="module" src="./app.js"></script>
