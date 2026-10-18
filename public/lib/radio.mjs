@@ -26,6 +26,20 @@ export const MOODS = {
 // A mood's grooves, or one groove picked on its own (`style:<id>`).
 export const moodStyles = mood => (MOODS[mood] ? MOODS[mood].styles : STYLES.includes(String(mood).replace(/^style:/, '')) ? [String(mood).replace(/^style:/, '')] : STYLES);
 
+// The next song's spec: a new seed, a groove of the mood not among the last
+// few played (when the mood has others), so two in a row never match.
+export function radioPick(mood, recent = [], seed = Math.floor(Math.random() * 1e9)) {
+  const styles = moodStyles(mood);
+  const fresh = styles.filter(s => !recent.includes(s));
+  const pool = fresh.length ? fresh : styles.filter(s => s !== recent.at(-1));
+  const R = makeRng(seed);
+  return { seed, mood: MOODS[mood] || /^style:/.test(mood) ? mood : 'all', style: R.choice(pool.length ? pool : styles) };
+}
+// The radio's queue: the stretches made and waiting, whether one is being
+// made, whether ⏭ waits for the next, and the mood's generation (what was
+// made for a mood since changed is dropped).
+export const radioQueue = () => ({ ready: [], busy: false, skip: false, gen: 0 });
+
 // Each groove's tempo range, its instruments and how its chords and bass are played.
 const BAND = {
   four: { bpm: [118, 126], chords: ['pad', 'organ', 'keys'], leads: ['pluck', 'lead', 'bell'], bass: ['bass'], comp: 'stab8', line: 'off8' },

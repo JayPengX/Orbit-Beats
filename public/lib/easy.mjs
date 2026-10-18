@@ -1,4 +1,4 @@
-// 簡單 / 進階: what a beginner sees, and the guided first song.
+// 簡單 / 進階: what a beginner sees, and the settings simple makes songs on.
 //
 // Simple shows only what making a song needs; Advanced every tool. Each
 // control that only one of them shows carries data-ctl="<name>", and the
@@ -7,11 +7,14 @@
 // Pass (kits.mjs SETTING_KEYS): everyone opens simple, settings kept before
 // it existed too (the owner's call); advanced only once someone picks it.
 
+import { STYLES } from '../engine.mjs';
+import { MIX, mixOf } from './mix.mjs';
+
 export const LEVELS = ['simple', 'pro'];
 // Only in Advanced.
 export const PRO_ONLY = [
-  // 做歌: splitting, the tempo, each piece's role, the drum styles, taste, the mixer, the batch's numbers.
-  'make-split', 'make-tempo', 'make-roles', 'make-styles', 'make-taste', 'make-mix', 'make-meta',
+  // 做歌: splitting, the tempo, each piece's role, the mood and drum styles, taste, how many, the mixer, 更多設定, the batch's numbers, opening a file.
+  'make-split', 'make-tempo', 'make-roles', 'make-moods', 'make-styles', 'make-taste', 'make-count', 'make-mix', 'make-more', 'make-meta', 'make-open',
   // 更多設定's own rows; a song's ⋯.
   'make-humanize', 'make-seed', 'make-format', 'make-arrange', 'make-stems', 'make-midi',
   // 樂器: everything but the instrument, its groove, the grid, play, 再編一次, clear, 存成片段 and ♡ 收藏.
@@ -20,7 +23,7 @@ export const PRO_ONLY = [
   'jam-groove', 'jam-snap', 'jam-note'
 ];
 // Only in Simple.
-export const SIMPLE_ONLY = ['studio-easy', 'jam-easy'];
+export const SIMPLE_ONLY = ['make-easy', 'studio-easy', 'jam-easy'];
 export const levelOk = v => LEVELS.includes(v);
 // Whether a control shows at this level.
 export const shows = (level, ctl) => (level === 'pro' ? !SIMPLE_ONLY.includes(ctl) : !PRO_ONLY.includes(ctl));
@@ -28,52 +31,14 @@ export const shows = (level, ctl) => (level === 'pro' ? !SIMPLE_ONLY.includes(ct
 export const levelCss = () =>
   [...PRO_ONLY.map(c => `body.lv-simple [data-ctl="${c}"]`), ...SIMPLE_ONLY.map(c => `body.lv-pro [data-ctl="${c}"]`)].join(',\n') + ' { display: none !important; }';
 
-// ---- The guided first song ----
+// ---- 簡單's own settings ----
 //
-// Once for everyone, new or not (the owner's call): 1 a mood, 2 the demo's
-// sounds, your own, or the pieces already in, 3 one song made and played,
-// 4 one tweak to try and ♡ to keep it. Skipped or finished, it's done (the
-// setting `guided`); the help sheet plays it again.
-export const GUIDE_MOODS = [
-  { id: 'chill', icon: '🌙', zh: ['放鬆', '慢慢的，放空用'], en: ['Chill', 'Slow and easy'] },
-  { id: 'hype', icon: '🔥', zh: ['熱血', '又快又重'], en: ['Hype', 'Fast and heavy'] },
-  { id: 'groove', icon: '🕺', zh: ['律動', '想跳舞的節奏'], en: ['Groove', 'Made to dance to'] },
-  { id: 'classic', icon: '📻', zh: ['經典', '老派嘻哈、放克'], en: ['Classic', 'Old-school, funky'] }
-];
-export const shouldGuide = ({ guided = false } = {}) => !guided;
-
-// The guide's state: { step, mood, sound }; step null when it isn't shown.
-// Steps: mood → sound → (mine: waiting for your sounds) → making → tweak.
-export const GUIDE_START = { step: 'mood', mood: null, sound: null };
-export function guideNext(g, ev) {
-  const at = g?.step || null;
-  switch (ev?.type) {
-    case 'replay':
-      return { ...GUIDE_START };
-    case 'mood':
-      return at === 'mood' && GUIDE_MOODS.some(m => m.id === ev.mood) ? { ...g, step: 'sound', mood: ev.mood } : g;
-    // The demo's sounds, or the pieces already in (played again from help).
-    case 'demo':
-    case 'current':
-      return at === 'sound' ? { ...g, step: 'making', sound: ev.type } : g;
-    case 'mine':
-      return at === 'sound' ? { ...g, step: 'mine', sound: 'mine' } : g;
-    // Your sounds are in: the song is made.
-    case 'kit':
-      return at === 'mine' ? { ...g, step: 'making' } : g;
-    case 'made':
-      return at === 'making' ? { ...g, step: 'tweak' } : g;
-    // It couldn't be made (or your sounds had no pieces): pick the sounds again.
-    case 'failed':
-      return at === 'making' || at === 'mine' ? { ...g, step: 'sound' } : g;
-    case 'back':
-      return at === 'sound' ? { ...g, step: 'mood' } : at === 'mine' ? { ...g, step: 'sound' } : g;
-    case 'skip':
-    case 'done':
-      return { ...g, step: null };
-    default:
-      return g;
-  }
+// Simple makes songs on settings of its own, fixed: every groove, the usual
+// length and feel, the mixer as it opens, 16-bit. It never reads or writes
+// the advanced ones, so what was set in Advanced is there, as it was, on the
+// way back. `makeSettings` is what a batch is made on at each level.
+export const SIMPLE_MAKE = Object.freeze({ count: 6, minBars: 25, maxBars: 29, humanize: 100, seed: '', bits: 16, smart: false, mood: 'all', silenceDb: -90, minGap: 0.2 });
+export function makeSettings(level, settings) {
+  if (level === 'pro') return settings;
+  return { ...settings, ...SIMPLE_MAKE, styles: [...STYLES], mix: mixOf(MIX) };
 }
-// Where it is, as "2 / 4" (the waiting step counts as the sound's).
-export const guideStepNo = step => ({ mood: 1, sound: 2, mine: 2, making: 3, tweak: 4 })[step] || 0;
