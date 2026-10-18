@@ -165,6 +165,8 @@ export function mountStudio(panel, api) {
   const playBtn = h('button', { class: 'st-play', type: 'button' });
   const dice = h('button', { class: 'jam-dice st-dice', type: 'button', text: '🎲' });
   const chips = h('div', { class: 'jam-chips st-chips', role: 'group' });
+  // (Scrolled along: the left edge fades too, so a chip cut there reads as more to the left.)
+  chips.addEventListener('scroll', () => chips.classList.toggle('st-along', chips.scrollLeft > 4), { passive: true });
   const pager = h('div', { class: 'st-pages' });
   const grid = h('div', { class: 'st-grid', role: 'grid' });
   const moreBtn = h('button', { class: 'st-more', type: 'button' });
@@ -261,7 +263,7 @@ export function mountStudio(panel, api) {
     const b = chips.querySelector('[aria-pressed="true"]');
     if (!b || !chips.clientWidth) return;
     const x = b.getBoundingClientRect().left - chips.getBoundingClientRect().left;
-    if (x < 0 || x + b.offsetWidth > chips.clientWidth - 24) chips.scrollTo?.({ left: Math.max(0, chips.scrollLeft + x - 8), behavior: smooth ? 'smooth' : 'auto' });
+    if (x < 0 || x + b.offsetWidth > chips.clientWidth - 24) chips.scrollTo?.({ left: Math.max(0, chips.scrollLeft + x - 36), behavior: smooth ? 'smooth' : 'auto' });
   }
   // The grid: a lane a drum (only the ones in use and the kit's core, the
   // rest behind 更多鼓) or a note of the key (high to low), its name over it,
