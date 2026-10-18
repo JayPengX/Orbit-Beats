@@ -132,14 +132,14 @@ button { cursor: pointer; }
 .hint[hidden] { display: none; }
 .tempo { margin-top: 6px; }
 .tempo[hidden] { display: none; }
-.num.tempo-num { width: 64px; }
+:is(input, select).num.tempo-num { width: 64px; }
 .mini { border: 0; background: var(--fill); border-radius: 8px; height: 32px; min-width: 36px; padding: 0 8px; font-size: 14px; font-weight: 600; }
 
-details { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
-summary { cursor: pointer; color: var(--text-2); font-size: 14px; list-style: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
-summary::-webkit-details-marker { display: none; }
-summary::before { content: ""; width: 6px; height: 6px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); transition: transform .15s; margin: 0 3px; }
-details[open] summary::before { transform: rotate(45deg); }
+main details { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+main summary { cursor: pointer; color: var(--text-2); font-size: 14px; list-style: none; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+main summary::-webkit-details-marker { display: none; }
+main summary::before { content: ""; width: 6px; height: 6px; border: solid currentColor; border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); transition: transform .15s; margin: 0 3px; }
+main details[open] summary::before { transform: rotate(45deg); }
 
 /* Rows of settings */
 .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 6px 0; }
@@ -154,17 +154,17 @@ details[open] summary::before { transform: rotate(45deg); }
 .row[hidden] { display: none; }
 .stack { padding: 10px 0; }
 .ctl { display: flex; align-items: center; gap: 6px; white-space: nowrap; flex: none; }
-.num {
+:is(input, select).num {
   width: 56px; height: 36px; border-radius: 9px; border: 0; background: var(--fill);
   text-align: center; font-variant-numeric: tabular-nums; font-size: 16px;
 }
-.num.wide { width: 104px; }
-.num.short { width: 48px; }
-.num:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+:is(input, select).num.wide { width: 104px; }
+:is(input, select).num.short { width: 48px; }
+:is(input, select).num:focus, main select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .stepper { display: flex; align-items: center; background: var(--fill); border-radius: 9px; height: 36px; }
 .stepper button { width: 36px; height: 36px; border: 0; background: none; font-size: 20px; line-height: 1; color: var(--accent); }
 .stepper button:disabled { color: var(--text-3); cursor: default; }
-.stepper .num { width: 44px; background: none; }
+.stepper input.num { width: 44px; background: none; }
 .unit { color: var(--text-2); font-size: 14px; }
 .chips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
 .chips.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -188,13 +188,13 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .more-row { width: 100%; border: 0; background: none; text-align: left; }
 .more-row .chev { color: var(--text-3); font-size: 18px; }
 
-.primary {
+.primary:not(.q-btn) {
   display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 50px; margin-top: 14px;
   border: 0; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 17px; font-weight: 600; white-space: nowrap;
   transition: transform var(--q-dur-snappy) var(--q-spring-snappy);
 }
-.primary:active:not(:disabled) { transform: scale(0.97); }
-.primary:disabled { background: var(--fill-2); color: var(--text-3); cursor: default; }
+.primary:not(.q-btn):active:not(:disabled) { transform: scale(0.97); }
+.primary:not(.q-btn):disabled { background: var(--fill-2); color: var(--text-3); cursor: default; }
 .secondary {
   height: 32px; padding: 0 12px; border: 0; border-radius: 16px; background: var(--accent-soft); color: var(--accent);
   font-size: 14px; font-weight: 600; white-space: nowrap; flex: none;
