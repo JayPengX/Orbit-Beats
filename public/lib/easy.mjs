@@ -35,10 +35,10 @@ export const levelCss = () =>
 // it. Skipped or finished, it's done (the setting `guided`); the help sheet
 // plays it again.
 export const GUIDE_MOODS = [
-  { id: 'chill', icon: '🌙', zh: ['放鬆', '慢慢的，適合讀書、放空'], en: ['Chill', 'Slow and easy, for studying'] },
-  { id: 'hype', icon: '🔥', zh: ['熱血', '又快又重，想動起來'], en: ['Hype', 'Fast and heavy, gets you going'] },
-  { id: 'groove', icon: '🕺', zh: ['律動', '想跳舞的節奏'], en: ['Groove', 'Rhythms to dance to'] },
-  { id: 'classic', icon: '📻', zh: ['經典', '老派嘻哈和放克'], en: ['Classic', 'Old-school hip-hop and funk'] }
+  { id: 'chill', icon: '🌙', zh: ['放鬆', '慢慢的，放空用'], en: ['Chill', 'Slow and easy'] },
+  { id: 'hype', icon: '🔥', zh: ['熱血', '又快又重'], en: ['Hype', 'Fast and heavy'] },
+  { id: 'groove', icon: '🕺', zh: ['律動', '想跳舞的節奏'], en: ['Groove', 'Made to dance to'] },
+  { id: 'classic', icon: '📻', zh: ['經典', '老派嘻哈、放克'], en: ['Classic', 'Old-school, funky'] }
 ];
 export const shouldGuide = ({ guided = false, pieces = 0, songs = 0, kept = 0 } = {}) => !guided && !pieces && !songs && !kept;
 
@@ -52,8 +52,10 @@ export function guideNext(g, ev) {
       return { ...GUIDE_START };
     case 'mood':
       return at === 'mood' && GUIDE_MOODS.some(m => m.id === ev.mood) ? { ...g, step: 'sound', mood: ev.mood } : g;
+    // The demo's sounds, or the pieces already in (played again from help).
     case 'demo':
-      return at === 'sound' ? { ...g, step: 'making', sound: 'demo' } : g;
+    case 'current':
+      return at === 'sound' ? { ...g, step: 'making', sound: ev.type } : g;
     case 'mine':
       return at === 'sound' ? { ...g, step: 'mine', sound: 'mine' } : g;
     // Your sounds are in: the song is made.

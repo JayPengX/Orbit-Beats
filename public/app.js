@@ -24,6 +24,9 @@ import { libraryView } from './lib/library.mjs';
 import { mountStudio } from './lib/studio.mjs';
 import { mountJam } from './lib/jamview.mjs';
 import { W, en, lang } from './lib/lang.mjs';
+import { shows, levelCss, GUIDE_MOODS, GUIDE_START, guideNext, guideStepNo, shouldGuide } from './lib/easy.mjs';
+import { TERM_ORDER, EXAMPLES, term, info } from './lib/help.mjs';
+import * as kitQ from '#kit/quadra.mjs';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -71,6 +74,8 @@ if (en) {
 }
 
 const q = quadraSession('beats', { lang });
+// 簡單 / 進階: one stylesheet rule per control only one of them shows (lib/easy.mjs).
+document.head.append(h('style', { text: levelCss() }));
 
 let sources = []; // { name, sr, L, R }: the kit's files (or take, or clips), at one rate
 let sr = 48000;
@@ -105,6 +110,22 @@ if (!kept.settings) {
   } catch {}
 }
 let settings = settingsOf(kept.settings, DEFAULTS);
+const simple = () => settings.level !== 'pro';
+// The level on the page: body.lv-simple or body.lv-pro.
+function applyLevel() {
+  document.body.classList.toggle('lv-simple', simple());
+  document.body.classList.toggle('lv-pro', !simple());
+}
+applyLevel();
+function setLevel(v) {
+  if (settings.level === v) return;
+  settings.level = v;
+  save();
+  applyLevel();
+  update();
+  studio?.shown?.();
+  toast(v === 'pro' ? W('進階：所有工具都在', 'Advanced: every tool shown') : W('簡單：只留做歌需要的', 'Simple: just what you need'), { ms: 1600 });
+}
 
 let shareTimer = 0;
 function keep(share = true) {
@@ -217,7 +238,7 @@ function mixText() {
 function update() {
   const { count } = settings;
   const bad = problem();
-  $('more-hint').textContent = `${lengthText()} · ${W('人味', 'Humanize')} ${settings.humanize}%`;
+  $('more-hint').textContent = simple() ? `${lengthText()} · ${W('簡單模式', 'Simple')}` : `${lengthText()} · ${W('人味', 'Humanize')} ${settings.humanize}%`;
   $('mix-hint').textContent = mixText();
   $('count-down').disabled = busy || count <= 1;
   $('count-up').disabled = busy || count >= MAX_SONGS;
@@ -273,7 +294,23 @@ for (const [id, key] of [
   });
 
 // (Each row its name and control on a line, what it does under them: a sheet is narrower than the page.)
-const sheetRow = (label, sub, ctl) => h('div', { class: 'stack sheet-row' }, [h('div', { class: 'sheet-line' }, [h('span', { class: 'label', text: label }), ctl]), sub]);
+const sheetRow = (label, sub, ctl) => h('div', { class: 'stack sheet-row' }, [h('div', { class: 'sheet-line' }, [typeof label === 'string' ? h('span', { class: 'label', text: label }) : label, ctl]), sub]);
+// A word's name with its ⓘ, as a row's label.
+const termLabel = id => h('span', { class: 'label' }, [term(id).name, ' ', info(id)]);
+// 簡單 / 進階, as a row (更多設定 and the help sheet).
+const levelRow = () =>
+  sheetRow(
+    W('模式', 'Mode'),
+    h('small', { text: W('簡單：只留做歌需要的 · 進階：所有工具', 'Simple: just what you need · Advanced: every tool') }),
+    seg(
+      [
+        ['simple', W('簡單', 'Simple')],
+        ['pro', W('進階', 'Advanced')]
+      ],
+      settings.level,
+      setLevel
+    )
+  );
 // A slider with its value beside it.
 function slider({ min, max, step: by, value, text, label, onInput }) {
   const range = h('input', { type: 'range', min, max, step: by, 'aria-label': label });
@@ -327,14 +364,16 @@ $('more-settings').onclick = () => {
     save();
     update();
   });
+  const pro = (ctl, el) => (el.setAttribute('data-ctl', ctl), el);
   sheet({
     title: W('更多設定', 'More settings'),
     closeLabel: W('關閉', 'Close'),
     body: h('div', { class: 'card sheet-card' }, [
+      levelRow(),
       sheetRow(W('長度', 'Length'), hint, h('div', { class: 'ctl' }, [numIn('minBars', { min: 8, max: 64, 'aria-label': W('最短（小節）', 'Shortest, in bars') }), h('span', { class: 'unit', text: '–' }), numIn('maxBars', { min: 8, max: 64, 'aria-label': W('最長（小節）', 'Longest, in bars') }), h('span', { class: 'unit', text: W('小節', 'bars') })])),
-      sheetRow(W('人味', 'Humanize'), h('small', { text: W('搖擺和時間的飄移', 'Swing and timing drift') }), slider({ min: 0, max: 200, step: 10, value: settings.humanize, text: v => `${v}%`, label: W('人味', 'Humanize'), onInput: v => ((settings.humanize = v), save(), update()) })),
-      sheetRow(W('種子', 'Seed'), h('small', { text: W('同一個種子，同樣的歌', 'Same seed, same songs') }), seed),
-      sheetRow(
+      pro('make-humanize', sheetRow(termLabel('humanize'), h('small', { text: term('humanize').hint }), slider({ min: 0, max: 200, step: 10, value: settings.humanize, text: v => `${v}%`, label: W('人味', 'Humanize'), onInput: v => ((settings.humanize = v), save(), update()) }))),
+      pro('make-seed', sheetRow(termLabel('seed'), h('small', { text: term('seed').hint }), seed)),
+      pro('make-format', sheetRow(
         W('格式', 'Format'),
         h('small', { text: W('下載和分享的 WAV', 'The WAVs you save and share') }),
         seg(
@@ -345,7 +384,7 @@ $('more-settings').onclick = () => {
           settings.bits,
           v => ((settings.bits = v), save())
         )
-      )
+      ))
     ])
   });
 };
@@ -386,7 +425,7 @@ $('mix-settings').onclick = () => {
   const s = sheet({
     title: W('混音', 'Mix'),
     closeLabel: W('關閉', 'Close'),
-    body: h('div', { class: 'card sheet-card' }, [sheetRow(W('混音', 'Mix'), h('small', { text: W('關掉：每段跟錄的一模一樣，會爆音的地方照留', 'Off: every piece exactly as recorded, overs and all') }), onSwitch), rows])
+    body: h('div', { class: 'card sheet-card' }, [sheetRow(termLabel('mix'), h('small', { text: W('關掉：每段跟錄的一模一樣，會爆音的地方照留', 'Off: every piece exactly as recorded, overs and all') }), onSwitch), rows])
   });
 };
 
@@ -432,6 +471,7 @@ async function load(get, add = false) {
   kitShown();
   split();
   saveLast(sources);
+  guideKit();
 }
 // The ways in, as the kit stands: 再加檔案 once there is one, 示範 only before.
 function kitShown() {
@@ -511,7 +551,7 @@ function showPieces() {
     tile.dataset.i = i;
     tile.title = from;
     tile.innerHTML = `<button type="button" aria-label="${esc(W(`試聽第 ${i + 1} 段，${beats.toFixed(1)} 拍`, `Play piece ${i + 1}, ${beats.toFixed(1)} beats`))}${from ? ` · ${esc(from)}` : ''}"><b>${i + 1}</b><span>${beats < 10 ? beats.toFixed(1) : Math.round(beats)} ${W('拍', 'beats')}</span></button>
-      <select aria-label="${esc(W(`第 ${i + 1} 段的角色`, `Piece ${i + 1} role`))}">${ROLES.map(x => `<option value="${x}"${x === roles[i] ? ' selected' : ''}>${esc(name(ROLE_NAMES, x))}</option>`).join('')}</select>`;
+      <select data-ctl="make-roles" aria-label="${esc(W(`第 ${i + 1} 段的角色`, `Piece ${i + 1} role`))}">${ROLES.map(x => `<option value="${x}"${x === roles[i] ? ' selected' : ''}>${esc(name(ROLE_NAMES, x))}</option>`).join('')}</select>`;
     tile.classList.toggle('off', roles[i] === 'off');
     // (A clip made on the instruments: marked ♪.)
     tile.classList.toggle('mine', String(sources[p.src]?.name || '').startsWith('♪'));
@@ -623,6 +663,7 @@ const audioCtx = () => {
 // Everything that plays, stopped (before something else plays).
 function quiet({ keep: but = '' } = {}) {
   stopPiece();
+  stopExample();
   if (but !== 'song') stopSong();
   if (but !== 'studio') studio?.stop();
   if (but !== 'jam') jam?.stop();
@@ -808,13 +849,15 @@ async function makeOne(recipe, title) {
 // own length, styles, humanize, mixer and the groove it got.
 const fromRecipe = (from, over) => ({ ...from.recipe, ...over });
 
-$('go').onclick = async () => {
+$('go').onclick = () => makeBatch();
+// A batch of `count` songs (the guide's: one), in place of the last.
+async function makeBatch(count = settings.count) {
   if (busy || problem() || !pieces.length) return;
   busy = true;
   quiet();
   for (const s of songs) URL.revokeObjectURL(s.url);
   songs = [];
-  const { count, bits } = settings;
+  const { bits } = settings;
   const seed = settings.seed ? +settings.seed : Math.floor(Math.random() * 1e9);
   $('out').hidden = false;
   $('songs').textContent = '';
@@ -843,7 +886,7 @@ $('go').onclick = async () => {
   $('zip').disabled = !songs.length;
   busy = false;
   update();
-};
+}
 
 // A song made from another (a variation, another groove, an arrangement), in the batch right under it.
 async function another(from, recipe, title) {
@@ -878,18 +921,14 @@ function songMenu(song, anchor, inLib, list = null) {
       ? [
           { label: W('變奏一首', 'A variation'), icon: '✦', onClick: () => another(song, fromRecipe(song, { detail: Math.floor(Math.random() * 1e9) }), `${baseTitle(song)} · ${W('變奏', 'Var.')} ${nth(baseTitle(song))}`) },
           { label: W('換個鼓…', 'Another groove…'), icon: '♫', onClick: () => pickGroove(song) },
-          { label: W('編排…', 'Arrange…'), icon: '☰', onClick: () => arrange(song) },
+          ...(shows(settings.level, 'make-arrange') ? [{ label: W('編排…', 'Arrange…'), icon: '☰', onClick: () => arrange(song) }] : []),
           'divider'
         ]
       : []),
     { label: W('分享', 'Share'), icon: '↗', onClick: () => shareSong(song) },
     { label: W('下載 WAV', 'Download WAV'), icon: '↓', onClick: () => downloadSong(song) },
-    ...(can
-      ? [
-          { label: W('下載分軌', 'Download stems'), icon: '≡', onClick: () => stemsOf(song) },
-          { label: W('匯出 MIDI', 'Export MIDI'), icon: '♪', onClick: () => midiOf(song) }
-        ]
-      : []),
+    ...(can && shows(settings.level, 'make-stems') ? [{ label: W('下載分軌', 'Download stems'), icon: '≡', onClick: () => stemsOf(song) }] : []),
+    ...(can && shows(settings.level, 'make-midi') ? [{ label: W('匯出 MIDI', 'Export MIDI'), icon: '♪', onClick: () => midiOf(song) }] : []),
     ...(inLib
       ? [
           'divider',
@@ -1255,13 +1294,215 @@ async function jamSong(hits, beats) {
   }
 }
 
+
+// ---- Words, help and the guided first song ----
+
+// ⓘ anywhere (the page, 樂器, 即興, a sheet): the word in everyday words, and
+// where there's one, the same bar without it and with it.
+document.addEventListener(
+  'click',
+  e => {
+    const b = e.target.closest?.('.info-btn');
+    if (!b) return;
+    e.preventDefault();
+    e.stopPropagation();
+    explain(b.dataset.term);
+  },
+  true
+);
+let example = null; // { src, btn }: a "hear it" playing
+function stopExample() {
+  if (!example) return;
+  try {
+    example.src.stop();
+  } catch {}
+  example.btn.classList.remove('on');
+  example = null;
+}
+// An example's few bars on the instruments: its clips summed, played twice.
+function exampleBuffer(ex, on) {
+  const c = audioCtx();
+  const { clips, bpm: tempo } = ex.play(on);
+  const parts = clips.map(x => renderClip(x, c.sampleRate, tempo).L);
+  const n = Math.max(...parts.map(L => L.length));
+  const ab = c.createBuffer(1, n * 2, c.sampleRate);
+  const out = ab.getChannelData(0);
+  for (const L of parts) for (let i = 0; i < L.length; i++) out[i] = out[i + n] = out[i] + L[i];
+  return ab;
+}
+function explain(id) {
+  const t = term(id);
+  if (!t) return;
+  const ex = EXAMPLES[id];
+  const listen = ex
+    ? h(
+        'div',
+        { class: 'listen' },
+        [false, true].map(on =>
+          h('button', {
+            class: 'q-btn tinted',
+            type: 'button',
+            text: `▶ ${W(...(on ? ex.on : ex.off))}`,
+            onclick: e => {
+              const btn = e.currentTarget;
+              const again = example?.btn === btn;
+              stopExample();
+              if (again) return;
+              quiet();
+              const c = audioCtx();
+              const src = c.createBufferSource();
+              src.buffer = exampleBuffer(ex, on);
+              src.connect(c.destination);
+              src.onended = () => example?.src === src && stopExample();
+              src.start();
+              btn.classList.add('on');
+              example = { src, btn };
+            }
+          })
+        )
+      )
+    : null;
+  sheet({
+    title: t.name,
+    closeLabel: W('關閉', 'Close'),
+    onClose: stopExample,
+    body: h('div', { class: 'card sheet-card' }, [h('p', { class: 'term-text', text: t.text }), listen])
+  });
+}
+// The ? at the top: 簡單 / 進階, the guide again, the words, and the full guide (the kit's, in the Quadra Pass sheet).
+function helpSheet() {
+  const s = sheet({
+    title: W('說明', 'Help'),
+    closeLabel: W('關閉', 'Close'),
+    body: [
+      h('div', { class: 'card sheet-card' }, [
+        levelRow(),
+        h('button', { class: 'more-row row', type: 'button', onclick: () => (s.close(), replayGuide()) }, [h('span', { class: 'label' }, [h('span', { text: W('新手引導', 'Getting started') }), h('small', { text: W('一步一步做出第一首歌', 'Your first song, step by step') })]), h('span', { class: 'chev', 'aria-hidden': 'true', text: '›' })]),
+        h('button', { class: 'more-row row', type: 'button', onclick: () => (s.close(), kitQ.openHelp ? kitQ.openHelp(q) : (location.hash = 'help=beats')) }, [h('span', { class: 'label' }, [h('span', { text: W('完整說明', 'The full guide') }), h('small', { text: W('每個分頁、每個功能', 'Every tab and tool') })]), h('span', { class: 'chev', 'aria-hidden': 'true', text: '›' })])
+      ]),
+      h('div', { class: 'card sheet-card' }, [
+        h('div', { class: 'head' }, [h('h2', { text: W('名詞小辭典', 'Music words') })]),
+        h(
+          'ul',
+          { class: 'terms' },
+          TERM_ORDER.map(id => h('li', {}, [h('button', { type: 'button', onclick: () => explain(id) }, [h('b', { text: term(id).name }), h('span', { text: term(id).hint }), h('span', { class: 'chev', 'aria-hidden': 'true', text: '›' })])]))
+        )
+      ])
+    ]
+  });
+}
+
+// The guided first song (lib/easy.mjs): a card on top of 做歌, one question at a time.
+let guide = { step: null };
+function guideTo(ev) {
+  guide = guideNext(guide, ev);
+  drawGuide();
+}
+function guideDone(ev = { type: 'done' }) {
+  guideTo(ev);
+  if (!settings.guided) {
+    settings.guided = true;
+    save();
+  }
+}
+function replayGuide() {
+  showTab('make');
+  guideTo({ type: 'replay' });
+  scrollTo({ top: 0, behavior: 'smooth' });
+}
+const choice = (icon, title, sub, onclick) => h('button', { class: 'choice', type: 'button', onclick }, [h('i', { 'aria-hidden': 'true', text: icon }), h('div', {}, [h('b', { text: title }), h('span', { text: sub })])]);
+function drawGuide(note = '') {
+  const card = $('guide');
+  const step = guide.step;
+  card.hidden = !step;
+  if (step) $('panel-make').dataset.guide = step;
+  else delete $('panel-make').dataset.guide;
+  if (!step) return card.replaceChildren();
+  const head = [
+    h('button', { class: 'skip', type: 'button', text: step === 'tweak' ? W('完成', 'Done') : W('略過', 'Skip'), onclick: () => guideDone(step === 'tweak' ? { type: 'done' } : { type: 'skip' }) }),
+    h('p', { class: 'step', text: W(`第一首歌 · ${guideStepNo(step)} / 4`, `Your first song · ${guideStepNo(step)} of 4`) })
+  ];
+  const back = h('button', { class: 'back', type: 'button', text: W('‹ 上一步', '‹ Back'), onclick: () => guideTo({ type: 'back' }) });
+  const moodOf = id => GUIDE_MOODS.find(m => m.id === id);
+  let body = [];
+  if (step === 'mood')
+    body = [
+      h('h2', { text: W('想要什麼感覺？', 'What should it feel like?') }),
+      h('p', { text: W('選一個，鼓的打法交給我們。', 'Pick one; we’ll pick the drums.') }),
+      h('div', { class: 'choices' }, GUIDE_MOODS.map(m => choice(m.icon, W(m.zh[0], m.en[0]), W(m.zh[1], m.en[1]), () => pickMood(m.id))))
+    ];
+  else if (step === 'sound')
+    body = [
+      h('h2', { text: W('用什麼聲音？', 'Which sounds?') }),
+      h('p', { text: note || (m => W(`${m.icon} ${m.zh[0]}，好。歌要用一些聲音來做：`, `${m.icon} ${m.en[0]}, got it. A song is made of a few sounds:`))(moodOf(guide.mood) || GUIDE_MOODS[0]) }),
+      h('div', { class: 'choices one' }, [
+        ...(pieces.length ? [choice('🎛️', W('用現在的片段', 'The pieces you have'), W(`已經放進 ${pieces.length} 段`, `${pieces.length} already in`), () => guideMake({ type: 'current' }))] : []),
+        choice('🎁', W('用示範聲音', 'Use the demo sounds'), W('馬上就能聽', 'Ready right now'), () => guideMake({ type: 'demo' })),
+        choice('🎤', W('用我的聲音', 'Use my own sounds'), W('錄一段，或選聲音檔', 'Record, or pick files'), () => guideTo({ type: 'mine' }))
+      ]),
+      back
+    ];
+  else if (step === 'mine')
+    body = [
+      h('h2', { text: W('放進你的聲音', 'Add your sounds') }),
+      h('p', { text: W('在下面錄一段：拍手、敲桌子、哼一句都行，每個聲音之間停一下。或選手機裡的聲音檔。放好就自動做歌。', 'Record below: claps, taps on a table, a hummed line, with a short pause between sounds. Or pick sound files. The song is made as soon as they’re in.') }),
+      back
+    ];
+  else if (step === 'making') body = [h('h2', {}, [h('span', { class: 'spin', 'aria-hidden': 'true', text: '◌' }), ' ', W('正在做你的歌…', 'Making your song…')]), h('p', { text: W('幾秒就好，做好會自動播放。', 'A few seconds; it plays when it’s ready.') })];
+  else if (step === 'tweak') {
+    const song = songs[0];
+    body = [
+      h('h2', { text: W('做好了，正在播！', 'Done, and playing!') }),
+      h('p', { text: W('想試試別的樣子？點一個：', 'Want it a bit different? Try one:') }),
+      h('div', { class: 'tweaks' }, [
+        h('button', { class: 'q-btn tinted', type: 'button', text: W('✦ 變奏一首', '✦ A variation'), disabled: !song, onclick: () => song && another(song, fromRecipe(song, { detail: Math.floor(Math.random() * 1e9) }), `${baseTitle(song)} · ${W('變奏', 'Var.')} ${nth(baseTitle(song))}`) }),
+        h('button', { class: 'q-btn tinted', type: 'button', text: W('♫ 換個鼓', '♫ Other drums'), disabled: !song, onclick: () => song && pickGroove(song) })
+      ]),
+      h('p', { class: 'keep-tip', text: W('喜歡就按歌右邊的 ♡，它會存到「歌單」。想多做幾首，按「完成」再按「做歌」。', 'Like it? Tap the ♡ beside it to keep it in Library. For more songs, tap Done, then Make.') })
+    ];
+  }
+  card.replaceChildren(...head, ...body);
+}
+function pickMood(id) {
+  const m = MOODS[id];
+  settings.styles = [...m.styles];
+  settings.humanize = m.humanize;
+  settings.mood = id;
+  save();
+  showSettings();
+  guideTo({ type: 'mood', mood: id });
+}
+// Sounds picked: the demo's (in place of none), the pieces in, or yours once they're in; then one song, played.
+async function guideMake(ev) {
+  guideTo(ev);
+  if (ev.type === 'demo') await load(async () => [{ name: 'demo', ...demoRecording() }], false);
+  if (guide.step !== 'making') return;
+  const bad = !pieces.length ? W('沒有聽到聲音，再試一次', 'No sounds were heard; try again') : problem();
+  if (bad) {
+    guideTo({ type: 'failed' });
+    return drawGuide(roles.some(r => r === 'riff' || r === 'phrase') || !pieces.length ? bad : W('你的聲音裡聽不出旋律：先用示範聲音，或在「樂器」做一段旋律。', 'No tune was heard in your sounds: use the demo, or make a melody in Studio.'));
+  }
+  await makeBatch(1);
+  if (!songs.length) {
+    guideTo({ type: 'failed' });
+    return drawGuide(W('做不出來，換個聲音試試', 'Couldn’t make it; try other sounds'));
+  }
+  guideTo({ type: 'made' });
+  playSong(songs[0]);
+  scrollTo({ top: 0, behavior: 'smooth' });
+}
+// Your own sounds in, while the guide waits for them.
+function guideKit() {
+  if (guide.step === 'mine' && pieces.length) guideMake({ type: 'kit' });
+}
+
 // ---- Opening ----
 
 const BUILD = document.querySelector('meta[name="build-version"]')?.content || 'dev';
 window.__fxStarted = true;
 const gated = installGate('beats', lang);
 watchUpdates({ current: BUILD, key: 'orbitBeats', cachePrefix: 'beats-', busy: () => busy || Boolean(recorder) || !audio.paused || Boolean(studio?.playing()) || Boolean(jam?.playing()) || Boolean(document.querySelector('.q-sheet, dialog[open]')) });
-topActions(q);
+topActions(q, { help: helpSheet });
 
 // Everything drawn before the loading screen lifts: the settings, the last
 // kit (this phone's) split and heard, the studio's clip; the Pass's settings,
@@ -1295,7 +1536,9 @@ async function boot() {
   }
   kitShown();
   showTab(firstTab());
-  lib.read();
+  const keptSongs = await lib.read();
+  if (shouldGuide({ guided: settings.guided, pieces: pieces.length, songs: songs.length, kept: keptSongs?.length || 0 })) guide = { ...GUIDE_START };
+  drawGuide();
   $('loading').hidden = true;
   const first = await q.start().catch(() => null);
   const theirs = decode(first?.payload || 'null');
@@ -1303,6 +1546,9 @@ async function boot() {
   kept = merge(kept, theirs);
   if (encode(kept) !== before) {
     settings = settingsOf(kept.settings, settings);
+    applyLevel();
+    // (Another phone's settings say the guide's done or skipped: not asked again, unless it's under way.)
+    if (settings.guided && guide.step === 'mood') guideTo({ type: 'skip' });
     showSettings();
     if (sources.length && kept.kits[print] && !edited.size) split();
   }

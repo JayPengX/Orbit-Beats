@@ -6,7 +6,9 @@
 // TERMS[id][lang] = { name, hint (one short line, under a control), text (1–2 sentences) }.
 // EXAMPLES[id] = { off, on: [zh, en], play(on) → { clips, bpm } }: the same
 // few bars without the thing and with it, played on the app's instruments.
+import { h } from '#kit/ui.mjs';
 import { emptyDrums, emptyNotes, melody } from './synth.mjs';
+import { lang, W } from './lang.mjs';
 
 export const TERMS = {
   bpm: {
@@ -102,7 +104,11 @@ export const TERMS = {
 // The order of the 名詞小辭典: from what a beginner meets first.
 export const TERM_ORDER = ['bpm', 'bar', 'section', 'riff', 'hat', 'sub', 'groove', 'swing', 'key', 'chord', 'velocity', 'loop', 'snap', 'choke', 'roles', 'mix', 'humanize', 'pattern', 'chain', 'seed', 'stems', 'midi'];
 
-export const term = (id, lang = 'zh') => TERMS[id]?.[lang === 'en' ? 'en' : 'zh'] || null;
+export const term = (id, to = lang) => TERMS[id]?.[to === 'en' ? 'en' : 'zh'] || null;
+// A word's one-line hint, in the reader's language.
+export const hintOf = id => term(id)?.hint || '';
+// The ⓘ beside a control: a tap opens the word's sheet (app.js listens for .info-btn).
+export const info = id => h('button', { class: 'info-btn', type: 'button', 'data-term': id, 'aria-label': W(`說明：${term(id, 'zh').name}`, `What is ${term(id, 'en').name}?`), text: 'ⓘ' });
 
 // ---- Hear it: the same bar without the thing and with it ----
 
