@@ -18,7 +18,7 @@ export const DRUMS = ['kick', 'snare', 'clap', 'hat', 'open', 'rim', 'tom', 'sub
 export const PERC = ['crash', 'ride', 'shaker', 'cowbell', 'conga', 'bongo', 'snap', 'perc'];
 export const ALL_DRUMS = [...DRUMS, ...PERC];
 export const DRUM_NAMES = {
-  kick: ['大鼓', 'Kick'], snare: ['小鼓', 'Snare'], clap: ['拍手', 'Clap'], hat: ['閉鈸', 'Hat'], open: ['開鈸', 'Open hat'], rim: ['邊擊', 'Rim'], tom: ['中鼓', 'Tom'], sub: ['808', '808'],
+  kick: ['大鼓', 'Kick'], snare: ['小鼓', 'Snare'], clap: ['拍手', 'Clap'], hat: ['閉鈸', 'Hat'], open: ['開鈸', 'Open'], rim: ['邊擊', 'Rim'], tom: ['中鼓', 'Tom'], sub: ['808', '808'],
   crash: ['銅鈸', 'Crash'], ride: ['疊音鈸', 'Ride'], shaker: ['沙鈴', 'Shaker'], cowbell: ['牛鈴', 'Cowbell'], conga: ['康加', 'Conga'], bongo: ['邦哥', 'Bongo'], snap: ['彈指', 'Snap'], perc: ['木魚', 'Block']
 };
 // The instruments that play notes, and the role each one's clip takes in a song.

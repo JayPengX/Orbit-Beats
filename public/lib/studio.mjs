@@ -160,9 +160,9 @@ export function mountStudio(panel, api) {
   const shelfList = h('ul', { class: 'mine-list' });
   const shelfCard = h('section', { class: 'card' }, [h('div', { class: 'head' }, [h('h2', { text: W('收藏的片段', 'Kept clips') })]), shelfList]);
 
-  const row = (label, sub, ctl) => h('div', { class: 'row' }, [h('div', { class: 'label' }, [h('span', { text: label }), sub]), ctl]);
+  const row = (label, sub, ctl) => h('div', { class: sub ? 'row note' : 'row' }, [h('div', { class: 'label' }, [h('span', { text: label }), sub]), ctl]);
   const setRow = row(W('鼓', 'Drums'), h('small', { text: W('一次八種', 'Eight at a time') }), setSeg);
-  const grooveRow = row(W('節奏', 'Groove'), h('small', { text: W('自動編用的', 'For 自動編') }), grooveSel);
+  const grooveRow = row(W('節奏', 'Groove'), h('small', { text: W('自動編用的', 'Used by Write one') }), grooveSel);
   const instRow = h('div', { class: 'stack' }, [h('div', { class: 'label' }, [h('span', { text: W('樂器', 'Instrument') })]), instChips]);
   const keyRow = row(W('調', 'Key'), h('small', { text: W('格子上只有這個調的音', 'The grid holds only its notes') }), h('div', { class: 'ctl' }, [tonicSel, modeSel]));
   const tempoRow = row(W('速度', 'Tempo'), tempoSub, h('div', { class: 'ctl' }, [tempoIn, h('span', { class: 'unit', text: 'BPM' }), tapBtn]));
@@ -222,7 +222,7 @@ export function mountStudio(panel, api) {
     tempoIn.value = api.tempo();
     tempoIn.disabled = api.hasKit();
     tapBtn.disabled = api.hasKit();
-    tempoSub.textContent = api.hasKit() ? W('跟著片段的速度', 'The pieces’ tempo') : W('還沒有片段：用這個速度', 'No pieces yet: this one');
+    tempoSub.textContent = api.hasKit() ? W('跟著片段的速度', 'The pieces’ tempo') : W('還沒有片段：用這個速度', 'No pieces yet, so this tempo');
     swingIn.value = String(clip().swing || 0);
     swingVal.textContent = `${Math.round((clip().swing || 0) * 100)}%`;
     copyBtn.disabled = st.bars < 2;
@@ -231,7 +231,7 @@ export function mountStudio(panel, api) {
     addBtn.textContent = W('加進片段', 'Add to pieces');
     const role = INSTRUMENT_ROLE[st.inst] || 'riff';
     tip.textContent = drums ? W('點：打 · 再點：重音 · 長按：力度', 'Tap: hit · again: accent · hold: level') : st.chord ? W('點一個音放進三和弦 · 長按：力度', 'Tap: its triad · hold: level') : W('點：放進 · 再點：拿掉 · 長按：力度', 'Tap: in · again: out · hold: level');
-    note.textContent = drums ? W('加進去：整段是過門，每種鼓成為歌裡的鼓', 'Added: the loop a fill, each drum the songs’') : W(`加進去成為${name(ROLE_NAMES, role)}，跟錄的片段一樣排進歌`, `Added as a ${name(ROLE_NAMES, role)}, arranged like any piece`);
+    note.textContent = drums ? W('加進去：整段是過門，每種鼓成為歌裡的鼓', 'Added as a fill; each drum joins your songs') : W(`加進去成為${name(ROLE_NAMES, role)}，跟錄的片段一樣排進歌`, `Added as a ${name(ROLE_NAMES, role)}, arranged like any piece`);
     paintPlay();
     drawShelf();
   }
