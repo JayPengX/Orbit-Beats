@@ -380,6 +380,7 @@ export function mountJam(panel, api) {
     schedule();
     raf = requestAnimationFrame(paint);
     paintTransport();
+    api.live?.(true, { title: W('即興', 'Jam'), stop });
   }
   function stop() {
     waiting = false;
@@ -392,6 +393,7 @@ export function mountJam(panel, api) {
     running = false;
     clearInterval(timer);
     cancelAnimationFrame(raf);
+    api.live?.(false);
     // (A take still open is kept up to here, rounded to its bar; one finishing its bar is kept whole.)
     jam.end(beatNow());
     voices.clear();
@@ -407,8 +409,12 @@ export function mountJam(panel, api) {
   }
   function schedule() {
     const c = api.audio();
-    const to = (c.currentTime + AHEAD - t0) * (bpm / 60);
+    const to = (c.currentTime + (api.ahead?.(AHEAD) ?? AHEAD) - t0) * (bpm / 60);
     if (to <= upTo) return;
+    // (Back from a stretch the phone held the clock up, locked or in another
+    // app: what came due meanwhile is let go, not played all at once.)
+    const now = (c.currentTime - 0.05 - t0) * (bpm / 60);
+    if (now > upTo) upTo = now;
     for (const e of jam.due(upTo, to)) play(e.i, timeOf(e.beat), e);
     upTo = to;
     finish();
