@@ -1,4 +1,6 @@
-# Tests, then deploys public/ to GitHub Pages on every push to main.
+# Tests, then deploys public/ to GitHub Pages on every push to main (the
+# same as the other Quadra apps). One-time setup: Settings -> Pages ->
+# Source: GitHub Actions.
 name: Deploy to Pages
 
 on:
@@ -23,8 +25,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: The shared kit (Shared-Proxy/kit), for the tests
+        uses: actions/checkout@v4
+        with:
+          repository: JayPengX/Shared-Proxy
+          path: .shared
+          sparse-checkout: kit
+      - run: ln -sfn .shared/kit .kit
       - name: Run tests
         run: npm test
+      - name: Cache-bust every script, module and stylesheet
+        run: node scripts/stamp-version.mjs ${{ github.sha }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -1,4 +1,4 @@
-// Passion Beats engine: the browser port of passion_beats.py. Splits a
+// Orbit Beats engine (was Passion Beats): the browser port of passion_beats.py. Splits a
 // recording of beat pieces on silence, hears its tempo and each piece's role
 // (analyze.mjs), and builds humanized songs from them. No DOM here, so the
 // tests run it in Node.
@@ -8,7 +8,7 @@
 import { analyzeRecording } from './analyze.mjs';
 export { analyzeRecording, analyzePiece, detectTempo, guessRole, loopBeats } from './analyze.mjs';
 
-export const STYLES = ['four', 'hiphop', 'trap', 'half', 'broken'];
+export const STYLES = ['four', 'hiphop', 'trap', 'half', 'broken', 'house', 'dembow', 'afro'];
 export const SECTIONS = ['intro', 'verse', 'hook', 'break', 'bridge', 'outro'];
 
 // What a piece does in a song. Loops repeat every so many beats (a loop
@@ -18,7 +18,7 @@ export const ROLES = ['riff', 'phrase', 'bass', 'hat', 'fill', 'kick', 'sub', 's
 
 // Arrangement rules (see README, "How it works"):
 // a hook may lift to a related groove, never a foreign one;
-const FAMILY = { four: ['four', 'broken'], broken: ['broken', 'four'], hiphop: ['hiphop', 'trap'], trap: ['trap', 'hiphop'], half: ['half', 'hiphop'] };
+export const FAMILY = { four: ['four', 'broken', 'house'], broken: ['broken', 'four'], hiphop: ['hiphop', 'trap'], trap: ['trap', 'hiphop'], half: ['half', 'hiphop'], house: ['house', 'four'], dembow: ['dembow', 'afro'], afro: ['afro', 'dembow'] };
 // and the song's body is verse–hook pairs, maybe a break first, maybe a
 // break or bridge before a last hook. Verses and hooks are 4 or 8 bars,
 // breaks and bridges 2 or 4: phrases come in fours.
@@ -189,6 +189,18 @@ class Song {
         if (r.random() < 0.5) this.hit(k.heavy, t + 2.75);
       } else if (style === 'broken') {
         for (const q of py.choice([[0, 1.5, 2.5], [0, 0.75, 2.25, 3], [0, 2, 2.75], [0, 1.25, 2.5, 3.5]])) this.hit(py.choice([k.kick, k.heavy, k.sub]), t + q);
+      } else if (style === 'house') {   // four on the floor, the clap on 2 and 4, a tick on every off-beat
+        for (let q = 0; q < 4; q++) this.hit(k.kick, t + q);
+        this.hit(k.snare, t + 1); this.hit(k.snare, t + 3);
+        for (const q of [0.5, 1.5, 2.5, 3.5]) this.hit(k.tick, t + q);
+      } else if (style === 'dembow') {   // reggaeton's: the kick on the beat, the snare's 3+3+2 against it
+        for (let q = 0; q < 4; q++) this.hit(k.kick, t + q);
+        for (const q of [0.75, 1.5, 2.75, 3.5]) this.hit(k.snare, t + q);
+      } else if (style === 'afro') {   // afrobeats': a kick that skips, the snare on 2 and 4, a shaker's push
+        for (const q of [0, 1.5, 2.5]) this.hit(k.heavy, t + q);
+        this.hit(k.snare, t + 1); this.hit(k.snare, t + 3);
+        if (r.random() < 0.5) this.hit(k.snare, t + 3.75);
+        for (const q of [0.5, 1.75, 2.25, 3.25]) this.hit(k.tick, t + q);
       }
       if (r.random() < 0.35)   // ticks between the hits
         for (const q of py.choice([[0.5], [1.5, 3.5], [0.5, 1.5, 2.5, 3.5]])) this.hit(k.tick, t + q);
@@ -363,10 +375,10 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   return { audio, info: { bpm, style, alt: hookStyle, bass: bassMode, riffSets: [introSet, verseSet, hookSet, bridgeSet], layer, bars, beats: bars * 4, seconds: audio.L.length / sr, peak: audio.peak, plan: plan.map(([t, , L]) => [t, L]) } };
 }
 
-// "Passion DD-MM-YYYY HH-MM", in local time.
+// "Beats DD-MM-YYYY HH-MM", in local time.
 export function songName(date) {
   const p = x => String(x).padStart(2, '0');
-  return `Passion ${p(date.getDate())}-${p(date.getMonth() + 1)}-${date.getFullYear()} ${p(date.getHours())}-${p(date.getMinutes())}`;
+  return `Beats ${p(date.getDate())}-${p(date.getMonth() + 1)}-${date.getFullYear()} ${p(date.getHours())}-${p(date.getMinutes())}`;
 }
 
 // A batch's songs: each its own seed, named for when it's made, the first

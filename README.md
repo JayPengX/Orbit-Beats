@@ -1,17 +1,45 @@
-# Passion Beats
+# Orbit Beats
 
-Arranges one recording of beat pieces (separated by silence) into new
-songs, using the pieces exactly as recorded.
+Orbit Beats (was Passion Beats; the repo keeps its name, so its address
+stays) arranges beat pieces into new songs, using the pieces exactly as
+recorded. An Orbit app on the Quadra Pass and the family's kit
+(`Shared-Proxy/kit/`): Chinese first, English for readers who pick it.
 
-**https://jaypengx.github.io/Passion-Beats/**: the page. Choose a recording
-(or try the demo), check the tempo and roles it hears, set things, make
-songs, play them and download them one by one or all in a zip. It all runs in the browser: nothing is uploaded.
+**https://jaypengx.github.io/Passion-Beats/**: the page. Put pieces in,
+check the tempo and roles it hears, set things, make songs, play them and
+download them one by one or all in a zip. It all runs on the phone:
+nothing is uploaded.
 
 `passion_beats.py` is the same thing on the command line.
 
-**Without a connection**: everything runs on the device, and `sw.js` keeps the page's files, so it opens and works offline.
+## The pieces
 
-## The recording
+Three ways in, and any mix of them (**再加檔案** / **Add files** puts more
+beside the ones there):
+
+- **One recording**: pieces with silence between them (below).
+- **A sample pack**: pick many files at once (a folder's WAVs, a pack's
+  one-shots and loops); each file is split on its own silence, so a file
+  of one sound is one piece. All are brought to the first file's sample
+  rate (`lib/sources.mjs`).
+- **The microphone**: **用麥克風錄** / **Record**, a tap to start and one to
+  stop, the phone's echo cancelling, noise suppression and gain control
+  off (they'd eat the gaps); the take is split like a file.
+
+What's kept (`lib/kits.mjs`):
+
+- **On this phone**: the last kit's sound (IndexedDB), split and heard
+  again before the loading screen lifts, so it's there when the app opens.
+- **On the Quadra Pass** (app id `beats`, payload `{ v: 1, settings, kits }`):
+  the settings, and each kit's tempo and the roles set by hand, a kit known
+  by its sound's fingerprint (each file's length and a few hundred of its
+  samples, hashed), so the same pieces on another phone find them. The
+  newest 40 kits; the sound itself never leaves the phone.
+
+**Without a connection**: the family's worker (`sw.js`) keeps every file,
+so it opens and works offline.
+
+## A recording
 
 - Any number of pieces, with silence (0.2 s or more) between them.
 - All at one tempo, any tempo: it's heard from the pieces.
@@ -98,7 +126,7 @@ drums the song is just its riffs.
 |---|---|---|
 | Songs | `--count` | How many (page: up to 30; default 20) |
 | Length | `--min-bars` / `--max-bars` | Bars of 4 beats, 8 or more (default 25–29, so songs of 26 or 28 bars, about 51–55 s) |
-| Drums | `--styles` | The drum styles songs pick from: four-on-floor, hip-hop, trap, half-time, broken |
+| Drums | `--styles` | The drum styles songs pick from: four-on-floor, hip-hop, trap, half-time, broken, house (the clap on 2 and 4, a tick on every off-beat), dembow (reggaeton: the kick on the beat, the snare's 3+3+2), afrobeats (a skipping kick, a shaker's push) |
 | Humanize | `--humanize` | Swing and timing drift, 0–200% (0 is a strict grid) |
 | Seed | `--seed` | The same seed makes the same songs (the page and the script have different random numbers, so not the same songs as each other) |
 | Format | | 32-bit float or 16-bit WAV (the script writes 32-bit float) |
@@ -108,7 +136,7 @@ drums the song is just its riffs.
 | | `--save-pieces folder/` | Also save the split pieces |
 | | `--out folder/` | Where songs go (default `songs/`) |
 
-Songs are named for when they're made, `Passion DD-MM-YYYY HH-MM`: the
+Songs are named for when they're made, `Beats DD-MM-YYYY HH-MM`: the
 first gets the current date and time, each next one a minute later (the
 script skips names already in the folder). Stereo, at the recording's
 sample rate.
@@ -160,9 +188,14 @@ keeps them exactly, a 16-bit WAV clips them, and the page shows by how much
 ## Development
 
 - `public/`: the page (`index.html`, `app.js`, `engine.mjs`, the port of
-  the script, and `analyze.mjs`, the hearing, both with no DOM so they're
-  testable).
+  the script, and `analyze.mjs`, the hearing; `lib/sources.mjs`, a kit's
+  files at one rate and split; `lib/kits.mjs`, the fingerprint, the Pass's
+  payload and the phone's copy; `lib/lang.mjs`; all but `app.js` with no
+  DOM, so they're testable).
 - `npm test`: the tests (Node 22), the analysis's on made-up sample packs
   (`tests/kits.mjs`) among them.
 - Every push to `main` runs the tests and deploys `public/` to Pages
-  (`.github/workflows/pages.yml`).
+  (`.github/workflows/deploy.yml`, the kit checked out for the tests, every
+  file stamped with the deploy's version).
+- `node ../Shared-Proxy/tools/preview.mjs beats` looks at it on a phone
+  screen (`--lang en`, `--reopen` for the kept kit).

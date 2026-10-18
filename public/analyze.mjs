@@ -1,4 +1,4 @@
-// Passion Beats analysis: what each piece of a recording is, and the tempo it
+// Orbit Beats analysis (was Passion Beats): what each piece of a recording is, and the tempo it
 // was recorded at, heard from the audio alone. No DOM, so the tests run it in
 // Node. See the README, "Tempo" and "Roles".
 

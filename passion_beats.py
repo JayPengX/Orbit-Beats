@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-passion_beats.py - split a recording of beat pieces and arrange them into new songs.
+passion_beats.py (Orbit Beats, was Passion Beats) - split a recording of beat pieces and arrange them into new songs.
 
 Usage:
   python passion_beats.py all_beats.wav --count 20 --out songs/
@@ -235,7 +235,7 @@ def guess_role(a, bpm):
 
 # Arrangement rules (the same as public/engine.mjs; see the README):
 # a hook may lift to a related groove, never a foreign one;
-FAMILY = {'four':['four','broken'],'broken':['broken','four'],'hiphop':['hiphop','trap'],'trap':['trap','hiphop'],'half':['half','hiphop']}
+FAMILY = {'four':['four','broken','house'],'broken':['broken','four'],'hiphop':['hiphop','trap'],'trap':['trap','hiphop'],'half':['half','hiphop'],'house':['house','four'],'dembow':['dembow','afro'],'afro':['afro','dembow']}
 # the body is verse-hook pairs, maybe a break first, maybe a break or bridge
 # before a last hook; verses and hooks are 4 or 8 bars, breaks and bridges 2 or 4.
 LENS = {'verse':[4,8],'hook':[4,8],'break':[2,4],'bridge':[2,4]}
@@ -311,6 +311,18 @@ class Song:
                 if r.random()<0.5: s.hit(k['heavy'],t+2.75)
             elif style=='broken':
                 for q in s.py.choice([[0,1.5,2.5],[0,0.75,2.25,3],[0,2,2.75],[0,1.25,2.5,3.5]]): s.hit(s.py.choice([k['kick'],k['heavy'],k['sub']]),t+q)
+            elif style=='house':   # four on the floor, the clap on 2 and 4, a tick on every off-beat
+                for q in range(4): s.hit(k['kick'],t+q)
+                s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+                for q in (0.5,1.5,2.5,3.5): s.hit(k['tick'],t+q)
+            elif style=='dembow':   # reggaeton's: the kick on the beat, the snare's 3+3+2 against it
+                for q in range(4): s.hit(k['kick'],t+q)
+                for q in (0.75,1.5,2.75,3.5): s.hit(k['snare'],t+q)
+            elif style=='afro':   # afrobeats': a kick that skips, the snare on 2 and 4, a shaker's push
+                for q in (0,1.5,2.5): s.hit(k['heavy'],t+q)
+                s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+                if r.random()<0.5: s.hit(k['snare'],t+3.75)
+                for q in (0.5,1.75,2.25,3.25): s.hit(k['tick'],t+q)
             if r.random()<0.35:   # ticks between the hits
                 for q in s.py.choice([[0.5],[1.5,3.5],[0.5,1.5,2.5,3.5]]): s.hit(k['tick'],t+q)
     def fill(s,bar,kinds,k):   # the end of `bar`
@@ -429,7 +441,7 @@ def main():
     ap.add_argument('--save-pieces', default=None, help='folder to also save the split pieces')
     ap.add_argument('--silence-db', type=float, default=-90, help='quieter than this is silence (default -90)')
     ap.add_argument('--min-gap', type=float, default=0.2, help='shortest silence between pieces, seconds (default 0.2)')
-    ap.add_argument('--styles', default='four,hiphop,trap,half,broken', help='drum styles songs pick from (default all)')
+    ap.add_argument('--styles', default='four,hiphop,trap,half,broken,house,dembow,afro', help='drum styles songs pick from (default all)')
     ap.add_argument('--humanize', type=float, default=100, help='swing and timing drift, percent (default 100; 0 is a strict grid)')
     ap.add_argument('--bpm', type=float, default=None, help='the tempo the pieces were recorded at (default: heard from them)')
     ap.add_argument('--roles', default='', help='set pieces\' roles, e.g. 3=riff,6-8=hat,12=off (roles: ' + ','.join(ROLES) + ')')
@@ -437,7 +449,7 @@ def main():
     if not 8 <= a.min_bars <= a.max_bars: ap.error('need 8 <= --min-bars <= --max-bars')
     if a.count < 1: ap.error('--count must be 1 or more')
     styles = [x for x in a.styles.split(',') if x]
-    if not styles or set(styles) - set(FAMILY): ap.error('--styles: any of four,hiphop,trap,half,broken')
+    if not styles or set(styles) - set(FAMILY): ap.error('--styles: any of four,hiphop,trap,half,broken,house,dembow,afro')
     if not 0 <= a.humanize <= 200: ap.error('--humanize must be 0 to 200')
     if a.bpm is not None and not 40 <= a.bpm <= 250: ap.error('--bpm must be 40 to 250')
     MIN_BARS, MAX_BARS = a.min_bars, a.max_bars
@@ -464,7 +476,7 @@ def main():
     # named for when they're made: now, then a minute later for each next song
     rnd = random.Random(a.seed); t = datetime.datetime.now()
     for _ in range(a.count):
-        while os.path.exists(path := f"{a.out}/Passion {t:%d-%m-%Y %H-%M}.wav"):   # never overwrite
+        while os.path.exists(path := f"{a.out}/Beats {t:%d-%m-%Y %H-%M}.wav"):   # never overwrite
             t += datetime.timedelta(minutes=1)
         t += datetime.timedelta(minutes=1)
         info = make(rnd.randint(0, 10**9), path, styles, a.humanize / 100, roles, loops, chroma)

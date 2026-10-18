@@ -78,6 +78,21 @@ test('song forms follow the rules: phrases in fours, a hook after a verse, endin
   }
 });
 
+test('house, dembow and afrobeats: each a groove of its own, the same on the same seed, louder than the riffs alone', () => {
+  const quiet = makeSong(pieces, rec.sr, 3, { analysis, roles: analysis.roles.map(x => (['riff', 'phrase'].includes(x) ? x : 'off')), styles: ['house'], humanize: 0, minBars: 8, maxBars: 8 });
+  const energy = a => a.L.reduce((s, v) => s + v * v, 0);
+  const made = {};
+  for (const style of ['house', 'dembow', 'afro']) {
+    const a = makeSong(pieces, rec.sr, 3, { analysis, styles: [style], humanize: 0, minBars: 8, maxBars: 8 });
+    const b = makeSong(pieces, rec.sr, 3, { analysis, styles: [style], humanize: 0, minBars: 8, maxBars: 8 });
+    assert.equal(a.info.style, style);
+    assert.deepEqual(a.audio.L.slice(0, 5000), b.audio.L.slice(0, 5000));
+    assert.ok(energy(a.audio) > energy(quiet.audio), `${style} adds its drums`);
+    made[style] = energy(a.audio);
+  }
+  assert.equal(new Set(Object.values(made)).size, 3, 'three different grooves');
+});
+
 test('settings: drum styles, humanize off, a fixed length', () => {
   for (let seed = 1; seed <= 5; seed++) {
     const { info } = makeSong(pieces, rec.sr, seed, { analysis, styles: ['trap'], humanize: 0, minBars: 12, maxBars: 12 });
@@ -85,7 +100,7 @@ test('settings: drum styles, humanize off, a fixed length', () => {
   }
   for (let seed = 1; seed <= 20; seed++) {   // hooks only lift to a related groove
     const { info } = makeSong(pieces, rec.sr, seed, { analysis, minBars: 8, maxBars: 8 });
-    const ok = { four: ['four', 'broken'], broken: ['broken', 'four'], hiphop: ['hiphop', 'trap'], trap: ['trap', 'hiphop'], half: ['half', 'hiphop'] };
+    const ok = { four: ['four', 'broken', 'house'], broken: ['broken', 'four'], hiphop: ['hiphop', 'trap'], trap: ['trap', 'hiphop'], half: ['half', 'hiphop'], house: ['house', 'four'], dembow: ['dembow', 'afro'], afro: ['afro', 'dembow'] };
     assert.ok(ok[info.style].includes(info.alt), `${info.style} -> ${info.alt}`);
   }
 });
@@ -141,8 +156,8 @@ test('bad settings and too few pieces are refused', () => {
 test('songs are named for when they are made, a minute apart, and their seeds follow the batch seed', () => {
   const start = new Date(2026, 11, 31, 23, 58);   // 31 Dec 2026, 23:58 local
   const a = batch(4, 7, start);
-  assert.deepEqual(a.map(s => s.name), ['Passion 31-12-2026 23-58', 'Passion 31-12-2026 23-59', 'Passion 01-01-2027 00-00', 'Passion 01-01-2027 00-01']);
-  assert.equal(songName(new Date(2026, 0, 5, 7, 3)), 'Passion 05-01-2026 07-03');
+  assert.deepEqual(a.map(s => s.name), ['Beats 31-12-2026 23-58', 'Beats 31-12-2026 23-59', 'Beats 01-01-2027 00-00', 'Beats 01-01-2027 00-01']);
+  assert.equal(songName(new Date(2026, 0, 5, 7, 3)), 'Beats 05-01-2026 07-03');
   assert.deepEqual(batch(4, 7, start), a);
   assert.notDeepEqual(batch(4, 8, start).map(s => s.seed), a.map(s => s.seed));
 });

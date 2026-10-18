@@ -4,3 +4,5 @@ __pycache__/
 songs/
 pieces/
 *.wav
+.kit
+.shared

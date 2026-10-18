@@ -1,14 +1,60 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Passion Beats</title>
-<meta name="description" content="Turn a recording of beat pieces into new, humanized songs, right in your browser.">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<!-- brand: Shared-Proxy/brand/generate.mjs writes this block -->
+<title>Orbit Beats</title>
+<meta name="description" content="把一組節拍片段放進來，聽出速度和每段的角色，排成一首首新歌；全部在手機上做，不上傳。">
+<meta name="application-name" content="Orbit Beats">
+<meta name="apple-mobile-web-app-title" content="Beats">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="icon" href="./icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Orbit">
+<meta property="og:title" content="Orbit Beats">
+<meta property="og:description" content="把一組節拍片段放進來，聽出速度和每段的角色，排成一首首新歌；全部在手機上做，不上傳。">
+<meta property="og:url" content="https://jaypengx.github.io/Passion-Beats/">
+<meta property="og:locale" content="zh_TW">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:image" content="https://jaypengx.github.io/Passion-Beats/share/og.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Orbit Beats — 把你的節拍片段，排成一首首新歌">
+<meta property="og:image" content="https://jaypengx.github.io/Passion-Beats/share/square.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="1200">
+<meta property="og:image:alt" content="Orbit Beats — 把你的節拍片段，排成一首首新歌">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Orbit Beats">
+<meta name="twitter:description" content="把一組節拍片段放進來，聽出速度和每段的角色，排成一首首新歌；全部在手機上做，不上傳。">
+<meta name="twitter:image" content="https://jaypengx.github.io/Passion-Beats/share/x.jpg">
+<meta name="twitter:image:alt" content="Orbit Beats — 把你的節拍片段，排成一首首新歌">
+<!-- /brand -->
+<meta name="build-version" content="dev">
 <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
-<link rel="stylesheet" href="https://jaypengx.github.io/Shared-Proxy/kit/quadra.css">
-<link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="./manifest.webmanifest">
+<!-- kit:head: where the app's stylesheets end, before any module. The kit
+     comes from one place for every app (Shared-Proxy's GitHub Pages, same
+     site as the apps), at the version this device last saw (quadra.kit, noted
+     by the kit itself, quadra.mjs kitLatest), so a change to the kit is one push to
+     Shared-Proxy and every app has it the next time it's opened. -->
+<script>!function(b,v,q,m,f,i){try{v=localStorage.getItem('quadra.kit')||''}catch(e){v=''}q=v?'?v='+encodeURIComponent(v):'';m={'#kit/':b};f=['brand.mjs','catalog.mjs','devconfig.mjs','f1live.mjs','help.mjs','holidays.mjs','logos.mjs','mirror.mjs','names.mjs','pass.mjs','photo-urls.mjs','photos.mjs','play-bets.mjs','play-board.mjs','play-cashout.mjs','play-house.mjs','play-kambi.mjs','play-lines.mjs','play-live.mjs','play-lottery.mjs','play-markets.mjs','play-odds.mjs','play-offers.mjs','play-players.mjs','play-propmodel.mjs','play-props.mjs','play-rules.mjs','play-schedules.mjs','play-scratch.mjs','play-sources.mjs','play-teams.mjs','plus.mjs','postseason.mjs','quadra.mjs','settle.mjs','sports-broadcast.mjs','sports-highlights.mjs','sports-winprob.mjs','stock-account.mjs','stock-bonds.mjs','stock-codec.mjs','stock-credit.mjs','stock-holidays.mjs','stock-ipo.mjs','stock-markets.mjs','stock-quotes.mjs','stock-savings.mjs','truth.mjs','ui.mjs'];for(i=0;i<f.length;i++)m['#kit/'+f[i]]=b+f[i]+q;window.QUADRA_KIT={base:b,version:v,url:function(x){return b+x+q}};document.write('<script type="import'+'map">'+JSON.stringify({imports:m})+'<\/script><link rel="stylesheet" href="'+b+'quadra.css'+q+'"><link rel="modulepreload" href="'+b+'quadra.mjs'+q+'"><link rel="modulepreload" href="'+b+'brand.mjs'+q+'">')}('../Shared-Proxy/kit/')</script>
+<!-- /kit:head -->
+<link rel="modulepreload" href="./app.js">
+<link rel="modulepreload" href="./engine.mjs">
+<link rel="modulepreload" href="./analyze.mjs">
+<link rel="modulepreload" href="./lib/sources.mjs">
+<link rel="modulepreload" href="./lib/kits.mjs">
+<link rel="modulepreload" href="./lib/lang.mjs">
 <style>
 :root {
   /* The family's kit (Shared-Proxy kit/quadra.css): iOS 27's colours, light
@@ -26,15 +72,11 @@ body {
   font: 15px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
-main { max-width: 560px; margin: 0 auto; padding: max(20px, env(safe-area-inset-top)) 16px max(32px, env(safe-area-inset-bottom)); }
+main { max-width: 560px; margin: 0 auto; padding: 8px 16px max(32px, env(safe-area-inset-bottom)); }
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
 .nowrap { white-space: nowrap; }
 
-.top { display: flex; align-items: center; gap: 12px; margin: 4px 4px 20px; }
-.top img { width: 44px; height: 44px; border-radius: 11px; flex: none; }
-.top h1 { margin: 0; font-size: 24px; line-height: 1.15; letter-spacing: -0.02em; white-space: nowrap; }
-.top p { margin: 2px 0 0; color: var(--text-2); font-size: 14px; white-space: nowrap; }
 
 .card { background: var(--card); border-radius: var(--q-r-card); padding: 16px; margin-bottom: 16px; }
 .card[hidden] { display: none; }
@@ -55,7 +97,14 @@ button { cursor: pointer; }
 .drop b { display: block; font-weight: 600; white-space: nowrap; }
 .drop span { display: block; font-size: 13px; color: var(--text-2); white-space: nowrap; }
 .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.demo { display: block; margin: 10px auto 0; padding: 6px 10px; border: 0; background: none; color: var(--accent); font-size: 14px; font-weight: 500; }
+.ways { display: flex; justify-content: center; gap: 8px; margin-top: 10px; }
+.way { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 0; border-radius: 17px; background: var(--accent-soft); color: var(--accent); font-size: 14px; font-weight: 600; white-space: nowrap; transition: transform var(--q-dur-snappy) var(--q-spring-snappy); }
+.way:active { transform: scale(0.95); }
+.way[hidden] { display: none; }
+.rec-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--q-red); flex: none; }
+.way.on { background: var(--q-red); color: #fff; }
+.way.on .rec-dot { background: #fff; animation: pb-rec 1s ease-in-out infinite; }
+@keyframes pb-rec { 50% { opacity: .35; } }
 .status { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 14px; white-space: nowrap; }
 .status[hidden] { display: none; }
 .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
@@ -111,7 +160,7 @@ details[open] summary::before { transform: rotate(45deg); }
 .stepper button:disabled { color: var(--text-3); cursor: default; }
 .stepper .num { width: 44px; background: none; }
 .unit { color: var(--text-2); font-size: 14px; }
-.chips { display: flex; gap: 6px; margin-top: 8px; }
+.chips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
 .chip {
   flex: 1 1 0; min-width: 0; height: 34px; border-radius: 17px; border: 0; background: var(--fill);
   font-size: 13px; font-weight: 500; white-space: nowrap; padding: 0 4px;
@@ -178,111 +227,117 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 }
 
 footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 8px; white-space: nowrap; }
-footer a { color: inherit; }
 </style>
 </head>
 <body>
-<main>
-  <header class="top">
-    <img src="icon.svg" alt="">
-    <div>
-      <h1>Passion Beats</h1>
-      <p>New songs from your recorded beat pieces</p>
-    </div>
-  </header>
-
-  <section class="card" aria-labelledby="h-rec">
-    <div class="head"><span class="step">1</span><h2 id="h-rec">Recording</h2></div>
-    <label class="drop" id="drop">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10M21 12h0"/></svg>
-      <div><b>Choose a recording</b><span>WAV is best · pieces split by silence</span></div>
-      <input type="file" id="file" accept="audio/*,.wav">
-    </label>
-    <button class="demo" id="demo" type="button">Or try a demo recording</button>
-    <div class="status" id="status" hidden><span class="dot"></span><span id="status-text"></span></div>
-    <div class="row tempo" id="tempo-row" hidden>
-      <label for="bpm">Tempo<small id="bpm-hint">Heard from the recording</small></label>
-      <div class="ctl">
-        <button class="mini" type="button" id="bpm-half" aria-label="Half the tempo">½</button>
-        <input class="num tempo-num" id="bpm" type="number" min="40" max="250" step="0.1" inputmode="decimal">
-        <span class="unit">BPM</span>
-        <button class="mini" type="button" id="bpm-double" aria-label="Double the tempo">×2</button>
+<div id="loading" data-title="Orbit Beats" data-cache="beats-"></div>
+<!-- kit:boot: right after <div id="loading">. -->
+<script>document.write('<script src="'+QUADRA_KIT.url('boot.js')+'"><\/script>')</script>
+<!-- /kit:boot -->
+<header class="q-appbar">
+  <div class="q-appbar-inner">
+    <div class="q-brand">
+      <img class="q-brand-logo" src="./favicon.svg" alt="" width="34" height="34">
+      <div class="q-brand-text">
+        <h1 id="title">Orbit Beats</h1>
+        <p id="badge" class="q-status" aria-live="polite" data-en="Your beat pieces, new songs">你的節拍片段，排成新歌</p>
       </div>
     </div>
-    <div class="pieces" id="pieces" aria-label="Pieces: tap one to hear it"></div>
-    <p class="hint" id="pieces-hint" hidden>Tap a piece to hear it · roles are heard, change any</p>
+    <div id="top-actions" class="q-actions"></div>
+  </div>
+</header>
+<main>
+  <section class="card" aria-labelledby="h-rec">
+    <div class="head"><span class="step">1</span><h2 id="h-rec" data-en="Pieces">片段</h2></div>
+    <label class="drop" id="drop">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10M21 12h0"/></svg>
+      <div><b data-en="Choose recordings or samples">選錄音或取樣檔</b><span data-en="One file or a whole pack · split by silence">一個檔或一整包 · 依安靜切開</span></div>
+      <input type="file" id="file" accept="audio/*,.wav" multiple>
+    </label>
+    <div class="ways">
+      <button class="way" id="record" type="button"><span class="rec-dot" aria-hidden="true"></span><span id="record-text" data-en="Record">用麥克風錄</span></button>
+      <button class="way" id="add" type="button" hidden data-en="Add files">再加檔案</button>
+      <button class="way" id="demo" type="button" data-en="Demo">試試示範</button>
+    </div>
+    <input type="file" id="more" accept="audio/*,.wav" multiple hidden>
+    <div class="status" id="status" hidden><span class="dot"></span><span id="status-text"></span></div>
+    <div class="row tempo" id="tempo-row" hidden>
+      <label for="bpm"><span data-en="Tempo">速度</span><small id="bpm-hint"></small></label>
+      <div class="ctl">
+        <button class="mini" type="button" id="bpm-half" aria-label="速度減半" data-en-label="Half the tempo">½</button>
+        <input class="num tempo-num" id="bpm" type="number" min="40" max="250" step="0.1" inputmode="decimal">
+        <span class="unit">BPM</span>
+        <button class="mini" type="button" id="bpm-double" aria-label="速度加倍" data-en-label="Double the tempo">×2</button>
+      </div>
+    </div>
+    <div class="pieces" id="pieces" aria-label="片段：點一下試聽" data-en-label="Pieces: tap one to hear it"></div>
+    <p class="hint" id="pieces-hint" hidden data-en="Tap a piece to hear it · roles are heard, change any">點片段試聽 · 角色是聽出來的，可以改</p>
     <details id="split-more">
-      <summary>Splitting</summary>
+      <summary data-en="Splitting">切片</summary>
       <div class="row">
-        <label for="silence">Silence below<small>Raise it for noisy phone audio</small></label>
+        <label for="silence"><span data-en="Silence below">安靜門檻</span><small data-en="Raise it for noisy phone audio">手機錄的雜音多就調高</small></label>
         <div class="ctl"><input class="num" id="silence" type="number" min="-140" max="-30" step="5" value="-90"><span class="unit">dB</span></div>
       </div>
       <div class="row">
-        <label for="gap">Shortest gap<small>Silence between two pieces</small></label>
-        <div class="ctl"><input class="num" id="gap" type="number" min="0.05" max="3" step="0.05" value="0.2"><span class="unit">sec</span></div>
+        <label for="gap"><span data-en="Shortest gap">最短間隔</span><small data-en="Silence between two pieces">兩段之間的安靜</small></label>
+        <div class="ctl"><input class="num" id="gap" type="number" min="0.05" max="3" step="0.05" value="0.2"><span class="unit" data-en="sec">秒</span></div>
       </div>
-      <button class="secondary" id="resplit" type="button" disabled>Split again</button>
+      <button class="secondary" id="resplit" type="button" disabled data-en="Split again">重新切片</button>
     </details>
   </section>
 
   <section class="card" aria-labelledby="h-set">
-    <div class="head"><span class="step">2</span><h2 id="h-set">Settings</h2></div>
+    <div class="head"><span class="step">2</span><h2 id="h-set" data-en="Settings">設定</h2></div>
     <div class="row">
-      <label for="count">Songs</label>
+      <label for="count" data-en="Songs">首數</label>
       <div class="stepper">
-        <button type="button" id="count-down" aria-label="Fewer songs">−</button>
+        <button type="button" id="count-down" aria-label="少一首" data-en-label="Fewer songs">−</button>
         <input class="num" id="count" type="number" min="1" max="50" value="20" inputmode="numeric">
-        <button type="button" id="count-up" aria-label="More songs">+</button>
+        <button type="button" id="count-up" aria-label="多一首" data-en-label="More songs">+</button>
       </div>
     </div>
     <div class="row">
-      <div class="label">Length<small id="length-hint">About 51–55 sec each</small></div>
+      <div class="label"><span data-en="Length">長度</span><small id="length-hint"></small></div>
       <div class="ctl">
-        <input class="num short" id="min-bars" type="number" min="8" max="64" value="25" inputmode="numeric" aria-label="Shortest, in bars">
+        <input class="num short" id="min-bars" type="number" min="8" max="64" value="25" inputmode="numeric" aria-label="最短（小節）" data-en-label="Shortest, in bars">
         <span class="unit">–</span>
-        <input class="num short" id="max-bars" type="number" min="8" max="64" value="29" inputmode="numeric" aria-label="Longest, in bars">
-        <span class="unit">bars</span>
+        <input class="num short" id="max-bars" type="number" min="8" max="64" value="29" inputmode="numeric" aria-label="最長（小節）" data-en-label="Longest, in bars">
+        <span class="unit" data-en="bars">小節</span>
       </div>
     </div>
     <div class="stack">
-      <div class="label">Drums<small>Each song picks its grooves from these</small></div>
-      <div class="chips" id="styles">
-        <button class="chip" type="button" data-style="four" aria-pressed="true">Four</button>
-        <button class="chip" type="button" data-style="hiphop" aria-pressed="true">Hip-hop</button>
-        <button class="chip" type="button" data-style="trap" aria-pressed="true">Trap</button>
-        <button class="chip" type="button" data-style="half" aria-pressed="true">Half</button>
-        <button class="chip" type="button" data-style="broken" aria-pressed="true">Broken</button>
-      </div>
+      <div class="label"><span data-en="Drums">鼓的風格</span><small data-en="Each song picks its grooves from these">每首從這些挑節奏</small></div>
+      <div class="chips" id="styles"></div>
     </div>
     <div class="row">
-      <label for="humanize">Humanize<small>Swing and timing drift</small></label>
+      <label for="humanize"><span data-en="Humanize">人味</span><small data-en="Swing and timing drift">搖擺和時間的飄移</small></label>
       <div class="ctl"><input id="humanize" type="range" min="0" max="200" step="10" value="100"><span class="val" id="humanize-val">100%</span></div>
     </div>
     <div class="row">
-      <label for="seed">Seed<small>Same seed, same songs</small></label>
-      <input class="num wide" id="seed" type="text" inputmode="numeric" placeholder="Random" autocomplete="off">
+      <label for="seed"><span data-en="Seed">種子</span><small data-en="Same seed, same songs">同一個種子，同樣的歌</small></label>
+      <input class="num wide" id="seed" type="text" inputmode="numeric" placeholder="隨機" data-en-placeholder="Random" autocomplete="off">
     </div>
     <div class="row">
-      <div class="label">Format</div>
+      <div class="label" data-en="Format">格式</div>
       <div class="seg" id="format">
-        <button type="button" data-bits="32" aria-pressed="true">32-bit float</button>
-        <button type="button" data-bits="16" aria-pressed="false">16-bit</button>
+        <button type="button" data-bits="32" aria-pressed="true" data-en="32-bit float">32 位元浮點</button>
+        <button type="button" data-bits="16" aria-pressed="false" data-en="16-bit">16 位元</button>
       </div>
     </div>
-    <button class="primary" id="go" type="button" disabled>Make 20 songs</button>
+    <button class="primary" id="go" type="button" disabled></button>
     <p class="error" id="error" role="alert"></p>
   </section>
 
   <section class="card" id="out" aria-labelledby="h-out" hidden>
-    <div class="head"><span class="step">3</span><h2 id="h-out">Songs</h2><button class="secondary" id="zip" type="button" disabled>Download all</button></div>
+    <div class="head"><span class="step">3</span><h2 id="h-out" data-en="Songs">歌</h2><button class="secondary" id="zip" type="button" disabled data-en="Download all">全部下載</button></div>
     <p class="meta" id="out-meta"></p>
     <div class="legend" id="legend"></div>
     <ol class="songs" id="songs"></ol>
     <div class="busy-line" id="busy"></div>
   </section>
 
-  <footer>Runs in your browser · nothing is uploaded · <a href="https://github.com/JayPengX/Passion-Beats">Source</a></footer>
+  <footer data-en="Runs on your phone · nothing is uploaded">全部在手機上做 · 什麼都不上傳</footer>
 </main>
-<script type="module" src="app.js"></script>
+<script type="module" src="./app.js"></script>
 </body>
 </html>
