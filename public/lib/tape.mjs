@@ -92,7 +92,7 @@ export function tapeInit(sr, { codec = 'flac', description = null } = {}) {
     entry = audioEntry('mp4a', sr, esds(aacConfig(description, sr)));
   } else if (codec === 'opus') {
     // (dOps from the encoder's OpusHead: its pre-skip; else libopus's usual 312.)
-    const head = description ? new Uint8Array(description instanceof ArrayBuffer ? description : description.buffer ? new Uint8Array(description.buffer, description.byteOffset, description.byteLength) : description) : null;
+    const head = bytesOf(description);
     const isHead = head && head.length >= 19 && String.fromCharCode(...head.subarray(0, 8)) === 'OpusHead';
     const preskip = isHead ? head[10] | (head[11] << 8) : 312;
     entry = audioEntry('Opus', 48000, box('dOps', [0, 2], u16(preskip), u32(sr), u16(0), [0]));
@@ -100,24 +100,54 @@ export function tapeInit(sr, { codec = 'flac', description = null } = {}) {
   const stbl = box('stbl', full('stsd', 0, 0, u32(1), entry), full('stts', 0, 0, u32(0)), full('stsc', 0, 0, u32(0)), full('stsz', 0, 0, u32(0), u32(0)), full('stco', 0, 0, u32(0)));
   const minf = box('minf', full('smhd', 0, 0, u16(0), u16(0)), box('dinf', full('dref', 0, 0, u32(1), full('url ', 0, 1))), stbl);
   const mdia = box('mdia', full('mdhd', 0, 0, u32(0), u32(0), u32(ts), u32(0), u16(0x55c4), u16(0)), full('hdlr', 0, 0, u32(0), enc('soun'), ZERO(12), enc('Sound'), [0]), minf);
-  const trak = box('trak', full('tkhd', 0, 3, u32(0), u32(0), u32(1), u32(0), u32(0), ZERO(8), u16(0), u16(0), u16(0x0100), u16(0), matrix, u32(0), u32(0)), mdia);
+  const trak = box('trak', full('tkhd', 0, 3, u32(0), u32(0), u32(1), u32(0), u32(0), ZERO(8), u16(0), u16(1), u16(0x0100), u16(0), matrix, u32(0), u32(0)), mdia);
   const mvex = box('mvex', full('trex', 0, 0, u32(1), u32(1), u32(0), u32(0), u32(0)));
   const moov = box('moov', full('mvhd', 0, 0, u32(0), u32(0), u32(ts), u32(0), u32(0x10000), u16(0x0100), ZERO(10), matrix, ZERO(24), u32(2)), trak, mvex);
-  return new Uint8Array([...box('ftyp', enc('iso6'), u32(0), enc('iso6'), enc('mp41')), ...moov]);
+  return new Uint8Array([...box('ftyp', enc('iso5'), u32(512), enc('iso5'), enc('iso6'), enc('mp41')), ...moov]);
 }
 // The stream's clock: Opus counts at 48 kHz whatever it was made at.
 export const timescaleOf = (codec, sr) => (codec === 'opus' ? 48000 : sr);
-// AAC's AudioSpecificConfig: the encoder's, else AAC-LC, `sr`, stereo.
-function aacConfig(description, sr) {
-  if (description && description.byteLength >= 2) return [...new Uint8Array(description instanceof ArrayBuffer ? description : description.buffer ? description.buffer.slice(description.byteOffset, description.byteOffset + description.byteLength) : description)];
+// Bytes of a decoderConfig description (ArrayBuffer, a typed array or a DataView). -> Uint8Array | null
+export const bytesOf = d => (!d ? null : d instanceof ArrayBuffer ? new Uint8Array(d) : ArrayBuffer.isView(d) ? new Uint8Array(d.buffer, d.byteOffset, d.byteLength) : null);
+// AAC's AudioSpecificConfig: the encoder's (as it is, or out of the MPEG-4
+// descriptors some encoders give instead: an esds box, or its ES_Descriptor),
+// else AAC-LC at `sr`, stereo. -> [bytes]
+export function aacConfig(description, sr) {
+  let b = bytesOf(description);
+  if (b && b.length >= 8 && String.fromCharCode(...b.subarray(4, 8)) === 'esds') b = b.subarray(12);   // (a whole esds box)
+  else if (b && b.length >= 5 && b[0] === 0 && b[4] === 0x03) b = b.subarray(4);   // (its body: version and flags first)
+  if (b && b[0] === 0x03) {
+    // ES_Descriptor > DecoderConfigDescriptor > DecoderSpecificInfo: the config.
+    let o = 0;
+    const len = () => {
+      let n = 0;
+      for (let k = 0; k < 4; k++) {
+        const x = b[o++];
+        n = (n << 7) | (x & 0x7f);
+        if (!(x & 0x80)) break;
+      }
+      return n;
+    };
+    let found = null;
+    while (o < b.length && !found) {
+      const tag = b[o++];
+      const n = len();
+      if (tag === 0x03) o += 3 + (b[o + 2] & 0x80 ? 2 : 0);   // (into it: ES_ID, flags)
+      else if (tag === 0x04) o += 13;   // (into it: object type, stream type, buffer size, bitrates)
+      else if (tag === 0x05) found = [...b.subarray(o, o + n)];
+      else o += n;
+    }
+    b = found ? Uint8Array.from(found) : null;
+  }
+  if (b && b.length >= 2 && b.length <= 8) return [...b];
   const i = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000].indexOf(sr);
   return [(2 << 3) | (i >> 1), ((i & 1) << 7) | (2 << 3)];
 }
-// The MPEG-4 descriptors round an AudioSpecificConfig.
-function esds(asc) {
-  const desc = (tag, body) => [tag, body.length, ...body];
+// The MPEG-4 descriptors round an AudioSpecificConfig (lengths in four bytes, as Apple's and ffmpeg's files have them).
+function esds(asc, bitrate = 192000) {
+  const desc = (tag, body) => [tag, 0x80, 0x80, 0x80, body.length, ...body];
   const dsi = desc(5, asc);
-  const dcd = desc(4, [0x40, 0x15, 0, 0, 0, ...u32(0), ...u32(0), ...dsi]);
+  const dcd = desc(4, [0x40, 0x15, 0, 0, 0, ...u32(bitrate), ...u32(bitrate), ...dsi]);
   return full('esds', 0, 0, desc(3, [...u16(1), 0, ...dcd, ...desc(6, [2])]));
 }
 
@@ -247,7 +277,7 @@ export async function pickStream(sr, { codecs = CODECS, env = globalThis } = {})
       why.push(`${c.codec}: no AudioEncoder`);
       continue;
     }
-    const cfg = { codec: c.encoder, sampleRate: sr, numberOfChannels: 2, bitrate: 192000 };
+    const cfg = { codec: c.encoder, sampleRate: sr, numberOfChannels: 2, bitrate: 192000, ...(c.codec === 'aac' && { aac: { format: 'aac' } }) };
     const ok = await env.AudioEncoder.isConfigSupported(cfg).then(r => r.supported, () => false);
     if (ok) return { path: 'stream', codec: c.codec, config: cfg, reason: `${env.ManagedMediaSource ? 'Managed' : ''}MediaSource takes ${c.codec}, AudioEncoder packs it` };
     why.push(`${c.codec}: AudioEncoder no at ${sr} Hz`);

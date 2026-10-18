@@ -14,7 +14,7 @@
 import { h, toast } from '#kit/ui.mjs';
 import { STYLES, NOTE_NAMES } from '../engine.mjs';
 import { MOODS, RADIO_SR, radioPick, radioQueue } from './radio.mjs';
-import { FRAME, CODECS, tapeInit, tapeSegment, tapeFragment, tapeFeed, wavPcm, pickStream, timescaleOf, audioData } from './tape.mjs';
+import { FRAME, CODECS, bytesOf, tapeInit, tapeSegment, tapeFragment, tapeFeed, wavPcm, pickStream, timescaleOf, audioData } from './tape.mjs';
 import { STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
 
@@ -164,8 +164,10 @@ export function mountRadio(panel, api) {
         output: (chunk, meta) => {
           if (tape !== t) return;
           if (meta?.decoderConfig?.description && !t.desc) t.desc = meta.decoderConfig.description;
-          const data = new Uint8Array(chunk.byteLength);
+          let data = new Uint8Array(chunk.byteLength);
           chunk.copyTo(data);
+          // (AAC in ADTS after all: its header off, the frame as MP4 holds it.)
+          if (c === 'aac' && data[0] === 0xff && (data[1] & 0xf6) === 0xf0) data = data.subarray(data[1] & 1 ? 7 : 9);
           const dur = chunk.duration ? Math.round((chunk.duration * t.ts) / 1e6) : t.fr;
           t.fr = dur || t.fr;
           t.pending.push({ data, dur: t.fr });
@@ -182,7 +184,11 @@ export function mountRadio(panel, api) {
         t.sb = ms.addSourceBuffer(t.type);
         t.sb.mode = 'segments';
         t.sb.addEventListener('updateend', pump);
-        t.sb.addEventListener('error', () => toFiles('append'));
+        // (Why, for ?debug: which append, the encoder's description, the player's error.)
+        t.sb.addEventListener('error', () => {
+          const d = bytesOf(t.desc);
+          toFiles(`append (${t.stage}${d ? `, description ${[...d.subarray(0, 12)].map(x => x.toString(16).padStart(2, '0')).join('')} ${d.length} B` : ''}${audio.error ? `, error ${audio.error.code} ${audio.error.message || ''}` : ''})`);
+        });
         pump();
       } catch (e) {
         toFiles(`open: ${e?.name || e}`);
@@ -216,6 +222,7 @@ export function mountRadio(panel, api) {
       if (!t.inited) {
         if (t.enc && !t.pending.length) return feedEncoder(t);
         t.inited = true;
+        t.stage = 'init';
         return t.sb.appendBuffer(tapeInit(SR, { codec: t.codec, description: t.desc }));
       }
       const b = t.sb.buffered;
@@ -225,6 +232,7 @@ export function mountRadio(panel, api) {
       if (t.enc && t.pending.length) {
         const frames = t.pending;
         t.pending = [];
+        t.stage = `fragment ${t.seq}`;
         t.sb.appendBuffer(tapeFragment(frames, { time: t.time, seq: t.seq++ }));
         t.time += frames.reduce((a, f) => a + f.dur, 0);
         return;
@@ -235,6 +243,7 @@ export function mountRadio(panel, api) {
       const n = CHUNK * FRAME;
       const marks = take(t, n);
       if (!marks) return;
+      t.stage = `fragment ${t.seq}`;
       t.sb.appendBuffer(tapeSegment(marks.pcm, 0, CHUNK, { sr: SR, time: t.time, number: t.number, seq: t.seq++ }));
       t.time += n;
       t.number += CHUNK;

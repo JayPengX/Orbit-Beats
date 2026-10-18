@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { FRAME, flacFrame, tapeInit, tapeSegment, tapeFragment, tapeFeed, wavPcm, pickStream } from '../public/lib/tape.mjs';
+import { FRAME, flacFrame, tapeInit, tapeSegment, tapeFragment, tapeFeed, wavPcm, pickStream, aacConfig } from '../public/lib/tape.mjs';
 import { encodeWav } from '../public/engine.mjs';
 import { radioSong, cutOf, segment, RADIO_SR } from '../public/lib/radio.mjs';
 
@@ -134,6 +134,10 @@ test('AAC frames on the tape read back as the same sound (where ffmpeg is instal
   const m = Math.min(A.length, B.length) - 8192;
   for (let i = 8192; i < m; i++) err = Math.max(err, Math.abs(A[i] - B[i]));
   assert.ok(err < 64, `max difference ${err}`);
+  // (ffprobe: every frame there, 1024 apart, in order.)
+  const pts = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'a', '-show_entries', 'frame=pts', '-of', 'csv=p=0', '-f', 'mp4', 'pipe:0'], { input: mp4, stdio: ['pipe', 'pipe', 'ignore'] }).toString().trim().split('\n').map(Number);
+  assert.equal(pts.length, frames.length);
+  pts.forEach((p, i) => assert.equal(p, i * 1024));
 });
 
 test('聽 streams only where Media Source takes a codec and, for AAC or Opus, the phone can pack it; else files, saying why', async () => {
@@ -151,4 +155,22 @@ test('聽 streams only where Media Source takes a codec and, for AAC or Opus, th
   assert.equal(no.path, 'files');
   assert.match(no.reason, /aac: AudioEncoder no at 32000 Hz; opus: AudioEncoder no/);
   assert.equal((await pickStream(32000, { env: {} })).reason, 'no Media Source');
+});
+
+test("AAC's config is the encoder's own, found also inside the descriptors some encoders give (an esds box, its ES_Descriptor); the init carries it as ffmpeg and Apple lay it out", () => {
+  const es = Uint8Array.from(Buffer.from('0380808025000100048080801740150000000001f4000001f4000580808005129056e5000680808001020000', 'hex'));
+  const box = Uint8Array.from([0, 0, 0, 8 + 4 + es.length, ...Buffer.from('esds'), 0, 0, 0, 0, ...es]);
+  assert.deepEqual(aacConfig(new Uint8Array([0x12, 0x90]), 32000), [0x12, 0x90]);
+  assert.deepEqual(aacConfig(new DataView(new Uint8Array([0x11, 0x90]).buffer), 32000), [0x11, 0x90]);
+  assert.deepEqual(aacConfig(es, 32000), [0x12, 0x90, 0x56, 0xe5, 0x00]);
+  assert.deepEqual(aacConfig(box, 32000), [0x12, 0x90, 0x56, 0xe5, 0x00]);
+  assert.deepEqual(aacConfig(box.subarray(8), 32000), [0x12, 0x90, 0x56, 0xe5, 0x00]);
+  assert.deepEqual(aacConfig(null, 32000), [0x12, 0x90]);   // (AAC-LC, 32 kHz, stereo)
+  assert.deepEqual(aacConfig(null, 48000), [0x11, 0x90]);
+  const init = Buffer.from(tapeInit(32000, { codec: 'aac', description: es }));
+  const at = init.indexOf('esds');
+  // (ES_Descriptor, lengths in four bytes, ES_ID 1; DecoderSpecificInfo the encoder's 5 bytes.)
+  assert.equal(init.subarray(at + 8, at + 15).toString('hex'), '03808080250001');
+  assert.ok(init.includes(Buffer.from('0580808005129056e500', 'hex')));
+  assert.equal(init.subarray(4, 12).toString(), 'ftypiso5');
 });
