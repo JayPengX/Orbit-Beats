@@ -212,9 +212,10 @@ export function radioKit(sp, sr = RADIO_SR) {
   add(sum(chords2, { ...arp, g: 0.8 }), 'riff');
   add(sum(chords2, melody), 'riff');
   add(sum(chords, { ...melody2, g: 0.9 }), 'riff');
-  // The phrases (breaks, intros): a melody, the arpeggio, on their own.
-  add(melody, 'phrase');
-  add(arp, 'phrase');
+  // The phrases (breaks, intros): a melody, the arpeggio, each over a soft held pad (so a break's rests never fall silent).
+  const pad = clip(chordClip(sp, 'pad', COMP.held[0]));
+  add(sum(melody, { ...pad, g: 0.4 }), 'phrase');
+  add(sum(arp, { ...pad, g: 0.4 }), 'phrase');
   for (const line of LINES[band.line]) add(clip(bassClip(sp, sp.bass, line)), 'bass');
   // The hats: eighths, sixteenths with accents, off-beat open hats.
   add(clip(hatClip([['hat', [0, 2, 4, 6, 8, 10, 12, 14]], ['hat', [2, 6, 10, 14], 3]])), 'hat');

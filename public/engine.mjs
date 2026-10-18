@@ -512,8 +512,8 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
     }
   };
   const bass = (b, n, from = 0) => walk(b, n, j => bassMode === 'alt' ? [bassA, bassB][j % 2] : bassMode === 'sparse' ? (r.random() < 0.4 ? null : R.choice(pool.bass)) : bassA, from);
-  const riff = (b, n, set) =>   // lay out at a phrase's end, not mid-phrase
-    walk(b, n, j => set[j % set.length], 0, (k, span) => (k + span) % 4 === 0 && k + span < n && r.random() < 0.2);
+  const riff = (b, n, set) =>   // lay out at a phrase's end, not mid-phrase (a bar or two: never a whole four-bar loop)
+    walk(b, n, j => set[j % set.length], 0, (k, span) => (k + span) % 4 === 0 && k + span < n && span < 4 && r.random() < 0.2);
   let verseNo = 0, hookNo = 0;
   plan.forEach(([t, b, L], idx) => {
     if (t === 'intro') {   // previews: hats then a riff, a riff, or phrases

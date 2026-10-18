@@ -686,8 +686,8 @@ def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arran
             k+=span; j+=1
     def bass(b,n,start=0):
         walk(b,n,lambda j:[bass_a,bass_b][j%2] if bass_mode=='alt' else (None if r.random()<0.4 else R.choice(pool['bass'])) if bass_mode=='sparse' else bass_a,start)
-    def riff(b,n,set_):   # lay out at a phrase's end, not mid-phrase
-        walk(b,n,lambda j:set_[j%len(set_)],0,lambda k,span:(k+span)%4==0 and k+span<n and r.random()<0.2)
+    def riff(b,n,set_):   # lay out at a phrase's end, not mid-phrase (a bar or two: never a whole four-bar loop)
+        walk(b,n,lambda j:set_[j%len(set_)],0,lambda k,span:(k+span)%4==0 and k+span<n and span<4 and r.random()<0.2)
     verse_no=hook_no=0
     for idx,(t,b,L) in enumerate(plan):
         if t=='intro':   # previews: hats then a riff, a riff, or phrases
