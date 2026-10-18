@@ -144,11 +144,11 @@ export function mountStudio(panel, api) {
   const grid = h('div', { class: 'sq', role: 'grid' });
   const playBtn = h('button', { class: 'q-btn tinted', type: 'button' });
   const autoBtn = h('button', { class: 'q-btn tinted', type: 'button', text: W('自動編', 'Write one') });
-  const clearBtn = h('button', { class: 'q-btn plain', type: 'button', text: W('清除', 'Clear') });
+  const clearBtn = h('button', { class: 'q-btn plain', type: 'button', text: W('清除', 'Clear'), 'aria-label': W('清除格子', 'Clear the grid') });
   const undoBtn = h('button', { class: 'mini', type: 'button', text: W('↶ 復原', '↶ Undo'), disabled: true });
   const copyBtn = h('button', { class: 'mini', type: 'button', text: W('⧉ 複製', '⧉ Copy'), 'aria-label': W('第一小節複製到每一小節', 'Bar 1 over every bar') });
   const chordBtn = h('button', { class: 'mini', type: 'button', text: W('和弦', 'Chords'), 'aria-pressed': String(st.chord) });
-  const saveBtn = h('button', { class: 'mini', type: 'button', text: W('♡ 收藏', '♡ Keep') });
+  const saveBtn = h('button', { class: 'mini', type: 'button', text: W('♡ 收藏', '♡ Save to shelf'), 'aria-label': W('收藏到下方的收藏架', 'Save to the shelf below') });
   const midiBtn = h('button', { class: 'mini', type: 'button', text: 'MIDI' });
   const addBtn = h('button', { class: 'primary', type: 'button' });
   const patSeg = h('div', { class: 'seg pats' });
@@ -158,7 +158,7 @@ export function mountStudio(panel, api) {
   const note = h('p', { class: 'studio-note' });
   const tip = h('p', { class: 'studio-note' });
   const shelfList = h('ul', { class: 'mine-list' });
-  const shelfCard = h('section', { class: 'card' }, [h('div', { class: 'head' }, [h('h2', { text: W('收藏的片段', 'Kept clips') })]), shelfList]);
+  const shelfCard = h('section', { class: 'card' }, [h('div', { class: 'head' }, [h('h2', { text: W('收藏架', 'Shelf') })]), shelfList]);
 
   const row = (label, sub, ctl) => h('div', { class: sub ? 'row note' : 'row' }, [h('div', { class: 'label' }, [h('span', { text: label }), sub]), ctl]);
   const setRow = row(W('鼓', 'Drums'), h('small', { text: W('一次八種', 'Eight at a time') }), setSeg);
@@ -228,10 +228,10 @@ export function mountStudio(panel, api) {
     copyBtn.disabled = st.bars < 2;
     drawPatterns();
     undoBtn.disabled = !undo.length;
-    addBtn.textContent = W('加進片段', 'Add to pieces');
+    addBtn.textContent = W('存成片段（去做歌）', 'Save as piece (for Make)');
     const role = INSTRUMENT_ROLE[st.inst] || 'riff';
     tip.textContent = drums ? W('點：打 · 再點：重音 · 長按：力度', 'Tap: hit · again: accent · hold: level') : st.chord ? W('點一個音放進三和弦 · 長按：力度', 'Tap: its triad · hold: level') : W('點：放進 · 再點：拿掉 · 長按：力度', 'Tap: in · again: out · hold: level');
-    note.textContent = drums ? W('加進去：整段是過門，每種鼓成為歌裡的鼓', 'Added as a fill; each drum joins your songs') : W(`加進去成為${name(ROLE_NAMES, role)}，跟錄的片段一樣排進歌`, `Added as a ${name(ROLE_NAMES, role)}, arranged like any piece`);
+    note.textContent = drums ? W('存成片段：放進「做歌」當素材，整段是過門，每種鼓也會用在歌裡。♡ 收藏：先放在下方收藏架，之後再改', 'Save as piece: sent to Make as song material (a fill; each drum joins your songs). ♡ Save to shelf: keep it below to edit later') : W(`存成片段：放進「做歌」當${name(ROLE_NAMES, role)}。♡ 收藏：先放在下方收藏架，之後再改`, `Save as piece: sent to Make as a ${name(ROLE_NAMES, role)}. ♡ Save to shelf: keep it below to edit later`);
     paintPlay();
     drawShelf();
   }
@@ -438,6 +438,7 @@ export function mountStudio(panel, api) {
     keep();
     drawControls();
     paintCells();
+    undoToast(W('已清除這一段', 'Grid cleared'), () => undoBtn.onclick());
   };
   undoBtn.onclick = () => {
     const was = undo.pop();
@@ -471,7 +472,7 @@ export function mountStudio(panel, api) {
     shelf = [{ name: `${clipName(c)}${n > 1 ? ` ${n}` : ''}`, at: Date.now(), clip: c }, ...shelf].slice(0, MOST_SHELF);
     write(SHELF, shelf);
     drawShelf();
-    toast(W('已收藏這個片段', 'Clip kept'));
+    toast(W('已收藏到下方的收藏架', 'Saved to the shelf below'));
   };
   midiBtn.onclick = () => {
     const c = chainOf(bank());
@@ -500,9 +501,26 @@ export function mountStudio(panel, api) {
   }
   function shelfMenu(k, anchor) {
     menu(anchor, [
-      { label: W('加進片段', 'Add to pieces'), icon: '+', onClick: () => addClip(clipOf(shelf[k].clip)) },
-      { label: W('刪除', 'Delete'), icon: '✕', danger: true, onClick: () => ((shelf = shelf.filter((_, j) => j !== k)), write(SHELF, shelf), drawShelf()) }
+      { label: W('存成片段', 'Save as piece'), icon: '+', onClick: () => addClip(clipOf(shelf[k].clip)) },
+      { label: W('刪除', 'Delete'), icon: '✕', danger: true, onClick: () => dropKept(k) }
     ]);
+  }
+  function dropKept(k) {
+    const gone = shelf[k];
+    if (!gone) return;
+    shelf = shelf.filter((_, j) => j !== k);
+    write(SHELF, shelf);
+    drawShelf();
+    undoToast(W(`已刪除「${gone.name}」`, `“${gone.name}” deleted`), () => {
+      shelf = [...shelf.slice(0, k), gone, ...shelf.slice(k)];
+      write(SHELF, shelf);
+      drawShelf();
+    });
+  }
+  // A toast with 復原 for about 5 seconds.
+  function undoToast(text, back) {
+    const t = toast(text, { ms: 5000 });
+    t.append(h('button', { type: 'button', class: 'toast-undo', text: W('復原', 'Undo'), onclick: () => (t.remove(), back()) }));
   }
   function addClip(c) {
     stop();

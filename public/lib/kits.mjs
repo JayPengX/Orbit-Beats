@@ -117,14 +117,17 @@ const DB = 'orbit-beats';
 const STORE = 'kit';
 // (Version 2: the songs kept, 歌單, each its WAV and how it was made.)
 const SONGS = 'songs';
+// (Version 3: kits kept by name, 我的套組.)
+const NAMED = 'named';
 function open() {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') return reject(new Error('no IndexedDB'));
-    const req = indexedDB.open(DB, 2);
+    const req = indexedDB.open(DB, 3);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
       if (!db.objectStoreNames.contains(SONGS)) db.createObjectStore(SONGS, { keyPath: 'id' });
+      if (!db.objectStoreNames.contains(NAMED)) db.createObjectStore(NAMED, { keyPath: 'id' });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -164,4 +167,17 @@ export async function listSongs() {
 export async function renameSong(id, name) {
   const song = await run('readonly', s => s.get(id), SONGS);
   if (song) await saveSong({ ...song, name });
+}
+
+// ---- Kits kept by name (我的套組): on this phone only, never sent anywhere ----------
+// lib/kitops.mjs's namedKit: { id, name, at, bpm, count, roles, sources: [{ name, sr, L, R }] }
+export const saveNamed = kit => run('readwrite', s => s.put(kit), NAMED);
+export const deleteNamed = id => run('readwrite', s => s.delete(id), NAMED);
+export async function listNamed() {
+  const all = (await run('readonly', s => s.getAll(), NAMED).catch(() => null)) || [];
+  return all.sort((a, b) => b.at - a.at);
+}
+export async function renameNamed(id, name) {
+  const kit = await run('readonly', s => s.get(id), NAMED);
+  if (kit) await saveNamed({ ...kit, name });
 }
