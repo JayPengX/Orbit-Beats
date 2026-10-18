@@ -408,24 +408,44 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .terms small { display: block; color: var(--text-2); font-size: 13px; white-space: nowrap; }
 .terms .chev, .more-row .chev { color: var(--text-3); }
 
-/* 聽: the radio. The art takes the song's colours; its bars dance on the beat. */
-.radio-card { padding: 20px; }
-.radio-art {
-  position: relative; aspect-ratio: 16 / 10; border-radius: 22px; overflow: hidden; display: grid; place-items: end start; padding: 18px;
-  background: radial-gradient(120% 90% at 15% 10%, hsl(var(--h1, 330) 85% 62%), transparent 60%), radial-gradient(110% 100% at 90% 90%, hsl(var(--h2, 265) 80% 52%), transparent 65%), linear-gradient(135deg, hsl(var(--h1, 330) 70% 45%), hsl(var(--h2, 265) 70% 30%));
-  box-shadow: 0 18px 40px -18px hsl(var(--h2, 265) 70% 35% / .7);
+/* 聽: the radio. Each song's own cover (lib/cover.mjs) crossfades in; its bars
+   and a breath of the cover land on the song's beat (--beat, the clock set
+   from the player's time); the card takes a tint of the cover's colour. */
+@property --amb { syntax: '<color>'; inherits: true; initial-value: #ff2d55; }
+@property --amb-2 { syntax: '<color>'; inherits: true; initial-value: #af52de; }
+.radio-card {
+  padding: 20px; --tint: 16%;
+  background: radial-gradient(140% 75% at 50% 0%, color-mix(in srgb, var(--amb) var(--tint), var(--card)), var(--card) 78%);
+  transition: --amb 1.2s ease, --amb-2 1.2s ease;
 }
-.radio-art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgba(0,0,0,.28)); pointer-events: none; }
-.radio-art .eq { position: relative; z-index: 1; display: flex; align-items: flex-end; gap: 5px; height: 34px; }
-.radio-art .eq i { width: 6px; height: 30%; border-radius: 3px; background: rgba(255,255,255,.92); }
-.radio-card.on .radio-art .eq i { animation: pb-eq var(--beat, .5s) ease-in-out infinite alternate; animation-delay: calc(var(--k) * -0.13s); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .radio-card { --tint: 30%; } }
+:root[data-theme='dark'] .radio-card { --tint: 30%; }
+.radio-art {
+  position: relative; aspect-ratio: 1; width: 100%; max-width: 360px; margin: 0 auto; border-radius: 18px; overflow: hidden; background: color-mix(in srgb, var(--amb) 40%, var(--fill));
+  box-shadow: 0 22px 44px -22px color-mix(in srgb, var(--amb) 80%, transparent); transition: box-shadow 1.2s;
+}
+.radio-art .covers { position: absolute; inset: 0; }
+.radio-art img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity .8s ease; }
+.radio-art img.in { opacity: 1; }
+.radio-art .eq { position: absolute; right: 16px; bottom: 16px; z-index: 1; display: flex; align-items: flex-end; gap: 4px; height: 26px; }
+.radio-art .eq i { width: 5px; height: 26%; border-radius: 3px; background: rgba(255,255,255,.92); box-shadow: 0 1px 6px rgba(0,0,0,.18); }
+/* On the beat: each bar a hit then a fall, on 8ths, beats or half notes, offset by 16ths. */
+.radio-art .eq i:nth-child(1) { --m: 1; --o: 0; }
+.radio-art .eq i:nth-child(2) { --m: .5; --o: .25; }
+.radio-art .eq i:nth-child(3) { --m: 2; --o: .5; }
+.radio-art .eq i:nth-child(4) { --m: 1; --o: .5; }
+.radio-art .eq i:nth-child(5) { --m: .5; --o: 0; }
+.radio-card.on .radio-art .eq i { animation: pb-bar calc(var(--beat, .5s) * var(--m)) cubic-bezier(.2,.6,.35,1) infinite; animation-delay: calc(var(--beat, .5s) * var(--o) * -1); }
+.radio-card.on .radio-art .covers { animation: pb-thump var(--beat, .5s) cubic-bezier(.2,.7,.3,1) infinite; }
 .radio-card.wait .radio-art .eq i { animation: pb-eq 1.1s ease-in-out infinite alternate; animation-delay: calc(var(--k) * -0.2s); opacity: .7; }
+@keyframes pb-bar { 0% { height: 100%; } 100% { height: 22%; } }
+@keyframes pb-thump { 0% { transform: scale(1.016); } 40%, 100% { transform: scale(1); } }
 @keyframes pb-eq { 0% { height: 18%; } 50% { height: 100%; } 100% { height: 42%; } }
-.radio-what { margin: 16px 2px 0; min-width: 0; }
+.radio-what { margin: 18px 2px 0; min-width: 0; }
 .radio-title { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -.01em; line-height: 1.2; overflow-wrap: anywhere; }
 .radio-sub { margin: 4px 0 0; color: var(--text-2); font-size: 14px; }
 .radio-bar { position: relative; height: 4px; margin-top: 16px; border-radius: 2px; background: var(--fill-2); overflow: hidden; }
-.radio-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--text); border-radius: 2px; }
+.radio-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: color-mix(in srgb, var(--amb) 55%, var(--text)); border-radius: 2px; }
 .radio-time { display: flex; justify-content: space-between; margin-top: 6px; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .radio-ctl { display: flex; align-items: center; justify-content: center; gap: 28px; margin-top: 8px; }
 .radio-play { width: 76px; height: 76px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); box-shadow: 0 10px 24px -10px var(--accent); transition: transform var(--q-dur-snappy) var(--q-spring-snappy); }
@@ -437,12 +457,31 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .radio-btn:disabled { opacity: .4; }
 .radio-btn.kept { color: var(--accent); }
 .radio-btn.kept svg { animation: pb-pop .35s var(--q-spring-snappy); }
-.radio-next { margin: 14px 0 0; text-align: center; color: var(--text-2); font-size: 13px; min-height: 18px; overflow-wrap: anywhere; }
+.radio-foot { display: flex; align-items: center; gap: 10px; margin-top: 14px; min-height: 34px; }
+.radio-next { flex: 1; min-width: 0; margin: 0; color: var(--text-2); font-size: 13px; overflow-wrap: anywhere; }
+.radio-sleep { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 34px; min-width: 34px; padding: 0 9px; border: 0; border-radius: 17px; background: var(--fill); color: var(--text-2); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; transition: transform var(--q-dur-snappy) var(--q-spring-snappy); }
+.radio-sleep svg { width: 16px; height: 16px; flex: none; }
+.radio-sleep:active { transform: scale(.92); }
+.radio-sleep.on { background: var(--accent-soft); color: var(--accent); }
 .radio-more { margin-top: 12px; }
 .radio-moods { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .radio-moods .chip { flex: 1 0 auto; padding: 0 12px; height: 38px; border-radius: 19px; font-size: 15px; }
-@media (max-width: 360px) { .radio-moods { gap: 6px; } .radio-moods .chip { padding: 0 8px; } }
-@media (prefers-reduced-motion: reduce) { .radio-card .radio-art .eq i { animation: none !important; } }
+.radio-recent { list-style: none; margin: -6px 0 -8px; padding: 0; }
+.radio-recent li { display: flex; align-items: center; gap: 12px; min-height: 60px; border-top: 1px solid var(--line); }
+.radio-recent li:first-child { border-top: 0; }
+.radio-recent img { flex: none; width: 44px; height: 44px; border-radius: 8px; display: block; }
+.radio-recent li > div { flex: 1; min-width: 0; }
+.radio-recent b { display: block; font-weight: 600; font-size: 15px; overflow-wrap: anywhere; }
+.radio-recent small { display: block; color: var(--text-2); font-size: 13px; }
+.radio-love { flex: none; width: 44px; height: 44px; margin-right: -10px; border: 0; background: none; display: grid; place-items: center; color: var(--text-3); }
+.radio-love svg { width: 22px; height: 22px; }
+.radio-love.kept { color: var(--accent); }
+.radio-love.kept svg { animation: pb-pop .35s var(--q-spring-snappy); }
+@media (max-width: 360px) { .radio-moods { gap: 6px; } .radio-moods .chip { padding: 0 8px; } .radio-card { padding: 16px; } .radio-ctl { gap: 22px; } }
+@media (prefers-reduced-motion: reduce) {
+  .radio-card .radio-art .eq i, .radio-card .radio-art .covers, .radio-love.kept svg { animation: none !important; }
+  .radio-art img, .radio-card { transition: none; }
+}
 
 /* 樂器 in 簡單: write one again, or add it, right above the grid. */
 .easy-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }

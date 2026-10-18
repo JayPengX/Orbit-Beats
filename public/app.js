@@ -1353,11 +1353,12 @@ $('player-bar').addEventListener('pointerdown', e => {
   addEventListener('pointerup', up);
 });
 // The lock screen's controls and its title (iOS's Now Playing): whatever played last (a song, or 聽) has them.
-function claimSession({ title, artist, album = '', play, pause, next = null }) {
+// artwork: the song's own cover (聽's, a 512 px PNG), else the app's icon.
+function claimSession({ title, artist, album = '', artwork = null, play, pause, next = null }) {
   const ms = navigator.mediaSession;
   if (!ms) return;
   try {
-    if (globalThis.MediaMetadata) ms.metadata = new MediaMetadata({ title, artist, album, artwork: [{ src: new URL('./icons/icon-512.png', location.href).href, sizes: '512x512', type: 'image/png' }] });
+    if (globalThis.MediaMetadata) ms.metadata = new MediaMetadata({ title, artist, album, artwork: [{ src: artwork || new URL('./icons/icon-512.png', location.href).href, sizes: '512x512', type: 'image/png' }] });
   } catch {}
   for (const [action, fn] of [['play', play], ['pause', pause], ['nexttrack', next]])
     try {

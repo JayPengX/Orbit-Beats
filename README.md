@@ -45,7 +45,15 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
     `localStorage['orbit-beats-radio']` = `files` keeps a phone on files,
     `flac` / `aac` / `opus` tries only that one.
     If the next isn't made by the outro, the last hook plays again from its
-    bar line. ♡ keeps the whole song in 歌單; ⏭ the next.
+    bar line. ♡ keeps the whole song in 歌單; ⏭ the next. Each song has its
+    own cover (`lib/cover.mjs`: drawn from its seed, groove, mood, key and
+    tempo, the same every time), crossfaded in and shown on the lock screen
+    (a 512 px PNG); its bars and a breath of the cover land on the song's
+    beat (CSS at its tempo, set to the player's time; still with reduced
+    motion); the card takes a tint of its colour. 最近播放 lists the last
+    songs (this phone, `orbit-beats-recent.v1`), each with ♡. 睡眠定時
+    (🌙): 15, 30, 60 minutes or this song's end, the last ten seconds faded
+    (not on iPhone, which keeps its own volume: there it stops on time).
   - **做歌** (Make): pieces in, a 情境 mood (放鬆, 熱血, 律動, 經典), the drum
     styles, how many songs, and 更多設定. Each song has a title, length,
     groove and key, ▶ in the player over the tab bar, ♡ to keep it, and ⋯
@@ -140,6 +148,7 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 | `lib/library.mjs` | 歌單: search, order, zip |
 | `lib/sections.mjs` | 做歌: section times and the playing section |
 | `lib/radio.mjs`, `lib/radioview.mjs` | 聽: songs out of nothing, the join between them; its screen and player |
+| `lib/cover.mjs`, `lib/listen.mjs` | 聽's covers; its sleep timer and recently played |
 | `lib/tape.mjs` | 聽's one stream: FLAC frames, or AAC / Opus from AudioEncoder, in MP4 for Media Source; which way a phone plays; the songs in order (the hook again while waiting) |
 | `lib/easy.mjs`, `lib/help.mjs` | 簡單 / 進階 and 簡單's fixed settings; the music words and their examples |
 | `lib/project.mjs` | 存成檔案 / 打開檔案: a song's settings (no sound) as a versioned `.orbitbeats.json` |

@@ -10,25 +10,34 @@
 // plays again from its bar line until it is. A stream that fails or stalls,
 // or that the phone stops with the screen off, goes over to files from where
 // it was ('orbit-beats-radio' = 'files' on this phone keeps it that way).
+// Around the music, nothing in its way: each song's own cover (lib/cover.mjs),
+// crossfaded in, its bars and a breath of the cover on the song's beat (CSS
+// set to the tempo, lined up with the player's time, no listening to the
+// sound), the card tinted with its colour, the lock screen showing the same
+// cover; 最近播放, and 睡眠定時 (lib/listen.mjs).
 
-import { h, toast } from '#kit/ui.mjs';
+import { h, toast, menu } from '#kit/ui.mjs';
 import { STYLES, NOTE_NAMES } from '../engine.mjs';
-import { MOODS, RADIO_SR, radioPick, radioQueue } from './radio.mjs';
+import { MOODS, RADIO_SR, radioPick, radioQueue, moodStyles } from './radio.mjs';
 import { FRAME, CODECS, bytesOf, tapeInit, tapeSegment, tapeFragment, tapeFeed, wavPcm, pickStream, timescaleOf, audioData } from './tape.mjs';
 import { STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
+import { coverSvg, coverUrl, coverPalette } from './cover.mjs';
+import { SLEEP_CHOICES, sleepSet, sleepLeft, sleepGain, sleepDone, sleepClock, RECENT_KEY, recentAdd, recentEntry, recentParse, recentItem } from './listen.mjs';
 
 const ICON = {
   play: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.8v14.4a1 1 0 0 0 1.5.86l11.6-7.2a1 1 0 0 0 0-1.72L8.5 3.94A1 1 0 0 0 7 4.8z"/></svg>',
   pause: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4.5" width="4" height="15" rx="1.2"/><rect x="14" y="4.5" width="4" height="15" rx="1.2"/></svg>',
   next: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 5.6v12.8a1 1 0 0 0 1.55.83L14 13.6v4.8a1 1 0 0 0 1.55.83l7.2-6.4a1 1 0 0 0 0-1.66l-7.2-6.4A1 1 0 0 0 14 5.6v4.8L5.55 4.77A1 1 0 0 0 4 5.6z" transform="scale(.92) translate(1 1)"/></svg>',
   heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.3s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg>',
-  hearted: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.3s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg>'
+  hearted: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.3s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg>',
+  moon: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.2 14.6A8.4 8.4 0 0 1 9.4 3.8a.6.6 0 0 0-.8-.7A9.3 9.3 0 1 0 20.9 15.4a.6.6 0 0 0-.7-.8z"/></svg>'
 };
-const HUES = [330, 300, 275, 250, 220, 195, 170, 15, 350, 35];
 const keyName = k => (k ? `${NOTE_NAMES[k.tonic]} ${k.minor ? W('小調', 'minor') : W('大調', 'major')}` : '');
 const moodOf = m => (String(m).startsWith('style:') ? '' : moodName(m));
 const moodName = m => (MOODS[m] ? W(MOODS[m].zh, MOODS[m].en) : name(STYLE_NAMES, String(m).replace(/^style:/, '')));
+// The words over a cover: its groove and tempo.
+const coverLabel = (style, bpm) => `${name(STYLE_NAMES, style)} · ${bpm} BPM`;
 const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s) % 60).padStart(2, '0')}`;
 // A half second of silence: played on the first tap, it lets the page start the music once it's made (iOS's rule).
 function hush() {
@@ -55,7 +64,8 @@ export function mountRadio(panel, api) {
   let last = []; // the grooves played lately, so the next differs
 
   // ---- The screen ----
-  const art = h('div', { class: 'radio-art', 'aria-hidden': 'true' }, [h('div', { class: 'eq' }, [0, 1, 2, 3, 4].map(k => h('i', { style: { '--k': String(k) } })))]);
+  const covers = h('div', { class: 'covers' });
+  const art = h('div', { class: 'radio-art', 'aria-hidden': 'true' }, [covers, h('div', { class: 'eq' }, [0, 1, 2, 3, 4].map(k => h('i', { style: { '--k': String(k) } })))]);
   const title = h('h2', { class: 'radio-title', text: W('Orbit 電台', 'Orbit Radio') });
   const sub = h('p', { class: 'radio-sub', text: W('按下播放，音樂就一直放下去', 'Tap play: music that never stops') });
   const at = h('i');
@@ -65,14 +75,17 @@ export function mountRadio(panel, api) {
   const play = h('button', { class: 'radio-play', type: 'button', 'aria-label': W('播放', 'Play'), html: ICON.play, onclick: () => (want && !audio.paused ? pause() : start()) });
   const next = h('button', { class: 'radio-btn', type: 'button', 'aria-label': W('下一首', 'Next song'), html: ICON.next, onclick: () => skip() });
   const upNext = h('p', { class: 'radio-next', 'aria-live': 'polite' });
+  const sleepBtn = h('button', { class: 'radio-sleep', type: 'button', 'aria-label': W('睡眠定時', 'Sleep timer'), html: ICON.moon, onclick: () => sleepMenu() });
   // (?debug: which way it plays, small in the card's corner.)
   const debug = /[?&]debug\b/.test(location.search) ? h('small', { class: 'radio-debug', style: { position: 'absolute', top: '6px', left: '12px', right: '12px', fontSize: '10px', opacity: '0.6', pointerEvents: 'none', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' } }) : null;
-  const card = h('section', { class: 'card radio-card', style: { position: 'relative' } }, [art, h('div', { class: 'radio-what' }, [title, sub]), bar, time, h('div', { class: 'radio-ctl' }, [heart, play, next]), upNext, debug]);
+  const card = h('section', { class: 'card radio-card', style: { position: 'relative' } }, [art, h('div', { class: 'radio-what' }, [title, sub]), bar, time, h('div', { class: 'radio-ctl' }, [heart, play, next]), h('div', { class: 'radio-foot' }, [upNext, sleepBtn]), debug]);
   const chip = (id, label) => h('button', { class: 'chip', type: 'button', 'data-mood': id, 'aria-pressed': String(id === mood), text: label, onclick: () => pick(id) });
   const moods = h('div', { class: 'radio-moods' }, Object.keys(MOODS).map(id => chip(id, moodName(id))));
   const grooves = h('div', { class: 'radio-moods' }, STYLES.map(s => chip(`style:${s}`, name(STYLE_NAMES, s))));
   const more = h('details', { class: 'radio-more' }, [h('summary', { text: W('或只聽一種鼓', 'Or just one groove') }), grooves]);
-  panel.append(card, h('section', { class: 'card' }, [h('div', { class: 'head' }, [h('h2', { text: W('想聽什麼', 'What to play') })]), moods, more]));
+  const recentList = h('ul', { class: 'radio-recent' });
+  const recentCard = h('section', { class: 'card', hidden: true }, [h('div', { class: 'head' }, [h('h2', { text: W('最近播放', 'Recently played') })]), recentList]);
+  panel.append(card, h('section', { class: 'card' }, [h('div', { class: 'head' }, [h('h2', { text: W('想聽什麼', 'What to play') })]), moods, more]), recentCard);
   if (/^style:/.test(mood)) more.open = true;
 
   // ---- Making ahead ----
@@ -94,7 +107,7 @@ export function mountRadio(panel, api) {
       .then(v => {
         q.busy = false;
         fails = 0;
-        const item = { ...v, spec: s, title: api.title(s.seed), url: null };
+        const item = dress({ ...v, spec: s, title: api.title(s.seed), url: null });
         if (gen === q.gen) {
           // (Files: the next one's file made now, long before it's needed; the stream: its samples.)
           if (taped) item.pcm = wavPcm(v.wav);
@@ -388,6 +401,7 @@ export function mountRadio(panel, api) {
   }
   function skip() {
     if (!want) return start();
+    if (sleep?.song) sleep.skipped = true;
     const n = upcoming();
     // (The one laid down next: from now.)
     if (tape && n) return cutTo(n);
@@ -426,15 +440,18 @@ export function mountRadio(panel, api) {
     if (cur) {
       title.textContent = cur.title;
       sub.textContent = [moodOf(cur.spec.mood), name(STYLE_NAMES, cur.info.style), `${cur.info.bpm} BPM`, keyName(cur.info.key)].filter(Boolean).join(' · ');
-      // (Its colours from a few that go well, a second one round the wheel from the first.)
-      const h1 = HUES[cur.spec.seed % HUES.length];
-      art.style.setProperty('--h1', String(h1));
-      art.style.setProperty('--h2', String((h1 + 40 + (Math.floor(cur.spec.seed / 7) % 50)) % 360));
       art.style.setProperty('--beat', `${60 / cur.info.bpm}s`);
     } else if (want) {
       title.textContent = W('調頻中…', 'Tuning in…');
       sub.textContent = moodName(mood);
     }
+    showCover();
+    // (Into 最近播放 as it starts, so a song heard is there even if the app is closed during it.)
+    if (cur !== heard) {
+      heard = cur;
+      if (cur) remember(cur);
+    }
+    beat();
     paintHeart();
     paintNext();
   }
@@ -460,6 +477,7 @@ export function mountRadio(panel, api) {
     title: cur ? cur.title : W('Orbit 電台', 'Orbit Radio'),
     artist: cur ? [moodOf(cur.spec.mood), name(STYLE_NAMES, cur.info.style)].filter(Boolean).join(' · ') : 'Orbit Beats',
     album: W('Orbit 電台', 'Orbit Radio'),
+    artwork: cur?.png || null,
     play: () => start(),
     pause: () => pause(),
     next: () => skip()
@@ -504,6 +522,7 @@ export function mountRadio(panel, api) {
       pump();
     }
     paintTime();
+    sleepTick();
     // Nothing made yet at the outro: the last hook again, from its bar line.
     if (!tape && cur?.hold && !q.ready.length && audio.currentTime >= cur.hold.to) audio.currentTime = cur.hold.from;
   });
@@ -527,7 +546,8 @@ export function mountRadio(panel, api) {
     } catch {}
     toFiles('paused with the screen off');
   });
-  audio.addEventListener('playing', () => (retried = 0));
+  audio.addEventListener('playing', () => ((retried = 0), beat()));
+  audio.addEventListener('seeked', () => beat());
   // (Every few seconds: the stream topped up, and a stall, time not moving with music ahead, caught.)
   setInterval(() => {
     if (!tape || !want) return;
@@ -543,11 +563,160 @@ export function mountRadio(panel, api) {
     if (document.visibilityState === 'visible' && want && cur && audio.paused) audio.play().catch(() => {});
   });
 
+  // ---- The cover, the beat, the tint ----
+  // A song's covers, made as it's made (never at the swap): the card's, a thumbnail, the lock screen's PNG.
+  function dress(item) {
+    const o = { seed: item.spec.seed, style: item.info.style, mood: item.spec.mood, key: item.info.key, bpm: item.info.bpm };
+    item.pal = coverPalette(o);
+    item.cover = coverUrl(coverSvg({ ...o, title: item.title, label: coverLabel(o.style, o.bpm) }));
+    // (The lock screen's: drawn at 512 px; ready long before the song plays. One late gets its card updated.)
+    toPng(item.cover).then(u => {
+      item.png = u;
+      if (u && item === cur) api.session(session());
+    });
+    return item;
+  }
+  async function toPng(src) {
+    try {
+      const img = new Image();
+      img.src = src;
+      await img.decode();
+      const c = document.createElement('canvas');
+      c.width = c.height = 512;
+      c.getContext('2d').drawImage(img, 0, 0, 512, 512);
+      return c.toDataURL('image/png');
+    } catch {
+      return null;
+    }
+  }
+  // Before the music: the station's own cover, of the mood picked.
+  function idleCover() {
+    const seed = [...String(mood)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
+    const styles = moodStyles(mood);
+    const o = { seed, style: styles[seed % styles.length], mood, key: null, bpm: 110 };
+    return { id: `idle:${mood}`, pal: coverPalette(o), cover: coverUrl(coverSvg({ ...o, title: W('Orbit 電台', 'Orbit Radio'), label: moodName(mood) })) };
+  }
+  // The cover shown: the new one fades in over the last, which then goes.
+  let shown = null;
+  function showCover() {
+    const c = cur || idleCover();
+    const id = c.id;
+    if (id === shown) return;
+    shown = id;
+    const img = h('img', { alt: '', decoding: 'async', src: c.cover });
+    covers.append(img);
+    const show = () => {
+      img.classList.add('in');
+      setTimeout(() => [...covers.children].slice(0, -1).forEach(x => x !== img && covers.contains(img) && x.remove()), 900);
+    };
+    img.decode ? img.decode().then(show, show) : show();
+    card.style.setProperty('--amb', c.pal.amb);
+    card.style.setProperty('--amb-2', c.pal.accent);
+  }
+  // The bars and the cover's breath, on the song's beat: the CSS runs at its
+  // tempo; here its clock is set to where the song is (on a song change, a
+  // play, a seek, and every few seconds), so a beat lands on the beat.
+  let synced = 0;
+  const still = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');
+  function beat(force = true) {
+    if (!cur || still?.matches || !card.classList.contains('on')) return;
+    if (!force && performance.now() - synced < 6000) return;
+    synced = performance.now();
+    const ms = songTime() * 1000;
+    for (const a of art.getAnimations?.({ subtree: true }) || []) if (/^pb-(bar|thump)/.test(a.animationName || '')) a.currentTime = ms;
+  }
+  audio.addEventListener('timeupdate', () => beat(false));
+
+  // ---- 最近播放 ----
+  // On this phone only (a convenience): the songs that played, newest first; ♡ keeps one in 歌單.
+  let recent = [];
+  try {
+    recent = recentParse(localStorage.getItem(RECENT_KEY) || '[]');
+  } catch {}
+  let heard = null;
+  function remember(item) {
+    recent = recentAdd(recent, recentEntry(item));
+    try {
+      localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
+    } catch {}
+    paintRecent();
+  }
+  const thumbs = new Map();
+  const thumbOf = e => {
+    const k = `${e.seed}:${e.mood}:${e.style}`;
+    if (!thumbs.has(k)) thumbs.set(k, coverUrl(coverSvg({ seed: e.seed, style: e.style, mood: e.mood, key: e.key, bpm: e.bpm, text: false })));
+    return thumbs.get(k);
+  };
+  function paintRecent() {
+    // (The one playing is on the card above, so not here.)
+    const list = recent.filter(e => !(cur && e.seed === cur.spec.seed && e.style === cur.info.style));
+    recentCard.hidden = !list.length;
+    recentList.replaceChildren(
+      ...list.map(e => {
+        const it = recentItem(e);
+        const t = api.title(e.seed);
+        const k = Boolean(api.kept(it.id));
+        const love = h('button', { class: `radio-love${k ? ' kept' : ''}`, type: 'button', 'aria-pressed': String(k), 'aria-label': W(`收藏 ${t}`, `Keep ${t}`), html: k ? ICON.hearted : ICON.heart, onclick: () => api.keep({ ...it, title: t }).then(paintRecent) });
+        return h('li', {}, [h('img', { alt: '', src: thumbOf(e), width: 44, height: 44, loading: 'lazy' }), h('div', {}, [h('b', { text: t }), h('small', { text: coverLabel(e.style, e.bpm) })]), love]);
+      })
+    );
+  }
+  paintRecent();
+
+  // ---- 睡眠定時 ----
+  // 15, 30 or 60 minutes, or this song's end: the last ten seconds fade out
+  // (the player's volume: iPhone keeps its own, so there it just stops on time), then it pauses.
+  let sleep = null; // { until } | { song, item, skipped }
+  let sleepEvery = 0;
+  function sleepMenu() {
+    const label = c => (c === 'song' ? W('這首結束', 'End of song') : W(`${c} 分鐘`, `${c} min`));
+    menu(sleepBtn, [...SLEEP_CHOICES.map(c => ({ label: label(c), icon: c === 'song' ? '♪' : '', onClick: () => setSleep(c) })), ...(sleep ? ['divider', { label: W('關閉定時', 'Turn off'), icon: '✕', onClick: () => setSleep(null) }] : [])]);
+  }
+  function setSleep(c) {
+    sleep = c ? { ...sleepSet(c), item: cur } : null;
+    clearInterval(sleepEvery);
+    if (sleep) sleepEvery = setInterval(sleepTick, 500);
+    else if (audio.volume !== 1) audio.volume = 1;
+    sleepTick();
+  }
+  function sleepTick() {
+    if (!sleep) return;
+    if (sleep.song && cur !== sleep.item) {
+      // (⏭ or no song yet: the end of the one playing now.)
+      if (!sleep.item || sleep.skipped) Object.assign(sleep, { item: cur, skipped: false });
+      else return sleepNow();
+    }
+    const left = sleepLeft(sleep, Date.now(), sleep.song ? (cur ? cur.seconds - songTime() : Infinity) : Infinity);
+    if (sleepDone(left)) return sleepNow();
+    if (want) {
+      const g = sleepGain(left);
+      if (audio.volume !== g) audio.volume = g;
+    }
+    paintSleep(left);
+  }
+  function sleepNow() {
+    sleep = null;
+    clearInterval(sleepEvery);
+    if (want) pause();
+    audio.volume = 1;
+    paintSleep();
+  }
+  let sleepShown = '';
+  function paintSleep(left = Infinity) {
+    const txt = !sleep ? '' : sleep.song ? '♪' : sleepClock(left);
+    if (txt === sleepShown) return;
+    sleepShown = txt;
+    sleepBtn.classList.toggle('on', Boolean(sleep));
+    sleepBtn.innerHTML = ICON.moon + (txt ? `<span>${txt}</span>` : '');
+    sleepBtn.setAttribute('aria-label', sleep ? W(`睡眠定時 ${sleep.song ? '這首結束' : txt}`, `Sleep timer ${sleep.song ? 'end of song' : txt}`) : W('睡眠定時', 'Sleep timer'));
+  }
+  showCover();
+
   return {
     // The first song made while the screen opens, so the first tap plays at once.
     warm: () => fill(),
     stop: () => want && pause(),
     playing: () => want && !audio.paused,
-    refresh: paintHeart
+    refresh: () => (paintHeart(), paintRecent())
   };
 }
