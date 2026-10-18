@@ -20,6 +20,7 @@ import { MIX, mixOf, STEMS } from './lib/mix.mjs';
 import { STYLE_NAMES, SECTION_NAMES, ROLE_NAMES, BUS_NAMES, name } from './lib/names.mjs';
 import { tapper } from './lib/tap.mjs';
 import { download, shareFile, fileName } from './lib/download.mjs';
+import { toFile, toText, fromText } from './lib/project.mjs';
 import { maker } from './lib/maker.mjs';
 import { libraryView, nameSheet } from './lib/library.mjs';
 import { mountStudio } from './lib/studio.mjs';
@@ -183,7 +184,8 @@ smartSwitch.id = 'smart';
 $('smart-slot').replaceWith(smartSwitch);
 
 // Which mood the styles are, if any.
-const moodOf = () => Object.entries(MOODS).find(([, m]) => m.styles.length === settings.styles.length && m.styles.every(s => settings.styles.includes(s)))?.[0] || '';
+const moodFor = styles => Object.entries(MOODS).find(([, m]) => m.styles.length === styles.length && m.styles.every(s => styles.includes(s)))?.[0] || '';
+const moodOf = () => moodFor(settings.styles);
 function showSettings() {
   $('count').value = settings.count;
   $('silence').value = settings.silenceDb;
@@ -1034,6 +1036,7 @@ function songMenu(song, anchor, inLib, list = null) {
       : []),
     { label: W('分享', 'Share'), icon: '↗', onClick: () => shareSong(song) },
     { label: W('下載 WAV', 'Download WAV'), icon: '↓', onClick: () => downloadSong(song) },
+    { label: W('存成檔案', 'Save as file'), icon: '▤', onClick: () => saveProject(song) },
     ...(can && shows(settings.level, 'make-stems') ? [{ label: W('下載分軌', 'Download stems'), icon: '≡', onClick: () => stemsOf(song) }] : []),
     ...(can && shows(settings.level, 'make-midi') ? [{ label: W('匯出 MIDI', 'Export MIDI'), icon: '♪', onClick: () => midiOf(song) }] : []),
     ...(inLib
@@ -1321,6 +1324,60 @@ async function shareSong(song) {
   const how = await shareFile(blobOf(song), `${fileName(song.name)}.wav`, { title: song.name, text: W(`${song.name} · 用 Orbit Beats 做的`, `${song.name} · made with Orbit Beats`) });
   if (how === 'downloaded') toast(W('這個瀏覽器不能分享檔案：已下載', "This browser can't share files: downloaded"));
 }
+// 存成檔案: the song's settings (never its sound) as a small .json through the share sheet, or saved.
+async function saveProject(song) {
+  const mine = song.recipe?.print === print;
+  const file = toFile(song, { roles: mine ? roles : null, mood: moodFor(song.recipe?.styles || []) });
+  const how = await shareFile(new Blob([toText(file)], { type: 'application/json' }), `${fileName(song.name)}.orbitbeats.json`, { title: song.name, text: W(`${song.name} · Orbit Beats 的歌曲檔`, `${song.name} · an Orbit Beats song file`) });
+  if (how === 'downloaded') toast(W('已存成檔案', 'Saved as a file'));
+}
+// 打開檔案: a saved song made again on the pieces in hand (the same song when they're the kit it was made on).
+async function openProject(f) {
+  const fail = body => ask({ alertOnly: true, title: W('打不開這個檔案', "Can't open this file"), body, ok: W('好', 'OK'), lang });
+  let text;
+  try {
+    text = await f.text();
+  } catch {
+    return fail(W('檔案讀不到，請再選一次', "The file couldn't be read: pick it again"));
+  }
+  const r = fromText(text);
+  if (!r.ok) return fail(W(r.zh, r.en));
+  if (!heard || !pieces.length) return fail(W('先放進片段（或「試試示範」），再打開歌曲檔：檔案裡只有設定，沒有聲音', 'Add pieces first (or try the demo), then open the song file: it holds settings, not sound'));
+  const p = r.project;
+  const same = Boolean(p.kit) && p.kit === print;
+  if (p.recipe.jam && p.recipe.jam.some(e => e.i >= pieces.length)) return fail(W(`這首即興用到第 ${Math.max(...p.recipe.jam.map(e => e.i)) + 1} 個片段，但現在只有 ${pieces.length} 個`, `This jam uses piece ${Math.max(...p.recipe.jam.map(e => e.i)) + 1}, but there are only ${pieces.length} now`));
+  // The same kit: its tempo and roles as the song was made.
+  if (same && p.bpm && Math.abs(p.bpm - bpm) > 0.05) setTempo(p.bpm);
+  if (same && p.roles?.length === roles.length) {
+    let changed = false;
+    p.roles.forEach((x, i) => {
+      if (roles[i] !== x) ((roles[i] = x), edited.add(i), (changed = true));
+    });
+    if (changed) (showPieces(), keepKit());
+  }
+  const recipe = { print, ...p.recipe };
+  const id = recipeId(recipe);
+  const there = songs.find(s => s.id === id);
+  if (there) return (toast(W('這首已經在清單裡', 'This song is already in the list')), playSong(there));
+  let song;
+  try {
+    song = await makeOne(recipe, p.name || (recipe.jam ? W('即興', 'Jam') : songTitle(recipe.seed)));
+  } catch (e) {
+    return fail(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`));
+  }
+  songs.unshift(song);
+  $('out').hidden = false;
+  $('songs').prepend(songRow(song));
+  $('zip').disabled = false;
+  toast(same ? W(`已打開：${song.name}`, `Opened: ${song.name}`) : W(`已打開：${song.name}（片段不同，聽起來會不一樣）`, `Opened: ${song.name} (different pieces, so it sounds different)`), { ms: 3200 });
+  playSong(song);
+}
+$('open-song').onclick = () => $('song-file').click();
+$('song-file').addEventListener('change', () => {
+  const f = $('song-file').files[0];
+  $('song-file').value = '';
+  if (f) openProject(f);
+});
 const busNames = () => Object.fromEntries(STEMS.map(b => [b, name(BUS_NAMES, b)]));
 // 分軌: each bus a WAV (drums, hats, bass, melody, echo and room), in a zip, made again from the recipe.
 async function stemsOf(song) {

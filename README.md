@@ -31,7 +31,7 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
   - **做歌** (Make): pieces in, a 情境 mood (放鬆, 熱血, 律動, 經典), the drum
     styles, how many songs, and 更多設定. Each song has a title, length,
     groove and key, ▶ in the player over the tab bar, ♡ to keep it, and ⋯
-    (變奏一首, 換個鼓, 編排, 分享, 下載 WAV, 分軌 stems, MIDI). Under each song is its
+    (變奏一首, 換個鼓, 編排, 分享, 下載 WAV, 存成檔案, 分軌 stems, MIDI). Under each song is its
     section strip (前奏 主歌 導歌 副歌 …, wide as they are long): tap one to play
     from its start, hold it to loop it (the player's § repeat); the one playing
     is lit and follows seeks (`lib/sections.mjs`).
@@ -110,6 +110,7 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 | `lib/library.mjs` | 歌單: search, order, zip |
 | `lib/sections.mjs` | 做歌: section times and the playing section |
 | `lib/easy.mjs`, `lib/help.mjs` | 簡單 / 進階 and the guided first song; the music words and their examples |
+| `lib/project.mjs` | 存成檔案 / 打開檔案: a song's settings (no sound) as a versioned `.orbitbeats.json` |
 | `lib/midi.mjs`, `lib/tap.mjs`, `lib/download.mjs`, `lib/names.mjs` | MIDI files, tap tempo, saving, names |
 
 ## Run and test
