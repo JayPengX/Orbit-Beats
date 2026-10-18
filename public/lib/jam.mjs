@@ -32,6 +32,30 @@ export function nextStep(beat, grid, late = 0) {
 }
 export const nextBar = beat => Math.ceil(beat / 4 - 1e-9) * 4;
 
+// A take's hits that join a loop partway (`off` beats in: a four-bar part
+// joined on its second bar) as pieces of their own, the loop from there on
+// (the engine plays every piece from its start). -> { pieces, roles, hits }
+export function fromOffsets(pieces, roles, hits, bpm, sr) {
+  const out = { pieces: [...pieces], roles: [...roles], hits: [] };
+  const made = new Map();
+  for (const { off, ...h } of hits) {
+    const p = pieces[h.i];
+    if (!(off > 0) || !p) {
+      out.hits.push(h);
+      continue;
+    }
+    const key = `${h.i}@${off}`;
+    if (!made.has(key)) {
+      const s = Math.min(p.L.length, Math.round(((off * 60) / bpm) * sr));
+      made.set(key, out.pieces.length);
+      out.pieces.push({ L: p.L.subarray(s), R: p.R.subarray(s) });
+      out.roles.push(roles[h.i]);
+    }
+    out.hits.push({ ...h, i: made.get(key) });
+  }
+  return out;
+}
+
 // ---- Each pad's level, mute and choke ----
 // choke: '' none; 'self' a hit cuts its own last one; 'a' / 'b' a group: any
 // hit in it cuts what's still sounding of the group (an open hat cut by a
@@ -116,17 +140,39 @@ export class Jam {
     return Boolean(l && beat < l.to && l.to === Infinity);
   }
   // A loop pad tapped at `beat`: on from the next bar, or off at it.
-  toggle(i, beat, beats) {
+  // group: starting it stops the others of its group at that bar (one bass
+  // line at a time). phase: it keeps step with the cycle of its own length
+  // (a four-bar part joined on bar 2 plays from its bar 2, on the same chord
+  // as the rest), and stopped, it's cut at the bar rather than ringing on.
+  // -> { on, at, off: [the pads it stopped] }
+  toggle(i, beat, beats, { group = null, phase = false } = {}) {
     const at = nextBar(beat);
     const l = this.loops.get(i);
     if (l && l.to === Infinity) {
-      if (l.from >= at) this.loops.delete(i);   // never started: just forgotten
-      else l.to = at;
-      return { on: false, at };
+      this.halt(i, l, at);
+      return { on: false, at, off: [i] };
     }
+    const off = [];
+    if (group != null)
+      for (const [j, o] of this.loops)
+        if (j !== i && o.group === group && o.to === Infinity) (this.halt(j, o, at), off.push(j));
     if (l && l.to > beat) this.tails.push({ i, ...l });   // still playing to its bar line
-    this.loops.set(i, { from: at, to: Infinity, beats: Math.max(0.25, beats) });
-    return { on: true, at };
+    this.loops.set(i, { from: at, to: Infinity, beats: Math.max(0.25, beats), group, phase });
+    return { on: true, at, off };
+  }
+  // A loop stopped at `at` (a bar line): never started, it's forgotten; a
+  // phased one is cut there in the takes too.
+  halt(i, l, at) {
+    if (l.from >= at) this.loops.delete(i);
+    else {
+      l.to = at;
+      if (l.phase) this.cut(i, at);
+    }
+  }
+  // The last hit of a loop, wherever a take has it, ends at `at`.
+  cut(i, at) {
+    for (const t of this.takes)
+      for (const h of t.hits) if (h.i === i && h.lp && h.beat + t.from < at) h.cut = Math.min(h.cut ?? Infinity, at - t.from - h.beat);
   }
   // A one-shot pad tapped at `beat`. -> the beat it plays on. A step the
   // windows have passed isn't queued: the caller plays it at once, and it's
@@ -137,12 +183,12 @@ export class Jam {
     else this.shots.push({ i, beat: at });
     return at;
   }
+  // Every loop off at the next bar. -> the pads stopped.
   stopAll(beat) {
     const at = nextBar(beat);
-    for (const [i, l] of this.loops) {
-      if (l.from >= at) this.loops.delete(i);
-      else if (l.to > at) l.to = at;
-    }
+    const off = [];
+    for (const [i, l] of this.loops) if (l.to > at) (this.halt(i, l, at), off.push(i));
+    return { at, off };
   }
   // Recording: from the next bar (or once the last take is over); stopped,
   // to the end of that bar. A take finishing its bar still becomes a song.
@@ -169,6 +215,8 @@ export class Jam {
         const g = gainOf(p);
         if (g <= 0) continue;
         const hit = { i: h.i, beat: h.beat - t.from };
+        if (h.off) hit.off = h.off;
+        if (h.lp) hit.lp = true;
         if (g !== 1) hit.g = g;
         const c = chokeKey(h.i, p);
         if (c) hit.c = c;
@@ -181,11 +229,19 @@ export class Jam {
   // hit on a window's edge falls in exactly one window, whatever the length.)
   due(a, b) {
     const out = [];
-    const round = (i, from, to, len) => {
-      for (let k = Math.max(0, Math.floor((a - from) / len)); ; k++) {
-        const t = from + k * len;
+    // (A phased loop that starts partway into its cycle: that part of it
+    // first, `off` beats in, then whole from the cycle's next start.)
+    const round = (i, from, to, len, phase) => {
+      let first = from;
+      const into = phase ? from - Math.floor(from / len + 1e-9) * len : 0;
+      if (into > 1e-9) {
+        if (from >= a && from < b && from < to) out.push({ i, beat: from, off: into, lp: true });
+        first = from - into + len;
+      }
+      for (let k = Math.max(0, Math.floor((a - first) / len)); ; k++) {
+        const t = first + k * len;
         if (t >= b || t >= to) break;
-        if (t >= a) out.push({ i, beat: t });
+        if (t >= a) out.push(phase ? { i, beat: t, lp: true } : { i, beat: t });
       }
     };
     if (this.groove && this.backing.length)
@@ -195,10 +251,10 @@ export class Jam {
           if (t >= a && t < b) out.push({ i: h.i, beat: t });
         }
     for (const [i, l] of this.loops) {
-      round(i, l.from, l.to, l.beats);
+      round(i, l.from, l.to, l.beats, l.phase);
       if (l.to <= b) this.loops.delete(i);
     }
-    this.tails = this.tails.filter(l => (round(l.i, l.from, l.to, l.beats), l.to > b));
+    this.tails = this.tails.filter(l => (round(l.i, l.from, l.to, l.beats, l.phase), l.to > b));
     this.shots = this.shots.filter(s => {
       if (s.beat < b) {
         if (s.beat >= a - 1e-9) out.push(s);
@@ -210,18 +266,41 @@ export class Jam {
     this.keep(out);
     this.takes = this.takes.filter(t => {
       if (t.to > b) return true;
-      this.done.push({ hits: choked(t.hits, h => h.c).map(({ c, ...h }) => h), beats: t.to - t.from });
+      // (A phased loop's hit ends at its next, where it was stopped, or with the take.)
+      const beats = t.to - t.from;
+      const last = new Map();
+      const ordered = choked(t.hits, h => h.c);
+      for (const h of ordered) {
+        if (!h.lp) continue;
+        const was = last.get(h.i);
+        if (was && h.beat > was.beat) was.cut = Math.min(was.cut ?? Infinity, h.beat - was.beat);
+        last.set(h.i, h);
+      }
+      const hits = ordered.map(({ c, lp, cut, ...h }) => {
+        const end = lp ? Math.min(cut ?? Infinity, beats - h.beat, h.len ?? Infinity) : h.len;
+        return end != null && end !== h.len ? { ...h, len: end } : h;
+      });
+      this.done.push({ hits, beats });
       return false;
     });
     this.upTo = Math.max(this.upTo, b);
     return out;
+  }
+  // Nothing playing, nothing waiting, no take (a jam never started).
+  reset() {
+    this.loops.clear();
+    this.tails = [];
+    this.shots = [];
+    this.takes = [];
+    this.upTo = 0;
   }
   // Stopped at `beat`: a take still open ends at its bar, every take is
   // finished, and nothing is left playing for the next start (from beat 0).
   end(beat) {
     if (this.recording()) this.record(beat);
     const to = Math.max(0, ...this.takes.map(t => t.to));
-    if (to > this.upTo) this.due(this.upTo, to);
+    // (Even one whose bar line the windows already passed is finished.)
+    this.due(this.upTo, Math.max(to, this.upTo));
     this.loops.clear();
     this.tails = [];
     this.shots = [];

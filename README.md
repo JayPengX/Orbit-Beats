@@ -69,9 +69,20 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
     串接 of them (A A B A, up to 8) that plays, renders and exports in order.
     It loops as you tap; 自動編 writes a start; 存成片段 renders the chain into the kit.
   做歌 pieces: ⋯ → 刪除, 全部清除 (asks first), both with 復原 for 5 s; 存成套組 / 我的套組 keep named kits on this phone (`lib/kitops.mjs`, IndexedDB `named`).
-  - **即興** (Jam): the kit as pads over a groove made of its own drums.
+  - **即興** (Jam): pads over a groove. It opens on **內建**, the app's own
+    band as 16 coloured pads (`lib/jamset.mjs`: 聽's band from `radioKit`,
+    drums, three hat loops, two bass lines, two chord parts and two melodies
+    on the same four chords in one key), made in a worker of its own (not
+    queued behind 聽's songs) as the app opens, from a groove
+    and a seed; the groove chips and 🎲 swap the set (tempo, key,
+    instruments), and what was playing goes on with the new one. Its
+    four-bar parts keep step: joined on bar 2 a part plays from its own bar
+    2, one chord part, bass line and closed hat at a time, and a part turned
+    off is cut on the bar. With pieces in the kit, **我的片段** plays the kit
+    as pads over a groove made of its own drums.
     Loops start on the next bar, one-shots snap to 1/16, 1/8, the beat or
-    自由; ● 錄一段 turns a take into a song. A long press on a pad: its
+    自由; ● 錄一段 turns a take into a song (a built-in take is made again
+    from its seed and groove: no kit needed). A long press on a pad: its
     音量, 靜音 and 切音 (self, or group A/B: an open hat cut by a closed
     one), kept per kit (fingerprint) on the phone; a take's song carries
     each hit's level and cut, so it sounds as played.
