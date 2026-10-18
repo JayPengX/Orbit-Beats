@@ -735,6 +735,8 @@ function live(on, o = {}) {
     claimSession({ title: o.title || 'Orbit Beats', artist: 'Orbit Beats', play: () => {}, pause: () => liveStop?.(), next: null });
     try {
       if (navigator.mediaSession) navigator.mediaSession.playbackState = 'playing';
+      // (No place in a song: the bar a song left on the card is taken away.)
+      navigator.mediaSession?.setPositionState?.();
     } catch {}
   };
   card();
