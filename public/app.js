@@ -10,6 +10,7 @@
 // and the styles you keep (your taste); the sound never leaves the phone.
 import { quadraSession, topActions, installGate, watchUpdates, keepOffline, tabBar } from '#kit/quadra.mjs';
 import { h, sheet, menu, toast, toggle, empty } from '#kit/ui.mjs';
+import { sectionTimes, sectionIndex, labelFits } from './lib/sections.mjs';
 import { STYLES, SECTIONS, ROLES, MIN_BARS, NOTE_NAMES, keyOf, pieceChroma, parseWav, analyzeRecording, guessRole, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
 import { atRate, splitAll, baseName } from './lib/sources.mjs';
 import { fingerprint, decode, encode, merge, keptSettings, settingsOf, DEFAULTS, kitEntry, saveLast, loadLast, liked, saveSong, deleteSong, listSongs, renameSong } from './lib/kits.mjs';
@@ -753,13 +754,16 @@ function songRow(song, { lib: inLib = false } = {}) {
   const heart = h('button', { class: `act heart${lib.has(song.id) ? ' kept' : ''}`, type: 'button', 'aria-label': W('收藏', 'Keep'), 'aria-pressed': String(lib.has(song.id)), html: lib.has(song.id) ? ICON.hearted : ICON.heart, onclick: () => keepSong(song) });
   const more = h('button', { class: 'act', type: 'button', 'aria-label': W('更多', 'More'), html: ICON.more, onclick: e => songMenu(song, e.currentTarget, inLib) });
   const bar = h('div', { class: 'plan', role: 'group', 'aria-label': plan });
-  let at = 0;
-  info.plan.forEach(([t, n], k) => {
-    const from = at;
-    bar.append(h('button', { type: 'button', class: 'sec', style: { flex: String(n), background: `var(--${t})`, '--k': String(k) }, 'aria-label': `${name(SECTION_NAMES, t)} ${n} ${W('小節', 'bars')}`, onclick: () => seekBar(song, from) }));
-    at += n;
+  const total = info.plan.reduce((a, [, n]) => a + n, 0);
+  const width = Math.min(innerWidth, 560) - 32 - 50; // the strip's room (row padding, play column)
+  sectionTimes(info.plan, info.bpm || bpm).forEach((s, k) => {
+    const label = name(SECTION_NAMES, s.type);
+    const em = en ? label.length * 0.66 : label.length;
+    bar.append(h('button', { type: 'button', class: 'sec', 'data-k': String(k), style: { flex: String(s.bars), background: `var(--${s.type})`, '--k': String(k) }, 'aria-label': `${label} ${s.bars} ${W('小節', 'bars')}`, text: labelFits(s.bars, total, width, em) ? label : '' }));
+    holdable(bar.lastChild, () => seekBar(song, s.bar), () => loopSection(song, s.bar));
   });
   li.append(h('div', { class: 'line' }, [play, h('div', { class: 'what' }, [h('span', { class: 'name', text: song.name }), h('span', { class: 'info', text: what })]), heart, more]), bar);
+  litAt = '';
   if (nowPlaying?.id === song.id) markRow(li, true);
   return li;
 }
@@ -1028,14 +1032,40 @@ function closePlayer() {
 }
 // The section the song is in at time t: { from, to } in seconds.
 function sectionAt(song, t) {
-  let bar = 0;
-  for (const [, n] of song.info.plan) {
-    const from = barTime(song, bar);
-    const to = barTime(song, bar + n);
-    if (t < to) return { from, to };
-    bar += n;
+  const times = sectionTimes(song.info.plan, song.info.bpm || bpm);
+  const k = sectionIndex(times, t);
+  return k < 0 ? null : { from: times[k].from, to: times[k].to, k };
+}
+// A tap runs tap(); holding for 0.45 s runs hold() (and the tap that follows is dropped).
+function holdable(el, tap, hold) {
+  let timer = 0, held = false;
+  const stop = () => clearTimeout(timer);
+  el.addEventListener('pointerdown', () => { held = false; timer = setTimeout(() => { held = true; hold(); }, 450); });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(ev, stop);
+  el.addEventListener('contextmenu', e => e.preventDefault());
+  el.addEventListener('click', () => { if (!held) tap(); held = false; });
+}
+// Loop one section: play it from its start and repeat it (the player's § mode).
+function loopSection(song, bar) {
+  repeat = 'section';
+  seekBar(song, bar);
+  paintRepeat();
+  navigator.vibrate?.(15);
+  toast(W('重複這一段', 'Repeating this section'), { ms: 1400 });
+}
+let litAt = '';
+function paintSections() {
+  const rows = nowPlaying ? rowsOf(nowPlaying.id) : [];
+  const k = nowPlaying ? sectionAt(nowPlaying, audio.currentTime)?.k ?? -1 : -1;
+  const key = `${nowPlaying?.id}:${k}:${repeat === 'section' ? loopAt?.from : ''}`;
+  if (key === litAt) return;
+  litAt = key;
+  for (const li of document.querySelectorAll('.song .sec.lit, .song .sec.loop')) li.classList.remove('lit', 'loop');
+  for (const li of rows) {
+    const el = li.querySelector(`.sec[data-k="${k}"]`);
+    el?.classList.add('lit');
+    if (repeat === 'section' && loopAt) el?.classList.add('loop');
   }
-  return null;
 }
 function paintPlayer() {
   const d = audio.duration || nowPlaying?.info?.seconds || 0;
@@ -1043,6 +1073,7 @@ function paintPlayer() {
   const pct = d ? Math.min(100, (t / d) * 100) : 0;
   $('player-at').style.width = `${pct}%`;
   $('player-time').textContent = `${timeText(t)} / ${timeText(d)}`;
+  paintSections();
   $('player-play').innerHTML = audio.paused ? ICON.play : ICON.pause;
   $('player-play').setAttribute('aria-label', audio.paused ? W('播放', 'Play') : W('暫停', 'Pause'));
   if (nowPlaying) for (const li of rowsOf(nowPlaying.id)) li.querySelector('.plan').style.setProperty('--at', `${pct}%`);
@@ -1066,7 +1097,7 @@ function watchLoop() {
   requestAnimationFrame(watchLoop);
 }
 requestAnimationFrame(watchLoop);
-for (const ev of ['timeupdate', 'play', 'pause', 'loadedmetadata']) audio.addEventListener(ev, () => {
+for (const ev of ['timeupdate', 'play', 'pause', 'loadedmetadata', 'seeked']) audio.addEventListener(ev, () => {
   paintPlayer();
   if (nowPlaying) for (const li of rowsOf(nowPlaying.id)) markRow(li, true);
 });
