@@ -284,20 +284,37 @@ export const cutOf = (info, sr) => Math.max(1, Math.round(((info.bars * 4 * 60) 
 // One stretch of the radio: the song from its start to its cut, its first
 // moments under the last song's ring (`tail`, what came after that one's
 // cut), the song rising in over them. The ring passes untouched; a peak the
-// two make together is eased under full scale. -> { L, R, tail }
-export function segment(audio, cut, tail = null) {
+// two make together is eased under full scale. Two stretches overlap by
+// `overlap` samples where they meet (the player starts the next one that
+// long before this one ends): this one runs on past its cut and fades out
+// over them, the next fades in over them, so the two add up to the music
+// as it goes on, and a next one started a little late dips a moment, never
+// a gap. -> { L, R, tail }
+export const OVERLAP = 0.8;   // seconds
+// When the next stretch starts, on the playing one's clock: at or before its end.
+export const handoverAt = (seconds, overlap = OVERLAP) => Math.max(0, seconds - overlap);
+export function segment(audio, cut, tail = null, overlap = Math.round(OVERLAP * audio.sr)) {
   const sr = audio.sr;
   const n = Math.min(cut, audio.L.length);
-  const L = audio.L.slice(0, n);
-  const R = audio.R === audio.L ? L.slice() : audio.R.slice(0, n);
+  const total = Math.min(audio.L.length, n + overlap);
+  const L = audio.L.slice(0, total);
+  const R = audio.R === audio.L ? L.slice() : audio.R.slice(0, total);
   if (tail) {
     const m = Math.min(n, tail.L.length);
     const rise = Math.max(1, Math.min(m, Math.round(1.2 * sr)));
     for (let j = 0; j < m; j++) {
       const g = j < rise ? Math.sin((j / rise) * (Math.PI / 2)) : 1;
-      L[j] = soft(L[j] * g + tail.L[j]);
-      R[j] = soft(R[j] * g + tail.R[j]);
+      // (The ring fading in over the overlap, where the last stretch has it fading out: the two add up to it whole.)
+      const t = j < overlap ? j / overlap : 1;
+      L[j] = soft(L[j] * g + tail.L[j] * t);
+      R[j] = soft(R[j] * g + tail.R[j] * t);
     }
+  }
+  // (Out, past the cut: what the next stretch starts with fading in.)
+  for (let j = n; j < total; j++) {
+    const g = 1 - (j - n) / overlap;
+    L[j] *= g;
+    R[j] *= g;
   }
   const end = audio.L.length;
   return { L, R, tail: { L: audio.L.slice(n, end), R: audio.R.slice(n, end) } };

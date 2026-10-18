@@ -2,14 +2,17 @@
 // (and every groove on its own), and what's playing: its name, mood, groove,
 // tempo and key, ♡ to keep it, ⏭ for the next. Songs are made in the worker
 // (lib/make.mjs radio) two ahead of the one playing, each starting under the
-// last one's ring, so the music never stops: one <audio> (it keeps playing
-// with the screen locked, on the lock screen's controls), its stretch swapped
-// at the cut just before a song's last hit; when the next isn't made yet, the
-// last hook plays again from its bar line until it is.
+// last one's ring, so the music never stops. Two <audio> (they keep playing
+// with the screen locked, on the lock screen's controls): the next stretch
+// loaded in the one not playing, and started `overlap` seconds before the
+// playing one ends, the two fading across each other there (the fades are in
+// the sound: iOS ignores an element's volume), so a late start dips, never a
+// gap. When the next isn't made yet, the last hook plays again from its bar
+// line until it is.
 
 import { h, toast } from '#kit/ui.mjs';
 import { STYLES, NOTE_NAMES } from '../engine.mjs';
-import { MOODS, radioPick, radioQueue } from './radio.mjs';
+import { MOODS, radioPick, radioQueue, handoverAt } from './radio.mjs';
 import { STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
 
@@ -37,9 +40,14 @@ function hush() {
 
 // api: { make (lib/maker.mjs), quiet(), title(seed), keep(item), kept(id), session(owner), mood, setMood(m) }
 export function mountRadio(panel, api) {
-  const audio = new Audio();
-  audio.preload = 'auto';
-  audio.setAttribute('playsinline', '');
+  const els = [new Audio(), new Audio()];
+  for (const el of els) {
+    el.preload = 'auto';
+    el.setAttribute('playsinline', '');
+  }
+  let audio = els[0]; // the one playing now
+  const other = () => (audio === els[0] ? els[1] : els[0]);
+  let handing = 0; // the timer that starts the next stretch
   const q = radioQueue();
   let mood = MOODS[api.mood] || /^style:/.test(api.mood || '') ? api.mood : 'all';
   let cur = null; // the stretch playing: { id, spec, info, url, seconds, hold, title }
@@ -91,6 +99,7 @@ export function mountRadio(panel, api) {
         if (gen !== q.gen) URL.revokeObjectURL(item.url);   // (made for a mood since changed)
         else q.ready.push(item);
         if (want && (!cur || q.skip)) advance();
+        preload();
         paintNext();
         fill();
       })
@@ -102,23 +111,44 @@ export function mountRadio(panel, api) {
         else if (want && !cur) toast(W('音樂做不出來，再按一次播放試試', "Couldn't make the music: tap play again"), { tone: 'bad' });
       });
   }
-  // The next stretch, now (or as soon as it's made).
-  function advance() {
+  // The next stretch loaded ahead in the element not playing (once it's done ringing out).
+  function preload() {
+    const item = q.ready[0];
+    const b = other();
+    if (!item || !want || b.dataset.id === item.id || !(b.paused || b.ended)) return;
+    b.loop = false;
+    b.src = item.url;
+    b.dataset.id = item.id;
+    b.load();
+  }
+  // The next stretch, now (or as soon as it's made). `ring`: at a song's end,
+  // the one playing rings out its overlap under it; else (⏭, a mood) it stops.
+  function advance(ring = false) {
     const item = q.ready.shift();
     if (!item) {
       q.skip = true;
       return paintNext();
     }
+    clearTimeout(handing);
+    handing = 0;
     q.skip = false;
     const was = cur;
+    const old = audio;
+    const next = other();
+    if (next.dataset.id !== item.id) {
+      next.loop = false;
+      next.src = item.url;
+      next.dataset.id = item.id;
+    } else if (next.currentTime) next.currentTime = 0;
+    audio = next;
     cur = item;
-    audio.loop = false;
-    audio.src = item.url;
-    if (want) audio.play().catch(() => retry());
-    if (was) setTimeout(() => URL.revokeObjectURL(was.url), 4000);
+    if (want) next.play().catch(() => retry());
+    if (!ring || old.loop) old.pause();
+    if (was) setTimeout(() => URL.revokeObjectURL(was.url), 8000);
     paint();
     api.session(session());
     fill();
+    preload();
   }
   // A play() refused (iOS between songs, a stretch the phone couldn't read): the next one, once.
   let retried = 0;
@@ -136,11 +166,15 @@ export function mountRadio(panel, api) {
     if (cur) {
       audio.play().catch(() => retry());
     } else {
-      // (The tap starts the element on a breath of silence, looped, so the music can follow it.)
+      // (The tap starts both elements on a breath of silence, so the music can follow it in either.)
       silent ||= hush();
-      audio.loop = true;
-      audio.src = silent;
+      for (const el of els) {
+        el.loop = true;
+        el.src = silent;
+        el.dataset.id = '';
+      }
       audio.play().catch(() => {});
+      other().play().then(() => other().pause(), () => {});
       if (q.ready.length) advance();
     }
     fill();
@@ -149,7 +183,9 @@ export function mountRadio(panel, api) {
   }
   function pause() {
     want = false;
-    audio.pause();
+    clearTimeout(handing);
+    handing = 0;
+    for (const el of els) el.pause();
     paint();
   }
   function skip() {
@@ -227,21 +263,38 @@ export function mountRadio(panel, api) {
   });
 
   // ---- Keeping it going ----
-  audio.addEventListener('timeupdate', () => {
-    paintTime();
-    // Nothing made yet at the outro: the last hook again, from its bar line.
-    if (cur?.hold && !q.ready.length && audio.currentTime >= cur.hold.to) audio.currentTime = cur.hold.from;
-  });
-  audio.addEventListener('ended', () => {
-    if (!cur || audio.loop) return;
-    if (q.ready.length) return advance();
-    audio.currentTime = cur.hold ? cur.hold.from : 0;
-    audio.play().catch(() => retry());
-  });
-  // (A stretch the phone couldn't play: on to the next.)
-  audio.addEventListener('error', () => cur && want && audio.src === cur.url && (q.ready.length ? advance() : retry()));
-  for (const ev of ['play', 'pause']) audio.addEventListener(ev, paint);
-  audio.addEventListener('playing', () => (retried = 0));
+  // The next one started `overlap` before this one ends (the timer set again on each tick, so a slow one is caught up).
+  function schedule() {
+    if (!cur || !want || audio.loop || !q.ready.length) return;
+    const left = cur.seconds - audio.currentTime;
+    if (left > cur.overlap + 1.5) return;
+    clearTimeout(handing);
+    const playing = audio;
+    handing = setTimeout(() => {
+      handing = 0;
+      if (audio === playing && want && q.ready.length) advance(true);
+    }, Math.max(0, (handoverAt(cur.seconds, cur.overlap) - audio.currentTime) * 1000));
+  }
+  for (const el of els) {
+    el.addEventListener('timeupdate', () => {
+      if (el !== audio) return;
+      paintTime();
+      // Nothing made yet at the outro: the last hook again, from its bar line.
+      if (cur?.hold && !q.ready.length && el.currentTime >= cur.hold.to) el.currentTime = cur.hold.from;
+      schedule();
+    });
+    el.addEventListener('ended', () => {
+      if (el !== audio) return preload();   // (done ringing out: the next one loads in it)
+      if (!cur || el.loop) return;
+      if (q.ready.length) return advance(true);
+      el.currentTime = cur.hold ? cur.hold.from : 0;
+      el.play().catch(() => retry());
+    });
+    // (A stretch the phone couldn't play: on to the next.)
+    el.addEventListener('error', () => el === audio && cur && want && !el.loop && (q.ready.length ? advance() : retry()));
+    for (const ev of ['play', 'pause']) el.addEventListener(ev, () => el === audio && paint());
+    el.addEventListener('playing', () => el === audio && (retried = 0));
+  }
   // Back on the screen after a call or Siri: the music was asked for, so it goes on.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && want && cur && audio.paused) audio.play().catch(() => {});
