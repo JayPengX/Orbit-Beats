@@ -13,7 +13,10 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
   - **做歌** (Make): pieces in, a 情境 mood (放鬆, 熱血, 律動, 經典), the drum
     styles, how many songs, and 更多設定. Each song has a title, length,
     groove and key, ▶ in the player over the tab bar, ♡ to keep it, and ⋯
-    (變奏一首, 換個鼓, 編排, 分享, 下載 WAV, 分軌 stems, MIDI).
+    (變奏一首, 換個鼓, 編排, 分享, 下載 WAV, 分軌 stems, MIDI). Under each song is its
+    section strip (前奏 主歌 導歌 副歌 …, wide as they are long): tap one to play
+    from its start, hold it to loop it (the player's § repeat); the one playing
+    is lit and follows seeks (`lib/sections.mjs`).
   - **樂器** (Studio): clips on the app's own instruments (`lib/synth.mjs`,
     drums or melody) on a vertical 16th-note grid, 1, 2 or 4 bars, with
     accents, a long press for each hit's 力度 (輕, 中, 重), chords, swing,
@@ -83,6 +86,9 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 | `lib/make.mjs`, `lib/maker.mjs`, `lib/maker.worker.mjs` | Making songs in a worker |
 | `lib/jam.mjs`, `lib/jamview.mjs` | 即興: timing, levels, choke; the pads |
 | `lib/library.mjs`, `lib/lists.mjs` | 歌單: search, order, zip; playlists |
+| `lib/jam.mjs`, `lib/jamview.mjs` | 即興: timing; the pads |
+| `lib/library.mjs` | 歌單: search, order, zip |
+| `lib/sections.mjs` | 做歌: section times and the playing section |
 | `lib/midi.mjs`, `lib/tap.mjs`, `lib/download.mjs`, `lib/names.mjs` | MIDI files, tap tempo, saving, names |
 
 ## Run and test
