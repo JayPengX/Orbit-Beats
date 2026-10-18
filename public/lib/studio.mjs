@@ -3,33 +3,70 @@
 // the percussion beside it), or the key's notes for an instrument; played
 // live as it loops (a tap on the grid is heard at once), written for you in
 // a groove or key (自動編), and added to the kit as pieces (加進片段) for the
-// songs. A drum tapped again is accented, a third time off; notes go in as
-// single notes or as chords (和弦: the triad in the key). Swing, undo, the
+// songs. A drum tapped again is accented, a third time off; a long press sets
+// any hit's level (力度: soft, normal, accent); notes go in as single notes or
+// as chords (和弦: the triad in the key). Up to four patterns (段落 A–D) and a
+// chain of them (串接, A A B A) that plays, goes into the kit and out as MIDI
+// in order. Swing, undo, the
 // first bar copied over the rest, a tempo tapped in, the clip as MIDI, and a
 // shelf of clips kept (收藏). What's on the grid and the shelf are kept on
 // this phone (localStorage), so they're there the next time.
 import { h, segmented, toast, menu } from '#kit/ui.mjs';
 import { NOTE_NAMES } from '../engine.mjs';
-import { DRUMS, PERC, ALL_DRUMS, DRUM_NAMES, INSTRUMENTS, INSTRUMENT_NAMES, INSTRUMENT_ROLE, OCTAVE, NOTE_LEN, STEPS, BAR_CHOICES, GROOVE_STYLES, emptyDrums, emptyNotes, drumPattern, melody, scaleRows, voice, clipEmpty, clipOf, stepHits, swingOf, copyFirstBar, resizeClip } from './synth.mjs';
+import { DRUMS, PERC, ALL_DRUMS, DRUM_NAMES, INSTRUMENTS, INSTRUMENT_NAMES, INSTRUMENT_ROLE, OCTAVE, NOTE_LEN, STEPS, BAR_CHOICES, GROOVE_STYLES, LEVELS, emptyDrums, emptyNotes, drumPattern, melody, scaleRows, voice, clipEmpty, clipOf, stepHits, swingOf, copyFirstBar, resizeClip, chainClips } from './synth.mjs';
 import { midiFile, clipTracks } from './midi.mjs';
 import { tapper } from './tap.mjs';
 import { download, fileName } from './download.mjs';
 import { STYLE_NAMES, ROLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
 
-const KEY = 'orbit-beats.studio';
+// (v2: each of drums and notes a set of patterns and a chain; the first key held one clip each.)
+const KEY = 'orbit-beats.studio.v2';
+const OLD_KEY = 'orbit-beats.studio';
 const SHELF = 'orbit-beats.shelf';
 const MOST_SHELF = 24;
 const UNDO = 40;
 const noteName = m => `${NOTE_NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
 
-// What's kept from before, made whole (a clip from an older page had fewer lanes and bars).
+export const MOST_PATS = 4;
+export const MOST_CHAIN = 8;
+export const PAT_NAMES = ['A', 'B', 'C', 'D'];
+// A set of patterns: { pats: [clip…] (1–4, one kind, one length, one sound:
+// instrument, key, swing and 808 the first's), at: the one shown, chain:
+// [pattern…] (1–8) }. An older page kept a single clip: it's pattern A.
+export function bankOf(b, kind, bars) {
+  if (!b || typeof b !== 'object') return null;
+  const raw = b.kind ? { pats: [b] } : b;
+  const pats = (Array.isArray(raw.pats) ? raw.pats : [])
+    .map(clipOf)
+    .filter(c => c?.kind === kind)
+    .slice(0, MOST_PATS)
+    .map(c => (c.bars === bars ? c : resizeClip(c, bars)));
+  if (!pats.length) return null;
+  const [first] = pats;
+  for (const c of pats) Object.assign(c, kind === 'drums' ? { swing: first.swing, pitch: first.pitch } : { swing: first.swing, inst: first.inst, key: first.key });
+  const at = Number.isInteger(raw.at) && raw.at >= 0 && raw.at < pats.length ? raw.at : 0;
+  const chain = (Array.isArray(raw.chain) ? raw.chain : []).filter(i => Number.isInteger(i) && i >= 0 && i < pats.length).slice(0, MOST_CHAIN);
+  return { pats, at, chain: pats.length > 1 && chain.length ? chain : [0] };
+}
+// The chain as one clip (what's added to the kit and written as MIDI).
+export const chainOf = bank => chainClips(bank.chain.map(i => bank.pats[i]));
+// A pattern taken out: the chain without it (A alone if nothing's left).
+export function dropPattern(bank, k) {
+  if (bank.pats.length < 2) return bank;
+  const pats = bank.pats.filter((_, j) => j !== k);
+  const chain = bank.chain.filter(i => i !== k).map(i => (i > k ? i - 1 : i));
+  return { pats, at: Math.min(bank.at > k ? bank.at - 1 : bank.at, pats.length - 1), chain: pats.length > 1 && chain.length ? chain : [0] };
+}
+
+// What's kept from before, made whole (a clip from an older page had fewer
+// lanes and bars; one from before the patterns, a single clip each).
 export function stateOf(s) {
   if (!s || typeof s !== 'object') return null;
-  const drums = clipOf(s.drums);
-  const notes = clipOf(s.notes);
-  if (!drums || !notes) return null;
   const bars = BAR_CHOICES.includes(s.bars) ? s.bars : 1;
+  const drums = bankOf(s.drums, 'drums', bars);
+  const notes = bankOf(s.notes, 'notes', bars);
+  if (!drums || !notes) return null;
   return {
     mode: s.mode === 'notes' ? 'notes' : 'drums',
     set: s.set === 'perc' ? 'perc' : 'kit',
@@ -38,8 +75,9 @@ export function stateOf(s) {
     inst: INSTRUMENTS.includes(s.inst) ? s.inst : 'keys',
     key: s.key && Number.isInteger(s.key.tonic) ? { tonic: s.key.tonic % 12, minor: Boolean(s.key.minor) } : null,
     chord: Boolean(s.chord),
-    drums: drums.bars === bars ? drums : resizeClip(drums, bars),
-    notes: notes.bars === bars ? notes : resizeClip(notes, bars)
+    loop: s.loop === 'chain' ? 'chain' : 'pat',
+    drums,
+    notes
   };
 }
 const read = k => {
@@ -54,18 +92,21 @@ const write = (k, v) => {
     localStorage.setItem(k, JSON.stringify(v));
   } catch {}
 };
-// A drum's step tapped: off, on, accented, off.
+// A drum's step tapped: off, on, accented, off (a soft one, off).
 export const nextHit = v => (v === 0 || !v ? 1 : v === 1 ? 2 : 0);
+// A hit's level (力度) as the grid and the long press name it.
+export const LEVEL_NAMES = { 3: ['輕', 'Soft'], 1: ['中', 'Normal'], 2: ['重', 'Accent'] };
 
 export function mountStudio(panel, api) {
-  const st = stateOf(read(KEY)) || { mode: 'drums', set: 'kit', bars: 1, groove: 'trap', inst: 'keys', key: null, chord: false, drums: emptyDrums(1), notes: emptyNotes('keys', 1) };
+  const st = stateOf(read(KEY)) || stateOf(read(OLD_KEY)) || { mode: 'drums', set: 'kit', bars: 1, groove: 'trap', inst: 'keys', key: null, chord: false, loop: 'pat', drums: { pats: [emptyDrums(1)], at: 0, chain: [0] }, notes: { pats: [emptyNotes('keys', 1)], at: 0, chain: [0] } };
   let shelf = (Array.isArray(read(SHELF)) ? read(SHELF) : []).map(x => x && { name: String(x.name || ''), at: x.at || 0, clip: clipOf(x.clip) }).filter(x => x?.clip);
   let seed = Math.floor(Math.random() * 1e6);
   const undo = [];
-  const keep = () => write(KEY, st);
-  // Before a change: the clip as it was, for 復原.
+  let chained = null;
+  const keep = () => ((chained = null), write(KEY, st));
+  // Before a change: the patterns as they were, for 復原.
   const mark = () => {
-    undo.push(JSON.stringify(clip()));
+    undo.push(JSON.stringify(bank()));
     if (undo.length > UNDO) undo.shift();
     undoBtn.disabled = false;
   };
@@ -73,8 +114,13 @@ export function mountStudio(panel, api) {
   const keyNow = () => st.key || api.key() || { tonic: 9, minor: true };
   const lanes = () => (st.set === 'perc' ? PERC : DRUMS);
   const rows = () => (st.mode === 'drums' ? lanes() : scaleRows(keyNow().tonic, keyNow().minor, OCTAVE[st.inst] ?? 60, 8).reverse());
-  const clip = () => (st.mode === 'drums' ? st.drums : st.notes);
-  const setClip = c => (st.mode === 'drums' ? (st.drums = c) : (st.notes = c));
+  const bank = () => (st.mode === 'drums' ? st.drums : st.notes);
+  const clip = () => bank().pats[bank().at];
+  const setClip = c => (bank().pats[bank().at] = c);
+  const many = () => bank().pats.length > 1;
+  // What 播放 loops: the pattern shown, or the chain (made once a change).
+  const heard = () => (st.loop === 'chain' && many() ? (chained ||= chainOf(bank())) : clip());
+  const eachClip = fn => [st.drums, st.notes].forEach(b => (b.pats = b.pats.map(fn)));
 
   // ---- Drawing ----
   const modeSeg = segmented(
@@ -105,6 +151,10 @@ export function mountStudio(panel, api) {
   const saveBtn = h('button', { class: 'mini', type: 'button', text: W('♡ 收藏', '♡ Keep') });
   const midiBtn = h('button', { class: 'mini', type: 'button', text: 'MIDI' });
   const addBtn = h('button', { class: 'primary', type: 'button' });
+  const patSeg = h('div', { class: 'seg pats' });
+  const chainSub = h('small');
+  const loopSeg = h('div', { class: 'seg' });
+  const chainSlots = h('div', { class: 'chain' });
   const note = h('p', { class: 'studio-note' });
   const tip = h('p', { class: 'studio-note' });
   const shelfList = h('ul', { class: 'mine-list' });
@@ -118,6 +168,8 @@ export function mountStudio(panel, api) {
   const tempoRow = row(W('速度', 'Tempo'), tempoSub, h('div', { class: 'ctl' }, [tempoIn, h('span', { class: 'unit', text: 'BPM' }), tapBtn]));
   const lenRow = row(W('長度', 'Length'), h('small', { text: W('一個循環', 'One loop') }), barsSeg);
   const swingRow = row(W('搖擺', 'Swing'), h('small', { text: W('反拍的 16 分音符晚一點', 'Off-beat 16ths a little late') }), h('div', { class: 'ctl' }, [swingIn, swingVal]));
+  const patRow = row(W('段落', 'Pattern'), h('small', { text: W('最多四段，再點一下更多', 'Up to four; tap again for more') }), patSeg);
+  const chainRow = h('div', { class: 'stack' }, [h('div', { class: 'chain-head' }, [h('div', { class: 'label' }, [h('span', { text: W('串接', 'Chain') }), chainSub]), loopSeg]), chainSlots]);
 
   panel.replaceChildren(
     h('section', { class: 'card' }, [
@@ -130,6 +182,8 @@ export function mountStudio(panel, api) {
       lenRow,
       tempoRow,
       swingRow,
+      patRow,
+      chainRow,
       h('div', { class: 'studio-tools' }, [undoBtn, copyBtn, chordBtn, saveBtn, midiBtn]),
       tip,
       grid,
@@ -172,10 +226,11 @@ export function mountStudio(panel, api) {
     swingIn.value = String(clip().swing || 0);
     swingVal.textContent = `${Math.round((clip().swing || 0) * 100)}%`;
     copyBtn.disabled = st.bars < 2;
+    drawPatterns();
     undoBtn.disabled = !undo.length;
     addBtn.textContent = W('加進片段', 'Add to pieces');
     const role = INSTRUMENT_ROLE[st.inst] || 'riff';
-    tip.textContent = drums ? W('點一下打 · 再點重音 · 三下拿掉', 'Tap: a hit · again: accent · again: off') : st.chord ? W('和弦開：點一個音放進它的三和弦', 'Chords on: a tap puts in its triad') : W('點一個音放進去，再點拿掉', 'Tap a note in, again to take it out');
+    tip.textContent = drums ? W('點：打 · 再點：重音 · 長按：力度', 'Tap: hit · again: accent · hold: level') : st.chord ? W('點一個音放進三和弦 · 長按：力度', 'Tap: its triad · hold: level') : W('點：放進 · 再點：拿掉 · 長按：力度', 'Tap: in · again: out · hold: level');
     note.textContent = drums ? W('加進去：整段是過門，每種鼓成為歌裡的鼓', 'Added: the loop a fill, each drum the songs’') : W(`加進去成為${name(ROLE_NAMES, role)}，跟錄的片段一樣排進歌`, `Added as a ${name(ROLE_NAMES, role)}, arranged like any piece`);
     paintPlay();
     drawShelf();
@@ -210,27 +265,28 @@ export function mountStudio(panel, api) {
       const s = +b.dataset.s;
       let on = false;
       let held = false;
-      let accent = false;
+      let lv = 0;
       let chord = false;
       if (st.mode === 'drums') {
-        const v = c.steps[r]?.[s];
-        on = Boolean(v);
-        accent = v === 2;
+        lv = c.steps[r]?.[s] || 0;
+        on = Boolean(lv);
       } else
         for (const x of c.notes)
           if (x.midi === r) {
-            if (x.step === s) (on = true), (chord = Boolean(x.chord));
+            if (x.step === s) (on = true), (chord = Boolean(x.chord)), (lv = x.lv || 1);
             else if (s > x.step && s < x.step + (x.len || 1)) held = true;
           }
       b.classList.toggle('on', on);
-      b.classList.toggle('accent', accent);
+      b.classList.toggle('accent', lv === 2);
+      b.classList.toggle('soft', lv === 3);
       b.classList.toggle('chord', chord);
       b.classList.toggle('held', held && !on);
       b.setAttribute('aria-pressed', String(on));
     }
-    addBtn.disabled = clipEmpty(c);
+    const none = bank().chain.every(i => clipEmpty(bank().pats[i]));
+    addBtn.disabled = none;
     saveBtn.disabled = clipEmpty(c);
-    midiBtn.disabled = clipEmpty(c);
+    midiBtn.disabled = none;
     undoBtn.disabled = !undo.length;
   }
   function draw() {
@@ -256,7 +312,7 @@ export function mountStudio(panel, api) {
     const before = rows();
     st.inst = i;
     const after = rows();
-    st.notes = { ...st.notes, inst: i, notes: st.notes.notes.map(x => ({ ...x, midi: after[before.indexOf(x.midi)] })).filter(x => x.midi != null) };
+    st.notes.pats = st.notes.pats.map(c => ({ ...c, inst: i, notes: c.notes.map(x => ({ ...x, midi: after[before.indexOf(x.midi)] })).filter(x => x.midi != null) }));
     keep();
     draw();
     audition(after[after.length - 1] ?? 60);
@@ -266,16 +322,17 @@ export function mountStudio(panel, api) {
     const before = rows();
     st.key = k;
     const after = rows();
-    st.notes.key = k;
-    st.notes.notes = st.notes.notes.map(x => ({ ...x, midi: after[before.indexOf(x.midi)] })).filter(x => x.midi != null);
+    for (const c of st.notes.pats) {
+      c.key = k;
+      c.notes = c.notes.map(x => ({ ...x, midi: after[before.indexOf(x.midi)] })).filter(x => x.midi != null);
+    }
     keep();
     draw();
   }
   function setBars(n) {
     if (n === st.bars) return;
     mark();
-    st.drums = resizeClip(st.drums, n);
-    st.notes = resizeClip(st.notes, n);
+    eachClip(c => resizeClip(c, n));
     st.bars = n;
     keep();
     draw();
@@ -296,38 +353,79 @@ export function mountStudio(panel, api) {
     const t = taps.tap();
     if (t) setTempo(Math.min(200, Math.max(60, t)));
   };
+  // (Swing and the 808's pitch are the patterns' together.)
+  const sameSound = () => {
+    const c = clip();
+    for (const x of bank().pats) Object.assign(x, c.kind === 'drums' ? { swing: c.swing, pitch: c.pitch } : { swing: c.swing });
+  };
   swingIn.addEventListener('input', () => {
     clip().swing = +swingIn.value;
+    sameSound();
     swingVal.textContent = `${Math.round(clip().swing * 100)}%`;
     keep();
   });
-  grid.addEventListener('click', e => {
-    const b = e.target.closest('.cell');
-    if (!b) return;
-    const r = rows()[+b.dataset.r];
-    const s = +b.dataset.s;
+  // A hit's level, on the grid: 0 none, else 1 normal, 2 accent, 3 soft.
+  const levelAt = (r, s) => (st.mode === 'drums' ? clip().steps[r][s] || 0 : (n => (n ? n.lv || 1 : 0))(clip().notes.find(x => x.midi === r && x.step === s)));
+  function setLevel(r, s, lv) {
     mark();
-    if (st.mode === 'drums') {
-      const lane = st.drums.steps[r];
-      lane[s] = nextHit(lane[s]);
-      if (lane[s]) audition(r, lane[s] === 2 ? 1.35 : 1);
-    } else {
-      const at = st.notes.notes.findIndex(x => x.midi === r && x.step === s);
-      if (at >= 0) st.notes.notes.splice(at, 1);
+    const c = clip();
+    if (st.mode === 'drums') c.steps[r][s] = lv;
+    else {
+      const at = c.notes.findIndex(x => x.midi === r && x.step === s);
+      if (!lv) at >= 0 && c.notes.splice(at, 1);
       else {
-        st.notes.notes.push({ step: s, midi: r, len: NOTE_LEN[st.inst] || 2, ...(st.chord ? { chord: true } : {}) });
-        st.notes.key = keyNow();
-        audition(r);
+        const n = at >= 0 ? c.notes[at] : (c.notes.push({ step: s, midi: r, len: NOTE_LEN[st.inst] || 2, ...(st.chord ? { chord: true } : {}) }), c.notes[c.notes.length - 1]);
+        if (lv === 1) delete n.lv;
+        else n.lv = lv;
+        c.key = keyNow();
       }
     }
     keep();
     paintCells();
+    if (lv) audition(r, lv, s);
+  }
+  grid.addEventListener('click', e => {
+    const b = e.target.closest('.cell');
+    if (!b || held) return void (held = false);
+    const r = rows()[+b.dataset.r];
+    const s = +b.dataset.s;
+    const was = levelAt(r, s);
+    setLevel(r, s, st.mode === 'drums' ? nextHit(was) : was ? 0 : 1);
+  });
+  // A long press (or a right click): the hit's level, from a menu.
+  let press = 0;
+  let held = false;
+  let from = null;
+  function levelMenu(b) {
+    const r = rows()[+b.dataset.r];
+    const s = +b.dataset.s;
+    const was = levelAt(r, s);
+    menu(b, [
+      ...LEVELS.map(lv => ({ label: W(...LEVEL_NAMES[lv]), icon: was === lv ? '✓' : '', onClick: () => setLevel(r, s, lv) })),
+      ...(was ? ['divider', { label: W('拿掉', 'Remove'), icon: '✕', danger: true, onClick: () => setLevel(r, s, 0) }] : [])
+    ]);
+  }
+  grid.addEventListener('pointerdown', e => {
+    const b = e.target.closest('.cell');
+    if (!b || e.button) return;
+    held = false;
+    from = [e.clientX, e.clientY];
+    clearTimeout(press);
+    press = setTimeout(() => ((held = true), levelMenu(b)), 450);
+  });
+  grid.addEventListener('pointermove', e => from && Math.hypot(e.clientX - from[0], e.clientY - from[1]) > 10 && clearTimeout(press));
+  for (const t of ['pointerup', 'pointercancel', 'pointerleave']) grid.addEventListener(t, () => clearTimeout(press));
+  grid.addEventListener('contextmenu', e => {
+    const b = e.target.closest('.cell');
+    if (!b) return;
+    e.preventDefault();
+    if (!held) levelMenu(b);
   });
   autoBtn.onclick = () => {
     mark();
     seed += 1;
-    if (st.mode === 'drums') st.drums = drumPattern(st.groove, seed, st.bars);
-    else st.notes = melody(keyNow(), st.inst, seed, st.bars);
+    setClip(st.mode === 'drums' ? drumPattern(st.groove, seed, st.bars) : melody(keyNow(), st.inst, seed, st.bars));
+    sameSound();
     keep();
     drawControls();
     paintCells();
@@ -335,8 +433,8 @@ export function mountStudio(panel, api) {
   };
   clearBtn.onclick = () => {
     mark();
-    if (st.mode === 'drums') st.drums = emptyDrums(st.bars);
-    else st.notes = emptyNotes(st.inst, st.bars, keyNow());
+    const was = clip();
+    setClip(st.mode === 'drums' ? { ...emptyDrums(st.bars), swing: was.swing, pitch: was.pitch } : { ...emptyNotes(st.inst, st.bars, keyNow()), swing: was.swing });
     keep();
     drawControls();
     paintCells();
@@ -344,13 +442,14 @@ export function mountStudio(panel, api) {
   undoBtn.onclick = () => {
     const was = undo.pop();
     if (!was) return;
-    const c = clipOf(JSON.parse(was));
-    if (!c) return;
-    setClip(c);
-    st.bars = c.bars;
-    // (The other clip follows the length back.)
-    if (st.mode === 'drums' && st.notes.bars !== c.bars) st.notes = resizeClip(st.notes, c.bars);
-    if (st.mode === 'notes' && st.drums.bars !== c.bars) st.drums = resizeClip(st.drums, c.bars);
+    const raw = JSON.parse(was);
+    const bars = raw.pats?.[0]?.bars;
+    const b = bankOf(raw, st.mode, bars);
+    if (!b) return;
+    st[st.mode] = b;
+    // (The other patterns follow the length back.)
+    st.bars = bars;
+    eachClip(c => (c.bars === bars ? c : resizeClip(c, bars)));
     keep();
     draw();
   };
@@ -375,7 +474,7 @@ export function mountStudio(panel, api) {
     toast(W('已收藏這個片段', 'Clip kept'));
   };
   midiBtn.onclick = () => {
-    const c = clip();
+    const c = chainOf(bank());
     const bytes = midiFile({ bpm: api.tempo(), tracks: clipTracks(c, clipName(c)) });
     download(new Blob([bytes], { type: 'audio/midi' }), `${fileName(clipName(c))}.mid`);
   };
@@ -387,12 +486,13 @@ export function mountStudio(panel, api) {
     const c = clipOf(x.clip);
     setClip(c);
     st.bars = c.bars;
-    if (st.mode === 'drums') st.notes = resizeClip(st.notes, c.bars);
-    else {
-      st.drums = resizeClip(st.drums, c.bars);
+    eachClip(p => (p.bars === c.bars ? p : resizeClip(p, c.bars)));
+    if (st.mode === 'notes') {
       st.inst = c.inst;
       if (c.key) st.key = c.key;
+      for (const p of st.notes.pats) Object.assign(p, { inst: c.inst, key: c.key });
     }
+    sameSound();
     modeSeg.set(st.mode);
     keep();
     draw();
@@ -410,7 +510,61 @@ export function mountStudio(panel, api) {
     toast(W(`已加進 ${n} 個片段（在「做歌」）`, `Added ${n} piece${n === 1 ? '' : 's'} (in Make)`));
     drawControls();
   }
-  addBtn.onclick = () => addClip(clip());
+  addBtn.onclick = () => addClip(chainOf(bank()));
+
+  // ---- Patterns and the chain ----
+  function drawPatterns() {
+    const b = bank();
+    patSeg.replaceChildren(
+      ...b.pats.map((_, k) => h('button', { type: 'button', 'aria-pressed': String(b.at === k), 'aria-label': W(`段落 ${PAT_NAMES[k]}`, `Pattern ${PAT_NAMES[k]}`), text: PAT_NAMES[k], onclick: e => (b.at === k ? patMenu(k, e.currentTarget) : showPattern(k)) })),
+      ...(b.pats.length < MOST_PATS ? [h('button', { type: 'button', text: '+', 'aria-label': W('新增一段', 'New pattern'), onclick: () => newPattern() })] : [])
+    );
+    chainRow.hidden = !many();
+    chainSub.textContent = W(`${b.chain.length} 段 · ${b.chain.length * st.bars} 小節`, `${b.chain.length} × ${st.bars} = ${b.chain.length * st.bars} bar${b.chain.length * st.bars > 1 ? 's' : ''}`);
+    loopSeg.replaceChildren(
+      ...[
+        ['pat', W('播這段', 'Play one')],
+        ['chain', W('播串接', 'Play chain')]
+      ].map(([id, label]) => h('button', { type: 'button', 'aria-pressed': String(st.loop === id), text: label, onclick: () => ((st.loop = id), keep(), drawPatterns(), playing && restart()) }))
+    );
+    chainSlots.replaceChildren(
+      ...b.chain.map((i, k) => h('button', { class: 'slot', type: 'button', 'data-k': String(k), text: PAT_NAMES[i], 'aria-label': W(`第 ${k + 1} 段：${PAT_NAMES[i]}，點一下換`, `Slot ${k + 1}: ${PAT_NAMES[i]}, tap to change`), onclick: () => chainEdit(c => (c[k] = (c[k] + 1) % b.pats.length)) })),
+      h('button', { class: 'slot edit', type: 'button', text: '−', 'aria-label': W('拿掉最後一段', 'Remove the last'), disabled: b.chain.length < 2, onclick: () => chainEdit(c => c.pop()) }),
+      h('button', { class: 'slot edit', type: 'button', text: '+', 'aria-label': W('再接一段', 'Add one'), disabled: b.chain.length >= MOST_CHAIN, onclick: () => chainEdit(c => c.push(b.at)) })
+    );
+  }
+  function chainEdit(fn) {
+    mark();
+    fn(bank().chain);
+    keep();
+    drawPatterns();
+    paintCells();
+  }
+  function showPattern(k) {
+    bank().at = k;
+    keep();
+    drawControls();
+    paintCells();
+  }
+  // A new pattern starts as a copy of the one shown, and joins the chain's end.
+  function newPattern() {
+    const b = bank();
+    if (b.pats.length >= MOST_PATS) return;
+    mark();
+    b.pats.push(JSON.parse(JSON.stringify(clip())));
+    b.at = b.pats.length - 1;
+    if (b.pats.length === 2 && b.chain.length === 1) b.chain = [0, 1];
+    else if (b.chain.length < MOST_CHAIN) b.chain.push(b.at);
+    keep();
+    drawControls();
+    paintCells();
+  }
+  function patMenu(k, anchor) {
+    menu(anchor, [
+      ...(bank().pats.length < MOST_PATS ? [{ label: W('複製成新的一段', 'Copy as a new one'), icon: '⧉', onClick: () => newPattern() }] : []),
+      { label: W('刪除這段', 'Delete this one'), icon: '✕', danger: true, onClick: () => (bank().pats.length > 1 ? (mark(), (st[st.mode] = dropPattern(bank(), k)), keep(), drawControls(), paintCells()) : toast(W('至少要留一段', 'Keep at least one'))) }
+    ]);
+  }
 
   // ---- Sound: each hit or note made once (at the phone's rate), then scheduled ----
   const buffers = new Map();
@@ -436,10 +590,11 @@ export function mountStudio(panel, api) {
     src.start(when);
   }
   // A tap heard at once.
-  function audition(r, gain = 1) {
+  function audition(r, lv = 1) {
     if (playing) return;
-    if (st.mode === 'drums') fire(r, r === 'sub' ? st.drums.pitch || 33 : 36, 1, 0, gain);
-    else for (const h of stepHits({ ...st.notes, notes: [{ step: 0, midi: r, len: NOTE_LEN[st.inst] || 2, chord: st.chord }] }, 0)) fire(h.inst, h.midi, h.len, 0, h.gain);
+    const c = clip();
+    const one = st.mode === 'drums' ? { ...emptyDrums(1), pitch: c.pitch, steps: { [r]: [lv] } } : { ...c, notes: [{ step: 0, midi: r, len: NOTE_LEN[st.inst] || 2, chord: st.chord, lv }] };
+    for (const x of stepHits(one, 0)) fire(x.inst, x.midi, x.len, 0, x.gain);
   }
   let playing = false;
   let timer = 0;
@@ -464,14 +619,15 @@ export function mountStudio(panel, api) {
     playing = false;
     clearInterval(timer);
     cancelAnimationFrame(raf);
-    for (const b of grid.querySelectorAll('.cell.now')) b.classList.remove('now');
+    for (const b of panel.querySelectorAll('.cell.now, .slot.now')) b.classList.remove('now');
+    shownStep = -1;
     paintPlay();
   }
   // The same hits renderClip makes (stepHits, swingOf), ahead of the clock.
   function schedule() {
     const c = api.audio();
     const per = 60 / api.tempo() / 4;
-    const cl = clip();
+    const cl = heard();
     const n = STEPS * cl.bars;
     while (nextTime < c.currentTime + 0.12) {
       const s = nextStep % n;
@@ -489,11 +645,19 @@ export function mountStudio(panel, api) {
     while (queue.length > 1 && queue[1][0] <= t) queue.shift();
     const s = queue[0]?.[0] <= t ? queue[0][1] : -1;
     if (s !== shownStep) {
-      for (const b of grid.querySelectorAll('.cell.now')) b.classList.remove('now');
-      if (s >= 0) for (const b of grid.querySelectorAll(`.cell[data-s="${s}"]`)) b.classList.add('now');
+      for (const b of panel.querySelectorAll('.cell.now, .slot.now')) b.classList.remove('now');
+      // (Playing the chain: the step lit when it's the pattern shown, and the chain's place.)
+      const per = STEPS * st.bars;
+      const k = st.loop === 'chain' && many() ? Math.floor(s / per) : -1;
+      if (s >= 0 && (k < 0 || bank().chain[k] === bank().at)) for (const b of grid.querySelectorAll(`.cell[data-s="${s % per}"]`)) b.classList.add('now');
+      if (k >= 0) chainSlots.querySelector(`.slot[data-k="${k}"]`)?.classList.add('now');
       shownStep = s;
     }
     raf = requestAnimationFrame(paintNow);
+  }
+  function restart() {
+    stop();
+    start();
   }
   function paintPlay() {
     playBtn.textContent = playing ? W('■ 停止', '■ Stop') : W('▶ 播放', '▶ Play');
