@@ -22,11 +22,16 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
     It loops as you tap; 自動編 writes a start; 加進片段 renders the chain into the kit.
   - **即興** (Jam): the kit as pads over a groove made of its own drums.
     Loops start on the next bar, one-shots snap to 1/16, 1/8, the beat or
-    自由; ● 錄一段 turns a take into a song.
+    自由; ● 錄一段 turns a take into a song. A long press on a pad: its
+    音量, 靜音 and 切音 (self, or group A/B: an open hat cut by a closed
+    one), kept per kit (fingerprint) on the phone; a take's song carries
+    each hit's level and cut, so it sounds as played.
   - **歌單** (Library): kept songs (IndexedDB, 16-bit WAV). Play, share,
     rename, delete, vary; search by name, groove or key, four orders, and
-    a zip of what's shown. 依你的口味 leans new batches toward the styles you
-    keep.
+    a zip of what's shown. 清單 (playlists, localStorage): make, rename,
+    delete, add a song from its ⋯, open one and play it in order; a song
+    taken out of 歌單 leaves every list. 依你的口味 leans new batches toward
+    the styles you keep.
 - **Pieces in:** one recording split on its silences, a sample pack (many
   files, each split), or the microphone, in any mix.
 - **Tempo:** every tempo from 70–190 BPM is scored by how well the hits
@@ -76,8 +81,8 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 | `lib/synth.mjs`, `lib/studio.mjs` | Instruments and 自動編; the 樂器 tab |
 | `lib/mix.mjs` | The mixer, stems, limiter |
 | `lib/make.mjs`, `lib/maker.mjs`, `lib/maker.worker.mjs` | Making songs in a worker |
-| `lib/jam.mjs`, `lib/jamview.mjs` | 即興: timing; the pads |
-| `lib/library.mjs` | 歌單: search, order, zip |
+| `lib/jam.mjs`, `lib/jamview.mjs` | 即興: timing, levels, choke; the pads |
+| `lib/library.mjs`, `lib/lists.mjs` | 歌單: search, order, zip; playlists |
 | `lib/midi.mjs`, `lib/tap.mjs`, `lib/download.mjs`, `lib/names.mjs` | MIDI files, tap tempo, saving, names |
 
 ## Run and test

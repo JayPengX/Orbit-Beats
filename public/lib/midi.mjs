@@ -62,7 +62,7 @@ export function songTracks(events, roles, pieces, sr, bpm, names = {}) {
     channel: ch,
     notes: events
       .filter(e => BUS_OF[roles[e.i]] === bus)
-      .map(e => ({ beat: e.a / B, beats: Math.min(16, Math.max(0.25, pieces[e.i].L.length / B)), note: 36 + e.i, vel: 100 }))
+      .map(e => ({ beat: e.a / B, beats: Math.min(16, Math.max(0.25, Math.min(e.n || Infinity, pieces[e.i].L.length) / B)), note: 36 + e.i, vel: Math.max(1, Math.round(100 * Math.sqrt(e.g ?? 1))) }))
   })).filter(t => t.notes.length);
 }
 

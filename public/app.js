@@ -738,20 +738,21 @@ const recipeId = r => (r.jam ? `${r.print}:jam:${r.at}` : `${r.print}:${r.seed}:
 const urls = new Map(); // a kept song's WAV as a URL, made when first played or shared
 const lib = libraryView({
   panel: $('panel-library'),
-  row: song => songRow(song, { lib: true }),
+  row: (song, list) => songRow(song, { lib: true, list }),
+  play: song => playSong(song),
   goMake: () => showTab('make'),
   zip: list => zipOf(list, 'Orbit Beats · Library.zip')
 });
 
 // One row: play, its name and what it is, ♡ and ⋯; its sections under it (tap one to go there).
-function songRow(song, { lib: inLib = false } = {}) {
+function songRow(song, { lib: inLib = false, list = null } = {}) {
   const li = h('li', { class: 'song', 'data-id': song.id });
   const info = song.info;
   const what = [timeText(info.seconds), info.style ? name(STYLE_NAMES, info.style) : W('即興', 'Jam'), keyName(info.key)].filter(Boolean).join(' · ');
   const plan = info.plan.map(([t, n]) => `${name(SECTION_NAMES, t)} ${n} ${W('小節', 'bars')}`).join(', ');
   const play = h('button', { class: 'play', type: 'button', 'aria-label': W(`播放 ${song.name}`, `Play ${song.name}`), html: ICON.play, onclick: () => toggleSong(song) });
   const heart = h('button', { class: `act heart${lib.has(song.id) ? ' kept' : ''}`, type: 'button', 'aria-label': W('收藏', 'Keep'), 'aria-pressed': String(lib.has(song.id)), html: lib.has(song.id) ? ICON.hearted : ICON.heart, onclick: () => keepSong(song) });
-  const more = h('button', { class: 'act', type: 'button', 'aria-label': W('更多', 'More'), html: ICON.more, onclick: e => songMenu(song, e.currentTarget, inLib) });
+  const more = h('button', { class: 'act', type: 'button', 'aria-label': W('更多', 'More'), html: ICON.more, onclick: e => songMenu(song, e.currentTarget, inLib, list) });
   const bar = h('div', { class: 'plan', role: 'group', 'aria-label': plan });
   let at = 0;
   info.plan.forEach(([t, n], k) => {
@@ -864,7 +865,8 @@ async function another(from, recipe, title) {
 }
 const baseTitle = song => song.name.split(' · ')[0];
 const nth = base => songs.filter(s => s.name.startsWith(`${base} · `)).length + 1;
-function songMenu(song, anchor, inLib) {
+// (In 歌單: into a list; shown in a list, out of it.)
+function songMenu(song, anchor, inLib, list = null) {
   const can = heard && song.recipe?.print === print;
   const isJam = Boolean(song.recipe?.jam);
   menu(anchor, [
@@ -887,6 +889,8 @@ function songMenu(song, anchor, inLib) {
     ...(inLib
       ? [
           'divider',
+          { label: W('加到清單…', 'Add to playlist…'), icon: '+', onClick: () => lib.pickList(song) },
+          ...(list ? [{ label: W('從這個清單移除', 'Remove from this playlist'), icon: '−', onClick: () => lib.unlist(list, song.id) }] : []),
           { label: W('重新命名', 'Rename'), icon: '✎', onClick: () => renameKept(song) },
           { label: W('從歌單刪除', 'Remove from Library'), icon: '✕', danger: true, onClick: () => keepSong(song) }
         ]
@@ -1245,7 +1249,7 @@ async function boot() {
     goMake: () => showTab('make')
   });
   jam = mountJam($('panel-jam'), {
-    kit: () => ({ pieces, roles, bpm, sr, heard }),
+    kit: () => ({ pieces, roles, bpm, sr, heard, print }),
     audio: audioCtx,
     quiet: () => quiet({ keep: 'jam' }),
     styles: () => settings.styles,
