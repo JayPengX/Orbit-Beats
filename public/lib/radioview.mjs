@@ -464,14 +464,25 @@ export function mountRadio(panel, api) {
     pause: () => pause(),
     next: () => skip()
   });
-  // The lock screen's card (Now Playing): its words and buttons, and playing
-  // or paused when you tap. A song change sets only its words (as main does),
-  // never from the player's own events.
+  // The lock screen's card (Now Playing): its words and buttons, playing or
+  // paused, where in the song. Set when the song changes or you tap, never
+  // from the player's own events: a song change fires pause and play, and
+  // answering those held up the next song's start.
+  let placed = 0;
   function claim() {
     api.session(session());
+    const ms = navigator.mediaSession;
+    if (!ms) return;
     try {
-      if (navigator.mediaSession) navigator.mediaSession.playbackState = want ? 'playing' : 'paused';
+      ms.playbackState = want ? 'playing' : 'paused';
     } catch {}
+    // (Where in the song: a second on, once it plays.)
+    clearTimeout(placed);
+    placed = setTimeout(() => {
+      try {
+        if (cur && ms.setPositionState) ms.setPositionState({ duration: cur.seconds, position: Math.max(0, Math.min(cur.seconds, songTime())), playbackRate: 1 });
+      } catch {}
+    }, 1000);
   }
 
   // ---- Keeping it going ----
