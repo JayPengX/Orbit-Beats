@@ -94,8 +94,9 @@ button { cursor: pointer; }
 }
 .drop.over { border-color: var(--accent); background: var(--accent-soft); }
 .drop svg { flex: none; color: var(--accent); }
-.drop b { display: block; font-weight: 600; white-space: nowrap; }
-.drop span { display: block; font-size: 13px; color: var(--text-2); white-space: nowrap; }
+.drop > div { min-width: 0; }
+.drop b { display: block; font-weight: 600; }
+.drop span { display: block; font-size: 13px; color: var(--text-2); }
 .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .ways { display: flex; justify-content: center; gap: 8px; margin-top: 10px; }
 .way { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border: 0; border-radius: 17px; background: var(--accent-soft); color: var(--accent); font-size: 14px; font-weight: 600; white-space: nowrap; transition: transform var(--q-dur-snappy) var(--q-spring-snappy); }
@@ -438,6 +439,9 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .radio-btn.kept svg { animation: pb-pop .35s var(--q-spring-snappy); }
 .radio-next { margin: 14px 0 0; text-align: center; color: var(--text-2); font-size: 13px; min-height: 18px; overflow-wrap: anywhere; }
 .radio-more { margin-top: 12px; }
+.radio-moods { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.radio-moods .chip { flex: 1 0 auto; padding: 0 12px; height: 38px; border-radius: 19px; font-size: 15px; }
+@media (max-width: 360px) { .radio-moods { gap: 6px; } .radio-moods .chip { padding: 0 8px; } }
 @media (prefers-reduced-motion: reduce) { .radio-card .radio-art .eq i { animation: none !important; } }
 
 /* 樂器 in 簡單: write one again, or add it, right above the grid. */
@@ -460,7 +464,7 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
       <img class="q-brand-logo" src="./favicon.svg" alt="" width="34" height="34">
       <div class="q-brand-text">
         <h1 id="title">Orbit Beats</h1>
-        <p id="badge" class="q-status" aria-live="polite" data-en="Endless music, and songs you make">聽不完的音樂，也做自己的歌</p>
+        <p id="badge" class="q-status" aria-live="polite" data-en="Music that never stops">聽不完的音樂，也做自己的歌</p>
       </div>
     </div>
     <nav id="tabs" class="q-tabbar" role="tablist"></nav>

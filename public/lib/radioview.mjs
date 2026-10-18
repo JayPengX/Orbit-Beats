@@ -61,8 +61,8 @@ export function mountRadio(panel, api) {
   const upNext = h('p', { class: 'radio-next', 'aria-live': 'polite' });
   const card = h('section', { class: 'card radio-card' }, [art, h('div', { class: 'radio-what' }, [title, sub]), bar, time, h('div', { class: 'radio-ctl' }, [heart, play, next]), upNext]);
   const chip = (id, label) => h('button', { class: 'chip', type: 'button', 'data-mood': id, 'aria-pressed': String(id === mood), text: label, onclick: () => pick(id) });
-  const moods = h('div', { class: 'chips five' }, Object.keys(MOODS).map(id => chip(id, moodName(id))));
-  const grooves = h('div', { class: 'chips' }, STYLES.map(s => chip(`style:${s}`, name(STYLE_NAMES, s))));
+  const moods = h('div', { class: 'radio-moods' }, Object.keys(MOODS).map(id => chip(id, moodName(id))));
+  const grooves = h('div', { class: 'radio-moods' }, STYLES.map(s => chip(`style:${s}`, name(STYLE_NAMES, s))));
   const more = h('details', { class: 'radio-more' }, [h('summary', { text: W('或只聽一種鼓', 'Or just one groove') }), grooves]);
   panel.append(card, h('section', { class: 'card' }, [h('div', { class: 'head' }, [h('h2', { text: W('想聽什麼', 'What to play') })]), moods, more]));
   if (/^style:/.test(mood)) more.open = true;
@@ -75,7 +75,8 @@ export function mountRadio(panel, api) {
   };
   // Two ahead of the one playing; one more as soon as one is used.
   function fill() {
-    if (q.busy || q.ready.length >= 2 || fails >= 3) return;
+    // (Before play: one, so the first tap plays at once; playing: two.)
+    if (q.busy || q.ready.length >= (want ? 2 : 1) || fails >= 3) return;
     const s = spec();
     const after = q.ready.at(-1)?.id || cur?.id || null;
     const gen = q.gen;
