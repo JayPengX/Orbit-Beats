@@ -9,7 +9,8 @@
 
 import { h, toast } from '#kit/ui.mjs';
 import { STYLES, NOTE_NAMES } from '../engine.mjs';
-import { MOODS, radioPick, radioQueue } from './radio.mjs';
+import { MOODS, RADIO_SR, radioPick, radioQueue } from './radio.mjs';
+import { FRAME, TAPE_TYPE, tapeInit, tapeSegment, tapeFeed, wavPcm } from './tape.mjs';
 import { STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
 
@@ -74,12 +75,12 @@ export function mountRadio(panel, api) {
     last = [...last, s.style].slice(-3);
     return s;
   };
-  // Two ahead of the one playing; one more as soon as one is used.
+  // Two ahead of the one playing (on the tape, one already laid down counts); one more as soon as one is used.
   function fill() {
     // (Before play: one, so the first tap plays at once; playing: two.)
-    if (q.busy || q.ready.length >= (want ? 2 : 1) || fails >= 3) return;
+    if (q.busy || q.ready.length + (upcoming() ? 1 : 0) >= (want ? 2 : 1) || fails >= 3) return;
     const s = spec();
-    const after = q.ready.at(-1)?.id || cur?.id || null;
+    const after = q.ready.at(-1)?.id || upcoming()?.id || cur?.id || null;
     const gen = q.gen;
     q.busy = true;
     api.make
@@ -87,11 +88,15 @@ export function mountRadio(panel, api) {
       .then(v => {
         q.busy = false;
         fails = 0;
-        const item = { ...v, spec: s, title: api.title(s.seed), url: URL.createObjectURL(new Blob([v.wav], { type: 'audio/wav' })) };
-        delete item.wav;
-        if (gen !== q.gen) URL.revokeObjectURL(item.url);   // (made for a mood since changed)
-        else q.ready.push(item);
-        if (want && (!cur || q.skip)) advance();
+        const item = { ...v, spec: s, title: api.title(s.seed), url: null };
+        if (gen === q.gen) {
+          if (taped) item.pcm = wavPcm(v.wav);
+          else (item.url = URL.createObjectURL(new Blob([v.wav], { type: 'audio/wav' }))), delete item.wav;
+          q.ready.push(item);
+        }
+        if (want && tape && !cur) pump();
+        else if (want && (!cur || q.skip)) advance();
+        else if (tape) pump();
         paintNext();
         fill();
       })
@@ -103,7 +108,9 @@ export function mountRadio(panel, api) {
         else if (want && !cur) toast(W('音樂做不出來，再按一次播放試試', "Couldn't make the music: tap play again"), { tone: 'bad' });
       });
   }
-  // The next stretch, now (or as soon as it's made).
+  const urlOf = it => (it.url ||= URL.createObjectURL(new Blob([it.wav], { type: 'audio/wav' })));
+  const drop = it => it && it !== cur && !tape?.marks.some(m => m.item === it) && !q.ready.includes(it) && (it.url && URL.revokeObjectURL(it.url), (it.url = null), (it.pcm = null), (it.wav = null));
+  // The next song, now (or as soon as it's made).
   function advance() {
     const item = q.ready.shift();
     if (!item) {
@@ -111,22 +118,139 @@ export function mountRadio(panel, api) {
       return paintNext();
     }
     q.skip = false;
+    if (tape) {
+      cutTo(item);
+      return fill();
+    }
     const was = cur;
     cur = item;
     audio.loop = false;
-    audio.src = item.url;
+    audio.src = urlOf(item);
     if (want) audio.play().catch(() => retry());
-    if (was) setTimeout(() => URL.revokeObjectURL(was.url), 4000);
+    if (was) setTimeout(() => drop(was), 4000);
     paint();
-    api.session(session());
+    claim();
     fill();
   }
   // A play() refused (iOS between songs, a stretch the phone couldn't read): the next one, once.
   let retried = 0;
   function retry() {
     if (!want || retried++ > 2) return paint();
-    setTimeout(() => (q.ready.length ? advance() : audio.play().catch(() => paint())), 300);
+    setTimeout(() => (q.ready.length && !tape ? advance() : audio.play().catch(() => paint())), 300);
   }
+
+  // ---- The tape: every song on one stream, no gap between them (lib/tape.mjs) ----
+  // { ms, sb, time (samples laid down), number, seq, marks: [{ t (s), item, from (s) }], cut (s, a ⏭ to make) }
+  let tape = null;
+  const AHEAD = 12; // seconds laid down ahead of the one playing
+  const CHUNK = 20; // frames an append (2.6 s)
+  function openTape() {
+    const MS = globalThis.ManagedMediaSource || globalThis.MediaSource;
+    const ms = new MS();
+    const t = { ms, sb: null, base: 0, time: 0, number: 0, seq: 1, marks: [], cut: null, feed: tapeFeed(RADIO_SR), stuck: 0, last: -1 };
+    // (iOS's Managed Media Source plays only with AirPlay off for it.)
+    audio.disableRemotePlayback = true;
+    ms.addEventListener('sourceopen', () => {
+      try {
+        t.sb = ms.addSourceBuffer(TAPE_TYPE);
+        t.sb.mode = 'segments';
+        t.sb.addEventListener('updateend', pump);
+        t.sb.addEventListener('error', () => toFiles('append'));
+        t.sb.appendBuffer(tapeInit(RADIO_SR));
+      } catch {
+        toFiles('open');
+      }
+    }, { once: true });
+    ms.addEventListener?.('startstreaming', pump);
+    audio.loop = false;
+    audio.src = URL.createObjectURL(ms);
+    return t;
+  }
+  const ahead = () => {
+    const b = tape?.sb?.buffered;
+    return b && b.length ? b.end(b.length - 1) - audio.currentTime : 0;
+  };
+  // More of the stream, a little at a time, when it runs under AHEAD seconds; what's played, let go.
+  function pump() {
+    const t = tape;
+    if (!t?.sb || t.sb.updating || t.ms.readyState !== 'open') return;
+    try {
+      if (t.cut != null) {
+        // (⏭: what was laid down past here goes; the next song from here.)
+        const at = t.cut;
+        t.cut = null;
+        t.time = t.base = Math.round(at * RADIO_SR);
+        t.marks = t.marks.filter(m => m.t < at);
+        return t.sb.remove(at, Infinity);
+      }
+      const b = t.sb.buffered;
+      // (The phone let go of music laid down ahead, which can't be laid down again: the songs file by file.)
+      if (t.time > 0 && b.length && b.end(b.length - 1) < t.time / RADIO_SR - 1) return toFiles('evicted');
+      if (b.length && audio.currentTime - b.start(0) > 30) return t.sb.remove(0, audio.currentTime - 10);
+      // (Managed Media Source says when it's a good time; under 5 s left, it's always one.)
+      if (ahead() > AHEAD || (t.ms.streaming === false && ahead() > 5)) return;
+      if (!t.feed.item && !q.ready.length) return;
+      const n = CHUNK * FRAME;
+      const { pcm, marks } = t.feed.take(n, () => q.ready.length > 0, () => q.ready.shift() || null);
+      for (const m of marks) t.marks.push({ t: (t.time + m.at) / RADIO_SR, item: m.item, from: m.from / RADIO_SR });
+      t.sb.appendBuffer(tapeSegment(pcm, 0, CHUNK, { sr: RADIO_SR, time: t.time, number: t.number, seq: t.seq++ }));
+      t.time += n;
+      t.number += CHUNK;
+      if (marks.length) fill();
+    } catch (e) {
+      // (Full: what's played goes first; anything else, the songs one file at a time.)
+      if (e?.name === 'QuotaExceededError' && audio.currentTime > 4) t.sb.remove(0, audio.currentTime - 2);
+      else toFiles(e?.name || 'append');
+    }
+  }
+  // The stretch playing: which song and where in it. -> { item, at (s) } | null
+  function onTape() {
+    const now = audio.currentTime;
+    let m = null;
+    for (const x of tape.marks) if (x.t <= now + 0.01) m = x;
+    return m && { item: m.item, at: m.from + (now - m.t) };
+  }
+  // The song laid down after the one playing, not yet heard.
+  function upcoming() {
+    if (!tape) return null;
+    const now = audio.currentTime;
+    return tape.marks.find(m => m.t > now && m.item !== cur)?.item || null;
+  }
+  function cutTo(item) {
+    const t = tape;
+    t.feed.cut(item);
+    // (At the first whole frame a quarter second on, or where the stream ends if sooner.)
+    const k = Math.ceil(((audio.currentTime + 0.25) * RADIO_SR - t.base) / FRAME);
+    t.cut = Math.min(t.time, t.base + Math.max(0, k) * FRAME) / RADIO_SR;
+    pump();
+  }
+  // The tape stopped working (a phone that won't take it, a stall): on with the songs file by file, from where it was.
+  function toFiles(why) {
+    if (!tape) return;
+    const t = tape;
+    const here = cur ? onTape() : null;
+    // (What was laid down and not heard yet goes back in line.)
+    const later = [...new Set(t.marks.filter(m => m.t > audio.currentTime && m.item !== cur).map(m => m.item))];
+    q.ready.unshift(...later.filter(it => !q.ready.includes(it)));
+    if (t.feed.item && t.feed.item !== cur && !q.ready.includes(t.feed.item)) q.ready.unshift(t.feed.item);
+    tape = null;
+    console.warn('聽: the songs one file at a time:', why);
+    audio.removeAttribute('src');
+    if (!cur) return want && q.ready.length ? advance() : undefined;
+    audio.src = urlOf(cur);
+    const at = here?.item === cur ? here.at : 0;
+    if (at > 0) audio.addEventListener('loadedmetadata', () => (audio.currentTime = Math.min(at, cur.seconds - 0.5)), { once: true });
+    if (want) audio.play().catch(() => retry());
+  }
+  const canTape = () => {
+    try {
+      if (localStorage.getItem('orbit-beats-radio') === 'files') return false;
+    } catch {}
+    const MS = globalThis.ManagedMediaSource || globalThis.MediaSource;
+    return Boolean(MS?.isTypeSupported?.(TAPE_TYPE));
+  };
+  // (Decided once: songs made before the first play are kept for the way they'll play.)
+  const taped = canTape();
 
   // ---- Play, pause, next, the mood ----
   function start() {
@@ -136,6 +260,11 @@ export function mountRadio(panel, api) {
     fails = 0;
     if (cur) {
       audio.play().catch(() => retry());
+    } else if (taped) {
+      // (The tap opens the stream and plays it: the music starts as soon as the first song is on it.)
+      tape ||= openTape();
+      audio.play().catch(() => {});
+      pump();
     } else {
       // (The tap starts the element on a breath of silence, looped, so the music can follow it.)
       silent ||= hush();
@@ -146,7 +275,7 @@ export function mountRadio(panel, api) {
     }
     fill();
     paint();
-    api.session(session());
+    claim();
   }
   function pause() {
     want = false;
@@ -155,6 +284,9 @@ export function mountRadio(panel, api) {
   }
   function skip() {
     if (!want) return start();
+    const n = upcoming();
+    // (The one laid down next: from now.)
+    if (tape && n) return cutTo(n);
     if (q.ready.length) advance();
     else {
       q.skip = true;
@@ -168,8 +300,9 @@ export function mountRadio(panel, api) {
     api.setMood(id);
     for (const b of panel.querySelectorAll('[data-mood]')) b.setAttribute('aria-pressed', String(b.dataset.mood === id));
     // What was made for the old mood goes; the next one is this mood's, and plays as soon as it's made.
-    for (const it of q.ready) URL.revokeObjectURL(it.url);
+    const old = q.ready;
     q.ready = [];
+    for (const it of old) drop(it);
     q.gen++;
     last = [];
     q.skip = Boolean(cur);
@@ -208,12 +341,13 @@ export function mountRadio(panel, api) {
     heart.setAttribute('aria-pressed', String(k));
   }
   function paintNext() {
-    const n = q.ready[0];
+    const n = upcoming() || q.ready[0];
     upNext.textContent = !want ? '' : n ? W(`下一首 · ${n.title} · ${name(STYLE_NAMES, n.info.style)}`, `Next · ${n.title} · ${name(STYLE_NAMES, n.info.style)}`) : W('正在做下一首…', 'Making the next song…');
   }
+  const songTime = () => (tape ? onTape()?.at ?? 0 : audio.currentTime || 0);
   function paintTime() {
     if (!cur) return;
-    const t = audio.currentTime || 0;
+    const t = songTime();
     at.style.width = `${Math.min(100, (t / cur.seconds) * 100)}%`;
     time.firstChild.textContent = clock(t);
     time.lastChild.textContent = clock(cur.seconds);
@@ -226,23 +360,61 @@ export function mountRadio(panel, api) {
     pause: () => pause(),
     next: () => skip()
   });
+  // The lock screen's card (Now Playing): its words and buttons, playing or paused, where in the song.
+  function claim() {
+    api.session(session());
+    const ms = navigator.mediaSession;
+    if (!ms) return;
+    try {
+      ms.playbackState = want && !audio.paused ? 'playing' : 'paused';
+      if (cur && ms.setPositionState) ms.setPositionState({ duration: cur.seconds, position: Math.max(0, Math.min(cur.seconds, songTime())), playbackRate: 1 });
+    } catch {}
+  }
 
   // ---- Keeping it going ----
   audio.addEventListener('timeupdate', () => {
+    if (tape) {
+      // (On the tape: which song it is now, from where it was laid down.)
+      const here = onTape();
+      if (here && here.item !== cur) {
+        const was = cur;
+        cur = here.item;
+        q.skip = false;
+        paint();
+        claim();
+        if (was) setTimeout(() => drop(was), 4000);
+        // (The marks before this song's own, let go.)
+        const i = tape.marks.findLastIndex(m => m.t <= audio.currentTime + 0.01);
+        if (i > 0) tape.marks = tape.marks.slice(i);
+      }
+      pump();
+    }
     paintTime();
     // Nothing made yet at the outro: the last hook again, from its bar line.
-    if (cur?.hold && !q.ready.length && audio.currentTime >= cur.hold.to) audio.currentTime = cur.hold.from;
+    if (!tape && cur?.hold && !q.ready.length && audio.currentTime >= cur.hold.to) audio.currentTime = cur.hold.from;
   });
   audio.addEventListener('ended', () => {
-    if (!cur || audio.loop) return;
+    if (!cur || audio.loop || tape) return;
     if (q.ready.length) return advance();
     audio.currentTime = cur.hold ? cur.hold.from : 0;
     audio.play().catch(() => retry());
   });
-  // (A stretch the phone couldn't play: on to the next.)
-  audio.addEventListener('error', () => cur && want && audio.src === cur.url && (q.ready.length ? advance() : retry()));
-  for (const ev of ['play', 'pause']) audio.addEventListener(ev, paint);
-  audio.addEventListener('playing', () => (retried = 0));
+  // (A stretch the phone couldn't play: on to the next; the tape: the songs file by file.)
+  audio.addEventListener('error', () => {
+    if (tape) return toFiles('error');
+    if (cur && want && audio.src === cur.url) q.ready.length ? advance() : retry();
+  });
+  for (const ev of ['play', 'pause']) audio.addEventListener(ev, () => (paint(), claim()));
+  audio.addEventListener('playing', () => ((retried = 0), claim()));
+  // (Every few seconds: the stream topped up, and a stall, time not moving with music ahead, caught.)
+  setInterval(() => {
+    if (!tape || !want) return;
+    pump();
+    if (audio.paused || !cur) return (tape.stuck = 0);
+    tape.stuck = ahead() > 1 && audio.currentTime === tape.last ? tape.stuck + 1 : 0;
+    tape.last = audio.currentTime;
+    if (tape.stuck >= 4) toFiles('stalled');
+  }, 1000);
   // Back on the screen after a call or Siri: the music was asked for, so it goes on.
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && want && cur && audio.paused) audio.play().catch(() => {});
