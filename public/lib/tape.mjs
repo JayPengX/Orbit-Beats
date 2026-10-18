@@ -184,3 +184,34 @@ export function tapeFeed(sr) {
     }
   };
 }
+
+// ---- Which way 聽 plays on this phone ----
+// The stream where Media Source takes one of the tape's codecs (and, for a
+// packed one, the phone can pack it); else the songs file by file.
+// -> { path: 'stream' | 'files', codec, reason }
+export const CODECS = [
+  { codec: 'flac', type: TAPE_TYPE, encoder: null },
+  { codec: 'aac', type: 'audio/mp4; codecs="mp4a.40.2"', encoder: 'mp4a.40.2' },
+  { codec: 'opus', type: 'audio/mp4; codecs="opus"', encoder: 'opus' }
+];
+export async function pickStream(sr, { codecs = CODECS, env = globalThis } = {}) {
+  const MS = env.ManagedMediaSource || env.MediaSource;
+  if (!MS?.isTypeSupported) return { path: 'files', codec: null, reason: 'no Media Source' };
+  const why = [];
+  for (const c of codecs) {
+    if (!MS.isTypeSupported(c.type)) {
+      why.push(`${c.codec}: Media Source no`);
+      continue;
+    }
+    if (!c.encoder) return { path: 'stream', codec: c.codec, reason: `${env.ManagedMediaSource ? 'Managed' : ''}MediaSource takes ${c.codec}` };
+    if (!env.AudioEncoder?.isConfigSupported) {
+      why.push(`${c.codec}: no AudioEncoder`);
+      continue;
+    }
+    const cfg = { codec: c.encoder, sampleRate: sr, numberOfChannels: 2, bitrate: 192000 };
+    const ok = await env.AudioEncoder.isConfigSupported(cfg).then(r => r.supported, () => false);
+    if (ok) return { path: 'stream', codec: c.codec, config: cfg, reason: `${env.ManagedMediaSource ? 'Managed' : ''}MediaSource takes ${c.codec}, AudioEncoder packs it` };
+    why.push(`${c.codec}: AudioEncoder no at ${sr} Hz`);
+  }
+  return { path: 'files', codec: null, reason: why.join('; ') };
+}

@@ -14,7 +14,7 @@
 import { h, toast } from '#kit/ui.mjs';
 import { STYLES, NOTE_NAMES } from '../engine.mjs';
 import { MOODS, RADIO_SR, radioPick, radioQueue } from './radio.mjs';
-import { FRAME, TAPE_TYPE, tapeInit, tapeSegment, tapeFeed, wavPcm } from './tape.mjs';
+import { FRAME, TAPE_TYPE, CODECS, tapeInit, tapeSegment, tapeFeed, wavPcm, pickStream } from './tape.mjs';
 import { STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
 
@@ -65,7 +65,9 @@ export function mountRadio(panel, api) {
   const play = h('button', { class: 'radio-play', type: 'button', 'aria-label': W('播放', 'Play'), html: ICON.play, onclick: () => (want && !audio.paused ? pause() : start()) });
   const next = h('button', { class: 'radio-btn', type: 'button', 'aria-label': W('下一首', 'Next song'), html: ICON.next, onclick: () => skip() });
   const upNext = h('p', { class: 'radio-next', 'aria-live': 'polite' });
-  const card = h('section', { class: 'card radio-card' }, [art, h('div', { class: 'radio-what' }, [title, sub]), bar, time, h('div', { class: 'radio-ctl' }, [heart, play, next]), upNext]);
+  // (?debug: which way it plays, small in the card's corner.)
+  const debug = /[?&]debug\b/.test(location.search) ? h('small', { class: 'radio-debug', style: { position: 'absolute', top: '6px', left: '12px', right: '12px', fontSize: '10px', opacity: '0.6', pointerEvents: 'none', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' } }) : null;
+  const card = h('section', { class: 'card radio-card', style: { position: 'relative' } }, [art, h('div', { class: 'radio-what' }, [title, sub]), bar, time, h('div', { class: 'radio-ctl' }, [heart, play, next]), upNext, debug]);
   const chip = (id, label) => h('button', { class: 'chip', type: 'button', 'data-mood': id, 'aria-pressed': String(id === mood), text: label, onclick: () => pick(id) });
   const moods = h('div', { class: 'radio-moods' }, Object.keys(MOODS).map(id => chip(id, moodName(id))));
   const grooves = h('div', { class: 'radio-moods' }, STYLES.map(s => chip(`style:${s}`, name(STYLE_NAMES, s))));
@@ -94,6 +96,7 @@ export function mountRadio(panel, api) {
         fails = 0;
         const item = { ...v, spec: s, title: api.title(s.seed), url: null };
         if (gen === q.gen) {
+          // (Files: the next one's file made now, long before it's needed; the stream: its samples.)
           if (taped) item.pcm = wavPcm(v.wav);
           else (item.url = URL.createObjectURL(new Blob([v.wav], { type: 'audio/wav' }))), delete item.wav;
           q.ready.push(item);
@@ -239,6 +242,7 @@ export function mountRadio(panel, api) {
     if (t.feed.item && t.feed.item !== cur && !q.ready.includes(t.feed.item)) q.ready.unshift(t.feed.item);
     tape = null;
     console.warn('聽: the songs one file at a time:', why);
+    note('files', `the stream stopped: ${why}`);
     audio.removeAttribute('src');
     if (!cur) return want && q.ready.length ? advance() : undefined;
     audio.src = urlOf(cur);
@@ -246,15 +250,29 @@ export function mountRadio(panel, api) {
     if (at > 0) audio.addEventListener('loadedmetadata', () => (audio.currentTime = Math.min(at, cur.seconds - 0.5)), { once: true });
     if (want) audio.play().catch(() => retry());
   }
-  const canTape = () => {
+  // Which way this phone plays (decided once, as the screen opens), kept for a look:
+  // localStorage 'orbit-beats-radio-path' ('stream: …' or 'files: …'), and on 聽 with ?debug.
+  let taped = false;
+  let codec = null;
+  function note(path, reason) {
     try {
-      if (localStorage.getItem('orbit-beats-radio') === 'files') return false;
+      localStorage.setItem('orbit-beats-radio-path', `${path}: ${reason}`);
     } catch {}
-    const MS = globalThis.ManagedMediaSource || globalThis.MediaSource;
-    return Boolean(MS?.isTypeSupported?.(TAPE_TYPE));
-  };
-  // (Decided once: songs made before the first play are kept for the way they'll play.)
-  const taped = canTape();
+    if (debug) debug.textContent = `${path}${codec && path === 'stream' ? ` · ${codec}` : ''} · ${reason}`;
+  }
+  let forced = false;
+  try {
+    forced = localStorage.getItem('orbit-beats-radio') === 'files';
+  } catch {}
+  if (forced) note('files', "set to files on this phone ('orbit-beats-radio')");
+  else
+    pickStream(RADIO_SR, { codecs: CODECS.filter(c => !c.encoder) })
+      .then(p => {
+        taped = p.path === 'stream';
+        codec = p.codec;
+        note(p.path, p.reason);
+      })
+      .catch(e => note('files', `couldn't tell: ${e?.message || e}`));
 
   // ---- Play, pause, next, the mood ----
   function start() {
@@ -285,6 +303,7 @@ export function mountRadio(panel, api) {
     want = false;
     audio.pause();
     paint();
+    claim();
   }
   function skip() {
     if (!want) return start();
@@ -364,15 +383,25 @@ export function mountRadio(panel, api) {
     pause: () => pause(),
     next: () => skip()
   });
-  // The lock screen's card (Now Playing): its words and buttons, playing or paused, where in the song.
+  // The lock screen's card (Now Playing): its words and buttons, playing or
+  // paused, where in the song. Set when the song changes or you tap, never
+  // from the player's own events: a song change fires pause and play, and
+  // answering those held up the next song's start.
+  let placed = 0;
   function claim() {
     api.session(session());
     const ms = navigator.mediaSession;
     if (!ms) return;
     try {
-      ms.playbackState = want && !audio.paused ? 'playing' : 'paused';
-      if (cur && ms.setPositionState) ms.setPositionState({ duration: cur.seconds, position: Math.max(0, Math.min(cur.seconds, songTime())), playbackRate: 1 });
+      ms.playbackState = want ? 'playing' : 'paused';
     } catch {}
+    // (Where in the song: a second on, once it plays.)
+    clearTimeout(placed);
+    placed = setTimeout(() => {
+      try {
+        if (cur && ms.setPositionState) ms.setPositionState({ duration: cur.seconds, position: Math.max(0, Math.min(cur.seconds, songTime())), playbackRate: 1 });
+      } catch {}
+    }, 1000);
   }
 
   // ---- Keeping it going ----
@@ -408,7 +437,7 @@ export function mountRadio(panel, api) {
     if (tape) return toFiles('error');
     if (cur && want && audio.src === cur.url) q.ready.length ? advance() : retry();
   });
-  for (const ev of ['play', 'pause']) audio.addEventListener(ev, () => (paint(), claim()));
+  for (const ev of ['play', 'pause']) audio.addEventListener(ev, paint);
   // (The phone stopped the tape with the screen off, not you: this phone plays the songs file by file from now on, which it keeps playing locked.)
   audio.addEventListener('pause', () => {
     if (!tape || !want || document.visibilityState !== 'hidden') return;
@@ -417,7 +446,7 @@ export function mountRadio(panel, api) {
     } catch {}
     toFiles('paused with the screen off');
   });
-  audio.addEventListener('playing', () => ((retried = 0), claim()));
+  audio.addEventListener('playing', () => (retried = 0));
   // (Every few seconds: the stream topped up, and a stall, time not moving with music ahead, caught.)
   setInterval(() => {
     if (!tape || !want) return;
