@@ -125,20 +125,20 @@ test('recording: from the next bar, to the end of the bar it is stopped in (a ba
   assert.equal(j.recording(), false);
   assert.equal(j.record(1), true);
   assert.equal(j.recording(), true);
-  assert.equal(j.rec.from, 4);
+  assert.equal(j.takes[0].from, 4);
   j.toggle(3, 2, 4);
   j.due(0, 6);
   j.shot(9, 6.1, 0.25);
   assert.equal(j.record(9), false, 'stopped');
   assert.equal(j.recording(), false);
-  assert.equal(j.rec.to, 12);
-  assert.equal(j.done, null, 'not done till the bar is over');
+  assert.equal(j.takes[0].to, 12);
+  assert.deepEqual(j.done, [], 'not done till the bar is over');
   j.due(6, 11.9);
-  assert.equal(j.done, null);
+  assert.deepEqual(j.done, []);
   j.due(11.9, 13);
-  assert.equal(j.rec, null);
-  assert.equal(j.done.beats, 8);
-  const hits = j.done.hits;
+  assert.deepEqual(j.takes, []);
+  assert.equal(j.done[0].beats, 8);
+  const hits = j.done[0].hits;
   assert.ok(hits.every(h => h.beat >= 0 && h.beat < 8));
   assert.deepEqual(hits.filter(h => h.i === 3).map(h => h.beat), [0, 4], 'the loop, from the take\'s start');
   assert.deepEqual(hits.filter(h => h.i === 9).map(h => h.beat), [2.25]);
@@ -146,12 +146,9 @@ test('recording: from the next bar, to the end of the bar it is stopped in (a ba
   // Stopped before it began: still one bar.
   const k = new Jam();
   k.record(1); k.record(2);
-  assert.deepEqual([k.rec.from, k.rec.to], [4, 8]);
+  assert.deepEqual([k.takes[0].from, k.takes[0].to], [4, 8]);
   k.due(0, 8);
-  assert.deepEqual(k.done, { hits: [], beats: 4 });
-  // A new take forgets the last.
-  k.record(9);
-  assert.equal(k.done, null);
+  assert.deepEqual(k.done, [{ hits: [], beats: 4 }]);
 });
 
 test("the jam's drums: the first of each role, a missing one played by another; every groove a bar of hits on the grid", () => {
@@ -159,4 +156,80 @@ test("the jam's drums: the first of each role, a missing one played by another; 
   assert.deepEqual(drumKit(['riff', 'sub', 'snare']), { kick: 1, heavy: 1, sub: 1, snare: 2, tick: null, roll: 2, fill: null });
   assert.deepEqual(drumKit(['riff', 'kick']), { kick: 1, heavy: 1, sub: 1, snare: null, tick: null, roll: null, fill: null });
   assert.deepEqual(drumKit([]), { kick: null, heavy: null, sub: null, snare: null, tick: null, roll: null, fill: null });
+});
+
+test('a loop of any length: back-to-back windows give each hit once (4/3 ends a window right on its 7th hit)', () => {
+  for (const len of [4 / 3, 2 / 3, 0.3, 0.7, 1.2, 5 / 3, 7 / 3, 4 / 7]) {
+    const j = new Jam();
+    j.toggle(1, 0, len);
+    const got = [...j.due(0, 8), ...j.due(8, 16), ...j.due(16, 24)].map(h => h.beat);
+    assert.equal(got.length, Math.ceil(24 / len - 1e-9), `length ${len}`);
+    for (let k = 1; k < got.length; k++) assert.ok(got[k] - got[k - 1] > len / 2, `length ${len}: ${got[k - 1]} then ${got[k]}`);
+  }
+});
+
+test('a loop tapped off and on again in one bar plays to the bar line, then starts again there', () => {
+  const j = new Jam();
+  j.toggle(2, 0, 1);
+  j.due(0, 5);
+  assert.deepEqual(j.toggle(2, 5, 1), { on: false, at: 8 });
+  assert.deepEqual(j.toggle(2, 6, 1), { on: true, at: 8 });
+  assert.ok(j.playing(2, 7));
+  assert.deepEqual(j.due(5, 12).map(h => h.beat), [5, 6, 7, 8, 9, 10, 11]);
+});
+
+test('● again while the last take finishes its bar: that take still becomes a song, the new one starts after it', () => {
+  const j = new Jam({ backing: [{ i: 0, beat: 0 }], cycle: 1 });
+  j.record(1);                          // from 4
+  j.due(0, 5);
+  j.record(5);                          // stopped: to 8
+  assert.equal(j.record(6), true, 'a new take');
+  assert.equal(j.recording(), true);
+  j.due(5, 8.5);
+  assert.equal(j.done.length, 1, 'the first take, kept');
+  assert.deepEqual(j.done[0], { hits: [0, 1, 2, 3].map(beat => ({ i: 0, beat })), beats: 4 });
+  j.done.length = 0;
+  j.record(9);                          // to 12
+  j.due(8.5, 13);
+  assert.deepEqual(j.done, [{ hits: [0, 1, 2, 3].map(beat => ({ i: 0, beat })), beats: 4 }]);
+  // Stopped before it began (4..8), ● again at 3: the new take waits for it, never overlaps.
+  const k = new Jam();
+  k.record(1); k.record(2);
+  k.record(3);
+  assert.equal(k.takes[1].from, 8);
+  k.record(3.5);
+  k.due(0, 20);
+  assert.deepEqual(k.done.map(t => t.beats), [4, 4]);
+});
+
+test('a one-shot whose step the windows have passed is played at once (by the caller) and still kept in the take', () => {
+  const j = new Jam();
+  j.record(0);
+  j.due(0, 2);
+  assert.equal(j.shot(3, 1.4, 0.25), 1.5);
+  assert.equal(j.shots.length, 0, 'not waiting: already played');
+  j.record(1.6);
+  j.due(2, 5);
+  assert.deepEqual(j.done[0].hits, [{ i: 3, beat: 1.5 }]);
+});
+
+test('Stop: an open take is closed at its bar and a finishing one is kept; nothing is left for the next start', () => {
+  const j = new Jam({ backing: [{ i: 0, beat: 0 }], cycle: 4 });
+  j.record(0);                          // 0..
+  j.toggle(5, 0, 2);
+  j.due(0, 2);
+  j.end(2.5);                           // to 4
+  assert.deepEqual(j.done, [{ hits: [{ i: 0, beat: 0 }, { i: 5, beat: 0 }, { i: 5, beat: 2 }], beats: 4 }]);
+  assert.equal(j.takes.length, 0);
+  assert.equal(j.loops.size, 0);
+  // Stopped while a take is finishing its bar: kept too.
+  const k = new Jam({ backing: [{ i: 0, beat: 0 }], cycle: 4 });
+  k.record(0); k.due(0, 5); k.record(5);  // to 8
+  k.end(6);
+  assert.deepEqual(k.done.map(t => t.beats), [8]);
+  // Started again from 0: a shot at 1 waits for its window.
+  k.done.length = 0;
+  k.shot(1, 1, 0.25);
+  assert.equal(k.shots.length, 1);
+  assert.deepEqual(k.due(0, 2).map(h => h.i), [0, 1]);
 });

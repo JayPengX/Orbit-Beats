@@ -145,14 +145,9 @@ export function mountJam(panel, api) {
     running = false;
     clearInterval(timer);
     cancelAnimationFrame(raf);
-    // (A take still open is kept up to here, rounded to its bar.)
-    if (jam.recording()) {
-      jam.record(beatNow());
-      jam.due(upTo, jam.rec.to);
-      finish();
-    }
-    jam.loops.clear();
-    jam.shots = [];
+    // (A take still open is kept up to here, rounded to its bar; one finishing its bar is kept whole.)
+    jam.end(beatNow());
+    finish();
     for (const b of padGrid.children) b.classList.remove('on', 'wait', 'hit');
     for (const d of beatDots.children) d.classList.remove('on');
     paintTransport();
@@ -176,13 +171,11 @@ export function mountJam(panel, api) {
     const pad = hits.get(i);
     if (pad) setTimeout(() => (pad.classList.add('hit'), setTimeout(() => pad.classList.remove('hit'), 110)), Math.max(0, (when - c.currentTime) * 1000));
   }
-  // A take that has ended: a song made of it.
+  // Takes that have ended: a song made of each.
   function finish() {
-    if (!jam.done) return;
-    const { hits: took, beats } = jam.done;
-    jam.done = null;
+    if (!jam.done.length) return;
     paintTransport();
-    if (took.length) api.take(took, beats);
+    for (const { hits: took, beats } of jam.done.splice(0)) if (took.length) api.take(took, beats);
   }
   let shown = -1;
   function paint() {
@@ -217,12 +210,8 @@ export function mountJam(panel, api) {
     if (p.loop) jam.toggle(p.i, beat, p.beats);
     else {
       const at = jam.shot(p.i, beat, GRIDS[grid], (LATE * bpm) / 60);
-      // (Already due: played now rather than missed.)
-      if (at < upTo) {
-        jam.shots = jam.shots.filter(s => !(s.i === p.i && s.beat === at));
-        play(p.i, timeOf(at));
-        if (jam.rec && at >= jam.rec.from && at < jam.rec.to) jam.rec.hits.push({ i: p.i, beat: at - jam.rec.from });
-      }
+      // (Already due: played now rather than missed; jam keeps it in the take.)
+      if (at < upTo) play(p.i, timeOf(at));
     }
     shown = -1;
   });
