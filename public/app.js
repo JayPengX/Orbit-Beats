@@ -1353,13 +1353,19 @@ $('player-bar').addEventListener('pointerdown', e => {
   addEventListener('pointerup', up);
 });
 // The lock screen's controls and its title (iOS's Now Playing): whatever played last (a song, or 聽) has them.
-// artwork: the song's own cover (聽's, a 512 px PNG), else the app's icon.
-function claimSession({ title, artist, album = '', artwork = null, play, pause, next = null }) {
+// artwork: the song's own cover first when there's one (聽's, a 512 px JPEG), the app's icon always after it.
+function sessionMeta({ title, artist, album = '', artwork = null }) {
+  const ms = navigator.mediaSession;
+  if (!ms || !globalThis.MediaMetadata) return;
+  try {
+    ms.metadata = new MediaMetadata({ title, artist, album, artwork: [...(artwork ? [{ src: artwork, sizes: '512x512', type: 'image/jpeg' }] : []), { src: new URL('./icons/icon-512.png', location.href).href, sizes: '512x512', type: 'image/png' }] });
+  } catch {}
+}
+function claimSession(o) {
   const ms = navigator.mediaSession;
   if (!ms) return;
-  try {
-    if (globalThis.MediaMetadata) ms.metadata = new MediaMetadata({ title, artist, album, artwork: [{ src: artwork || new URL('./icons/icon-512.png', location.href).href, sizes: '512x512', type: 'image/png' }] });
-  } catch {}
+  sessionMeta(o);
+  const { play, pause, next = null } = o;
   for (const [action, fn] of [['play', play], ['pause', pause], ['nexttrack', next]])
     try {
       ms.setActionHandler(action, fn);
@@ -1667,6 +1673,7 @@ async function boot() {
     keep: item => keepRadio(item),
     kept: id => lib.has(id),
     session: o => claimSession(o),
+    meta: o => sessionMeta(o),
     mood: settings.radioMood,
     setMood: m => ((settings.radioMood = m), save())
   });

@@ -48,7 +48,7 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
     bar line. ♡ keeps the whole song in 歌單; ⏭ the next. Each song has its
     own cover (`lib/cover.mjs`: drawn from its seed, groove, mood, key and
     tempo, the same every time), crossfaded in and shown on the lock screen
-    (a 512 px PNG); its bars and a breath of the cover land on the song's
+    (a small JPEG, the app icon after it); its bars and a breath of the cover land on the song's
     beat (CSS at its tempo, set to the player's time; still with reduced
     motion); the card takes a tint of its colour. 最近播放 lists the last
     songs (this phone, `orbit-beats-recent.v1`), each with ♡. 睡眠定時

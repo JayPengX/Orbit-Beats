@@ -463,6 +463,10 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .radio-sleep svg { width: 16px; height: 16px; flex: none; }
 .radio-sleep:active { transform: scale(.92); }
 .radio-sleep.on { background: var(--accent-soft); color: var(--accent); }
+/* The timer's menu: solid, over the tab bar and the player (the kit's is glass). */
+.q-menu.radio-menu { background: var(--q-surface); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 0 0 .5px var(--line), 0 16px 48px rgba(0,0,0,.28); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .q-menu.radio-menu { background: var(--q-surface-2); } }
+:root[data-theme='dark'] .q-menu.radio-menu { background: var(--q-surface-2); }
 .radio-more { margin-top: 12px; }
 .radio-moods { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .radio-moods .chip { flex: 1 0 auto; padding: 0 12px; height: 38px; border-radius: 19px; font-size: 15px; }

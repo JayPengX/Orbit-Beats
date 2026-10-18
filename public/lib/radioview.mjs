@@ -420,7 +420,7 @@ export function mountRadio(panel, api) {
     // What was made for the old mood goes; the next one is this mood's, and plays as soon as it's made.
     const old = q.ready;
     q.ready = [];
-    for (const it of old) drop(it);
+    for (const it of old) drop(it), unart(it);
     q.gen++;
     last = [];
     q.skip = Boolean(cur);
@@ -448,6 +448,7 @@ export function mountRadio(panel, api) {
     showCover();
     // (Into 最近播放 as it starts, so a song heard is there even if the app is closed during it.)
     if (cur !== heard) {
+      unart(heard);
       heard = cur;
       if (cur) remember(cur);
     }
@@ -477,7 +478,7 @@ export function mountRadio(panel, api) {
     title: cur ? cur.title : W('Orbit 電台', 'Orbit Radio'),
     artist: cur ? [moodOf(cur.spec.mood), name(STYLE_NAMES, cur.info.style)].filter(Boolean).join(' · ') : 'Orbit Beats',
     album: W('Orbit 電台', 'Orbit Radio'),
-    artwork: cur?.png || null,
+    artwork: cur?.art || null,
     play: () => start(),
     pause: () => pause(),
     next: () => skip()
@@ -569,14 +570,18 @@ export function mountRadio(panel, api) {
     const o = { seed: item.spec.seed, style: item.info.style, mood: item.spec.mood, key: item.info.key, bpm: item.info.bpm };
     item.pal = coverPalette(o);
     item.cover = coverUrl(coverSvg({ ...o, title: item.title, label: coverLabel(o.style, o.bpm) }));
-    // (The lock screen's: drawn at 512 px; ready long before the song plays. One late gets its card updated.)
-    toPng(item.cover).then(u => {
-      item.png = u;
-      if (u && item === cur) api.session(session());
+    // (The lock screen's: a small JPEG, made long before the song plays. The
+    // card's words are never held up for it: a song that starts before it's
+    // ready has its card set without it, then its picture added once, the
+    // words only, nothing else of the card touched.)
+    toJpeg(item.cover).then(u => {
+      if (!u) return;
+      item.art = u;
+      if (item === cur && !item.artShown) (item.artShown = true), api.meta?.(session());
     });
     return item;
   }
-  async function toPng(src) {
+  async function toJpeg(src) {
     try {
       const img = new Image();
       img.src = src;
@@ -584,11 +589,14 @@ export function mountRadio(panel, api) {
       const c = document.createElement('canvas');
       c.width = c.height = 512;
       c.getContext('2d').drawImage(img, 0, 0, 512, 512);
-      return c.toDataURL('image/png');
+      const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.8));
+      return blob ? URL.createObjectURL(blob) : null;
     } catch {
       return null;
     }
   }
+  // (A song's lock-screen picture let go a while after it's no longer playing.)
+  const unart = it => it?.art && setTimeout(() => it !== cur && (URL.revokeObjectURL(it.art), (it.art = null)), 15000);
   // Before the music: the station's own cover, of the mood picked.
   function idleCover() {
     const seed = [...String(mood)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
@@ -670,7 +678,7 @@ export function mountRadio(panel, api) {
   let sleepEvery = 0;
   function sleepMenu() {
     const label = c => (c === 'song' ? W('這首結束', 'End of song') : W(`${c} 分鐘`, `${c} min`));
-    menu(sleepBtn, [...SLEEP_CHOICES.map(c => ({ label: label(c), icon: c === 'song' ? '♪' : '', onClick: () => setSleep(c) })), ...(sleep ? ['divider', { label: W('關閉定時', 'Turn off'), icon: '✕', onClick: () => setSleep(null) }] : [])]);
+    menu(sleepBtn, [...SLEEP_CHOICES.map(c => ({ label: label(c), icon: c === 'song' ? '♪' : '', onClick: () => setSleep(c) })), ...(sleep ? ['divider', { label: W('關閉定時', 'Turn off'), icon: '✕', onClick: () => setSleep(null) }] : [])]).el.classList.add('radio-menu');
   }
   function setSleep(c) {
     sleep = c ? { ...sleepSet(c), item: cur } : null;
