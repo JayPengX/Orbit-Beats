@@ -75,40 +75,79 @@ function box(type, ...parts) {
 const full = (type, version, flags, ...parts) => box(type, [version, (flags >> 16) & 255, (flags >> 8) & 255, flags & 255], ...parts);
 const ZERO = n => new Array(n).fill(0);
 
-// The start of the stream: what it is (FLAC, stereo, 16-bit, `sr`). -> Uint8Array
-export function tapeInit(sr) {
+// The start of the stream: what it is. codec 'flac' (stereo 16-bit at
+// `sr`), 'aac' or 'opus' (as the phone's AudioEncoder packs it: its
+// decoderConfig description). -> Uint8Array
+export function tapeInit(sr, { codec = 'flac', description = null } = {}) {
   const matrix = [...u32(0x10000), ...u32(0), ...u32(0), ...u32(0), ...u32(0x10000), ...u32(0), ...u32(0), ...u32(0), ...u32(0x40000000)];
-  // STREAMINFO: the last metadata block (type 0, 34 bytes); sizes and length unknown (0).
-  const info = [0x80, 0, 0, 34, ...u16(FRAME), ...u16(FRAME), 0, 0, 0, 0, 0, 0];
-  // 20 bits rate, 3 bits channels-1, 5 bits bits-1, 36 bits total samples (0).
-  const r = sr;
-  info.push((r >> 12) & 255, (r >> 4) & 255, ((r & 15) << 4) | (1 << 1) | ((15 >> 4) & 1), ((15 & 15) << 4) | 0, 0, 0, 0, 0, ...ZERO(16));
-  const entry = box('fLaC', ZERO(6), u16(1), ZERO(8), u16(2), u16(16), u16(0), u16(0), u32(sr * 65536 >>> 0), full('dfLa', 0, 0, info));
+  const ts = timescaleOf(codec, sr);
+  const audioEntry = (type, rate, ...inner) => box(type, ZERO(6), u16(1), ZERO(8), u16(2), u16(16), u16(0), u16(0), u32((rate * 65536) >>> 0), ...inner);
+  let entry;
+  if (codec === 'flac') {
+    // STREAMINFO: the last metadata block (type 0, 34 bytes); sizes and length unknown (0).
+    // (20 bits rate, 3 bits channels-1, 5 bits bits-1, 36 bits total samples (0), MD5 (0).)
+    const info = [0x80, 0, 0, 34, ...u16(FRAME), ...u16(FRAME), 0, 0, 0, 0, 0, 0, (sr >> 12) & 255, (sr >> 4) & 255, ((sr & 15) << 4) | (1 << 1), 15 << 4, 0, 0, 0, 0, ...ZERO(16)];
+    entry = audioEntry('fLaC', sr, full('dfLa', 0, 0, info));
+  } else if (codec === 'aac') {
+    entry = audioEntry('mp4a', sr, esds(aacConfig(description, sr)));
+  } else if (codec === 'opus') {
+    // (dOps from the encoder's OpusHead: its pre-skip; else libopus's usual 312.)
+    const head = description ? new Uint8Array(description instanceof ArrayBuffer ? description : description.buffer ? new Uint8Array(description.buffer, description.byteOffset, description.byteLength) : description) : null;
+    const isHead = head && head.length >= 19 && String.fromCharCode(...head.subarray(0, 8)) === 'OpusHead';
+    const preskip = isHead ? head[10] | (head[11] << 8) : 312;
+    entry = audioEntry('Opus', 48000, box('dOps', [0, 2], u16(preskip), u32(sr), u16(0), [0]));
+  } else throw new Error(`no tape codec ${codec}`);
   const stbl = box('stbl', full('stsd', 0, 0, u32(1), entry), full('stts', 0, 0, u32(0)), full('stsc', 0, 0, u32(0)), full('stsz', 0, 0, u32(0), u32(0)), full('stco', 0, 0, u32(0)));
   const minf = box('minf', full('smhd', 0, 0, u16(0), u16(0)), box('dinf', full('dref', 0, 0, u32(1), full('url ', 0, 1))), stbl);
-  const mdia = box('mdia', full('mdhd', 0, 0, u32(0), u32(0), u32(sr), u32(0), u16(0x55c4), u16(0)), full('hdlr', 0, 0, u32(0), enc('soun'), ZERO(12), enc('Sound'), [0]), minf);
+  const mdia = box('mdia', full('mdhd', 0, 0, u32(0), u32(0), u32(ts), u32(0), u16(0x55c4), u16(0)), full('hdlr', 0, 0, u32(0), enc('soun'), ZERO(12), enc('Sound'), [0]), minf);
   const trak = box('trak', full('tkhd', 0, 3, u32(0), u32(0), u32(1), u32(0), u32(0), ZERO(8), u16(0), u16(0), u16(0x0100), u16(0), matrix, u32(0), u32(0)), mdia);
   const mvex = box('mvex', full('trex', 0, 0, u32(1), u32(1), u32(0), u32(0), u32(0)));
-  const moov = box('moov', full('mvhd', 0, 0, u32(0), u32(0), u32(sr), u32(0), u32(0x10000), u16(0x0100), ZERO(10), matrix, ZERO(24), u32(2)), trak, mvex);
+  const moov = box('moov', full('mvhd', 0, 0, u32(0), u32(0), u32(ts), u32(0), u32(0x10000), u16(0x0100), ZERO(10), matrix, ZERO(24), u32(2)), trak, mvex);
   return new Uint8Array([...box('ftyp', enc('iso6'), u32(0), enc('iso6'), enc('mp41')), ...moov]);
 }
+// The stream's clock: Opus counts at 48 kHz whatever it was made at.
+export const timescaleOf = (codec, sr) => (codec === 'opus' ? 48000 : sr);
+// AAC's AudioSpecificConfig: the encoder's, else AAC-LC, `sr`, stereo.
+function aacConfig(description, sr) {
+  if (description && description.byteLength >= 2) return [...new Uint8Array(description instanceof ArrayBuffer ? description : description.buffer ? description.buffer.slice(description.byteOffset, description.byteOffset + description.byteLength) : description)];
+  const i = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000].indexOf(sr);
+  return [(2 << 3) | (i >> 1), ((i & 1) << 7) | (2 << 3)];
+}
+// The MPEG-4 descriptors round an AudioSpecificConfig.
+function esds(asc) {
+  const desc = (tag, body) => [tag, body.length, ...body];
+  const dsi = desc(5, asc);
+  const dcd = desc(4, [0x40, 0x15, 0, 0, 0, ...u32(0), ...u32(0), ...dsi]);
+  return full('esds', 0, 0, desc(3, [...u16(1), 0, ...dcd, ...desc(6, [2])]));
+}
 
-// A piece of the stream: `frames` FLAC frames from sample `at` of `pcm`,
-// placed at sample `time` of the stream, numbered from `number`. -> Uint8Array
-export function tapeSegment(pcm, at, frames, { sr, time, number, seq }) {
-  const data = [];
-  for (let k = 0; k < frames; k++) data.push(flacFrame(pcm, at + k * FRAME, number + k, sr));
-  const size = data.reduce((a, d) => a + d.length, 0);
-  const trunOf = offset => full('trun', 0, 0x000301, u32(frames), u32(offset), data.flatMap(d => [...u32(FRAME), ...u32(d.length)]));
+// A piece of the stream: these frames ({ data, dur } in the stream's clock),
+// from `time` on it. -> Uint8Array
+export function tapeFragment(frames, { time, seq }) {
+  const size = frames.reduce((a, f) => a + f.data.length, 0);
+  const trunOf = offset => full('trun', 0, 0x000301, u32(frames.length), u32(offset), frames.flatMap(f => [...u32(f.dur), ...u32(f.data.length)]));
   const moofOf = offset => box('moof', full('mfhd', 0, 0, u32(seq)), box('traf', full('tfhd', 0, 0x020000, u32(1)), full('tfdt', 1, 0, u64(time)), trunOf(offset)));
-  const moofLength = moofOf(0).length;
-  const moof = moofOf(moofLength + 8);
+  const moof = moofOf(moofOf(0).length + 8);
   const out = new Uint8Array(moof.length + 8 + size);
   out.set(moof);
   out.set([...u32(8 + size), ...enc('mdat')], moof.length);
   let o = moof.length + 8;
-  for (const d of data) out.set(d, o), (o += d.length);
+  for (const f of frames) out.set(f.data, o), (o += f.data.length);
   return out;
+}
+// `frames` FLAC frames from sample `at` of `pcm`, at sample `time` of the stream, numbered from `number`. -> Uint8Array
+export function tapeSegment(pcm, at, frames, { sr, time, number, seq }) {
+  const data = [];
+  for (let k = 0; k < frames; k++) data.push({ data: flacFrame(pcm, at + k * FRAME, number + k, sr), dur: FRAME });
+  return tapeFragment(data, { time, seq });
+}
+
+// Samples (Int16, L R interleaved) as WebCodecs AudioData, from `time` (samples).
+export function audioData(pcm, sr, time) {
+  const n = pcm.length / 2;
+  const d = new Float32Array(n * 2);
+  for (let i = 0; i < n; i++) (d[i] = pcm[2 * i] / 32768), (d[n + i] = pcm[2 * i + 1] / 32768);
+  return new globalThis.AudioData({ format: 'f32-planar', sampleRate: sr, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round((time / sr) * 1e6), data: d });
 }
 
 // ---- What plays when ----

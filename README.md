@@ -35,12 +35,15 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
     The worker makes them two ahead; each is cut just before its last hit and
     that hit's ring plays under the next one's intro, in one `<audio>` (it
     plays on with the screen locked; lock-screen title, play/pause, next,
-    where in the song). Where the browser takes FLAC in MP4 through Media
-    Source (`lib/tape.mjs`), the songs go onto one endless stream, a few
-    seconds ahead, so one runs into the next with no gap; elsewhere, or if
-    the stream fails, stalls or is stopped with the screen off, file by file
-    from where it was (`localStorage['orbit-beats-radio'] = 'files'` keeps a
-    phone on files).
+    where in the song). Where Media Source takes FLAC in MP4 (Chrome), or AAC
+    / Opus in MP4 and the phone's AudioEncoder (WebCodecs) can pack it
+    (Safari 26), the songs go onto one endless stream (`lib/tape.mjs`), a
+    few seconds ahead, so one runs into the next with no gap; elsewhere, or
+    if the stream fails, stalls or is stopped with the screen off, file by
+    file from where it was. The way taken and why is kept in
+    `localStorage['orbit-beats-radio-path']` and shown on 聽 with `?debug`;
+    `localStorage['orbit-beats-radio']` = `files` keeps a phone on files,
+    `flac` / `aac` / `opus` tries only that one.
     If the next isn't made by the outro, the last hook plays again from its
     bar line. ♡ keeps the whole song in 歌單; ⏭ the next.
   - **做歌** (Make): pieces in, a 情境 mood (放鬆, 熱血, 律動, 經典), the drum
@@ -137,7 +140,7 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 | `lib/library.mjs` | 歌單: search, order, zip |
 | `lib/sections.mjs` | 做歌: section times and the playing section |
 | `lib/radio.mjs`, `lib/radioview.mjs` | 聽: songs out of nothing, the join between them; its screen and player |
-| `lib/tape.mjs` | 聽's one stream: FLAC frames in MP4 for Media Source, the songs in order (the hook again while waiting) |
+| `lib/tape.mjs` | 聽's one stream: FLAC frames, or AAC / Opus from AudioEncoder, in MP4 for Media Source; which way a phone plays; the songs in order (the hook again while waiting) |
 | `lib/easy.mjs`, `lib/help.mjs` | 簡單 / 進階 and 簡單's fixed settings; the music words and their examples |
 | `lib/project.mjs` | 存成檔案 / 打開檔案: a song's settings (no sound) as a versioned `.orbitbeats.json` |
 | `lib/midi.mjs`, `lib/tap.mjs`, `lib/download.mjs`, `lib/names.mjs` | MIDI files, tap tempo, saving, names |

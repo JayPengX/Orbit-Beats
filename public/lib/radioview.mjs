@@ -14,7 +14,7 @@
 import { h, toast } from '#kit/ui.mjs';
 import { STYLES, NOTE_NAMES } from '../engine.mjs';
 import { MOODS, RADIO_SR, radioPick, radioQueue } from './radio.mjs';
-import { FRAME, TAPE_TYPE, CODECS, tapeInit, tapeSegment, tapeFeed, wavPcm, pickStream } from './tape.mjs';
+import { FRAME, CODECS, tapeInit, tapeSegment, tapeFragment, tapeFeed, wavPcm, pickStream, timescaleOf, audioData } from './tape.mjs';
 import { STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
 
@@ -150,22 +150,42 @@ export function mountRadio(panel, api) {
   // { ms, sb, time (samples laid down), number, seq, marks: [{ t (s), item, from (s) }], cut (s, a ⏭ to make) }
   let tape = null;
   const AHEAD = 12; // seconds laid down ahead of the one playing
-  const CHUNK = 20; // frames an append (2.6 s)
-  function openTape() {
+  const CHUNK = 20; // FLAC frames an append (2.6 s); as many samples a time to the encoder
+  const SR = RADIO_SR;
+  // The stream: FLAC as it is, or AAC / Opus packed on the phone (WebCodecs).
+  // Times on it: `time`, `base` in its clock (ts a second), `inTime` in samples.
+  function openTape(choice) {
     const MS = globalThis.ManagedMediaSource || globalThis.MediaSource;
     const ms = new MS();
-    const t = { ms, sb: null, base: 0, time: 0, number: 0, seq: 1, marks: [], cut: null, feed: tapeFeed(RADIO_SR), stuck: 0, last: -1 };
+    const c = choice.codec;
+    const t = { ms, sb: null, codec: c, type: CODECS.find(x => x.codec === c).type, ts: timescaleOf(c, SR), fr: c === 'flac' ? FRAME : c === 'aac' ? 1024 : 960, base: 0, time: 0, inTime: 0, number: 0, seq: 1, marks: [], cut: null, feed: tapeFeed(SR), stuck: 0, last: -1, inited: false, enc: null, pending: [], desc: null, config: choice.config };
+    if (c !== 'flac') {
+      t.enc = new AudioEncoder({
+        output: (chunk, meta) => {
+          if (tape !== t) return;
+          if (meta?.decoderConfig?.description && !t.desc) t.desc = meta.decoderConfig.description;
+          const data = new Uint8Array(chunk.byteLength);
+          chunk.copyTo(data);
+          const dur = chunk.duration ? Math.round((chunk.duration * t.ts) / 1e6) : t.fr;
+          t.fr = dur || t.fr;
+          t.pending.push({ data, dur: t.fr });
+          pump();
+        },
+        error: e => tape === t && toFiles(`encoder: ${e?.message || e}`)
+      });
+      t.enc.configure(t.config);
+    }
     // (iOS's Managed Media Source plays only with AirPlay off for it.)
     audio.disableRemotePlayback = true;
     ms.addEventListener('sourceopen', () => {
       try {
-        t.sb = ms.addSourceBuffer(TAPE_TYPE);
+        t.sb = ms.addSourceBuffer(t.type);
         t.sb.mode = 'segments';
         t.sb.addEventListener('updateend', pump);
         t.sb.addEventListener('error', () => toFiles('append'));
-        t.sb.appendBuffer(tapeInit(RADIO_SR));
-      } catch {
-        toFiles('open');
+        pump();
+      } catch (e) {
+        toFiles(`open: ${e?.name || e}`);
       }
     }, { once: true });
     ms.addEventListener?.('startstreaming', pump);
@@ -183,32 +203,62 @@ export function mountRadio(panel, api) {
     if (!t?.sb || t.sb.updating || t.ms.readyState !== 'open') return;
     try {
       if (t.cut != null) {
-        // (⏭: what was laid down past here goes; the next song from here.)
+        // (⏭: what was laid down past here goes; the next song from here, the encoder started afresh.)
         const at = t.cut;
         t.cut = null;
-        t.time = t.base = Math.round(at * RADIO_SR);
+        t.time = t.base = Math.round(at * t.ts);
+        t.inTime = Math.round(at * SR);
         t.marks = t.marks.filter(m => m.t < at);
+        if (t.enc) t.enc.reset(), t.enc.configure(t.config), (t.pending = []);
         return t.sb.remove(at, Infinity);
+      }
+      // (What the stream is, first: for AAC and Opus, once the encoder has said.)
+      if (!t.inited) {
+        if (t.enc && !t.pending.length) return feedEncoder(t);
+        t.inited = true;
+        return t.sb.appendBuffer(tapeInit(SR, { codec: t.codec, description: t.desc }));
       }
       const b = t.sb.buffered;
       // (The phone let go of music laid down ahead, which can't be laid down again: the songs file by file.)
-      if (t.time > 0 && b.length && b.end(b.length - 1) < t.time / RADIO_SR - 1) return toFiles('evicted');
+      if (t.time > 0 && b.length && b.end(b.length - 1) < t.time / t.ts - 1) return toFiles('evicted');
       if (b.length && audio.currentTime - b.start(0) > 30) return t.sb.remove(0, audio.currentTime - 10);
+      if (t.enc && t.pending.length) {
+        const frames = t.pending;
+        t.pending = [];
+        t.sb.appendBuffer(tapeFragment(frames, { time: t.time, seq: t.seq++ }));
+        t.time += frames.reduce((a, f) => a + f.dur, 0);
+        return;
+      }
       // (Managed Media Source says when it's a good time; under 5 s left, it's always one.)
       if (ahead() > AHEAD || (t.ms.streaming === false && ahead() > 5)) return;
-      if (!t.feed.item && !q.ready.length) return;
+      if (t.enc) return feedEncoder(t);
       const n = CHUNK * FRAME;
-      const { pcm, marks } = t.feed.take(n, () => q.ready.length > 0, () => q.ready.shift() || null);
-      for (const m of marks) t.marks.push({ t: (t.time + m.at) / RADIO_SR, item: m.item, from: m.from / RADIO_SR });
-      t.sb.appendBuffer(tapeSegment(pcm, 0, CHUNK, { sr: RADIO_SR, time: t.time, number: t.number, seq: t.seq++ }));
+      const marks = take(t, n);
+      if (!marks) return;
+      t.sb.appendBuffer(tapeSegment(marks.pcm, 0, CHUNK, { sr: SR, time: t.time, number: t.number, seq: t.seq++ }));
       t.time += n;
       t.number += CHUNK;
-      if (marks.length) fill();
     } catch (e) {
       // (Full: what's played goes first; anything else, the songs one file at a time.)
       if (e?.name === 'QuotaExceededError' && audio.currentTime > 4) t.sb.remove(0, audio.currentTime - 2);
       else toFiles(e?.name || 'append');
     }
+  }
+  // The next n samples off the songs, their marks kept. -> { pcm } | null
+  function take(t, n) {
+    if (!t.feed.item && !q.ready.length) return null;
+    const { pcm, marks } = t.feed.take(n, () => q.ready.length > 0, () => q.ready.shift() || null);
+    for (const m of marks) t.marks.push({ t: (t.inTime + m.at) / SR, item: m.item, from: m.from / SR });
+    t.inTime += n;
+    if (marks.length) fill();
+    return { pcm };
+  }
+  // AAC / Opus: the next samples to the encoder (its frames come back to pump), never more than a few seconds ahead of what's out.
+  function feedEncoder(t) {
+    if (t.enc.state !== 'configured' || t.enc.encodeQueueSize > 1 || t.inTime / SR - t.time / t.ts > 6) return;
+    const at = t.inTime;
+    const got = take(t, CHUNK * FRAME);
+    if (got) t.enc.encode(audioData(got.pcm, SR, at));
   }
   // The stretch playing: which song and where in it. -> { item, at (s) } | null
   function onTape() {
@@ -227,8 +277,8 @@ export function mountRadio(panel, api) {
     const t = tape;
     t.feed.cut(item);
     // (At the first whole frame a quarter second on, or where the stream ends if sooner.)
-    const k = Math.ceil(((audio.currentTime + 0.25) * RADIO_SR - t.base) / FRAME);
-    t.cut = Math.min(t.time, t.base + Math.max(0, k) * FRAME) / RADIO_SR;
+    const k = Math.ceil(((audio.currentTime + 0.25) * t.ts - t.base) / t.fr);
+    t.cut = Math.min(t.time, t.base + Math.max(0, k) * t.fr) / t.ts;
     pump();
   }
   // The tape stopped working (a phone that won't take it, a stall): on with the songs file by file, from where it was.
@@ -241,6 +291,12 @@ export function mountRadio(panel, api) {
     q.ready.unshift(...later.filter(it => !q.ready.includes(it)));
     if (t.feed.item && t.feed.item !== cur && !q.ready.includes(t.feed.item)) q.ready.unshift(t.feed.item);
     tape = null;
+    taped = false;
+    try {
+      t.enc?.close();
+    } catch {}
+    // (The next ones' files made now, before they're needed.)
+    q.ready.forEach(urlOf);
     console.warn('聽: the songs one file at a time:', why);
     note('files', `the stream stopped: ${why}`);
     audio.removeAttribute('src');
@@ -254,25 +310,40 @@ export function mountRadio(panel, api) {
   // localStorage 'orbit-beats-radio-path' ('stream: …' or 'files: …'), and on 聽 with ?debug.
   let taped = false;
   let codec = null;
+  let choice = null;
   function note(path, reason) {
     try {
       localStorage.setItem('orbit-beats-radio-path', `${path}: ${reason}`);
     } catch {}
     if (debug) debug.textContent = `${path}${codec && path === 'stream' ? ` · ${codec}` : ''} · ${reason}`;
   }
-  let forced = false;
+  // ('orbit-beats-radio' on this phone: 'files', or one codec to try alone: 'flac', 'aac', 'opus'.)
+  let forced = null;
   try {
-    forced = localStorage.getItem('orbit-beats-radio') === 'files';
+    forced = localStorage.getItem('orbit-beats-radio');
   } catch {}
-  if (forced) note('files', "set to files on this phone ('orbit-beats-radio')");
+  if (forced === 'files') note('files', "set to files on this phone ('orbit-beats-radio')");
   else
-    pickStream(RADIO_SR, { codecs: CODECS.filter(c => !c.encoder) })
+    pickStream(RADIO_SR, { codecs: CODECS.some(c => c.codec === forced) ? CODECS.filter(c => c.codec === forced) : CODECS })
       .then(p => {
         taped = p.path === 'stream';
         codec = p.codec;
+        choice = p;
         note(p.path, p.reason);
       })
       .catch(e => note('files', `couldn't tell: ${e?.message || e}`));
+
+  // (The stream opened, or files if it can't be: the songs made so far get their files.)
+  function openOr() {
+    try {
+      tape = openTape(choice);
+      return true;
+    } catch (e) {
+      taped = false;
+      note('files', `couldn't open the stream: ${e?.message || e}`);
+      return false;
+    }
+  }
 
   // ---- Play, pause, next, the mood ----
   function start() {
@@ -282,9 +353,8 @@ export function mountRadio(panel, api) {
     fails = 0;
     if (cur) {
       audio.play().catch(() => retry());
-    } else if (taped) {
+    } else if (taped && (tape || openOr())) {
       // (The tap opens the stream and plays it: the music starts as soon as the first song is on it.)
-      tape ||= openTape();
       audio.play().catch(() => {});
       pump();
     } else {
@@ -451,10 +521,11 @@ export function mountRadio(panel, api) {
   setInterval(() => {
     if (!tape || !want) return;
     pump();
-    if (audio.paused || !cur) return (tape.stuck = 0);
-    tape.stuck = ahead() > 1 && audio.currentTime === tape.last ? tape.stuck + 1 : 0;
+    if (audio.paused) return (tape.stuck = 0);
+    // (Music laid down but time not moving, or a song on the way that never gets onto the stream.)
+    tape.stuck = (ahead() > 1 || tape.feed.item) && audio.currentTime === tape.last ? tape.stuck + 1 : 0;
     tape.last = audio.currentTime;
-    if (tape.stuck >= 4) toFiles('stalled');
+    if (tape.stuck >= 5) toFiles(ahead() > 1 ? 'stalled' : 'nothing came out');
   }, 1000);
   // Back on the screen after a call or Siri: the music was asked for, so it goes on.
   document.addEventListener('visibilitychange', () => {

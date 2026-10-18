@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { FRAME, flacFrame, tapeInit, tapeSegment, tapeFeed, wavPcm } from '../public/lib/tape.mjs';
+import { FRAME, flacFrame, tapeInit, tapeSegment, tapeFragment, tapeFeed, wavPcm, pickStream } from '../public/lib/tape.mjs';
 import { encodeWav } from '../public/engine.mjs';
 import { radioSong, cutOf, segment, RADIO_SR } from '../public/lib/radio.mjs';
 
@@ -101,4 +101,54 @@ test('two radio songs on the tape come back sample for sample, as MP4 a player c
     got = new Int16Array(out.buffer, out.byteOffset, out.length / 2);
   } catch {}
   if (got) assert.ok(got.length === want.length && got.every((v, i) => v === want[i]), 'ffmpeg reads the tape back exactly');
+});
+
+test('AAC frames on the tape read back as the same sound (where ffmpeg is installed)', t => {
+  const sr = RADIO_SR;
+  const n = sr * 2;
+  const pcm = new Int16Array(n * 2);
+  for (let i = 0; i < n; i++) (pcm[2 * i] = Math.round(Math.sin(i / 11) * 12000)), (pcm[2 * i + 1] = Math.round(Math.sin(i / 17) * 12000));
+  let adts;
+  try {
+    adts = execFileSync('ffmpeg', ['-v', 'error', '-f', 's16le', '-ar', String(sr), '-ac', '2', '-i', 'pipe:0', '-c:a', 'aac', '-f', 'adts', 'pipe:1'], { input: Buffer.from(pcm.buffer), maxBuffer: 1e8, stdio: ['pipe', 'pipe', 'ignore'] });
+  } catch {
+    return t.skip('no ffmpeg');
+  }
+  // ADTS frames, their 7-byte headers off: the raw frames an AudioEncoder gives.
+  const frames = [];
+  for (let o = 0; o + 7 <= adts.length; ) {
+    const len = ((adts[o + 3] & 3) << 11) | (adts[o + 4] << 3) | (adts[o + 5] >> 5);
+    const head = adts[o + 1] & 1 ? 7 : 9;
+    frames.push({ data: new Uint8Array(adts.subarray(o + head, o + len)), dur: 1024 });
+    o += len;
+  }
+  const mp4 = Buffer.concat([tapeInit(sr, { codec: 'aac' }), tapeFragment(frames.slice(0, 30), { time: 0, seq: 1 }), tapeFragment(frames.slice(30), { time: 30 * 1024, seq: 2 })].map(b => Buffer.from(b)));
+  const decode = (input, fmt) => execFileSync('ffmpeg', ['-v', 'error', '-f', fmt, '-i', 'pipe:0', '-f', 's16le', '-ac', '2', 'pipe:1'], { input, maxBuffer: 1e8, stdio: ['pipe', 'pipe', 'ignore'] });
+  const a = decode(mp4, 'mp4');
+  const b = decode(adts, 'aac');
+  assert.ok(a.length > n * 3, `decoded ${a.length / 4} samples`);
+  // (Same frames, same decoder: the same sound, give or take the decoder's start.)
+  const A = new Int16Array(a.buffer, a.byteOffset, a.length / 2);
+  const B = new Int16Array(b.buffer, b.byteOffset, b.length / 2);
+  let err = 0;
+  const m = Math.min(A.length, B.length) - 8192;
+  for (let i = 8192; i < m; i++) err = Math.max(err, Math.abs(A[i] - B[i]));
+  assert.ok(err < 64, `max difference ${err}`);
+});
+
+test('聽 streams only where Media Source takes a codec and, for AAC or Opus, the phone can pack it; else files, saying why', async () => {
+  const env = (types, enc = null) => ({
+    ManagedMediaSource: { isTypeSupported: t => types.some(x => t.includes(x)) },
+    ...(enc && { AudioEncoder: { isConfigSupported: async c => ({ supported: enc.includes(c.codec) }) } })
+  });
+  // (macOS Safari: no FLAC through Media Source; AAC through it, and packed.)
+  assert.equal((await pickStream(32000, { env: env(['mp4a'], ['mp4a.40.2']) })).codec, 'aac');
+  assert.equal((await pickStream(32000, { env: env(['flac', 'mp4a'], ['mp4a.40.2']) })).codec, 'flac');
+  assert.equal((await pickStream(32000, { env: env(['opus'], ['opus']) })).codec, 'opus');
+  const none = await pickStream(32000, { env: env(['mp4a']) });
+  assert.deepEqual([none.path, none.reason], ['files', 'flac: Media Source no; aac: no AudioEncoder; opus: Media Source no']);
+  const no = await pickStream(32000, { env: env(['mp4a', 'opus'], ['vorbis']) });
+  assert.equal(no.path, 'files');
+  assert.match(no.reason, /aac: AudioEncoder no at 32000 Hz; opus: AudioEncoder no/);
+  assert.equal((await pickStream(32000, { env: {} })).reason, 'no Media Source');
 });
