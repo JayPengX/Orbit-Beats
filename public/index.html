@@ -133,7 +133,7 @@ button { cursor: pointer; }
 .piece.mine b::after { content: "♪"; margin-left: 2px; color: var(--accent); font-size: 11px; vertical-align: 2px; }
 .piece button.on { background: var(--accent); color: var(--accent-ink); }
 .piece button.on span { color: inherit; opacity: 0.85; }
-.hint { margin: 8px 0 0; font-size: 13px; color: var(--text-2); white-space: nowrap; }
+.hint { margin: 8px 0 0; font-size: 13px; color: var(--text-2); }
 .hint[hidden] { display: none; }
 .tempo { margin-top: 6px; }
 .tempo[hidden] { display: none; }
@@ -171,12 +171,11 @@ main details[open] summary::before { transform: rotate(45deg); }
 .stepper button:disabled { color: var(--text-3); cursor: default; }
 .stepper input.num { width: 44px; background: none; }
 .unit { color: var(--text-2); font-size: 14px; }
-.chips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
-.chips.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.chips.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chips .chip { flex: 1 0 auto; }
 .chip {
   min-width: 0; height: 34px; border-radius: 17px; border: 0; background: var(--fill);
-  font-size: 13px; font-weight: 500; white-space: nowrap; padding: 0 4px;
+  font-size: 13px; font-weight: 500; white-space: nowrap; padding: 0 10px;
   transition: background-color .2s, color .2s, transform var(--q-dur-snappy) var(--q-spring-snappy);
 }
 .chip:active { transform: scale(0.95); }
@@ -194,8 +193,8 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .more-row .chev { color: var(--text-3); font-size: 18px; }
 
 .primary:not(.q-btn) {
-  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 50px; margin-top: 14px;
-  border: 0; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 17px; font-weight: 600; white-space: nowrap;
+  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 50px; margin-top: 14px; padding: 6px 18px;
+  border: 0; border-radius: 25px; background: var(--accent); color: var(--accent-ink); font-size: 17px; font-weight: 600; text-align: center; line-height: 1.25;
   transition: transform var(--q-dur-snappy) var(--q-spring-snappy);
 }
 .primary:not(.q-btn):active:not(:disabled) { transform: scale(0.97); }
@@ -227,8 +226,9 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .song.now .play { background: var(--accent); color: var(--accent-ink); }
 .song .play svg { width: 18px; height: 18px; }
 .song .what { flex: 1; min-width: 0; }
-.song .name { display: block; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
-.song .info { display: block; color: var(--text-2); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; overflow: hidden; }
+.song .name { display: block; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.song .info { display: block; color: var(--text-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.song .info span { white-space: nowrap; }
 .song .act {
   width: 36px; height: 36px; border-radius: 18px; border: 0; display: grid; place-items: center; flex: none;
   background: none; color: var(--text-2);

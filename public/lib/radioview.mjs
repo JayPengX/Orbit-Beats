@@ -25,6 +25,7 @@ const ICON = {
 };
 const HUES = [330, 300, 275, 250, 220, 195, 170, 15, 350, 35];
 const keyName = k => (k ? `${NOTE_NAMES[k.tonic]} ${k.minor ? W('小調', 'minor') : W('大調', 'major')}` : '');
+const moodOf = m => (String(m).startsWith('style:') ? '' : moodName(m));
 const moodName = m => (MOODS[m] ? W(MOODS[m].zh, MOODS[m].en) : name(STYLE_NAMES, String(m).replace(/^style:/, '')));
 const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s) % 60).padStart(2, '0')}`;
 // A half second of silence: played on the first tap, it lets the page start the music once it's made (iOS's rule).
@@ -223,7 +224,7 @@ export function mountRadio(panel, api) {
     heart.disabled = !cur;
     if (cur) {
       title.textContent = cur.title;
-      sub.textContent = [moodName(cur.spec.mood), name(STYLE_NAMES, cur.info.style), `${cur.info.bpm} BPM`, keyName(cur.info.key)].filter(Boolean).join(' · ');
+      sub.textContent = [moodOf(cur.spec.mood), name(STYLE_NAMES, cur.info.style), `${cur.info.bpm} BPM`, keyName(cur.info.key)].filter(Boolean).join(' · ');
       // (Its colours from a few that go well, a second one round the wheel from the first.)
       const h1 = HUES[cur.spec.seed % HUES.length];
       art.style.setProperty('--h1', String(h1));
@@ -255,7 +256,7 @@ export function mountRadio(panel, api) {
   }
   const session = () => ({
     title: cur ? cur.title : W('Orbit 電台', 'Orbit Radio'),
-    artist: cur ? `${moodName(cur.spec.mood)} · ${name(STYLE_NAMES, cur.info.style)}` : 'Orbit Beats',
+    artist: cur ? [moodOf(cur.spec.mood), name(STYLE_NAMES, cur.info.style)].filter(Boolean).join(' · ') : 'Orbit Beats',
     album: W('Orbit 電台', 'Orbit Radio'),
     play: () => start(),
     pause: () => pause(),

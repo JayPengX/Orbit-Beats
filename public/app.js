@@ -255,7 +255,7 @@ function update() {
     $('go').disabled = false;
     $('easy-hint').textContent = ownBand() ? W(`${count} 首，用內建的樂器`, `${count} songs on the built-in band`) : W(`${count} 首，用你的 ${pieces.length} 個片段`, `${count} songs from your ${pieces.length} pieces`);
   } else if (!busy) {
-    $('go').textContent = !pieces.length ? W('先放片段，或到「樂器」做', 'Add pieces, or make some in Studio') : count >= 1 && count <= MAX_SONGS ? W(`做 ${count} 首`, `Make ${count} song${count === 1 ? '' : 's'}`) : W('做歌', 'Make songs');
+    $('go').textContent = !pieces.length ? W('先放片段，或到「樂器」做', 'Add pieces or use Studio') : count >= 1 && count <= MAX_SONGS ? W(`做 ${count} 首`, `Make ${count} song${count === 1 ? '' : 's'}`) : W('做歌', 'Make songs');
     $('go').disabled = !!bad || !pieces.length;
   }
 }
@@ -919,7 +919,7 @@ const lib = libraryView({
 function songRow(song, { lib: inLib = false, list = null } = {}) {
   const li = h('li', { class: 'song', 'data-id': song.id });
   const info = song.info;
-  const what = [timeText(info.seconds), info.style ? name(STYLE_NAMES, info.style) : W('即興', 'Jam'), keyName(info.key)].filter(Boolean).join(' · ');
+  const what = [timeText(info.seconds), info.style ? name(STYLE_NAMES, info.style) : W('即興', 'Jam'), keyName(info.key)].filter(Boolean);
   const plan = info.plan.map(([t, n]) => `${name(SECTION_NAMES, t)} ${n} ${W('小節', 'bars')}`).join(', ');
   const play = h('button', { class: 'play', type: 'button', 'aria-label': W(`播放 ${song.name}`, `Play ${song.name}`), html: ICON.play, onclick: () => toggleSong(song) });
   const heart = h('button', { class: `act heart${lib.has(song.id) ? ' kept' : ''}`, type: 'button', 'aria-label': W('收藏', 'Keep'), 'aria-pressed': String(lib.has(song.id)), html: lib.has(song.id) ? ICON.hearted : ICON.heart, onclick: () => keepSong(song) });
@@ -933,7 +933,7 @@ function songRow(song, { lib: inLib = false, list = null } = {}) {
     bar.append(h('button', { type: 'button', class: 'sec', 'data-k': String(k), style: { flex: String(s.bars), background: `var(--${s.type})`, '--k': String(k) }, 'aria-label': `${label} ${s.bars} ${W('小節', 'bars')}`, text: labelFits(s.bars, total, width, em) ? label : '' }));
     holdable(bar.lastChild, () => seekBar(song, s.bar), () => loopSection(song, s.bar));
   });
-  li.append(h('div', { class: 'line' }, [play, h('div', { class: 'what' }, [h('span', { class: 'name', text: song.name }), h('span', { class: 'info', text: what })]), heart, more]), bar);
+  li.append(h('div', { class: 'line' }, [play, h('div', { class: 'what' }, [h('span', { class: 'name', text: song.name }), h('span', { class: 'info' }, what.flatMap((w, i) => [...(i ? [' · '] : []), h('span', { text: w })]))]), heart, more]), bar);
   litAt = '';
   if (nowPlaying?.id === song.id) markRow(li, true);
   return li;
