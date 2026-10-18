@@ -392,14 +392,15 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .legend-line { display: flex; align-items: flex-start; gap: 6px; }
 .legend-line .legend { flex: 1; min-width: 0; }
 .term-text { margin: 0 0 4px; font-size: 16px; line-height: 1.5; }
-.listen { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
-.listen .q-btn { white-space: nowrap; }
+.listen { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 14px; }
+.listen .q-btn { padding: 0 8px; font-size: 15px; white-space: nowrap; }
 .listen .q-btn.on { background: var(--accent); color: var(--accent-ink); }
 .terms { list-style: none; margin: 0; padding: 0; }
 .terms button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 6px 0; border: 0; border-top: 1px solid var(--line); background: none; text-align: left; }
 .terms li:first-child button { border-top: 0; }
-.terms b { font-weight: 600; white-space: nowrap; }
-.terms span { flex: 1; min-width: 0; color: var(--text-2); font-size: 13px; white-space: nowrap; text-align: right; }
+.terms button > div { flex: 1; min-width: 0; }
+.terms b { display: block; font-weight: 600; white-space: nowrap; }
+.terms small { display: block; color: var(--text-2); font-size: 13px; white-space: nowrap; }
 .terms .chev, .more-row .chev { color: var(--text-3); }
 
 /* The guided first song: one question at a time, big choices. */

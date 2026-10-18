@@ -50,6 +50,7 @@ test('the guided first song: mood, sounds, made, a tweak; skipped or done from a
   const demo = guideNext(g, { type: 'demo' });
   assert.deepEqual(demo, { step: 'making', mood: 'hype', sound: 'demo' });
   assert.equal(guideNext(demo, { type: 'made' }).step, 'tweak');
+  assert.deepEqual(guideNext(g, { type: 'current' }), { step: 'making', mood: 'hype', sound: 'current' });
   assert.equal(guideNext(demo, { type: 'failed' }).step, 'sound');
   // Your own: waits for the pieces, then making.
   const mine = guideNext(g, { type: 'mine' });

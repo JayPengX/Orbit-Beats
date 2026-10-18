@@ -1385,7 +1385,7 @@ function helpSheet() {
         h(
           'ul',
           { class: 'terms' },
-          TERM_ORDER.map(id => h('li', {}, [h('button', { type: 'button', onclick: () => explain(id) }, [h('b', { text: term(id).name }), h('span', { text: term(id).hint }), h('span', { class: 'chev', 'aria-hidden': 'true', text: '›' })])]))
+          TERM_ORDER.map(id => h('li', {}, [h('button', { type: 'button', onclick: () => explain(id) }, [h('div', {}, [h('b', { text: term(id).name }), h('small', { text: term(id).hint })]), h('span', { class: 'chev', 'aria-hidden': 'true', text: '›' })])]))
         )
       ])
     ]
