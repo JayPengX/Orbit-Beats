@@ -32,7 +32,7 @@ test('settingsOf: a wrong kind or out of range is left as it was; the mixer clam
   assert.equal(DEFAULTS.mix.keys, MIX.keys, 'the defaults untouched');
   assert.equal(DEFAULTS.styles.length, STYLES.length);
   const odd = settingsOf({ mood: 7, smart: 'yes', studioBpm: 500, mix: { drums: 99, on: 'no', reverb: -2 }, count: 0, humanize: 300, seed: 'abc', bits: 24, minGap: 10, silenceDb: 0, styles: ['polka'], minBars: 9.5 });
-  assert.deepEqual({ ...odd, mix: undefined }, { ...DEFAULTS, mix: undefined });
+  assert.deepEqual({ ...odd, mix: undefined }, { ...DEFAULTS, mix: undefined, level: 'pro', guided: true }, 'settings from before 簡單 / 進階: advanced, no guide');
   assert.deepEqual(odd.mix, { ...MIX, drums: 6, reverb: 0 });
   assert.equal(settingsOf({ mood: 'x'.repeat(30) }).mood, 'all');
   assert.equal(settingsOf({ studioBpm: 60 }).studioBpm, 60);

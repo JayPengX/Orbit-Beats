@@ -7,11 +7,13 @@
 
 import { STYLES } from '../engine.mjs';
 import { mixOf } from './mix.mjs';
+import { levelOk } from './easy.mjs';
 
 // (mood, smart, studioBpm and mix were set on the page but never kept until 2026-10-18: they came back as they open.)
-export const SETTING_KEYS = ['count', 'minBars', 'maxBars', 'styles', 'humanize', 'seed', 'bits', 'silenceDb', 'minGap', 'mood', 'smart', 'studioBpm', 'mix'];
+// (level and guided, 2026-10-18: 簡單 / 進階 and the guided first song, lib/easy.mjs.)
+export const SETTING_KEYS = ['count', 'minBars', 'maxBars', 'styles', 'humanize', 'seed', 'bits', 'silenceDb', 'minGap', 'mood', 'smart', 'studioBpm', 'mix', 'level', 'guided'];
 // The settings as the page opens them.
-export const DEFAULTS = { count: 8, minBars: 25, maxBars: 29, styles: [...STYLES], humanize: 100, seed: '', bits: 32, silenceDb: -90, minGap: 0.2, mood: 'all', smart: true, studioBpm: 120, mix: mixOf(null) };
+export const DEFAULTS = { count: 8, minBars: 25, maxBars: 29, styles: [...STYLES], humanize: 100, seed: '', bits: 32, silenceDb: -90, minGap: 0.2, mood: 'all', smart: true, studioBpm: 120, mix: mixOf(null), level: 'simple', guided: false };
 // Each kept setting as it can be used (another phone's, an old version's, a
 // typo): a wrong kind or out of range is left as it was.
 const CHECK = {
@@ -25,7 +27,9 @@ const CHECK = {
   minGap: v => Number.isFinite(v) && v >= 0.02 && v <= 5,
   mood: v => typeof v === 'string' && v.length < 20,
   smart: v => typeof v === 'boolean',
-  studioBpm: v => Number.isFinite(v) && v >= 60 && v <= 200
+  studioBpm: v => Number.isFinite(v) && v >= 60 && v <= 200,
+  level: levelOk,
+  guided: v => typeof v === 'boolean'
 };
 export function settingsOf(kept, base = DEFAULTS) {
   const out = { ...base, styles: [...base.styles], mix: mixOf(base.mix) };
@@ -37,6 +41,8 @@ export function settingsOf(kept, base = DEFAULTS) {
     else if (CHECK[k]?.(v)) out[k] = v;
   }
   if (out.minBars > out.maxBars) [out.minBars, out.maxBars] = [base.minBars, base.maxBars];
+  // Settings kept before 簡單 / 進階 existed: someone who knows the app, so everything, and no guide.
+  if (kept && typeof kept === 'object' && Object.keys(kept).some(k => SETTING_KEYS.includes(k)) && !levelOk(kept.level)) Object.assign(out, { level: 'pro', guided: true });
   return out;
 }
 // (The newest this many kits; an old one's tempo is heard again if it comes back.)
