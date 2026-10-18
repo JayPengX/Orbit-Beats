@@ -26,3 +26,19 @@ export function rmsPerSecond({ L, R }, sr) {
   }
   return out;
 }
+// The stretches quieter than `db` dBFS (RMS over 50 ms, every 10 ms) longer
+// than `longer` seconds. -> [[from, seconds]]
+export function quietRuns({ L, R }, sr, { db = -45, longer = 0.25 } = {}) {
+  const win = Math.round(0.05 * sr), hop = Math.round(0.01 * sr), lim = 10 ** (db / 20);
+  const runs = [];
+  let start = -1;
+  for (let i = 0; i + win <= L.length; i += hop) {
+    let e = 0;
+    for (let j = i; j < i + win; j++) e += L[j] * L[j] + R[j] * R[j];
+    const quiet = Math.sqrt(e / (2 * win)) < lim;
+    if (quiet && start < 0) start = i;
+    if (!quiet && start >= 0) runs.push([start, i + win]), (start = -1);
+  }
+  if (start >= 0) runs.push([start, L.length]);
+  return runs.map(([a, b]) => [a / sr, (b - a) / sr]).filter(([, s]) => s > longer);
+}
