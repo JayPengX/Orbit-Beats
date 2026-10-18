@@ -5,7 +5,7 @@ stays) arranges beat pieces into new songs, using the pieces exactly as
 recorded. An Orbit app on the Quadra Pass and the family's kit
 (`Shared-Proxy/kit/`): Chinese first, English for readers who pick it.
 
-**https://jaypengx.github.io/Passion-Beats/**: the page. Put pieces in,
+**https://jaypengx.github.io/Orbit-Beats/**: the page. Put pieces in,
 check the tempo and roles it hears, set things, make songs, play them and
 download them one by one or all in a zip. It all runs on the phone:
 nothing is uploaded.

@@ -1,6 +1,6 @@
 # Working on Orbit Beats
 
-Orbit Beats (was Passion Beats; the repo keeps its name) is an Orbit app on
+Orbit Beats (was Passion Beats; the repo Orbit-Beats since 2026-10-18, the old address redirects) is an Orbit app on
 the Quadra Pass and the shared kit. **Read `../Shared-Proxy/docs/TRUTH.md`
 first**: the owner's standing rules (push to `main`, `npm test` first,
 iPhone Safari at 375 px, nothing cut, Chinese first, iOS look). The README

@@ -3,7 +3,7 @@
   "short_name": "Beats",
   "description": "把一組節拍片段放進來，聽出速度和每段的角色，排成一首首新歌；全部在手機上做，不上傳。",
   "lang": "zh-Hant-TW",
-  "id": "/Passion-Beats/",
+  "id": "/Orbit-Beats/",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -11,9 +11,29 @@
   "background_color": "#f2f2f7",
   "theme_color": "#f2f2f7",
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
-    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
   ]
 }
