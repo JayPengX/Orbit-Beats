@@ -40,9 +40,9 @@ test('the pads: every piece in use, loops first by role, each its length', () =>
 
 test('a loop starts on the next bar and plays round until stopped at a bar; tapped off before it starts, it never plays', () => {
   const j = new Jam();
-  assert.deepEqual(j.toggle(1, 1.5, 2), { on: true, at: 4 });
+  assert.deepEqual(j.toggle(1, 1.5, 2), { on: true, at: 4, off: [] });
   assert.ok(j.playing(1, 2));
-  assert.deepEqual(j.toggle(1, 2.5, 2), { on: false, at: 4 });
+  assert.deepEqual(j.toggle(1, 2.5, 2), { on: false, at: 4, off: [1] });
   assert.deepEqual(j.due(0, 16), [], 'never started');
   assert.ok(!j.playing(1, 3));
   j.toggle(2, 0.5, 1.5);              // from 4, every 1.5 beats
@@ -172,8 +172,8 @@ test('a loop tapped off and on again in one bar plays to the bar line, then star
   const j = new Jam();
   j.toggle(2, 0, 1);
   j.due(0, 5);
-  assert.deepEqual(j.toggle(2, 5, 1), { on: false, at: 8 });
-  assert.deepEqual(j.toggle(2, 6, 1), { on: true, at: 8 });
+  assert.deepEqual(j.toggle(2, 5, 1), { on: false, at: 8, off: [2] });
+  assert.deepEqual(j.toggle(2, 6, 1), { on: true, at: 8, off: [] });
   assert.ok(j.playing(2, 7));
   assert.deepEqual(j.due(5, 12).map(h => h.beat), [5, 6, 7, 8, 9, 10, 11]);
 });

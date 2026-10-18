@@ -1099,7 +1099,7 @@ function songMenu(song, anchor, inLib, list = null) {
       : []),
     { label: W('分享', 'Share'), icon: '↗', onClick: () => shareSong(song) },
     { label: W('下載 WAV', 'Download WAV'), icon: '↓', onClick: () => downloadSong(song) },
-    ...(song.recipe?.radio ? [] : [{ label: W('存成檔案', 'Save as file'), icon: '▤', onClick: () => saveProject(song) }]),
+    ...(song.recipe?.radio || song.recipe?.band ? [] : [{ label: W('存成檔案', 'Save as file'), icon: '▤', onClick: () => saveProject(song) }]),
     ...(can && shows(settings.level, 'make-stems') ? [{ label: W('下載分軌', 'Download stems'), icon: '≡', onClick: () => stemsOf(song) }] : []),
     ...(can && shows(settings.level, 'make-midi') ? [{ label: W('匯出 MIDI', 'Export MIDI'), icon: '♪', onClick: () => midiOf(song) }] : []),
     ...(inLib
@@ -1536,11 +1536,11 @@ async function keepRadio(item) {
     toast(W(`存不下來：${e.message}`, `Couldn't keep it: ${e.message}`), { tone: 'bad' });
   }
 }
-// A song from the jam's take: into the batch, played.
-async function jamSong(hits, beats) {
+// A song from the jam's take: into the batch, played (on the built-in set: made from its seed and groove, no kit).
+async function jamSong(hits, beats, band) {
   try {
-    await kitToMaker();
-    const recipe = { print, jam: hits, plan: null, mix: { ...cfg().mix }, at: Date.now() };
+    if (!band) await kitToMaker();
+    const recipe = { print: band ? 'band' : print, ...(band ? { band } : {}), jam: hits, plan: null, mix: { ...cfg().mix }, at: Date.now() };
     const { info, wav } = await make.song(recipe, cfg().bits);
     const at = new Date();
     const song = { id: recipeId(recipe), name: `${W('即興', 'Jam')} ${at.getHours()}:${String(at.getMinutes()).padStart(2, '0')}`, info, data: wav, url: URL.createObjectURL(new Blob([wav], { type: 'audio/wav' })), bits: cfg().bits, recipe };
@@ -1693,8 +1693,8 @@ async function boot() {
     audio: audioCtx,
     quiet: () => quiet({ keep: 'jam' }),
     styles: () => cfg().styles,
-    take: (hits, beats) => jamSong(hits, beats),
-    goMake: () => showTab('make')
+    band: set => make.jamBand(set),
+    take: (hits, beats, band) => jamSong(hits, beats, band)
   });
   const last = await loadLast();
   if (last) {

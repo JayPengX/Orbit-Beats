@@ -6,7 +6,9 @@
 
 import { makeSong, renderEvents, encodeWav, zipParts, loopBeats } from '../engine.mjs';
 import { midiFile, songTracks } from './midi.mjs';
-import { radioSong, cutOf, segment, holdOf } from './radio.mjs';
+import { radioSong, cutOf, segment, holdOf, radioKit, RADIO_SR } from './radio.mjs';
+import { specOf, setOf } from './jamset.mjs';
+import { fromOffsets } from './jam.mjs';
 
 let kit = null;
 
@@ -23,6 +25,7 @@ const need = () => {
 // A recipe's song: { seed, detail, style, plan, minBars, maxBars, styles,
 // humanize (%), weights, mix } (or a jam's: { jam: [{ i, beat }], plan, mix }).
 function render(recipe, stems = false) {
+  if (recipe.band) return bandTake(recipe, stems);
   const k = need();
   if (recipe.jam) return renderEvents(k.pieces, k.sr, k.bpm, k.roles, recipe.jam, { mix: recipe.mix, stems, plan: recipe.plan || null });
   return makeSong(k.pieces, k.sr, recipe.seed, {
@@ -85,4 +88,26 @@ export function radio(spec, after = null) {
 export function radioWav(spec) {
   const { audio, info } = radioSong(spec);
   return { info, wav: encodeWav(audio, 16) };
+}
+
+// ---- 即興's built-in set (lib/jamset.mjs): the radio's band as pads ----
+
+let band = null; // the last set made: { id, sp, pieces, roles }
+// A set's pieces and roles (made once; the take's song uses the same).
+// -> { sp, pieces: [{ L, R }], roles, sr }
+export function jamBand(set) {
+  const s = setOf(set);
+  const id = `${s.seed}:${s.style}`;
+  if (band?.id !== id) {
+    const sp = specOf(s);
+    band = { id, sp, ...radioKit(sp, RADIO_SR) };
+  }
+  return { sp: band.sp, pieces: band.pieces, roles: band.roles, sr: RADIO_SR };
+}
+// A take played on the built-in set: { band: { seed, style }, jam: hits, mix }.
+function bandTake(recipe, stems) {
+  const { sp, pieces, roles, sr } = jamBand(recipe.band);
+  const k = fromOffsets(pieces, roles, recipe.jam, sp.bpm, sr);
+  const out = renderEvents(k.pieces, sr, sp.bpm, k.roles, k.hits, { mix: recipe.mix, stems, plan: recipe.plan || null });
+  return { ...out, info: { ...out.info, key: sp.key, style: sp.style } };
 }
