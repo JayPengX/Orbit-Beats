@@ -305,8 +305,8 @@ def _hiphop(s,t,k):
     s.hit(k['heavy'],t); s.hit(k['snare'],t+2.5)
     if s.r.random()<0.35: s.hit(k['heavy'],t+1.75)
     if s.r.random()<0.2: s.hit(k['kick'],t+3.75)
-def _trap(s,t,k):
-    s.hit(k['sub'],t); s.hit(k['kick'],t+1.5); s.hit(k['sub'],t+2.75)
+def _trap(s,t,k):   # the 808 on 1, a kick between, the snare on 3 (half-time), the 808 again late
+    s.hit(k['sub'],t); s.hit(k['kick'],t+1.5); s.hit(k['snare'],t+2); s.hit(k['sub'],t+2.75)
     if s.r.random()<0.3: s.hit(k['sub'],t+3.5)
 def _half(s,t,k):
     s.hit(k['snare'],t)
@@ -414,6 +414,8 @@ class Song:
         t=bar*4; end=(bar+nbars)*4
         while t<end-1e-9:
             fit=[i for i in pool if s.per[i]<=end-t+1e-9]
+            # (none fits the section at all: the shortest still plays, running on, rather than bars of silence)
+            if not fit and t==bar*4 and pool: fit=[min(pool,key=lambda i:s.per[i])]
             if not fit: break
             i=s.py.choice(fit); s.hit(i,t); t+=s.per[i]
     def drums(s,style,bar,nbars,k):   # k: the song's drum kit
@@ -692,7 +694,8 @@ def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arran
             c=R.choice(['riff','phr'] if verse_hat is None else ['riff','phr','hats'])
             if c=='riff': riff(b,L,intro_set)
             elif c=='phr': s.phrases(b,L,phrases)
-            else: s.loop(verse_hat,b,L); s.loop(intro_set[0],b+L//2,L-L//2)
+            else:   # (the riff comes in so it ends with the intro: a long one never runs on over the verse's)
+                at=max(0,min(L//2,L-s.span(intro_set[0]))); s.loop(verse_hat,b,L); s.loop(intro_set[0],b+at,L-at)
         elif t=='verse':   # the first verse builds: bass comes in halfway
             verse_no+=1
             riff(b,L,verse_set); bass(b,L,L//2 if verse_no==1 else 0); s.drums(style,b,L,kit); s.loop(verse_hat,b,L)

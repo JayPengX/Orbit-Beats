@@ -173,7 +173,9 @@ class Song {
   phrases(bar, nbars, pool) {   // short pieces one after another, each where it fits
     const end = (bar + nbars) * 4;
     for (let t = bar * 4; t < end - 1e-9;) {
-      const fit = pool.filter(i => this.per[i] <= end - t + 1e-9);
+      let fit = pool.filter(i => this.per[i] <= end - t + 1e-9);
+      // (None fits the section at all: the shortest still plays, running on, rather than bars of silence.)
+      if (!fit.length && t === bar * 4 && pool.length) fit = [pool.reduce((a, b) => (this.per[b] < this.per[a] ? b : a))];
       if (!fit.length) break;
       const i = this.py.choice(fit);
       this.hit(i, t); t += this.per[i];
@@ -217,8 +219,8 @@ const GROOVES = {
     if (s.r.random() < 0.35) s.hit(k.heavy, t + 1.75);
     if (s.r.random() < 0.2) s.hit(k.kick, t + 3.75);
   },
-  trap(s, t, k) {
-    s.hit(k.sub, t); s.hit(k.kick, t + 1.5); s.hit(k.sub, t + 2.75);
+  trap(s, t, k) {   // trap's: the 808 on 1, a kick between, the snare on 3 (half-time), the 808 again late
+    s.hit(k.sub, t); s.hit(k.kick, t + 1.5); s.hit(k.snare, t + 2); s.hit(k.sub, t + 2.75);
     if (s.r.random() < 0.3) s.hit(k.sub, t + 3.5);
   },
   half(s, t, k) {
@@ -518,7 +520,10 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
       const c = R.choice(verseHat == null ? ['riff', 'phr'] : ['riff', 'phr', 'hats']);
       if (c === 'riff') riff(b, L, introSet);
       else if (c === 'phr') s.phrases(b, L, phrases);
-      else { s.loop(verseHat, b, L); s.loop(introSet[0], b + Math.floor(L / 2), L - Math.floor(L / 2)); }
+      else {   // (the riff comes in so it ends with the intro: a long one never runs on over the verse's)
+        const at = Math.max(0, Math.min(Math.floor(L / 2), L - s.span(introSet[0])));
+        s.loop(verseHat, b, L); s.loop(introSet[0], b + at, L - at);
+      }
     } else if (t === 'verse') {   // the first verse builds: bass comes in halfway
       verseNo++;
       riff(b, L, verseSet); bass(b, L, verseNo === 1 ? Math.floor(L / 2) : 0);
