@@ -307,11 +307,12 @@ $('more-settings').onclick = () => {
       })
     )
   );
-  const row = (label, sub, ctl) => h('div', { class: 'row' }, [h('div', { class: 'label' }, [h('span', { text: label }), sub]), ctl]);
+  // (Each row its name and control on a line, what it does under them: a sheet is narrower than the page.)
+  const row = (label, sub, ctl) => h('div', { class: 'stack sheet-row' }, [h('div', { class: 'sheet-line' }, [h('span', { class: 'label', text: label }), ctl]), sub]);
   sheet({
     title: W('更多設定', 'More settings'),
     closeLabel: W('關閉', 'Close'),
-    body: h('div', { class: 'card', style: { margin: '0 16px 16px' } }, [
+    body: h('div', { class: 'card sheet-card' }, [
       row(W('長度', 'Length'), hint, h('div', { class: 'ctl' }, [numIn('minBars', { min: 8, max: 64, 'aria-label': W('最短（小節）', 'Shortest, in bars') }), h('span', { class: 'unit', text: '–' }), numIn('maxBars', { min: 8, max: 64, 'aria-label': W('最長（小節）', 'Longest, in bars') }), h('span', { class: 'unit', text: W('小節', 'bars') })])),
       row(W('人味', 'Humanize'), h('small', { text: W('搖擺和時間的飄移', 'Swing and timing drift') }), h('div', { class: 'ctl' }, [range, val])),
       row(W('種子', 'Seed'), h('small', { text: W('同一個種子，同樣的歌', 'Same seed, same songs') }), seed),
@@ -772,7 +773,7 @@ function pickGroove(song) {
   const s = sheet({
     title: W('換個鼓', 'Another groove'),
     closeLabel: W('關閉', 'Close'),
-    body: h('div', { class: 'card', style: { margin: '0 16px 16px' } }, [
+    body: h('div', { class: 'card sheet-card' }, [
       h('p', { class: 'hint', style: { marginTop: '0' }, text: W('同樣的段落和 Riff，換成這種節奏', 'The same sections and riffs, on this groove') }),
       h(
         'div',
@@ -952,7 +953,7 @@ function renameKept(song) {
   const s = sheet({
     title: W('重新命名', 'Rename'),
     closeLabel: W('關閉', 'Close'),
-    body: h('div', { class: 'card', style: { margin: '0 16px 16px' } }, [input, h('button', { class: 'primary', type: 'button', text: W('好', 'Done'), onclick: done })])
+    body: h('div', { class: 'card sheet-card' }, [input, h('button', { class: 'primary', type: 'button', text: W('好', 'Done'), onclick: done })])
   });
   setTimeout(() => input.focus(), 60);
 }
