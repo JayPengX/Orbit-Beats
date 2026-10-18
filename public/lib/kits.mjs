@@ -5,7 +5,40 @@
 //
 // The Pass's payload: { v: 1, settings: { …, at }, kits: { <fp>: { bpm, roles: { <piece>: role }, at } } }.
 
-export const SETTING_KEYS = ['count', 'minBars', 'maxBars', 'styles', 'humanize', 'seed', 'bits', 'silenceDb', 'minGap'];
+import { STYLES } from '../engine.mjs';
+import { mixOf } from './mix.mjs';
+
+// (mood, smart, studioBpm and mix were set on the page but never kept until 2026-10-18: they came back as they open.)
+export const SETTING_KEYS = ['count', 'minBars', 'maxBars', 'styles', 'humanize', 'seed', 'bits', 'silenceDb', 'minGap', 'mood', 'smart', 'studioBpm', 'mix'];
+// The settings as the page opens them.
+export const DEFAULTS = { count: 8, minBars: 25, maxBars: 29, styles: [...STYLES], humanize: 100, seed: '', bits: 32, silenceDb: -90, minGap: 0.2, mood: 'all', smart: true, studioBpm: 120, mix: mixOf(null) };
+// Each kept setting as it can be used (another phone's, an old version's, a
+// typo): a wrong kind or out of range is left as it was.
+const CHECK = {
+  count: v => Number.isInteger(v) && v >= 1 && v <= 30,
+  minBars: v => Number.isInteger(v) && v >= 8 && v <= 64,
+  maxBars: v => Number.isInteger(v) && v >= 8 && v <= 64,
+  humanize: v => Number.isFinite(v) && v >= 0 && v <= 200,
+  seed: v => typeof v === 'string' && /^\d{0,10}$/.test(v),
+  bits: v => v === 16 || v === 32,
+  silenceDb: v => Number.isFinite(v) && v >= -140 && v <= -20,
+  minGap: v => Number.isFinite(v) && v >= 0.02 && v <= 5,
+  mood: v => typeof v === 'string' && v.length < 20,
+  smart: v => typeof v === 'boolean',
+  studioBpm: v => Number.isFinite(v) && v >= 60 && v <= 200
+};
+export function settingsOf(kept, base = DEFAULTS) {
+  const out = { ...base, styles: [...base.styles], mix: mixOf(base.mix) };
+  for (const [k, v] of Object.entries(kept && typeof kept === 'object' ? kept : {})) {
+    if (k === 'styles') {
+      const ok = Array.isArray(v) ? STYLES.filter(x => v.includes(x)) : [];
+      if (ok.length) out.styles = ok;
+    } else if (k === 'mix') out.mix = mixOf(v);
+    else if (CHECK[k]?.(v)) out[k] = v;
+  }
+  if (out.minBars > out.maxBars) [out.minBars, out.maxBars] = [base.minBars, base.maxBars];
+  return out;
+}
 // (The newest this many kits; an old one's tempo is heard again if it comes back.)
 export const MOST_KITS = 40;
 
@@ -121,7 +154,7 @@ export async function loadLast() {
 export const forgetLast = () => run('readwrite', s => s.delete('last')).catch(() => {});
 
 // ---- The songs kept (歌單): on this phone only, never sent anywhere ----------------
-// { id, name, at, seconds, bpm, style, alt, key, plan, wav: Blob, recipe: { seed, detail, print, minBars, maxBars, styles, humanize } }
+// { id, name, at, info, bits, wav: Blob, recipe: { print, seed, detail, style, plan, minBars, maxBars, styles, humanize, mix } | { print, jam, plan, mix } }
 export const saveSong = song => run('readwrite', s => s.put(song), SONGS);
 export const deleteSong = id => run('readwrite', s => s.delete(id), SONGS);
 export async function listSongs() {

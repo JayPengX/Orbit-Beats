@@ -1,36 +1,40 @@
 // Orbit Beats (was Passion Beats): beat pieces in (one recording, a pack of
 // sample files, a take from the microphone, or clips made on its own
-// instruments), new songs out, made of the pieces exactly as recorded.
-// Three tabs: 做歌 (the pieces, a mood, the songs), 樂器 (drums and notes
-// to make clips with, lib/studio.mjs) and 歌單 (the songs kept, on this
-// phone: played, shared, made again). An Orbit app: the kit draws the
-// loading screen, the bar and the tab bar, keeps the app current and
-// opening offline; the Quadra Pass keeps the settings, each kit's tempo and
-// roles and the styles you keep (your taste); the sound never leaves the phone.
+// instruments), new songs out, made of the pieces and mixed (or exactly as
+// recorded, the mixer off). Four tabs: 做歌 (the pieces, a mood, the songs),
+// 樂器 (drums and notes to make clips with, lib/studio.mjs), 即興 (the
+// pieces as pads, played live and kept as a song, lib/jamview.mjs) and 歌單
+// (the songs kept, on this phone). An Orbit app: the kit draws the loading
+// screen, the bar and the tab bar, keeps the app current and opening
+// offline; the Quadra Pass keeps the settings, each kit's tempo and roles
+// and the styles you keep (your taste); the sound never leaves the phone.
 import { quadraSession, topActions, installGate, watchUpdates, keepOffline, tabBar } from '#kit/quadra.mjs';
 import { h, sheet, menu, toast, toggle, empty } from '#kit/ui.mjs';
-import { STYLES, SECTIONS, ROLES, MIN_BARS, NOTE_NAMES, keyOf, pieceChroma, parseWav, analyzeRecording, guessRole, loopBeats, makeSong, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
+import { STYLES, SECTIONS, ROLES, MIN_BARS, NOTE_NAMES, keyOf, pieceChroma, parseWav, analyzeRecording, guessRole, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
 import { atRate, splitAll, baseName } from './lib/sources.mjs';
-import { fingerprint, decode, encode, merge, keptSettings, kitEntry, saveLast, loadLast, liked, saveSong, deleteSong, listSongs, renameSong } from './lib/kits.mjs';
+import { fingerprint, decode, encode, merge, keptSettings, settingsOf, DEFAULTS, kitEntry, saveLast, loadLast, liked, saveSong, deleteSong, listSongs, renameSong } from './lib/kits.mjs';
 import { voice, renderClip, DRUM_NAMES, INSTRUMENT_ROLE, INSTRUMENT_NAMES } from './lib/synth.mjs';
+import { MIX, mixOf, STEMS } from './lib/mix.mjs';
+import { STYLE_NAMES, SECTION_NAMES, ROLE_NAMES, BUS_NAMES, name } from './lib/names.mjs';
+import { tapper } from './lib/tap.mjs';
+import { download, shareFile, fileName } from './lib/download.mjs';
+import { maker } from './lib/maker.mjs';
+import { libraryView } from './lib/library.mjs';
 import { mountStudio } from './lib/studio.mjs';
+import { mountJam } from './lib/jamview.mjs';
 import { W, en, lang } from './lib/lang.mjs';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const MAX_SONGS = 30;
 const MAX_BARS = 64;
-const STYLE_NAMES = { four: ['四拍', 'Four'], hiphop: ['嘻哈', 'Hip-hop'], trap: ['Trap', 'Trap'], half: ['半速', 'Half'], broken: ['碎拍', 'Broken'], house: ['House', 'House'], dembow: ['Dembow', 'Dembow'], afro: ['Afro', 'Afro'], drill: ['Drill', 'Drill'], boombap: ['Boom Bap', 'Boom Bap'], jersey: ['Jersey', 'Jersey'], amapiano: ['Amapiano', 'Amapiano'] };
-const SECTION_NAMES = { intro: ['前奏', 'Intro'], verse: ['主歌', 'Verse'], hook: ['副歌', 'Hook'], break: ['間奏', 'Break'], bridge: ['橋段', 'Bridge'], outro: ['尾奏', 'Outro'] };
-const ROLE_NAMES = { riff: ['Riff', 'Riff'], phrase: ['樂句', 'Phrase'], bass: ['貝斯', 'Bass'], hat: ['Hi-hat', 'Hats'], fill: ['過門', 'Fill'], kick: ['大鼓', 'Kick'], sub: ['808', '808'], snare: ['小鼓', 'Snare'], tick: ['Tick', 'Tick'], roll: ['滾奏', 'Roll'], off: ['不用', 'Not used'] };
-const name = (table, k) => (table[k] ? table[k][en ? 1 : 0] : k);
 // 情境: a mood picks the grooves (and how loose they're played) for you.
 const MOODS = {
   all: { zh: '全部', en: 'All', styles: STYLES, humanize: 100 },
-  chill: { zh: '放鬆', en: 'Chill', styles: ['half', 'hiphop', 'boombap', 'afro', 'amapiano'], humanize: 130 },
-  hype: { zh: '熱血', en: 'Hype', styles: ['trap', 'drill', 'four', 'jersey'], humanize: 60 },
-  groove: { zh: '律動', en: 'Groove', styles: ['house', 'afro', 'dembow', 'amapiano', 'broken'], humanize: 100 },
-  classic: { zh: '經典', en: 'Classic', styles: ['boombap', 'hiphop', 'half', 'four'], humanize: 140 }
+  chill: { zh: '放鬆', en: 'Chill', styles: ['half', 'hiphop', 'boombap', 'afro', 'amapiano', 'lofi', 'reggae'], humanize: 130 },
+  hype: { zh: '熱血', en: 'Hype', styles: ['trap', 'drill', 'four', 'jersey', 'phonk', 'dnb', 'techno', 'baile'], humanize: 60 },
+  groove: { zh: '律動', en: 'Groove', styles: ['house', 'afro', 'dembow', 'amapiano', 'broken', 'funk', 'garage'], humanize: 100 },
+  classic: { zh: '經典', en: 'Classic', styles: ['boombap', 'hiphop', 'half', 'four', 'funk', 'reggae'], humanize: 140 }
 };
 // A key as words: "A 小調", "E♭ major".
 const keyName = k => (k ? `${NOTE_NAMES[k.tonic]} ${k.minor ? W('小調', 'minor') : W('大調', 'major')}` : '');
@@ -47,11 +51,13 @@ const ICON = {
   pause: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4.5" width="4" height="15" rx="1.2"/><rect x="14" y="4.5" width="4" height="15" rx="1.2"/></svg>',
   heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.3s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg>',
   hearted: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.3s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg>',
-  more: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.5" cy="12" r="1.9"/></svg>'
+  more: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.5" cy="12" r="1.9"/></svg>',
+  repeat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l3 3-3 3"/><path d="M4 11V9a4 4 0 0 1 4-4h12"/><path d="M7 22l-3-3 3-3"/><path d="M20 13v2a4 4 0 0 1-4 4H4"/></svg>'
 };
 const TAB_ICONS = {
   make: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
   studio: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 4v9M12 4v9M16 4v9M3 13h18"/>',
+  jam: '<rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/>',
   library: '<path d="M12 20.3s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/>'
 };
 
@@ -75,8 +81,8 @@ let bpm = 120; // as heard, then as set
 let print = ''; // the kit's fingerprint
 let songs = []; // this batch: { id, name, info, data, url, bits, recipe }
 let busy = false;
-let library = []; // the songs kept (歌單), newest first
-let libraryRead = false;
+const make = maker(new URL('./lib/maker.worker.mjs', import.meta.url));
+let kitSent = ''; // the kit the maker has: its print, tempo and roles
 
 // ---- What's kept: this phone's copy of the Pass's payload, and the Pass's ----
 
@@ -97,12 +103,7 @@ if (!kept.settings) {
     if (old) kept.settings = keptSettings(old, 1);
   } catch {}
 }
-const settings = { count: 8, minBars: 25, maxBars: 29, styles: [...STYLES], humanize: 100, seed: '', bits: 32, silenceDb: -90, minGap: 0.2, mood: 'all', smart: true, studioBpm: 120 };
-const take = s => {
-  for (const [k, v] of Object.entries(s || {})) if (k !== 'at' && k in settings) settings[k] = k === 'styles' ? STYLES.filter(x => v.includes(x)) : v;
-  if (!settings.styles.length) settings.styles = [...STYLES];
-};
-take(kept.settings);
+let settings = settingsOf(kept.settings, DEFAULTS);
 
 let shareTimer = 0;
 function keep(share = true) {
@@ -129,18 +130,22 @@ function keepKit() {
 
 // ---- Tabs ----
 
-const TABS = ['make', 'studio', 'library'];
-const TAB_NAMES = { make: ['做歌', 'Make'], studio: ['樂器', 'Studio'], library: ['歌單', 'Library'] };
+const TABS = ['make', 'studio', 'jam', 'library'];
+const TAB_NAMES = { make: ['做歌', 'Make'], studio: ['樂器', 'Studio'], jam: ['即興', 'Jam'], library: ['歌單', 'Library'] };
 const tabs = tabBar({
   tabs: TABS.map(id => ({ id, label: name(TAB_NAMES, id), icon: TAB_ICONS[id] })),
   onSelect: id => showTab(id),
   label: W('分頁', 'Tabs')
 });
+let tabNow = 'make';
 function showTab(id) {
   tabs.select(id);
-  if (id === 'library') drawLibrary();
+  tabNow = id;
+  if (id === 'library') lib.draw();
   if (id === 'studio') studio?.shown();
   else studio?.hidden();
+  if (id === 'jam') jam?.shown();
+  else jam?.hidden();
 }
 const firstTab = () => (TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'make');
 
@@ -201,10 +206,18 @@ function lengthText() {
   if (!(minBars <= maxBars && minBars > 0)) return W('先填最短', 'Shortest first');
   return lo >= hi ? W(`每首約 ${secs(lo)} 秒`, `About ${secs(lo)} sec each`) : W(`每首約 ${secs(lo)}–${secs(hi)} 秒`, `About ${secs(lo)}–${secs(hi)} sec each`);
 }
+// The mixer in a few words: 混音 · 殘響 25%, or 原音.
+function mixText() {
+  const m = settings.mix;
+  if (!m.on) return W('原音：不加工', 'Raw: as recorded');
+  const bits = [m.reverb ? W(`殘響 ${Math.round(m.reverb * 100)}%`, `Room ${Math.round(m.reverb * 100)}%`) : '', m.delay ? W('回音', 'Echo') : '', m.pump ? W('側鏈', 'Pump') : '', m.fade ? W('淡出', 'Fade') : ''].filter(Boolean);
+  return [W('開', 'On'), ...bits].join(' · ');
+}
 function update() {
   const { count } = settings;
   const bad = problem();
   $('more-hint').textContent = `${lengthText()} · ${W('人味', 'Humanize')} ${settings.humanize}%`;
+  $('mix-hint').textContent = mixText();
   $('count-down').disabled = busy || count <= 1;
   $('count-up').disabled = busy || count >= MAX_SONGS;
   $('error').textContent = bad;
@@ -253,9 +266,43 @@ for (const [id, key] of [
   ['gap', 'minGap']
 ])
   $(id).addEventListener('input', () => {
-    settings[key] = +$(id).value;
+    const v = +$(id).value;
+    if (Number.isFinite(v) && $(id).value.trim() !== '') settings[key] = v;
     save();
   });
+
+// (Each row its name and control on a line, what it does under them: a sheet is narrower than the page.)
+const sheetRow = (label, sub, ctl) => h('div', { class: 'stack sheet-row' }, [h('div', { class: 'sheet-line' }, [h('span', { class: 'label', text: label }), ctl]), sub]);
+// A slider with its value beside it.
+function slider({ min, max, step: by, value, text, label, onInput }) {
+  const range = h('input', { type: 'range', min, max, step: by, 'aria-label': label });
+  range.value = value;
+  const val = h('span', { class: 'val', text: text(value) });
+  range.addEventListener('input', () => {
+    val.textContent = text(+range.value);
+    onInput(+range.value);
+  });
+  return h('div', { class: 'ctl' }, [range, val]);
+}
+// A two-way choice as the page's segmented buttons.
+function seg(items, value, onPick) {
+  const el = h(
+    'div',
+    { class: 'seg' },
+    items.map(([v, label]) =>
+      h('button', {
+        type: 'button',
+        'aria-pressed': String(value === v),
+        text: label,
+        onclick: e => {
+          for (const b of el.children) b.setAttribute('aria-pressed', String(b === e.currentTarget));
+          onPick(v);
+        }
+      })
+    )
+  );
+  return el;
+}
 
 // 更多設定: length, humanize, seed and format, in a sheet.
 $('more-settings').onclick = () => {
@@ -272,15 +319,6 @@ $('more-settings').onclick = () => {
     return i;
   };
   const hint = h('small', { text: lengthText() });
-  const range = h('input', { type: 'range', min: 0, max: 200, step: 10, 'aria-label': W('人味', 'Humanize') });
-  range.value = settings.humanize;
-  const val = h('span', { class: 'val', text: `${settings.humanize}%` });
-  range.addEventListener('input', () => {
-    settings.humanize = +range.value;
-    val.textContent = `${settings.humanize}%`;
-    save();
-    update();
-  });
   const seed = h('input', { class: 'num wide', type: 'text', inputmode: 'numeric', placeholder: W('隨機', 'Random'), autocomplete: 'off', 'aria-label': W('種子', 'Seed') });
   seed.value = settings.seed;
   seed.addEventListener('input', () => {
@@ -288,36 +326,66 @@ $('more-settings').onclick = () => {
     save();
     update();
   });
-  const fmt = h(
-    'div',
-    { class: 'seg' },
-    [
-      [32, W('32 位元浮點', '32-bit float')],
-      [16, W('16 位元', '16-bit')]
-    ].map(([bits, label]) =>
-      h('button', {
-        type: 'button',
-        'aria-pressed': String(settings.bits === bits),
-        text: label,
-        onclick: e => {
-          settings.bits = bits;
-          for (const b of fmt.children) b.setAttribute('aria-pressed', String(b === e.currentTarget));
-          save();
-        }
-      })
-    )
-  );
-  // (Each row its name and control on a line, what it does under them: a sheet is narrower than the page.)
-  const row = (label, sub, ctl) => h('div', { class: 'stack sheet-row' }, [h('div', { class: 'sheet-line' }, [h('span', { class: 'label', text: label }), ctl]), sub]);
   sheet({
     title: W('更多設定', 'More settings'),
     closeLabel: W('關閉', 'Close'),
     body: h('div', { class: 'card sheet-card' }, [
-      row(W('長度', 'Length'), hint, h('div', { class: 'ctl' }, [numIn('minBars', { min: 8, max: 64, 'aria-label': W('最短（小節）', 'Shortest, in bars') }), h('span', { class: 'unit', text: '–' }), numIn('maxBars', { min: 8, max: 64, 'aria-label': W('最長（小節）', 'Longest, in bars') }), h('span', { class: 'unit', text: W('小節', 'bars') })])),
-      row(W('人味', 'Humanize'), h('small', { text: W('搖擺和時間的飄移', 'Swing and timing drift') }), h('div', { class: 'ctl' }, [range, val])),
-      row(W('種子', 'Seed'), h('small', { text: W('同一個種子，同樣的歌', 'Same seed, same songs') }), seed),
-      row(W('格式', 'Format'), h('small', { text: W('下載和分享的 WAV', 'The WAVs you save and share') }), fmt)
+      sheetRow(W('長度', 'Length'), hint, h('div', { class: 'ctl' }, [numIn('minBars', { min: 8, max: 64, 'aria-label': W('最短（小節）', 'Shortest, in bars') }), h('span', { class: 'unit', text: '–' }), numIn('maxBars', { min: 8, max: 64, 'aria-label': W('最長（小節）', 'Longest, in bars') }), h('span', { class: 'unit', text: W('小節', 'bars') })])),
+      sheetRow(W('人味', 'Humanize'), h('small', { text: W('搖擺和時間的飄移', 'Swing and timing drift') }), slider({ min: 0, max: 200, step: 10, value: settings.humanize, text: v => `${v}%`, label: W('人味', 'Humanize'), onInput: v => ((settings.humanize = v), save(), update()) })),
+      sheetRow(W('種子', 'Seed'), h('small', { text: W('同一個種子，同樣的歌', 'Same seed, same songs') }), seed),
+      sheetRow(
+        W('格式', 'Format'),
+        h('small', { text: W('下載和分享的 WAV', 'The WAVs you save and share') }),
+        seg(
+          [
+            [32, W('32 位元浮點', '32-bit float')],
+            [16, W('16 位元', '16-bit')]
+          ],
+          settings.bits,
+          v => ((settings.bits = v), save())
+        )
+      )
     ])
+  });
+};
+
+// 混音: the mixer, on by default (lib/mix.mjs); off, the pieces exactly as recorded.
+$('mix-settings').onclick = () => {
+  const m = settings.mix;
+  const set = (k, v) => {
+    settings.mix = mixOf({ ...settings.mix, [k]: v });
+    save();
+    update();
+    paint();
+  };
+  const dbText = v => `${v > 0 ? '+' : ''}${v} dB`;
+  const pct = v => `${Math.round(v * 100)}%`;
+  const rows = h('div');
+  const onSwitch = toggle({ checked: m.on, label: W('混音', 'Mix'), onChange: on => set('on', on) });
+  const paint = () => {
+    rows.hidden = !settings.mix.on;
+  };
+  const level = bus => sheetRow(name(BUS_NAMES, bus), null, slider({ min: -24, max: 6, step: 1, value: m[bus], text: dbText, label: name(BUS_NAMES, bus), onInput: v => set(bus, v) }));
+  const amount = (k, label, sub) => sheetRow(label, h('small', { text: sub }), slider({ min: 0, max: 1, step: 0.05, value: m[k], text: pct, label, onInput: v => set(k, v) }));
+  const sw = (k, label, sub) => sheetRow(label, h('small', { text: sub }), toggle({ checked: m[k], label, onChange: on => set(k, on) }));
+  rows.append(
+    level('drums'),
+    level('hats'),
+    level('bass'),
+    level('keys'),
+    amount('reverb', W('殘響', 'Room'), W('旋律和小鼓的空間', 'Space round the riffs and snare')),
+    amount('delay', W('回音', 'Echo'), W('旋律跟著拍子的回音', 'Riffs echoing in time')),
+    amount('pump', W('側鏈', 'Pump'), W('貝斯和旋律讓大鼓', 'Bass and riffs duck under the kick')),
+    amount('width', W('寬度', 'Width'), W('左右的開闊', 'How wide the stereo is')),
+    sw('sweep', W('濾波', 'Sweeps'), W('前奏打開、導歌升起、間奏悶住', 'Intro opens, pre-hook lifts, break muffled')),
+    sw('fade', W('淡出', 'Fade out'), W('尾奏慢慢收掉', 'The outro fades away')),
+    h('div', { class: 'sheet-line' }, [h('button', { class: 'secondary', type: 'button', text: W('回到預設', 'Back to default'), onclick: () => ((settings.mix = mixOf(MIX)), save(), update(), s.close(), $('mix-settings').click()) })])
+  );
+  paint();
+  const s = sheet({
+    title: W('混音', 'Mix'),
+    closeLabel: W('關閉', 'Close'),
+    body: h('div', { class: 'card sheet-card' }, [sheetRow(W('混音', 'Mix'), h('small', { text: W('關掉：每段跟錄的一模一樣，會爆音的地方照留', 'Off: every piece exactly as recorded, overs and all') }), onSwitch), rows])
   });
 };
 
@@ -377,6 +445,7 @@ function clearPieces() {
   roles = [];
   heard = null;
   $('tempo-row').hidden = true;
+  kitChanged();
   update();
 }
 
@@ -406,7 +475,7 @@ function split() {
 // What the kit is: its pieces, files, rate and length, and the key its riffs are in.
 function kitStatus() {
   const len = sources.reduce((s, x) => s + x.L.length, 0) / sr;
-  const time = `${Math.floor(len / 60)}:${String(Math.round(len % 60)).padStart(2, '0')}`;
+  const time = `${Math.floor(len / 60)}:${String(Math.round(len % 60) % 60).padStart(2, '0')}`;
   const files = sources.length > 1 ? W(` · ${sources.length} 個檔`, ` · ${sources.length} files`) : '';
   if (!pieces.length) {
     status(`<b>${W('沒有切出片段', 'No pieces')}</b> · ${W('看「切片」', 'see Splitting')}`, 'bad');
@@ -448,7 +517,12 @@ function showPieces() {
     grid.append(tile);
   });
   $('pieces-hint').hidden = !pieces.length;
+  kitChanged();
   update();
+}
+// The kit, its tempo or its roles changed: the jam's pads follow.
+function kitChanged() {
+  jam?.kit();
 }
 
 // A new tempo: roles heard again at it (but not ones set by hand), and loop lengths.
@@ -464,6 +538,12 @@ function setTempo(v) {
 $('bpm').addEventListener('change', () => setTempo(+$('bpm').value));
 $('bpm-half').onclick = () => setTempo(bpm / 2);
 $('bpm-double').onclick = () => setTempo(bpm * 2);
+// 點拍子: tap along, the tempo follows from the second tap.
+const taps = tapper();
+$('bpm-tap').onclick = () => {
+  const t = taps.tap();
+  if (t) setTempo(t);
+};
 
 const pick = (input, add) =>
   input.addEventListener('change', () => {
@@ -519,8 +599,7 @@ $('record').onclick = async () => {
     const at = new Date();
     load(async () => [{ name: `${W('錄音', 'Take')} ${at.getHours()}:${String(at.getMinutes()).padStart(2, '0')}`, ...(await decodeAudio(await blob.arrayBuffer())) }], sources.length > 0);
   };
-  stopPiece();
-  stopSong();
+  quiet();
   recorder.start();
   const t0 = Date.now();
   $('record').classList.add('on');
@@ -533,13 +612,20 @@ $('record').onclick = async () => {
 };
 if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') $('record').hidden = true;
 
-// One sound for the whole app (the pieces, the instruments): made on the first tap.
+// One sound for the whole app (the pieces, the instruments, the pads): made on the first tap.
 let ctx = null;
 const audioCtx = () => {
   ctx ||= new AudioContext();
   ctx.resume();
   return ctx;
 };
+// Everything that plays, stopped (before something else plays).
+function quiet({ keep: but = '' } = {}) {
+  stopPiece();
+  if (but !== 'song') stopSong();
+  if (but !== 'studio') studio?.stop();
+  if (but !== 'jam') jam?.stop();
+}
 // Tap a piece to hear it; tap again to stop.
 let playing = null;
 function stopPiece() {
@@ -557,6 +643,7 @@ $('pieces').addEventListener('change', e => {
   edited.add(+tile.dataset.i);
   tile.classList.toggle('off', e.target.value === 'off');
   kitStatus();
+  kitChanged();
   update();
   keepKit();
 });
@@ -566,8 +653,7 @@ $('pieces').addEventListener('click', e => {
   const again = playing && playing.btn === btn;
   stopPiece();
   if (again) return;
-  stopSong();
-  studio?.stop();
+  quiet();
   const c = audioCtx();
   const p = pieces[+btn.parentNode.dataset.i];
   const ab = c.createBuffer(2, p.L.length, sr);
@@ -607,7 +693,8 @@ function addClip(clip) {
     };
     if (used('kick')) shot('kick', 'kick');
     if (used('snare') || used('clap')) shot(used('snare') ? 'snare' : 'clap', 'snare');
-    if (used('hat') || used('rim')) shot(used('hat') ? 'hat' : 'rim', 'tick');
+    const tick = ['hat', 'rim', 'shaker', 'snap', 'perc'].find(used);
+    if (tick) shot(tick, 'tick');
     if (used('sub')) shot('sub', 'sub', clip.pitch || 33);
   } else made.push({ src: { name: `♪ ${name(INSTRUMENT_NAMES, clip.inst)} ${n}`, ...renderClip(clip, rate, tempo) }, role: INSTRUMENT_ROLE[clip.inst] || 'riff' });
   const before = { roles: [...roles], edited: new Set(edited), bpm, count: pieces.length, at: sources.length };
@@ -645,25 +732,34 @@ function addClip(clip) {
 
 $('legend').innerHTML = SECTIONS.map(s => `<span><i style="background:var(--${s})"></i>${esc(name(SECTION_NAMES, s))}</span>`).join('');
 
-const timeText = s => `${Math.floor(s / 60)}:${String(Math.round(s) % 60).padStart(2, '0')}`;
+const timeText = s => `${Math.floor(s / 60)}:${String(Math.floor(s) % 60).padStart(2, '0')}`;
 // A song's id: its kit and how it was made (the same song made again is the same song).
-const recipeId = r => `${r.print}:${r.seed}:${r.detail ?? ''}:${r.style ?? ''}`;
-const isKept = id => library.some(s => s.id === id);
+const recipeId = r => (r.jam ? `${r.print}:jam:${r.at}` : `${r.print}:${r.seed}:${r.detail ?? ''}:${r.style ?? ''}:${r.plan ? r.plan.map(x => x.join('')).join('.') : ''}:${r.mix?.on === false ? 'raw' : 'mix'}`);
 const urls = new Map(); // a kept song's WAV as a URL, made when first played or shared
+const lib = libraryView({
+  panel: $('panel-library'),
+  row: song => songRow(song, { lib: true }),
+  goMake: () => showTab('make'),
+  zip: list => zipOf(list, 'Orbit Beats · Library.zip')
+});
 
-// One row: play, its name and what it is, ♡ and ⋯; its sections under it.
-function songRow(song, { lib = false } = {}) {
+// One row: play, its name and what it is, ♡ and ⋯; its sections under it (tap one to go there).
+function songRow(song, { lib: inLib = false } = {}) {
   const li = h('li', { class: 'song', 'data-id': song.id });
   const info = song.info;
-  const what = [timeText(info.seconds), name(STYLE_NAMES, info.style), keyName(info.key)].filter(Boolean).join(' · ');
+  const what = [timeText(info.seconds), info.style ? name(STYLE_NAMES, info.style) : W('即興', 'Jam'), keyName(info.key)].filter(Boolean).join(' · ');
   const plan = info.plan.map(([t, n]) => `${name(SECTION_NAMES, t)} ${n} ${W('小節', 'bars')}`).join(', ');
   const play = h('button', { class: 'play', type: 'button', 'aria-label': W(`播放 ${song.name}`, `Play ${song.name}`), html: ICON.play, onclick: () => toggleSong(song) });
-  const heart = h('button', { class: `act heart${isKept(song.id) ? ' kept' : ''}`, type: 'button', 'aria-label': W('收藏', 'Keep'), 'aria-pressed': String(isKept(song.id)), html: isKept(song.id) ? ICON.hearted : ICON.heart, onclick: () => keepSong(song) });
-  const more = h('button', { class: 'act', type: 'button', 'aria-label': W('更多', 'More'), html: ICON.more, onclick: e => songMenu(song, e.currentTarget, lib) });
-  li.append(
-    h('div', { class: 'line' }, [play, h('div', { class: 'what' }, [h('span', { class: 'name', text: song.name }), h('span', { class: 'info', text: what })]), heart, more]),
-    h('div', { class: 'plan', role: 'img', 'aria-label': plan, html: info.plan.map(([t, n], k) => `<i style="flex:${n};background:var(--${t});--k:${k}"></i>`).join('') })
-  );
+  const heart = h('button', { class: `act heart${lib.has(song.id) ? ' kept' : ''}`, type: 'button', 'aria-label': W('收藏', 'Keep'), 'aria-pressed': String(lib.has(song.id)), html: lib.has(song.id) ? ICON.hearted : ICON.heart, onclick: () => keepSong(song) });
+  const more = h('button', { class: 'act', type: 'button', 'aria-label': W('更多', 'More'), html: ICON.more, onclick: e => songMenu(song, e.currentTarget, inLib) });
+  const bar = h('div', { class: 'plan', role: 'group', 'aria-label': plan });
+  let at = 0;
+  info.plan.forEach(([t, n], k) => {
+    const from = at;
+    bar.append(h('button', { type: 'button', class: 'sec', style: { flex: String(n), background: `var(--${t})`, '--k': String(k) }, 'aria-label': `${name(SECTION_NAMES, t)} ${n} ${W('小節', 'bars')}`, onclick: () => seekBar(song, from) }));
+    at += n;
+  });
+  li.append(h('div', { class: 'line' }, [play, h('div', { class: 'what' }, [h('span', { class: 'name', text: song.name }), h('span', { class: 'info', text: what })]), heart, more]), bar);
   if (nowPlaying?.id === song.id) markRow(li, true);
   return li;
 }
@@ -676,29 +772,41 @@ function markRow(li, on) {
 function refreshHearts(id) {
   for (const li of rowsOf(id)) {
     const b = li.querySelector('.heart');
-    const k = isKept(id);
+    const k = lib.has(id);
     b.classList.toggle('kept', k);
     b.setAttribute('aria-pressed', String(k));
     b.innerHTML = k ? ICON.hearted : ICON.heart;
   }
 }
 
-// One song made: a batch's, a variation, another groove.
-function makeOne({ seed, detail = null, style = null, title }) {
-  const { minBars, maxBars, styles, humanize, bits } = settings;
-  const analysis = { ...heard, bpm, loops: heard.analyses.map(a => loopBeats(a, bpm)) };
-  const { audio: sound, info } = makeSong(pieces, sr, seed, { analysis, roles, minBars, maxBars, styles, humanize: humanize / 100, detail, style, weights: weights() });
-  const data = encodeWav(sound, bits);
-  const recipe = { print, seed, detail, style, minBars, maxBars, styles: [...styles], humanize };
-  return { id: recipeId(recipe), name: title, info: { ...info, plan: info.plan }, data, url: URL.createObjectURL(new Blob([data], { type: 'audio/wav' })), bits, recipe };
+// The maker has this kit (its pieces, tempo and roles) before it's asked for a song.
+async function kitToMaker() {
+  const now = `${print}|${bpm}|${roles.join(',')}`;
+  if (kitSent === now) return;
+  await make.setKit({ pieces: pieces.map(p => ({ L: p.L, R: p.R })), sr, heard, bpm, roles: [...roles] });
+  kitSent = now;
 }
+// A recipe as this batch's settings make it (a song made from another keeps that one's).
+const recipeOf = (over = {}) => ({ print, minBars: settings.minBars, maxBars: settings.maxBars, styles: [...settings.styles], humanize: settings.humanize, mix: { ...settings.mix }, weights: weights(), detail: null, style: null, plan: null, ...over });
+// One song made from a recipe: { id, name, info, data, url, bits, recipe }.
+async function makeOne(recipe, title) {
+  await kitToMaker();
+  const bits = settings.bits;
+  const { info, wav } = await make.song(recipe, bits);
+  // (Kept with the groove it got instead of the taste it leaned on: made again, for its stems or
+  // a variation, it's the same song whatever the taste is by then.)
+  const { weights: _, ...rest } = recipe;
+  const made = rest.jam ? rest : { ...rest, style: info.style };
+  return { id: recipeId(made), name: title, info, data: wav, url: URL.createObjectURL(new Blob([wav], { type: 'audio/wav' })), bits, recipe: made };
+}
+// The recipe of a song made from `from`, whatever the settings are now: its
+// own length, styles, humanize, mixer and the groove it got.
+const fromRecipe = (from, over) => ({ ...from.recipe, ...over });
 
 $('go').onclick = async () => {
   if (busy || problem() || !pieces.length) return;
   busy = true;
-  stopPiece();
-  studio?.stop();
-  stopSong();
+  quiet();
   for (const s of songs) URL.revokeObjectURL(s.url);
   songs = [];
   const { count, bits } = settings;
@@ -707,35 +815,40 @@ $('go').onclick = async () => {
   $('songs').textContent = '';
   $('zip').disabled = true;
   const lean = weights() ? W(` · 依你的口味`, ` · your taste`) : '';
-  $('out-meta').textContent = `${bpm} BPM · ${W('種子', 'seed')} ${seed} · ${bits === 32 ? W('32 位元', '32-bit') : W('16 位元', '16-bit')}${lean}`;
+  $('out-meta').textContent = `${bpm} BPM · ${W('種子', 'seed')} ${seed} · ${bits === 32 ? W('32 位元', '32-bit') : W('16 位元', '16-bit')} · ${settings.mix.on ? W('混音', 'mixed') : W('原音', 'raw')}${lean}`;
   $('go').disabled = true;
   update();
   const list = batch(count, seed);
-  for (let k = 0; k < list.length; k++) {
-    $('go').textContent = W(`第 ${k + 1} / ${list.length} 首…`, `Making ${k + 1} of ${list.length}…`);
-    $('busy').textContent = W(`正在做第 ${k + 1} / ${list.length} 首…`, `Making song ${k + 1} of ${list.length}…`);
-    if (k === 0) $('out').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    await new Promise(r => setTimeout(r, 0));
-    const song = makeOne({ seed: list[k].seed, title: songTitle(list[k].seed) });
-    songs.push(song);
-    $('songs').append(songRow(song));
+  const kit = print;
+  try {
+    for (let k = 0; k < list.length; k++) {
+      $('go').textContent = W(`第 ${k + 1} / ${list.length} 首…`, `Making ${k + 1} of ${list.length}…`);
+      $('busy').textContent = W(`正在做第 ${k + 1} / ${list.length} 首…`, `Making song ${k + 1} of ${list.length}…`);
+      if (k === 0) $('out').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      await new Promise(r => setTimeout(r, 0));
+      if (print !== kit) break;   // (the kit changed under the batch: what's made stays)
+      const song = await makeOne(recipeOf({ seed: list[k].seed }), songTitle(list[k].seed));
+      songs.push(song);
+      $('songs').append(songRow(song));
+    }
+  } catch (e) {
+    toast(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`), { tone: 'bad' });
   }
   $('busy').textContent = '';
-  $('zip').disabled = false;
+  $('zip').disabled = !songs.length;
   busy = false;
   update();
 };
 
-// A song made from another, in the batch right under it.
-async function another(from, how) {
+// A song made from another (a variation, another groove, an arrangement), in the batch right under it.
+async function another(from, recipe, title) {
   if (!heard || from.recipe.print !== print) return toast(W('要用做這首歌的片段才能變化', 'Needs the pieces this song was made from'), { tone: 'bad' });
-  const base = from.name.split(' · ')[0];
-  const n = songs.filter(s => s.name.startsWith(`${base} · `)).length + 1;
-  await new Promise(r => setTimeout(r, 0));
-  const song =
-    how === 'vary'
-      ? makeOne({ seed: from.recipe.seed, detail: Math.floor(Math.random() * 1e9), style: from.recipe.style, title: `${base} · ${W('變奏', 'Var.')} ${n}` })
-      : makeOne({ seed: from.recipe.seed, detail: from.recipe.detail, style: how, title: `${base} · ${name(STYLE_NAMES, how)}` });
+  let song;
+  try {
+    song = await makeOne(recipe, title);
+  } catch (e) {
+    return toast(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`), { tone: 'bad' });
+  }
   const at = songs.indexOf(from);
   if (at >= 0) songs.splice(at + 1, 0, song);
   else songs.unshift(song);
@@ -745,24 +858,35 @@ async function another(from, how) {
   if (anchor) anchor.after(row);
   else $('songs').prepend(row);
   $('zip').disabled = false;
-  if (!$('panel-make').hidden) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (tabNow === 'make') row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   else toast(W(`已做好：${song.name}（在「做歌」）`, `Made: ${song.name} (in Make)`));
   playSong(song);
 }
-function songMenu(song, anchor, lib) {
+const baseTitle = song => song.name.split(' · ')[0];
+const nth = base => songs.filter(s => s.name.startsWith(`${base} · `)).length + 1;
+function songMenu(song, anchor, inLib) {
   const can = heard && song.recipe?.print === print;
+  const isJam = Boolean(song.recipe?.jam);
   menu(anchor, [
-    ...(can
+    ...(can && !isJam
       ? [
-          { label: W('變奏一首', 'A variation'), icon: '✦', onClick: () => another(song, 'vary') },
+          { label: W('變奏一首', 'A variation'), icon: '✦', onClick: () => another(song, fromRecipe(song, { detail: Math.floor(Math.random() * 1e9) }), `${baseTitle(song)} · ${W('變奏', 'Var.')} ${nth(baseTitle(song))}`) },
           { label: W('換個鼓…', 'Another groove…'), icon: '♫', onClick: () => pickGroove(song) },
+          { label: W('編排…', 'Arrange…'), icon: '☰', onClick: () => arrange(song) },
           'divider'
         ]
       : []),
     { label: W('分享', 'Share'), icon: '↗', onClick: () => shareSong(song) },
     { label: W('下載 WAV', 'Download WAV'), icon: '↓', onClick: () => downloadSong(song) },
-    ...(lib
+    ...(can
       ? [
+          { label: W('下載分軌', 'Download stems'), icon: '≡', onClick: () => stemsOf(song) },
+          { label: W('匯出 MIDI', 'Export MIDI'), icon: '♪', onClick: () => midiOf(song) }
+        ]
+      : []),
+    ...(inLib
+      ? [
+          'divider',
           { label: W('重新命名', 'Rename'), icon: '✎', onClick: () => renameKept(song) },
           { label: W('從歌單刪除', 'Remove from Library'), icon: '✕', danger: true, onClick: () => keepSong(song) }
         ]
@@ -786,11 +910,61 @@ function pickGroove(song) {
             text: name(STYLE_NAMES, st),
             onclick: () => {
               s.close();
-              if (st !== song.info.style) another(song, st);
+              if (st !== song.info.style) another(song, fromRecipe(song, { style: st }), `${baseTitle(song)} · ${name(STYLE_NAMES, st)}`);
             }
           })
         )
       )
+    ])
+  });
+}
+// 編排: the song's sections, moved, repeated, lengthened or taken out; made again with every other choice as it was.
+function arrange(song) {
+  let plan = song.info.plan.map(([t, n]) => [t, n]);
+  const list = h('ol', { class: 'arr' });
+  const total = h('small');
+  const draw = () => {
+    const bars = plan.reduce((s, [, n]) => s + n, 0);
+    total.textContent = W(`${plan.length} 段 · ${bars} 小節 · 約 ${Math.round((bars * 4 * 60) / bpm)} 秒`, `${plan.length} section${plan.length === 1 ? '' : 's'} · ${bars} bars · about ${Math.round((bars * 4 * 60) / bpm)} sec`);
+    list.replaceChildren(
+      ...plan.map(([t, n], k) => {
+        const typeSel = h('select', { class: 'num wide', 'aria-label': W('段落', 'Section') }, SECTIONS.map(x => h('option', { value: x, text: name(SECTION_NAMES, x) })));
+        typeSel.value = t;
+        typeSel.onchange = () => ((plan[k][0] = typeSel.value), draw());
+        const lenSel = h('select', { class: 'num short', 'aria-label': W('小節', 'Bars') }, [1, 2, 3, 4, 6, 8, 12, 16].map(x => h('option', { value: String(x), text: String(x) })));
+        lenSel.value = String(n);
+        lenSel.onchange = () => ((plan[k][1] = +lenSel.value), draw());
+        const btn = (txt, label, fn, off = false) => h('button', { class: 'mini', type: 'button', text: txt, 'aria-label': label, disabled: off, onclick: () => (fn(), draw()) });
+        return h('li', {}, [
+          h('i', { style: { background: `var(--${t})` } }),
+          typeSel,
+          lenSel,
+          h('div', { class: 'ctl' }, [
+            btn('↑', W('上移', 'Move up'), () => plan.splice(k - 1, 0, ...plan.splice(k, 1)), k === 0),
+            btn('⧉', W('重複', 'Repeat'), () => plan.splice(k + 1, 0, [...plan[k]]), plan.length >= 24),
+            btn('✕', W('拿掉', 'Remove'), () => plan.splice(k, 1), plan.length <= 1)
+          ])
+        ]);
+      })
+    );
+  };
+  draw();
+  const s = sheet({
+    title: W('編排', 'Arrange'),
+    closeLabel: W('關閉', 'Close'),
+    body: h('div', { class: 'card sheet-card' }, [
+      h('p', { class: 'hint', style: { marginTop: '0' }, text: W('同樣的 Riff、鼓和人味，照這個順序', 'The same riffs, drums and feel, in this order') }),
+      list,
+      total,
+      h('button', {
+        class: 'primary',
+        type: 'button',
+        text: W('照這樣做一首', 'Make it like this'),
+        onclick: () => {
+          s.close();
+          another(song, fromRecipe(song, { plan: plan.map(([t, n]) => [t, n]) }), `${baseTitle(song)} · ${W('編排', 'Arr.')} ${nth(baseTitle(song))}`);
+        }
+      })
     ])
   });
 }
@@ -800,24 +974,38 @@ function pickGroove(song) {
 const audio = new Audio();
 audio.preload = 'auto';
 let nowPlaying = null;
+// What happens at a song's end: on to the next in its list, the song again, or its section again.
+const REPEATS = ['list', 'one', 'section'];
+let repeat = 'list';
+let loopAt = null; // { from, to } in seconds: the section looped
 async function urlOf(song) {
   if (song.url) return song.url;
   if (!urls.has(song.id)) urls.set(song.id, URL.createObjectURL(song.wav));
   return urls.get(song.id);
 }
-async function playSong(song) {
-  stopPiece();
-  studio?.stop();
+async function playSong(song, at = 0) {
+  quiet({ keep: 'song' });
   if (nowPlaying) for (const li of rowsOf(nowPlaying.id)) markRow(li, false);
+  if (nowPlaying?.id !== song.id) loopAt = null;
   nowPlaying = song;
   audio.src = await urlOf(song);
-  audio.currentTime = 0;
+  audio.currentTime = at;
   await audio.play().catch(() => {});
   $('player').hidden = false;
   document.body.classList.add('playing');
   $('player-name').textContent = song.name;
   paintPlayer();
   for (const li of rowsOf(song.id)) markRow(li, true);
+}
+// Where a bar starts in a song (its sections at the song's tempo).
+const barTime = (song, bar) => (bar * 4 * 60) / (song.info.bpm || bpm);
+function seekBar(song, bar) {
+  const t = barTime(song, bar);
+  if (repeat === 'section') loopAt = sectionAt(song, t);
+  if (nowPlaying?.id === song.id) {
+    audio.currentTime = t;
+    if (audio.paused) audio.play().catch(() => {});
+  } else playSong(song, t);
 }
 function toggleSong(song) {
   if (nowPlaying?.id === song.id) {
@@ -834,8 +1022,20 @@ function closePlayer() {
   audio.pause();
   if (nowPlaying) for (const li of rowsOf(nowPlaying.id)) markRow(li, false);
   nowPlaying = null;
+  loopAt = null;
   $('player').hidden = true;
   document.body.classList.remove('playing');
+}
+// The section the song is in at time t: { from, to } in seconds.
+function sectionAt(song, t) {
+  let bar = 0;
+  for (const [, n] of song.info.plan) {
+    const from = barTime(song, bar);
+    const to = barTime(song, bar + n);
+    if (t < to) return { from, to };
+    bar += n;
+  }
+  return null;
 }
 function paintPlayer() {
   const d = audio.duration || nowPlaying?.info?.seconds || 0;
@@ -847,14 +1047,34 @@ function paintPlayer() {
   $('player-play').setAttribute('aria-label', audio.paused ? W('播放', 'Play') : W('暫停', 'Pause'));
   if (nowPlaying) for (const li of rowsOf(nowPlaying.id)) li.querySelector('.plan').style.setProperty('--at', `${pct}%`);
 }
+function paintRepeat() {
+  const b = $('player-repeat');
+  b.dataset.mode = repeat;
+  b.setAttribute('aria-label', { list: W('播完接下一首', 'Then the next song'), one: W('單曲重複', 'Repeat this song'), section: W('重複這一段', 'Repeat this section') }[repeat]);
+  b.innerHTML = ICON.repeat + (repeat === 'one' ? '<b>1</b>' : repeat === 'section' ? '<b>§</b>' : '');
+}
+$('player-repeat').onclick = () => {
+  repeat = REPEATS[(REPEATS.indexOf(repeat) + 1) % REPEATS.length];
+  loopAt = repeat === 'section' && nowPlaying ? sectionAt(nowPlaying, audio.currentTime) : null;
+  audio.loop = repeat === 'one';
+  paintRepeat();
+  toast({ list: W('播完接下一首', 'Then the next song'), one: W('單曲重複', 'Repeating this song'), section: W('重複這一段', 'Repeating this section') }[repeat], { ms: 1400 });
+};
+// (A section looped is held by the frame, not timeupdate's quarter second.)
+function watchLoop() {
+  if (repeat === 'section' && loopAt && !audio.paused && audio.currentTime >= loopAt.to) audio.currentTime = loopAt.from;
+  requestAnimationFrame(watchLoop);
+}
+requestAnimationFrame(watchLoop);
 for (const ev of ['timeupdate', 'play', 'pause', 'loadedmetadata']) audio.addEventListener(ev, () => {
   paintPlayer();
   if (nowPlaying) for (const li of rowsOf(nowPlaying.id)) markRow(li, true);
 });
 audio.addEventListener('ended', () => {
   paintPlayer();
+  if (repeat === 'section' && loopAt) return void ((audio.currentTime = loopAt.from), audio.play().catch(() => {}));
   // On to the next in the same list (the batch or 歌單).
-  const list = !$('panel-library').hidden ? library : songs;
+  const list = tabNow === 'library' ? lib.shown() : songs;
   const i = list.findIndex(s => s.id === nowPlaying?.id);
   if (i >= 0 && list[i + 1]) playSong(list[i + 1]);
 });
@@ -865,6 +1085,7 @@ const seek = e => {
   const r = $('player-bar').getBoundingClientRect();
   const d = audio.duration || 0;
   if (d) audio.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * d;
+  if (repeat === 'section' && nowPlaying) loopAt = sectionAt(nowPlaying, audio.currentTime);
 };
 $('player-bar').addEventListener('pointerdown', e => {
   seek(e);
@@ -886,15 +1107,14 @@ if ('mediaSession' in navigator) {
 
 // ♡: into 歌單 (this phone) and your taste (the Pass); again, out of both.
 async function keepSong(song) {
-  if (isKept(song.id)) {
+  if (lib.has(song.id)) {
     await deleteSong(song.id).catch(() => {});
-    library = library.filter(s => s.id !== song.id);
-    kept.taste = liked(kept.taste, song.info.style, -1);
+    lib.remove(song.id);
+    if (song.info.style) kept.taste = liked(kept.taste, song.info.style, -1);
     keep();
     refreshHearts(song.id);
     tasteHint();
     toast(W('已從歌單移除', 'Removed from Library'));
-    if (!$('panel-library').hidden) drawLibrary();
     return;
   }
   // (Kept as 16-bit: half a 32-bit float's room on the phone; the batch's own download keeps its format.)
@@ -906,35 +1126,41 @@ async function keepSong(song) {
     return toast(W('存不下：手機空間不夠？', "Couldn't keep it: phone storage full?"), { tone: 'bad' });
   }
   navigator.storage?.persist?.().catch(() => {});
-  library = [rec, ...library.filter(s => s.id !== rec.id)];
-  kept.taste = liked(kept.taste, song.info.style, 1);
+  lib.add(rec);
+  if (song.info.style) kept.taste = liked(kept.taste, song.info.style, 1);
   keep();
   refreshHearts(song.id);
   tasteHint();
   toast(W('已存到歌單 ♡', 'Kept in Library ♡'));
 }
 const blobOf = song => song.wav || new Blob([song.data], { type: 'audio/wav' });
-function downloadSong(song) {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blobOf(song));
-  a.download = `${song.name}.wav`;
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
-}
-// 分享: the WAV itself through the phone's share sheet (AirDrop, Messages, …);
-// a browser that can't share files downloads it.
+const downloadSong = song => download(blobOf(song), `${fileName(song.name)}.wav`);
+// 分享: the WAV itself through the phone's share sheet (AirDrop, Messages, …); a browser that can't share files downloads it.
 async function shareSong(song) {
-  const file = new File([blobOf(song)], `${song.name}.wav`, { type: 'audio/wav' });
-  if (navigator.canShare?.({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], title: song.name, text: W(`${song.name} · 用 Orbit Beats 做的`, `${song.name} · made with Orbit Beats`) });
-    } catch {}
-    return;
+  const how = await shareFile(blobOf(song), `${fileName(song.name)}.wav`, { title: song.name, text: W(`${song.name} · 用 Orbit Beats 做的`, `${song.name} · made with Orbit Beats`) });
+  if (how === 'downloaded') toast(W('這個瀏覽器不能分享檔案：已下載', "This browser can't share files: downloaded"));
+}
+const busNames = () => Object.fromEntries(STEMS.map(b => [b, name(BUS_NAMES, b)]));
+// 分軌: each bus a WAV (drums, hats, bass, melody, echo and room), in a zip, made again from the recipe.
+async function stemsOf(song) {
+  toast(W('正在做分軌…', 'Making the stems…'), { ms: 1600 });
+  try {
+    await kitToMaker();
+    const zip = await make.stems(song.recipe, settings.bits, { title: fileName(song.name), names: busNames() });
+    download(new Blob([zip], { type: 'application/zip' }), `${fileName(song.name)} · ${W('分軌', 'Stems')}.zip`);
+  } catch (e) {
+    toast(W(`做不出來：${e.message}`, `Couldn't make them: ${e.message}`), { tone: 'bad' });
   }
-  downloadSong(song);
-  toast(W('這個瀏覽器不能分享檔案：已下載', "This browser can't share files: downloaded"));
+}
+// MIDI: the song's hits, each piece a note (C2 up), a track a bus.
+async function midiOf(song) {
+  try {
+    await kitToMaker();
+    const bytes = await make.midi(song.recipe, { names: busNames() });
+    download(new Blob([bytes], { type: 'audio/midi' }), `${fileName(song.name)}.mid`);
+  } catch (e) {
+    toast(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`), { tone: 'bad' });
+  }
 }
 function renameKept(song) {
   const input = h('input', { class: 'num', type: 'text', style: { width: '100%', textAlign: 'left', padding: '0 12px' }, maxlength: 40, 'aria-label': W('歌名', 'Name') });
@@ -944,7 +1170,7 @@ function renameKept(song) {
     s.close();
     if (!v || v === song.name) return;
     await renameSong(song.id, v).catch(() => {});
-    library = library.map(x => (x.id === song.id ? { ...x, name: v } : x));
+    lib.rename(song.id, v);
     for (const x of songs) if (x.id === song.id) x.name = v;
     for (const li of rowsOf(song.id)) li.querySelector('.name').textContent = v;
     if (nowPlaying?.id === song.id) $('player-name').textContent = v;
@@ -957,57 +1183,49 @@ function renameKept(song) {
   });
   setTimeout(() => input.focus(), 60);
 }
-
-$('zip').onclick = () => {
-  const blob = new Blob(zipParts(songs.map(s => ({ name: `${s.name}.wav`, data: s.data }))), { type: 'application/zip' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'Orbit Beats.zip';
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
-};
-
-// ---- 歌單 ----
-
-async function readLibrary() {
-  library = await listSongs().catch(() => []);
-  libraryRead = true;
-}
-async function drawLibrary() {
-  const panel = $('panel-library');
-  if (!libraryRead) await readLibrary();
-  const mb = library.reduce((s, x) => s + (x.wav?.size || 0), 0) / 1e6;
-  const head = h('div', { class: 'lib-head' }, [h('h2', { text: W('歌單', 'Library') }), library.length ? h('small', { text: W(`${library.length} 首 · ${mb.toFixed(mb < 10 ? 1 : 0)} MB`, `${library.length} song${library.length === 1 ? '' : 's'} · ${mb.toFixed(mb < 10 ? 1 : 0)} MB`) }) : null]);
-  if (!library.length) {
-    panel.replaceChildren(
-      head,
-      h('section', { class: 'card' }, [
-        empty({
-          icon: '♡',
-          title: W('還沒有收藏的歌', 'Nothing kept yet'),
-          body: W('做好的歌按 ♡，就會存在這裡：離線也能聽、分享。你收藏的風格，下次做歌會多做一些。', 'Tap ♡ on a song to keep it here: play it offline, share it. The styles you keep come up more next time.'),
-          action: h('button', { class: 'secondary', type: 'button', text: W('去做歌', 'Make songs'), onclick: () => showTab('make') })
-        })
-      ])
-    );
-    return;
+// Songs in a zip (stored: WAVs barely shrink), each its own name once.
+async function zipOf(list, filename) {
+  const seen = new Map();
+  const files = [];
+  for (const s of list) {
+    const base = fileName(s.name);
+    const n = (seen.get(base) || 0) + 1;
+    seen.set(base, n);
+    files.push({ name: `${base}${n > 1 ? ` (${n})` : ''}.wav`, data: s.data || new Uint8Array(await s.wav.arrayBuffer()) });
   }
-  const list = h('ol', { class: 'songs' }, library.map(s => songRow(s, { lib: true })));
-  panel.replaceChildren(head, h('section', { class: 'card' }, [list]), h('footer', { text: W('存在這支手機上 · 不上傳', 'Kept on this phone · never uploaded') }));
+  download(new Blob(zipParts(files), { type: 'application/zip' }), filename);
 }
+$('zip').onclick = () => zipOf(songs, 'Orbit Beats.zip');
 
-// ---- 樂器 ----
+// ---- 樂器, 即興 ----
 
 let studio = null;
+let jam = null;
+// A song from the jam's take: into the batch, played.
+async function jamSong(hits, beats) {
+  try {
+    await kitToMaker();
+    const recipe = { print, jam: hits, plan: null, mix: { ...settings.mix }, at: Date.now() };
+    const { info, wav } = await make.song(recipe, settings.bits);
+    const at = new Date();
+    const song = { id: recipeId(recipe), name: `${W('即興', 'Jam')} ${at.getHours()}:${String(at.getMinutes()).padStart(2, '0')}`, info, data: wav, url: URL.createObjectURL(new Blob([wav], { type: 'audio/wav' })), bits: settings.bits, recipe };
+    songs.unshift(song);
+    $('out').hidden = false;
+    $('songs').prepend(songRow(song));
+    $('zip').disabled = false;
+    toast(W(`已做好 ${Math.round(beats / 4)} 小節（在「做歌」）`, `Made ${Math.round(beats / 4)} bars (in Make)`));
+    playSong(song);
+  } catch (e) {
+    toast(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`), { tone: 'bad' });
+  }
+}
 
 // ---- Opening ----
 
 const BUILD = document.querySelector('meta[name="build-version"]')?.content || 'dev';
 window.__fxStarted = true;
 const gated = installGate('beats', lang);
-watchUpdates({ current: BUILD, key: 'orbitBeats', cachePrefix: 'beats-', busy: () => busy || Boolean(recorder) || !audio.paused || Boolean(studio?.playing()) || Boolean(document.querySelector('.q-sheet, dialog[open]')) });
+watchUpdates({ current: BUILD, key: 'orbitBeats', cachePrefix: 'beats-', busy: () => busy || Boolean(recorder) || !audio.paused || Boolean(studio?.playing()) || Boolean(jam?.playing()) || Boolean(document.querySelector('.q-sheet, dialog[open]')) });
 topActions(q);
 
 // Everything drawn before the loading screen lifts: the settings, the last
@@ -1015,6 +1233,7 @@ topActions(q);
 // kits and taste merged in once it answers.
 async function boot() {
   showSettings();
+  paintRepeat();
   studio = mountStudio($('panel-studio'), {
     tempo: () => (pieces.length ? bpm : settings.studioBpm),
     setTempo: v => ((settings.studioBpm = v), save()),
@@ -1022,7 +1241,15 @@ async function boot() {
     key: () => kitKey(),
     add: clip => addClip(clip),
     audio: audioCtx,
-    quiet: () => (stopPiece(), stopSong()),
+    quiet: () => quiet({ keep: 'studio' }),
+    goMake: () => showTab('make')
+  });
+  jam = mountJam($('panel-jam'), {
+    kit: () => ({ pieces, roles, bpm, sr, heard }),
+    audio: audioCtx,
+    quiet: () => quiet({ keep: 'jam' }),
+    styles: () => settings.styles,
+    take: (hits, beats) => jamSong(hits, beats),
     goMake: () => showTab('make')
   });
   const last = await loadLast();
@@ -1033,14 +1260,14 @@ async function boot() {
   }
   kitShown();
   showTab(firstTab());
-  readLibrary();
+  lib.read();
   $('loading').hidden = true;
   const first = await q.start().catch(() => null);
   const theirs = decode(first?.payload || 'null');
   const before = encode(kept);
   kept = merge(kept, theirs);
   if (encode(kept) !== before) {
-    take(kept.settings);
+    settings = settingsOf(kept.settings, settings);
     showSettings();
     if (sources.length && kept.kits[print] && !edited.size) split();
   }

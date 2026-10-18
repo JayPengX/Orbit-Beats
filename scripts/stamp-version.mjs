@@ -23,8 +23,10 @@ async function files(dir) {
   return out;
 }
 
-// './x.js', './lib/x.mjs', './styles.css' inside import/from/src/href/new URL.
-const LOCAL = /((?:from|import\(|src=|href=|new URL\()\s*['"])(\.\/[^'"?]+\.(?:m?js|css))(['"])/g;
+// './x.js', './lib/x.mjs', '../engine.mjs', './styles.css' inside
+// import/from/src/href/new URL (a lib's '../engine.mjs' too: unstamped it
+// would be a second copy of the module, maybe a stale one).
+const LOCAL = /((?:from|import\(|src=|href=|new URL\()\s*['"])(\.{1,2}\/[^'"?]+\.(?:m?js|css))(['"])/g;
 
 // Every module the page imports up front (its static import graph), listed
 // in the page as modulepreload: the browser asks for them all at once instead

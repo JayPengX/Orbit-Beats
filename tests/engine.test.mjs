@@ -61,7 +61,7 @@ test('a song is the pieces exactly as recorded: no volume change, panning or eff
   assert.ok(makeSong(pieces, rec.sr, 1, { analysis }).info.peak > 1);
 });
 
-test('song forms follow the rules: phrases in fours, a hook after a verse, ending on a hook', () => {
+test('song forms follow the rules: phrases in fours, a hook after a verse (or its pre-hook), ending on a hook', () => {
   const R = makeRng(5);
   for (let k = 0; k < 300; k++) {
     const lo = 8 + Math.floor(R.random() * 50), hi = lo + Math.floor(R.random() * 6);
@@ -72,7 +72,10 @@ test('song forms follow the rules: phrases in fours, a hook after a verse, endin
     assert.ok(FORMS.some(f => f.join() === types.join()), types.join());
     assert.equal(types.at(-1), 'hook');
     for (let i = 1; i < types.length; i++) assert.notEqual(types[i], types[i - 1]);
-    if (types.length > 1) assert.equal(types[types.indexOf('hook') - 1], 'verse');
+    if (types.length > 1) assert.ok(['verse', 'pre'].includes(types[types.indexOf('hook') - 1]));
+    types.forEach((t, i) => t === 'pre' && assert.ok(types[i - 1] === 'verse' && types[i + 1] === 'hook', types.join()));
+    // every verse of a song has a pre-hook, or none does
+    assert.ok(types.filter(t => t === 'pre').length === 0 || types.filter(t => t === 'pre').length === types.filter(t => t === 'verse').length, types.join());
     for (const [t, , n] of body) assert.ok((t === 'verse' || t === 'hook' ? [4, 8] : [2, 4]).includes(n), `${t} ${n}`);
     plan.reduce((at, [, b, n]) => { assert.equal(b, at); return at + n; }, 0);
   }
