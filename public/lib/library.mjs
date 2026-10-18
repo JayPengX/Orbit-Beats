@@ -45,13 +45,14 @@ function readLists() {
 }
 
 // A name typed in a sheet: done(name) with what was typed.
-export function nameSheet(title, value, done) {
+// `keep`: the name as offered counts too (a kit saved under its suggested name).
+export function nameSheet(title, value, done, { keep = false } = {}) {
   const input = h('input', { class: 'num', type: 'text', style: { width: '100%', textAlign: 'left', padding: '0 12px' }, maxlength: 40, 'aria-label': W('名稱', 'Name') });
   input.value = value;
   const go = () => {
     const v = input.value.trim().slice(0, 40);
     s.close();
-    if (v && v !== value) done(v);
+    if (v && (keep || v !== value)) done(v);
   };
   input.addEventListener('keydown', e => e.key === 'Enter' && go());
   const s = sheet({ title, closeLabel: W('關閉', 'Close'), body: h('div', { class: 'card sheet-card' }, [input, h('button', { class: 'primary', type: 'button', text: W('好', 'Done'), onclick: go })]) });

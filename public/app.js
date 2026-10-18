@@ -785,7 +785,7 @@ function saveKit() {
       } catch {
         toast(W('存不下來：手機空間不夠？', "Couldn't save: is the phone full?"), { tone: 'bad' });
       }
-    })
+    }, { keep: true })
   );
 }
 async function kitsSheet() {
@@ -1137,10 +1137,11 @@ async function urlOf(song) {
   if (!urls.has(song.id)) urls.set(song.id, URL.createObjectURL(song.wav));
   return urls.get(song.id);
 }
-async function playSong(song, at = 0) {
+// `loop`: the section to repeat in a song not yet playing (held from its row).
+async function playSong(song, at = 0, loop = null) {
   quiet({ keep: 'song' });
   if (nowPlaying) for (const li of rowsOf(nowPlaying.id)) markRow(li, false);
-  if (nowPlaying?.id !== song.id) loopAt = null;
+  if (nowPlaying?.id !== song.id) loopAt = loop;
   nowPlaying = song;
   audio.src = await urlOf(song);
   audio.currentTime = at;
@@ -1159,7 +1160,7 @@ function seekBar(song, bar) {
   if (nowPlaying?.id === song.id) {
     audio.currentTime = t;
     if (audio.paused) audio.play().catch(() => {});
-  } else playSong(song, t);
+  } else playSong(song, t, repeat === 'section' ? loopAt : null);
 }
 function toggleSong(song) {
   if (nowPlaying?.id === song.id) {
