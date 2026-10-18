@@ -533,6 +533,8 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
       <button class="more-row row" id="more-settings" type="button"><span class="label"><span data-en="More settings">更多設定</span><small id="more-hint"></small></span><span class="chev" aria-hidden="true">›</span></button>
       <button class="primary" id="go" type="button" disabled></button>
       <p class="error" id="error" role="alert"></p>
+      <div class="ways"><button class="way" id="open-song" type="button" data-en="Open a file">打開檔案</button></div>
+      <input type="file" id="song-file" accept=".json,application/json" hidden>
     </section>
 
     <section class="card" id="out" aria-labelledby="h-out" hidden>
