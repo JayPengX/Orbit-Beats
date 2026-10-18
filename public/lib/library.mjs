@@ -45,7 +45,7 @@ function readLists() {
 }
 
 // A name typed in a sheet: done(name) with what was typed.
-function nameSheet(title, value, done) {
+export function nameSheet(title, value, done) {
   const input = h('input', { class: 'num', type: 'text', style: { width: '100%', textAlign: 'left', padding: '0 12px' }, maxlength: 40, 'aria-label': W('名稱', 'Name') });
   input.value = value;
   const go = () => {

@@ -8,19 +8,20 @@
 // screen, the bar and the tab bar, keeps the app current and opening
 // offline; the Quadra Pass keeps the settings, each kit's tempo and roles
 // and the styles you keep (your taste); the sound never leaves the phone.
-import { quadraSession, topActions, installGate, watchUpdates, keepOffline, tabBar } from '#kit/quadra.mjs';
+import { quadraSession, topActions, installGate, watchUpdates, keepOffline, tabBar, ask } from '#kit/quadra.mjs';
 import { h, sheet, menu, toast, toggle, empty } from '#kit/ui.mjs';
 import { sectionTimes, sectionIndex, labelFits } from './lib/sections.mjs';
 import { STYLES, SECTIONS, ROLES, MIN_BARS, NOTE_NAMES, keyOf, pieceChroma, parseWav, analyzeRecording, guessRole, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
 import { atRate, splitAll, baseName } from './lib/sources.mjs';
-import { fingerprint, decode, encode, merge, keptSettings, settingsOf, DEFAULTS, kitEntry, saveLast, loadLast, liked, saveSong, deleteSong, listSongs, renameSong } from './lib/kits.mjs';
+import { fingerprint, decode, encode, merge, keptSettings, settingsOf, DEFAULTS, kitEntry, saveLast, loadLast, liked, saveSong, deleteSong, listSongs, renameSong, forgetLast, saveNamed, deleteNamed, listNamed, renameNamed } from './lib/kits.mjs';
+import { dropPieces, snapOf, rolesBack, undoStack, namedKit, kitFrom, freeName } from './lib/kitops.mjs';
 import { voice, renderClip, DRUM_NAMES, INSTRUMENT_ROLE, INSTRUMENT_NAMES } from './lib/synth.mjs';
 import { MIX, mixOf, STEMS } from './lib/mix.mjs';
 import { STYLE_NAMES, SECTION_NAMES, ROLE_NAMES, BUS_NAMES, name } from './lib/names.mjs';
 import { tapper } from './lib/tap.mjs';
 import { download, shareFile, fileName } from './lib/download.mjs';
 import { maker } from './lib/maker.mjs';
-import { libraryView } from './lib/library.mjs';
+import { libraryView, nameSheet } from './lib/library.mjs';
 import { mountStudio } from './lib/studio.mjs';
 import { mountJam } from './lib/jamview.mjs';
 import { W, en, lang } from './lib/lang.mjs';
@@ -442,6 +443,7 @@ function kitShown() {
 function clearPieces() {
   $('pieces').textContent = '';
   $('pieces-hint').hidden = true;
+  $('clear-all').hidden = $('save-kit').hidden = true;
   pieces = [];
   roles = [];
   heard = null;
@@ -477,7 +479,8 @@ function split() {
 function kitStatus() {
   const len = sources.reduce((s, x) => s + x.L.length, 0) / sr;
   const time = `${Math.floor(len / 60)}:${String(Math.round(len % 60) % 60).padStart(2, '0')}`;
-  const files = sources.length > 1 ? W(` · ${sources.length} 個檔`, ` · ${sources.length} files`) : '';
+  const nFiles = new Set(sources.map(x => x.name)).size;
+  const files = nFiles > 1 ? W(` · ${nFiles} 個檔`, ` · ${nFiles} files`) : '';
   if (!pieces.length) {
     status(`<b>${W('沒有切出片段', 'No pieces')}</b> · ${W('看「切片」', 'see Splitting')}`, 'bad');
     $('split-more').open = true;
@@ -511,13 +514,15 @@ function showPieces() {
     tile.dataset.i = i;
     tile.title = from;
     tile.innerHTML = `<button type="button" aria-label="${esc(W(`試聽第 ${i + 1} 段，${beats.toFixed(1)} 拍`, `Play piece ${i + 1}, ${beats.toFixed(1)} beats`))}${from ? ` · ${esc(from)}` : ''}"><b>${i + 1}</b><span>${beats < 10 ? beats.toFixed(1) : Math.round(beats)} ${W('拍', 'beats')}</span></button>
-      <select aria-label="${esc(W(`第 ${i + 1} 段的角色`, `Piece ${i + 1} role`))}">${ROLES.map(x => `<option value="${x}"${x === roles[i] ? ' selected' : ''}>${esc(name(ROLE_NAMES, x))}</option>`).join('')}</select>`;
+      <select aria-label="${esc(W(`第 ${i + 1} 段的角色`, `Piece ${i + 1} role`))}">${ROLES.map(x => `<option value="${x}"${x === roles[i] ? ' selected' : ''}>${esc(name(ROLE_NAMES, x))}</option>`).join('')}</select>
+      <button type="button" class="more" aria-label="${esc(W(`第 ${i + 1} 段：更多`, `Piece ${i + 1}: more`))}">⋯</button>`;
     tile.classList.toggle('off', roles[i] === 'off');
     // (A clip made on the instruments: marked ♪.)
     tile.classList.toggle('mine', String(sources[p.src]?.name || '').startsWith('♪'));
     grid.append(tile);
   });
   $('pieces-hint').hidden = !pieces.length;
+  $('clear-all').hidden = $('save-kit').hidden = !pieces.length;
   kitChanged();
   update();
 }
@@ -649,6 +654,8 @@ $('pieces').addEventListener('change', e => {
   keepKit();
 });
 $('pieces').addEventListener('click', e => {
+  const more = e.target.closest('.piece .more');
+  if (more) return menu(more, [{ label: W('刪除這一段', 'Delete this piece'), icon: '✕', danger: true, onClick: () => removePiece(+more.parentNode.dataset.i) }]);
   const btn = e.target.closest('.piece button');
   if (!btn) return;
   const again = playing && playing.btn === btn;
@@ -671,6 +678,106 @@ $('pieces').addEventListener('click', e => {
   btn.classList.add('on');
   playing = { src, btn };
 });
+
+// ---- Taking pieces out, clearing, and kits kept by name ----
+//
+// Every change to the kit keeps a copy to come back to: a toast with 復原
+// for about 5 seconds. A piece is part of a split recording, so what is left
+// is rebuilt as sources of its own (lib/kitops.mjs).
+const undos = undoStack();
+function undoToast(text) {
+  const t = toast(text, { ms: 5000 });
+  t.append(h('button', { type: 'button', class: 'toast-undo', text: W('復原', 'Undo'), onclick: () => (t.remove(), restoreKit(undos.pop()?.snap)) }));
+}
+// Put a kit back (or open another): split again, then its tempo and hand-set roles.
+function restoreKit(snap, set) {
+  if (!snap) return;
+  stopPiece();
+  sources = snap.sources;
+  if (!sources.length) {
+    forgetLast();
+    kitShown();
+    return clearPieces();
+  }
+  sr = sources[0].sr;
+  kitShown();
+  split();
+  bpm = snap.bpm;
+  $('bpm').value = bpm;
+  const back = set ? null : rolesBack(snap, pieces.length);
+  if (back) ({ roles, edited } = back);
+  else
+    for (const [i, r] of Object.entries(set || {}))
+      if (+i < roles.length && ROLES.includes(r)) {
+        roles[+i] = r;
+        edited.add(+i);
+      }
+  tempoHint();
+  kitStatus();
+  showPieces();
+  keepKit();
+  saveLast(sources);
+}
+const nowKit = () => snapOf({ sources, roles, edited, bpm });
+function removePiece(i) {
+  if (!pieces[i]) return;
+  undos.push('piece', nowKit());
+  const left = dropPieces({ pieces, sources, roles, edited }, new Set([i]));
+  restoreKit({ ...left, bpm }, null);
+  undoToast(W(`已刪除第 ${i + 1} 段`, `Piece ${i + 1} deleted`));
+}
+async function clearAll() {
+  if (!pieces.length) return;
+  const yes = await ask({ title: W('清除全部片段？', 'Clear all pieces?'), body: W('錄音和取樣都會從這裡拿掉。清除後 5 秒內可以復原。', 'Recordings and samples leave the kit. You can undo for 5 seconds.'), ok: W('全部清除', 'Clear all'), cancel: W('取消', 'Cancel'), danger: true, lang });
+  if (!yes) return;
+  undos.push('all', nowKit());
+  restoreKit({ sources: [], roles: [], edited: [], bpm });
+  undoToast(W('已清除全部片段', 'All pieces cleared'));
+}
+function saveKit() {
+  if (!pieces.length) return;
+  listNamed().catch(() => []).then(all =>
+    nameSheet(W('存成套組', 'Save as a kit'), freeName(W('我的套組', 'My kit'), all.map(k => k.name)), async v => {
+      try {
+        await saveNamed(namedKit({ id: `n${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, name: v, sources, roles, edited, bpm, count: pieces.length }));
+        toast(W(`已存成「${v}」`, `Saved as “${v}”`));
+      } catch {
+        toast(W('存不下來：手機空間不夠？', "Couldn't save: is the phone full?"), { tone: 'bad' });
+      }
+    })
+  );
+}
+async function kitsSheet() {
+  const body = h('div', { class: 'card sheet-card' });
+  const s = sheet({ title: W('我的套組', 'My kits'), closeLabel: W('關閉', 'Close'), body });
+  const draw = async () => {
+    const all = await listNamed().catch(() => []);
+    body.replaceChildren(
+      all.length
+        ? h('ul', { class: 'mine-list' }, all.map(k => h('li', {}, [
+            h('div', { class: 't' }, [h('span', { text: k.name }), h('small', { text: `${W(`${k.count} 個片段`, `${k.count} piece${k.count === 1 ? '' : 's'}`)} · ${new Date(k.at).toLocaleDateString(en ? 'en' : 'zh-TW')}` })]),
+            h('button', { class: 'mini', type: 'button', text: W('打開', 'Open'), onclick: () => (s.close(), openKit(k)) }),
+            h('button', { class: 'mini', type: 'button', text: '⋯', 'aria-label': W('更多', 'More'), onclick: e => menu(e.currentTarget, [
+              { label: W('重新命名', 'Rename'), icon: '✎', onClick: () => nameSheet(W('重新命名', 'Rename'), k.name, async v => (await renameNamed(k.id, v), draw())) },
+              { label: W('刪除', 'Delete'), icon: '✕', danger: true, onClick: async () => { await deleteNamed(k.id); draw(); const t = toast(W(`已刪除「${k.name}」`, `“${k.name}” deleted`), { ms: 5000 }); t.append(h('button', { type: 'button', class: 'toast-undo', text: W('復原', 'Undo'), onclick: async () => (t.remove(), await saveNamed(k), toast(W('已復原', 'Restored')))})); } }
+            ]) })
+          ])))
+        : empty({ icon: '♪', title: W('還沒有存過套組', 'No kits saved yet'), body: W('把目前的片段存成套組，之後隨時打開。', 'Save the pieces you have now as a kit, and open it any time.') }),
+      pieces.length ? h('button', { class: 'primary', type: 'button', text: W('把目前的片段存成套組', 'Save these pieces as a kit'), onclick: () => (s.close(), saveKit()) }) : null
+    );
+  };
+  draw();
+}
+function openKit(k) {
+  if (pieces.length) undos.push('open', nowKit());
+  const kit = kitFrom(k);
+  restoreKit({ sources: kit.sources, roles: [], edited: [], bpm: kit.bpm }, kit.set);
+  if (pieces.length) undoToast(W(`已打開「${k.name}」`, `Opened “${k.name}”`));
+  else undos.clear();
+}
+$('clear-all').onclick = clearAll;
+$('save-kit').onclick = saveKit;
+$('my-kits').onclick = kitsSheet;
 
 // ---- A clip from the instruments, into the kit ----
 //
