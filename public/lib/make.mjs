@@ -6,7 +6,7 @@
 
 import { makeSong, renderEvents, encodeWav, zipParts, loopBeats } from '../engine.mjs';
 import { midiFile, songTracks } from './midi.mjs';
-import { radioSong, cutOf, segment, holdOf, OVERLAP } from './radio.mjs';
+import { radioSong, cutOf, segment, holdOf } from './radio.mjs';
 
 let kit = null;
 
@@ -72,15 +72,14 @@ export function midi(recipe, { names = {} } = {}) {
 const tails = new Map();
 export const radioId = ({ seed, mood, style }) => `radio:${seed}:${mood}:${style}`;
 // The radio's next stretch: the song of `spec`, its start under the ring of
-// the song `after` (when there's one); the next starts `overlap` seconds
-// before its end. -> { id, info, wav, seconds, overlap, hold }
+// the song `after` (when there's one). -> { id, info, wav, seconds, hold }
 export function radio(spec, after = null) {
   const { audio, info } = radioSong(spec);
   const seg = segment(audio, cutOf(info, audio.sr), tails.get(after) || null);
   const id = radioId(info.radio);
   tails.set(id, seg.tail);
   while (tails.size > 6) tails.delete(tails.keys().next().value);
-  return { id, info, wav: encodeWav({ sr: audio.sr, L: seg.L, R: seg.R }, 16), seconds: seg.L.length / audio.sr, overlap: OVERLAP, hold: holdOf(info) };
+  return { id, info, wav: encodeWav({ sr: audio.sr, L: seg.L, R: seg.R }, 16), seconds: seg.L.length / audio.sr, hold: holdOf(info) };
 }
 // A radio song whole, to keep (歌單) or to list (簡單's 隨機做一批). -> { info, wav }
 export function radioWav(spec) {

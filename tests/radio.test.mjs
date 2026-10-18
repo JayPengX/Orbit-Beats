@@ -48,27 +48,20 @@ test('the sections: an intro, verse–hook pairs, an outro, all four or eight ba
 
 test('the join: a song to its cut, the last one’s ring under its start, rising in; the ring after the cut kept for the next', () => {
   const sr = 1000;
-  const o = 400;
   const a = { sr, L: new Float32Array(3000).fill(0.5), R: new Float32Array(3000).fill(-0.5) };
-  const first = segment(a, 2500, null, o);
-  assert.equal(first.L.length, 2900, 'to its cut, and the overlap past it');
+  const first = segment(a, 2500);
+  assert.equal(first.L.length, 2500);
   assert.equal(first.L[0], 0.5, 'the first song: from its start as it is');
-  assert.equal(first.L[2499], 0.5);
-  assert.ok(Math.abs(first.L[2700] - 0.25) < 1e-6, 'fading out past the cut');
-  assert.equal(first.tail.L.length, 500, 'the ring after the cut kept for the next');
+  assert.equal(first.tail.L.length, 500);
   const b = { sr, L: new Float32Array(4000).fill(0.2), R: new Float32Array(4000).fill(0.2) };
-  const second = segment(b, 3600, first.tail, o);
-  assert.equal(second.L.length, 4000);
-  // Played on time (the second from the first's handover), the two add up to the ring with the song rising in under it.
-  for (const j of [0, 100, 250, 399]) {
-    const sum = first.L[2500 + j] + second.L[j];
-    const want = 0.5 + 0.2 * Math.sin((j / 500) * (Math.PI / 2));
-    assert.ok(Math.abs(sum - want) < 1e-5, `${j}: ${sum} vs ${want}`);
-  }
-  assert.ok(Math.abs(second.L[450] - (0.5 + 0.2 * Math.sin((450 / 500) * (Math.PI / 2)))) < 1e-6, 'after the overlap: the ring, the song rising');
+  const second = segment(b, 3600, first.tail);
+  assert.equal(second.L.length, 3600);
+  assert.ok(Math.abs(second.L[0] - 0.5) < 1e-6, 'the ring, untouched, the next song from nothing');
+  assert.ok(second.L[250] > 0.5 && second.L[250] < 0.7, 'rising in under it');
+  assert.ok(Math.abs(second.R[499] - (-0.5 + 0.2 * Math.sin((499 / 500) * (Math.PI / 2)))) < 1e-6);
   assert.equal(second.L[600], Math.fround(0.2), 'after the ring: the song as it is');
   // Two loud together: eased under full scale, never past it.
-  const loud = segment({ sr, L: new Float32Array(3000).fill(0.95), R: new Float32Array(3000).fill(0.95) }, 2000, { L: new Float32Array(1500).fill(0.9), R: new Float32Array(1500).fill(0.9) }, o);
+  const loud = segment({ sr, L: new Float32Array(3000).fill(0.95), R: new Float32Array(3000).fill(0.95) }, 2000, { L: new Float32Array(1500).fill(0.9), R: new Float32Array(1500).fill(0.9) });
   assert.ok(loud.L.every(x => Math.abs(x) <= 1));
   // The cut: just before the downbeat after the last bar.
   assert.equal(cutOf({ bars: 10, bpm: 120 }, 1000), Math.round((20 - 0.06) * 1000));
