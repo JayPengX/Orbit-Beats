@@ -72,7 +72,8 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
   - **即興** (Jam): pads over a groove. It opens on **內建**, the app's own
     band as 16 coloured pads (`lib/jamset.mjs`: 聽's band from `radioKit`,
     drums, three hat loops, two bass lines, two chord parts and two melodies
-    on the same four chords in one key), made in the worker from a groove
+    on the same four chords in one key), made in a worker of its own (not
+    queued behind 聽's songs) as the app opens, from a groove
     and a seed; the groove chips and 🎲 swap the set (tempo, key,
     instruments), and what was playing goes on with the new one. Its
     four-bar parts keep step: joined on bar 2 a part plays from its own bar

@@ -369,8 +369,9 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .jam-chips .chip:last-child { margin-right: 24px; }
 .jam-meta { margin: 8px 0 0; font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .jam-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-.jam-bar .q-btn { flex: 1; min-width: 0; white-space: nowrap; touch-action: manipulation; }
-.jam-bar .jam-play { flex: 1.3; background: var(--accent); color: var(--accent-ink); }
+.jam-bar .q-btn { flex: 1; min-width: 0; padding-inline: 8px; font-size: clamp(14px, 4.4vw, 17px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; touch-action: manipulation; }
+.jam-bar .q-btn.plain { flex: none; }
+.jam-bar .jam-play { flex: 1.2; background: var(--accent); color: var(--accent-ink); }
 .jam-bar .jam-play.on { background: var(--accent-soft); color: var(--accent); }
 .jam-beat { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 0 0 12px; }
 .jam-beat span { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
@@ -390,8 +391,9 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
   touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
   transition: transform var(--q-dur-snappy) var(--q-spring-snappy), background-color .15s, color .15s, box-shadow .15s;
 }
-.jam-pad[data-fam="drum"] { --c: var(--q-orange); }
-.jam-pad[data-fam="hat"] { --c: var(--q-yellow); }
+.jam-pad { --ink: #fff; }
+.jam-pad[data-fam="drum"] { --c: var(--q-orange); --ink: #3d1a00; }
+.jam-pad[data-fam="hat"] { --c: var(--q-yellow); --ink: #3a2a00; }
 .jam-pad[data-fam="bass"] { --c: var(--q-blue); }
 .jam-pad[data-fam="chords"] { --c: var(--q-indigo); }
 .jam-pad[data-fam="melody"] { --c: var(--q-pink); }
@@ -402,10 +404,9 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .jam-pad .mark { position: absolute; top: 4px; left: 7px; font-style: normal; font-size: 11px; font-weight: 700; opacity: .7; }
 .jam-pad.wait { animation: jam-wait .45s ease-in-out infinite alternate; box-shadow: inset 0 0 0 2.5px var(--c); }
 @keyframes jam-wait { to { background: color-mix(in srgb, var(--c) 35%, var(--card)); } }
-.jam-pad.on { background: var(--c); color: #fff; box-shadow: 0 6px 16px color-mix(in srgb, var(--c) 45%, transparent); }
-.jam-pad[data-fam="hat"].on { color: #3a2a00; }
-.jam-pad.hit { transform: scale(0.92); background: color-mix(in srgb, var(--c) 70%, var(--card)); color: #fff; }
-.jam-pad[data-fam="hat"].hit { color: #3a2a00; }
+.jam-pad.on { background: var(--c); color: var(--ink); box-shadow: 0 6px 16px color-mix(in srgb, var(--c) 45%, transparent); }
+/* (A hit: the pad's own colour, full, its label in the dark or white that reads on it.) */
+.jam-pad.hit { transform: scale(0.92); background: var(--c); color: var(--ink); transition-duration: .05s; }
 .jam-pad:not(.leveled) .lvl { display: none; }
 .jam-pad .lvl { position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--lvl, 1) * 100%); background: currentColor; opacity: .55; }
 .jam-pad.muted { opacity: .4; }

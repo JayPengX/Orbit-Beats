@@ -1524,6 +1524,7 @@ $('zip').onclick = () => zipOf(songs, 'Orbit Beats.zip');
 
 let studio = null;
 let jam = null;
+let jamMake = null;
 let radio = null;
 // ♡ on 聽: the song whole into 歌單 (made again from its seed), or out again.
 async function keepRadio(item) {
@@ -1693,7 +1694,8 @@ async function boot() {
     audio: audioCtx,
     quiet: () => quiet({ keep: 'jam' }),
     styles: () => cfg().styles,
-    band: set => make.jamBand(set),
+    // (The built-in set made in a worker of its own: not queued behind 聽's songs.)
+    band: set => (jamMake ||= maker(new URL('./lib/maker.worker.mjs', import.meta.url))).jamBand(set),
     take: (hits, beats, band) => jamSong(hits, beats, band)
   });
   const last = await loadLast();

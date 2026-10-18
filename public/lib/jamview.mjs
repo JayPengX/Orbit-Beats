@@ -236,6 +236,7 @@ export function mountJam(panel, api) {
         making = '';
         band = { id, pieces: b.pieces, roles: b.roles, sr: b.sr };
         if (!cur?.band) return;
+        if (!panel.hidden) ready();
         padGrid.classList.remove('loading');
         if (waiting) ((waiting = false), start());
       },
@@ -322,18 +323,38 @@ export function mountJam(panel, api) {
     playBtn.classList.toggle('on', running);
     const rec = jam.recording();
     recBtn.classList.toggle('on', rec);
-    recBtn.textContent = rec ? W('■ 停止錄音', '■ Stop take') : W('● 錄一段', '● Record');
+    recBtn.textContent = rec ? W('■ 完成', '■ Done') : W('● 錄一段', '● Record');
   }
-  // Every piece as a buffer at the phone's rate (made once per kit; one channel when both sides are the same).
+  // Every piece as a buffer (made once per kit, ahead of the first tap; one
+  // channel when both sides are the same). A buffer needs no audio context,
+  // so it's made before the phone's sound is started; where the browser
+  // can't, on the context.
+  const bufferOf = (channels, length, sampleRate) => {
+    try {
+      return new AudioBuffer({ numberOfChannels: channels, length, sampleRate });
+    } catch {
+      return api.audio().createBuffer(channels, length, sampleRate);
+    }
+  };
   function makeBuffers(k) {
-    const c = api.audio();
     buffers = k.pieces.map(p => {
       const mono = p.R === p.L;
-      const b = c.createBuffer(mono ? 1 : 2, Math.max(1, p.L.length), k.sr);
+      const b = bufferOf(mono ? 1 : 2, Math.max(1, p.L.length), k.sr);
       b.copyToChannel(p.L, 0);
       if (!mono) b.copyToChannel(p.R, 1);
       return b;
     });
+  }
+
+  // The pads' sound ready to play (false: the set is still being made).
+  function ready() {
+    const k = sound();
+    if (!k) return false;
+    if (kitOf !== k.pieces) {
+      makeBuffers(k);
+      kitOf = k.pieces;
+    }
+    return true;
   }
 
   // ---- Time ----
@@ -351,11 +372,8 @@ export function mountJam(panel, api) {
       return paintTransport();
     }
     waiting = false;
-    if (kitOf !== k.pieces) {
-      makeBuffers(k);
-      kitOf = k.pieces;
-    }
-    t0 = c.currentTime + 0.08;
+    ready();
+    t0 = c.currentTime + 0.1;
     upTo = 0;
     running = true;
     timer = setInterval(schedule, 25);
@@ -425,7 +443,8 @@ export function mountJam(panel, api) {
     const amp = c.createGain();
     amp.gain.value = g;
     src.connect(amp).connect(c.destination);
-    const at = Math.max(when, c.currentTime);
+    // (Never in the past: a hit the clock has passed plays a moment from now.)
+    const at = when < c.currentTime ? c.currentTime + 0.005 : when;
     const into = lp ? (off * 60) / bpm + (at - when) : 0;
     if (into >= b.duration) return;
     src.start(at, into);
@@ -487,14 +506,16 @@ export function mountJam(panel, api) {
     const b = e.target.closest('.jam-pad');
     if (!b) return;
     e.preventDefault();
-    api.audio(); // (the phone's sound starts on a touch)
     const p = pads.find(x => x.i === +b.dataset.i);
     if (!p) return;
     clearTimeout(press?.timer);
     press = { p, beat: running ? Math.max(0, beatNow()) : null, timer: setTimeout(() => ((press = null), padSheet(p)), HOLD) };
     if (p.loop) return;
-    if (!running) start();
-    if (!running) return;
+    // (Stopped: just that sound, now. The groove starts with ▶ or a loop.)
+    if (!running) {
+      if (ready()) play(p.i, api.audio().currentTime + 0.005);
+      return;
+    }
     const beat = Math.max(0, beatNow());
     const at = jam.shot(p.i, beat, GRIDS[grid], (LATE * bpm) / 60);
     // (Already due: played now rather than missed; jam keeps it in the take.)
@@ -532,7 +553,19 @@ export function mountJam(panel, api) {
     setBacking();
   });
 
+  // Any touch on the tab: the phone's sound started (iPhone starts it only
+  // on a touch) and the pads' sound ready before a pad needs it.
+  panel.addEventListener(
+    'pointerdown',
+    () => {
+      api.audio();
+      if (!ready() && usingBand()) makeBand();
+    },
+    true
+  );
   draw();
+  // (The built-in set made while the app opens, so it's there when the tab is.)
+  setTimeout(() => usingBand() && makeBand(), 500);
   return {
     // The kit, its tempo or its roles changed: the pads follow (and anything playing stops).
     kit() {
@@ -540,7 +573,7 @@ export function mountJam(panel, api) {
       kitOf = null;
       if (!panel.hidden) draw();
     },
-    shown: () => draw(),
+    shown: () => (draw(), ready()),
     hidden: () => stop(),
     stop,
     playing: () => running
