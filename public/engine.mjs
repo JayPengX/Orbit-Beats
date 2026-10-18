@@ -369,16 +369,21 @@ function* fits(form, bars) {   // every choice of section lengths adding up to `
 
 // The song's sections: [type, first bar, bars]. An even number of bars when
 // the range has one (an odd one gets a 3-bar outro).
+const FIT = new Map();
 export function planSong(R, minBars, maxBars) {
   const evens = [];
   for (let t = minBars; t <= maxBars; t++) if (t % 2 === 0) evens.push(t);
   const target = evens.length ? R.choice(evens) : minBars;
-  const choices = new Map();   // form -> every [intro, lengths, outro] that fits
-  for (const intro of [2, 4]) for (const outro of target % 2 ? [3] : [2, 4])
-    for (const form of FORMS) for (const lens of fits(form, target - intro - outro)) {
-      if (!choices.has(form)) choices.set(form, []);
-      choices.get(form).push([intro, lens, outro]);
-    }
+  let choices = FIT.get(target);   // form -> every [intro, lengths, outro] that fits (the same each time)
+  if (!choices) {
+    choices = new Map();
+    for (const intro of [2, 4]) for (const outro of target % 2 ? [3] : [2, 4])
+      for (const form of FORMS) for (const lens of fits(form, target - intro - outro)) {
+        if (!choices.has(form)) choices.set(form, []);
+        choices.get(form).push([intro, lens, outro]);
+      }
+    FIT.set(target, choices);
+  }
   if (!choices.size) throw new Error(`No song form fits ${target} bars`);
   const form = R.choice([...choices.keys()]), [intro, lens, outro] = R.choice(choices.get(form));
   const plan = [['intro', 0, intro]];

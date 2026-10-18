@@ -220,14 +220,14 @@ test('every style, mixed: within the ceiling, its stems summing to it; the mixer
     assert.ok(audio.peak <= CEILING + 1e-6 && audio.peak > 0.5, `${style} peak ${audio.peak}`);
     assert.ok(audio.L.every(Number.isFinite) && audio.R.every(Number.isFinite), style);
   }
-  const { audio, stems, info } = makeSong(pieces, rec.sr, 5, { analysis, minBars: 12, maxBars: 12, mix: { ...MIX, fade: true }, stems: true });
+  const { audio, stems, info } = makeSong(pieces, rec.sr, 5, { analysis, minBars: 8, maxBars: 8, mix: { ...MIX, fade: true }, stems: true });
   assert.ok(info.mixed && info.over > 0, 'the demo goes past full scale before the limiter');
   for (const s of Object.values(stems)) assert.equal(s.L.length, audio.L.length);
   const sum = sumStems(stems, audio.L.length);
   assert.ok(maxDiff(sum.L, audio.L) < 1e-5 && maxDiff(sum.R, audio.R) < 1e-5);
   // Off: exactly the unmixed song (the old rule), and no fx stem.
-  const off = makeSong(pieces, rec.sr, 5, { analysis, minBars: 12, maxBars: 12, mix: { ...MIX, on: false }, stems: true });
-  const none = makeSong(pieces, rec.sr, 5, { analysis, minBars: 12, maxBars: 12 });
+  const off = makeSong(pieces, rec.sr, 5, { analysis, minBars: 8, maxBars: 8, mix: { ...MIX, on: false }, stems: true });
+  const none = makeSong(pieces, rec.sr, 5, { analysis, minBars: 8, maxBars: 8 });
   assert.deepEqual(off.audio.L, none.audio.L);
   assert.equal(off.info.mixed, false);
   assert.equal(off.audio.over, null);

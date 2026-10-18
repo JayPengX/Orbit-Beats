@@ -156,8 +156,9 @@ test('the demo: its tempo, roles and loop lengths are heard, at any tempo', () =
 
 test('any number of pieces, in any roles: what is missing is left out', () => {
   const some = [12, 13, 18, 9, 11, 19];   // two riffs, a bass, a kick, a snare, a hat (0-based)
+  const sub = some.map(i => pieces[i]), subAnalysis = analyzeRecording(sub, rec.sr);   // heard once, not for each seed
   for (let seed = 1; seed <= 6; seed++) {
-    const { audio, info } = makeSong(some.map(i => pieces[i]), rec.sr, seed);
+    const { audio, info } = makeSong(sub, rec.sr, seed, { analysis: subAnalysis });
     assert.ok(audio.peak > 0.1 && [26, 28].includes(info.bars) && info.bpm === 125);
   }
   for (const n of [1, 3]) {   // only riffs: no drums, no bass, still a song
@@ -187,9 +188,9 @@ test('bad settings and too few pieces are refused', () => {
   assert.throws(() => makeSong(pieces.slice(9, 12), rec.sr, 1), /riff or phrase/);
   assert.throws(() => makeSong(pieces, rec.sr, 1, { analysis, roles: DEMO.slice(1) }), /a role for each/);
   assert.equal(ROLES.at(-1), 'off');
-  assert.throws(() => makeSong(pieces, rec.sr, 1, { minBars: 30, maxBars: 25 }), /shortest first/);
-  assert.throws(() => makeSong(pieces, rec.sr, 1, { minBars: 4, maxBars: 6 }), /8 bars/);
-  assert.throws(() => makeSong(pieces, rec.sr, 1, { styles: [] }), /drum style/);
+  assert.throws(() => makeSong(pieces, rec.sr, 1, { analysis, minBars: 30, maxBars: 25 }), /shortest first/);
+  assert.throws(() => makeSong(pieces, rec.sr, 1, { analysis, minBars: 4, maxBars: 6 }), /8 bars/);
+  assert.throws(() => makeSong(pieces, rec.sr, 1, { analysis, styles: [] }), /drum style/);
 });
 
 test('songs are named for when they are made, a minute apart, and their seeds follow the batch seed', () => {
