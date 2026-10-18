@@ -34,7 +34,13 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
     arranged by the engine in sections of four or eight bars and mixed.
     The worker makes them two ahead; each is cut just before its last hit and
     that hit's ring plays under the next one's intro, in one `<audio>` (it
-    plays on with the screen locked; lock-screen title, play/pause, next).
+    plays on with the screen locked; lock-screen title, play/pause, next,
+    where in the song). Where the browser takes FLAC in MP4 through Media
+    Source (`lib/tape.mjs`), the songs go onto one endless stream, a few
+    seconds ahead, so one runs into the next with no gap; elsewhere, or if
+    the stream fails, stalls or is stopped with the screen off, file by file
+    from where it was (`localStorage['orbit-beats-radio'] = 'files'` keeps a
+    phone on files).
     If the next isn't made by the outro, the last hook plays again from its
     bar line. ♡ keeps the whole song in 歌單; ⏭ the next.
   - **做歌** (Make): pieces in, a 情境 mood (放鬆, 熱血, 律動, 經典), the drum
@@ -96,12 +102,16 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 
 ## Decisions in force
 
+- 聽 plays on one `<audio>` only: iOS keeps one playing with the screen
+  locked, and two (one starting before the other ends) stopped the music.
 - The mixer is on by default (the owner's call). With it off, pieces are
   never changed: no volume, panning, fades or effects, and overlaps that
   clip are left (32-bit float keeps them; the page shows the peak).
 - No sound ever leaves the phone.
-- Nothing goes silent by accident: a song's every second sounds (the
-  tests listen to twenty radio songs back to back); a break with nothing
+- Nothing goes silent by accident: a song's every second sounds, and no
+  quarter second of a radio song falls under -45 dBFS (the tests listen to
+  twenty back to back; breaks and intros have a soft pad under their
+  melody, and a riff is never left out for a whole four-bar loop); a break with nothing
   short enough still plays its shortest phrase; a worker that stops
   answering hands its work to the page after 90 s; the instruments and pads
   play as music (iOS's silent switch doesn't mute them) and start again
@@ -127,6 +137,7 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 | `lib/library.mjs` | 歌單: search, order, zip |
 | `lib/sections.mjs` | 做歌: section times and the playing section |
 | `lib/radio.mjs`, `lib/radioview.mjs` | 聽: songs out of nothing, the join between them; its screen and player |
+| `lib/tape.mjs` | 聽's one stream: FLAC frames in MP4 for Media Source, the songs in order (the hook again while waiting) |
 | `lib/easy.mjs`, `lib/help.mjs` | 簡單 / 進階 and 簡單's fixed settings; the music words and their examples |
 | `lib/project.mjs` | 存成檔案 / 打開檔案: a song's settings (no sound) as a versioned `.orbitbeats.json` |
 | `lib/midi.mjs`, `lib/tap.mjs`, `lib/download.mjs`, `lib/names.mjs` | MIDI files, tap tempo, saving, names |

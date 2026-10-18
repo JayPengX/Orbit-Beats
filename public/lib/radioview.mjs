@@ -2,10 +2,14 @@
 // (and every groove on its own), and what's playing: its name, mood, groove,
 // tempo and key, ♡ to keep it, ⏭ for the next. Songs are made in the worker
 // (lib/make.mjs radio) two ahead of the one playing, each starting under the
-// last one's ring, so the music never stops: one <audio> (it keeps playing
-// with the screen locked, on the lock screen's controls), its stretch swapped
-// at the cut just before a song's last hit; when the next isn't made yet, the
-// last hook plays again from its bar line until it is.
+// last one's ring. One <audio> plays them all (only one: iOS keeps one going
+// with the screen locked, on the lock screen's card): as one endless stream
+// where the phone takes it (lib/tape.mjs, Media Source), so one song runs
+// into the next with nothing between; else file by file, swapped at the cut
+// just before a song's last hit. When the next isn't made yet, the last hook
+// plays again from its bar line until it is. A stream that fails or stalls,
+// or that the phone stops with the screen off, goes over to files from where
+// it was ('orbit-beats-radio' = 'files' on this phone keeps it that way).
 
 import { h, toast } from '#kit/ui.mjs';
 import { STYLES, NOTE_NAMES } from '../engine.mjs';
@@ -405,6 +409,14 @@ export function mountRadio(panel, api) {
     if (cur && want && audio.src === cur.url) q.ready.length ? advance() : retry();
   });
   for (const ev of ['play', 'pause']) audio.addEventListener(ev, () => (paint(), claim()));
+  // (The phone stopped the tape with the screen off, not you: this phone plays the songs file by file from now on, which it keeps playing locked.)
+  audio.addEventListener('pause', () => {
+    if (!tape || !want || document.visibilityState !== 'hidden') return;
+    try {
+      localStorage.setItem('orbit-beats-radio', 'files');
+    } catch {}
+    toFiles('paused with the screen off');
+  });
   audio.addEventListener('playing', () => ((retried = 0), claim()));
   // (Every few seconds: the stream topped up, and a stall, time not moving with music ahead, caught.)
   setInterval(() => {
