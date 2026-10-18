@@ -391,6 +391,52 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .lib-head h2 { min-width: 0; overflow-wrap: anywhere; }
 .card > .primary:first-child { margin-top: 0; margin-bottom: 8px; }
 
+/* ⓘ: a word in everyday words (lib/help.mjs). */
+.info-btn { display: inline-grid; place-items: center; width: 22px; height: 22px; margin: -4px 0 -4px 2px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--accent); font-size: 15px; line-height: 1; vertical-align: middle; flex: none; }
+.legend-line { display: flex; align-items: flex-start; gap: 6px; }
+.legend-line .legend { flex: 1; min-width: 0; }
+.term-text { margin: 0 0 4px; font-size: 16px; line-height: 1.5; }
+.listen { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 14px; }
+.listen .q-btn { padding: 0 8px; font-size: 15px; white-space: nowrap; }
+.listen .q-btn.on { background: var(--accent); color: var(--accent-ink); }
+.terms { list-style: none; margin: 0; padding: 0; }
+.terms button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 6px 0; border: 0; border-top: 1px solid var(--line); background: none; text-align: left; }
+.terms li:first-child button { border-top: 0; }
+.terms button > div { flex: 1; min-width: 0; }
+.terms b { display: block; font-weight: 600; white-space: nowrap; }
+.terms small { display: block; color: var(--text-2); font-size: 13px; white-space: nowrap; }
+.terms .chev, .more-row .chev { color: var(--text-3); }
+
+/* The guided first song: one question at a time, big choices. */
+.guide .step { margin: 0 0 4px; color: var(--accent); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.guide h2 { margin: 0 0 4px; font-size: 22px; font-weight: 700; white-space: nowrap; }
+.guide p { margin: 0 0 14px; color: var(--text-2); font-size: 15px; }
+.guide .skip { float: right; height: 28px; margin: -4px -6px 0 0; padding: 0 8px; border: 0; background: none; color: var(--text-2); font-size: 15px; }
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.choices.one { grid-template-columns: 1fr; }
+.choice { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; padding: 14px; border: 0; border-radius: 16px; background: var(--fill); text-align: left; transition: transform var(--q-dur-snappy) var(--q-spring-snappy); }
+.choice:active { transform: scale(0.97); }
+.choice i { font-style: normal; font-size: 30px; line-height: 1.1; margin-bottom: 4px; }
+.choice b { display: block; font-size: 17px; font-weight: 600; white-space: nowrap; }
+.choice span { display: block; font-size: 13px; color: var(--text-2); white-space: nowrap; }
+.choices.one .choice { flex-direction: row; align-items: center; gap: 12px; }
+.choices.one .choice i { margin: 0; }
+.guide .back { margin-top: 12px; height: 32px; padding: 0; border: 0; background: none; color: var(--accent); font-size: 15px; }
+.guide .tweaks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.guide .tweaks .q-btn { white-space: nowrap; }
+.guide .keep-tip { margin: 14px 0 0; }
+.guide .spin { display: inline-block; animation: pb-spin 1s linear infinite; }
+@keyframes pb-spin { to { transform: rotate(360deg); } }
+/* While the guide asks, the rest of 做歌 waits (your own sounds: the pieces card; the song: the songs). */
+#panel-make[data-guide="mood"] > :not(#guide), #panel-make[data-guide="sound"] > :not(#guide),
+#panel-make[data-guide="mine"] > :not(#guide):not(.pieces-card),
+#panel-make[data-guide="making"] > :not(#guide):not(#out), #panel-make[data-guide="tweak"] > :not(#guide):not(#out) { display: none !important; }
+
+/* 樂器 in 簡單: write one again, or add it, right above the grid. */
+.easy-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.easy-row .q-btn { min-height: 50px; padding: 0 10px; font-size: 15px; white-space: nowrap; }
+.q-btn.solid { background: var(--accent); color: var(--accent-ink); }
+
 footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 8px; white-space: nowrap; }
 </style>
 </head>
@@ -414,7 +460,8 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
 </header>
 <main>
   <div id="panel-make" class="tab-panel" role="tabpanel">
-    <section class="card" aria-labelledby="h-rec">
+    <section class="card guide" id="guide" aria-live="polite" hidden></section>
+    <section class="card pieces-card" aria-labelledby="h-rec">
       <div class="head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10"/></svg><h2 id="h-rec" data-en="Pieces">片段</h2></div>
       <label class="drop" id="drop">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
@@ -434,8 +481,8 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
         <button class="way" id="save-kit" type="button" hidden data-en="Save as kit">存成套組</button>
         <button class="way danger" id="clear-all" type="button" hidden data-en="Clear all">全部清除</button>
       </div>
-      <div class="row tempo note" id="tempo-row" hidden>
-        <label class="label" for="bpm"><span data-en="Tempo">速度</span><small id="bpm-hint"></small></label>
+      <div class="row tempo note" id="tempo-row" data-ctl="make-tempo" hidden>
+        <label class="label" for="bpm"><span><span data-en="Tempo">速度</span> <button class="info-btn" type="button" data-term="bpm" aria-label="說明：速度" data-en-label="What is tempo?">ⓘ</button></span><small id="bpm-hint"></small></label>
         <div class="ctl">
           <button class="mini" type="button" id="bpm-half" aria-label="速度減半" data-en-label="Half the tempo">½</button>
           <input class="num tempo-num" id="bpm" type="number" min="40" max="250" step="0.1" inputmode="decimal">
@@ -445,8 +492,8 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
         </div>
       </div>
       <div class="pieces" id="pieces" aria-label="片段：點一下試聽" data-en-label="Pieces: tap one to hear it"></div>
-      <p class="hint" id="pieces-hint" hidden data-en="Tap to hear · roles are guesses, tap to change">點片段試聽 · 角色是聽出來的，可以改</p>
-      <details id="split-more">
+      <p class="hint" id="pieces-hint" hidden><span data-en="Tap one to hear it">點片段試聽</span><span data-ctl="make-roles"><span data-en=" · roles are guesses, tap to change"> · 角色是聽出來的，可以改</span> <button class="info-btn" type="button" data-term="roles" aria-label="說明：角色" data-en-label="What are roles?">ⓘ</button></span></p>
+      <details id="split-more" data-ctl="make-split">
         <summary data-en="Splitting">切片</summary>
         <div class="row">
           <label for="silence"><span data-en="Silence below">安靜門檻</span><small data-en="Raise it for noisy phone audio">手機錄的雜音多就調高</small></label>
@@ -466,11 +513,11 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
         <div class="label"><span data-en="Mood">情境</span><small id="mood-hint" data-en="Picks the grooves for you">幫你挑節奏</small></div>
         <div class="chips five" id="moods"></div>
       </div>
-      <div class="stack">
-        <div class="label"><span data-en="Drums">鼓的風格</span><small data-en="Each song picks its grooves from these">每首從這些挑節奏</small></div>
+      <div class="stack" data-ctl="make-styles">
+        <div class="label"><span><span data-en="Drums">鼓的風格</span> <button class="info-btn" type="button" data-term="groove" aria-label="說明：鼓的風格" data-en-label="What are drum styles?">ⓘ</button></span><small data-en="Each song picks its grooves from these">每首從這些挑節奏</small></div>
         <div class="chips" id="styles"></div>
       </div>
-      <div class="row" id="taste-row" hidden>
+      <div class="row" id="taste-row" data-ctl="make-taste" hidden>
         <label for="smart"><span data-en="Lean to your taste">依你的口味</span><small id="taste-hint"></small></label>
         <span id="smart-slot"></span>
       </div>
@@ -482,7 +529,7 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
           <button type="button" id="count-up" aria-label="多一首" data-en-label="More songs">+</button>
         </div>
       </div>
-      <button class="more-row row" id="mix-settings" type="button"><span class="label"><span data-en="Mix">混音</span><small id="mix-hint"></small></span><span class="chev" aria-hidden="true">›</span></button>
+      <button class="more-row row" id="mix-settings" type="button" data-ctl="make-mix"><span class="label"><span data-en="Mix">混音</span><small id="mix-hint"></small></span><span class="chev" aria-hidden="true">›</span></button>
       <button class="more-row row" id="more-settings" type="button"><span class="label"><span data-en="More settings">更多設定</span><small id="more-hint"></small></span><span class="chev" aria-hidden="true">›</span></button>
       <button class="primary" id="go" type="button" disabled></button>
       <p class="error" id="error" role="alert"></p>
@@ -490,8 +537,8 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
 
     <section class="card" id="out" aria-labelledby="h-out" hidden>
       <div class="head"><h2 id="h-out" data-en="Songs">新歌</h2><button class="secondary" id="zip" type="button" disabled data-en="Download all">全部下載</button></div>
-      <p class="meta" id="out-meta"></p>
-      <div class="legend" id="legend"></div>
+      <p class="meta" id="out-meta" data-ctl="make-meta"></p>
+      <div class="legend-line"><div class="legend" id="legend"></div><button class="info-btn" type="button" data-term="section" aria-label="說明：段落" data-en-label="What are sections?">ⓘ</button></div>
       <ol class="songs" id="songs"></ol>
       <div class="busy-line" id="busy"></div>
     </section>

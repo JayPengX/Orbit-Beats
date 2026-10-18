@@ -9,6 +9,24 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 
 ## How it works
 
+- **簡單 / 進階** (`lib/easy.mjs`): everyone opens 簡單 (settings kept
+  before it existed too, the owner's call), which shows what making a song
+  needs: 做歌 is the mood, how many, 做 and the kit's tools (我的套組, 全部清除,
+  a piece's ⋯); 樂器 starts from a clip written for you with big 再編一次 and
+  存成片段 over the grid, clear, 存成片段 and ♡ 收藏 below it; 即興 is the
+  pads and ● 錄一段. 進階 shows every tool below, once picked. The choice is
+  a setting on the Pass. It's in
+  the ? sheet (top right) and in 更多設定. Each control only one of them
+  shows carries `data-ctl`, hidden by one stylesheet rule per name.
+- **The guided first song:** once for everyone, 做歌 opens on four steps: a
+  mood, the demo's sounds, your own (record or files) or the pieces in, one song
+  made and played, then 變奏一首 or 換個鼓 and ♡ to keep it. Skip or finish
+  and it's done (the setting `guided`); the ? sheet plays it again.
+- **Words** (`lib/help.mjs`): 22 music words (BPM, swing, riff, hi-hat, 808,
+  chords, key, sections, chain, stems, MIDI, velocity, choke, snap…) in
+  everyday words, zh and en; a ⓘ beside a control opens one, eight with
+  ▶ the same bar without it and with it. The ? sheet lists them all and
+  opens the full guide (the kit's `help.mjs`, in the Quadra Pass sheet).
 - **Tabs:**
   - **做歌** (Make): pieces in, a 情境 mood (放鬆, 熱血, 律動, 經典), the drum
     styles, how many songs, and 更多設定. Each song has a title, length,
@@ -60,7 +78,8 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 - **Making** runs in a worker (`lib/maker.mjs`), so the page never stalls.
 - **Saved:**
   - On the phone: the last kit's sound and the kept songs.
-  - On the Pass (app `beats`, `{ v: 1, settings, kits, taste }`): settings,
+  - On the Pass (app `beats`, `{ v: 1, settings, kits, taste }`): settings
+    (簡單 / 進階 and whether the guide is done among them),
     and each kit's tempo and hand-set roles, keyed by a fingerprint of its
     sound. The newest 40 kits.
 - **Offline:** works fully (`sw.js` keeps every file).
@@ -90,6 +109,7 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 | `lib/jam.mjs`, `lib/jamview.mjs` | 即興: timing; the pads |
 | `lib/library.mjs` | 歌單: search, order, zip |
 | `lib/sections.mjs` | 做歌: section times and the playing section |
+| `lib/easy.mjs`, `lib/help.mjs` | 簡單 / 進階 and the guided first song; the music words and their examples |
 | `lib/midi.mjs`, `lib/tap.mjs`, `lib/download.mjs`, `lib/names.mjs` | MIDI files, tap tempo, saving, names |
 
 ## Run and test

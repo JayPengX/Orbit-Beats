@@ -19,6 +19,7 @@ import { tapper } from './tap.mjs';
 import { download, fileName } from './download.mjs';
 import { STYLE_NAMES, ROLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
+import { info, hintOf } from './help.mjs';
 
 // (v2: each of drums and notes a set of patterns and a chain; the first key held one clip each.)
 const KEY = 'orbit-beats.studio.v2';
@@ -143,14 +144,18 @@ export function mountStudio(panel, api) {
   const swingVal = h('span', { class: 'val' });
   const grid = h('div', { class: 'sq', role: 'grid' });
   const playBtn = h('button', { class: 'q-btn tinted', type: 'button' });
-  const autoBtn = h('button', { class: 'q-btn tinted', type: 'button', text: W('自動編', 'Write one') });
+  const autoBtn = h('button', { class: 'q-btn tinted', type: 'button', 'data-ctl': 'studio-auto', text: W('自動編', 'Write one') });
   const clearBtn = h('button', { class: 'q-btn plain', type: 'button', text: W('清除', 'Clear'), 'aria-label': W('清除格子', 'Clear the grid') });
   const undoBtn = h('button', { class: 'mini', type: 'button', text: W('↶ 復原', '↶ Undo'), disabled: true });
-  const copyBtn = h('button', { class: 'mini', type: 'button', text: W('⧉ 複製', '⧉ Copy'), 'aria-label': W('第一小節複製到每一小節', 'Bar 1 over every bar') });
-  const chordBtn = h('button', { class: 'mini', type: 'button', text: W('和弦', 'Chords'), 'aria-pressed': String(st.chord) });
+  const copyBtn = h('button', { class: 'mini', type: 'button', 'data-ctl': 'studio-copy', text: W('⧉ 複製', '⧉ Copy'), 'aria-label': W('第一小節複製到每一小節', 'Bar 1 over every bar') });
+  const chordBtn = h('button', { class: 'mini', type: 'button', 'data-ctl': 'studio-chord', text: W('和弦', 'Chords'), 'aria-pressed': String(st.chord) });
   const saveBtn = h('button', { class: 'q-btn tinted', type: 'button', text: W('♡ 收藏', '♡ Save to shelf'), 'aria-label': W('收藏到下方的收藏架', 'Save to the shelf below') });
-  const midiBtn = h('button', { class: 'mini', type: 'button', text: 'MIDI' });
+  const midiBtn = h('button', { class: 'mini', type: 'button', 'data-ctl': 'studio-midi', text: 'MIDI' });
   const addBtn = h('button', { class: 'primary', type: 'button' });
+  // 簡單: write one, again, or save it as a piece, right above the grid.
+  const easyAuto = h('button', { class: 'q-btn solid', type: 'button' });
+  const easyAdd = h('button', { class: 'q-btn tinted', type: 'button', text: W('＋ 存成片段', '＋ Save as piece') });
+  const easyRow = h('div', { class: 'easy-row', 'data-ctl': 'studio-easy' }, [easyAuto, easyAdd]);
   const patSeg = h('div', { class: 'seg pats' });
   const chainSub = h('small');
   const loopSeg = h('div', { class: 'seg' });
@@ -161,16 +166,17 @@ export function mountStudio(panel, api) {
   const shelfList = h('ul', { class: 'mine-list' });
   const shelfCard = h('section', { class: 'card' }, [h('div', { class: 'head' }, [h('h2', { text: W('收藏架', 'Shelf') })]), shelfList]);
 
-  const row = (label, sub, ctl) => h('div', { class: sub ? 'row note' : 'row' }, [h('div', { class: 'label' }, [h('span', { text: label }), sub]), ctl]);
-  const setRow = row(W('鼓', 'Drums'), h('small', { text: W('一次八種', 'Eight at a time') }), setSeg);
-  const grooveRow = row(W('節奏', 'Groove'), h('small', { text: W('自動編用的', 'Used by Write one') }), grooveSel);
+  // A row: its name (and the word's ⓘ), a line under it, its control; ctl: which of 簡單 / 進階 shows it (lib/easy.mjs).
+  const row = (label, sub, ctl, { only = null, term = null } = {}) => h('div', { class: sub ? 'row note' : 'row', 'data-ctl': only }, [h('div', { class: 'label' }, [h('span', {}, [label, ...(term ? [' ', info(term)] : [])]), sub]), ctl]);
+  const setRow = row(W('鼓', 'Drums'), h('small', { text: W('一次八種', 'Eight at a time') }), setSeg, { only: 'studio-set' });
+  const grooveRow = row(W('節奏', 'Groove'), h('small', { text: W('編一段時鼓的打法', 'How the drums are written') }), grooveSel, { term: 'groove' });
   const instRow = h('div', { class: 'stack' }, [h('div', { class: 'label' }, [h('span', { text: W('樂器', 'Instrument') })]), instChips]);
-  const keyRow = row(W('調', 'Key'), h('small', { text: W('格子上只有這個調的音', 'The grid holds only its notes') }), h('div', { class: 'ctl' }, [tonicSel, modeSel]));
-  const tempoRow = row(W('速度', 'Tempo'), tempoSub, h('div', { class: 'ctl' }, [tempoIn, h('span', { class: 'unit', text: 'BPM' }), tapBtn]));
-  const lenRow = row(W('長度', 'Length'), h('small', { text: W('一個循環', 'One loop') }), barsSeg);
-  const swingRow = row(W('搖擺', 'Swing'), h('small', { text: W('反拍的 16 分音符晚一點', 'Off-beat 16ths a little late') }), h('div', { class: 'ctl' }, [swingIn, swingVal]));
-  const patRow = row(W('段落', 'Pattern'), h('small', { text: W('最多四段，再點一下更多', 'Up to four; tap again for more') }), patSeg);
-  const chainRow = h('div', { class: 'stack' }, [h('div', { class: 'chain-head' }, [h('div', { class: 'label' }, [h('span', { text: W('串接', 'Chain') }), chainSub]), loopSeg]), chainSlots]);
+  const keyRow = row(W('調', 'Key'), h('small', { text: hintOf('key') }), h('div', { class: 'ctl' }, [tonicSel, modeSel]), { only: 'studio-key', term: 'key' });
+  const tempoRow = row(W('速度', 'Tempo'), tempoSub, h('div', { class: 'ctl' }, [tempoIn, h('span', { class: 'unit', text: 'BPM' }), tapBtn]), { only: 'studio-tempo', term: 'bpm' });
+  const lenRow = row(W('長度', 'Length'), h('small', { text: W('一個循環幾小節', 'Bars in one loop') }), barsSeg, { only: 'studio-length', term: 'bar' });
+  const swingRow = row(W('搖擺', 'Swing'), h('small', { text: hintOf('swing') }), h('div', { class: 'ctl' }, [swingIn, swingVal]), { only: 'studio-swing', term: 'swing' });
+  const patRow = row(W('段落', 'Pattern'), h('small', { text: W('最多四段，再點一下更多', 'Up to four; tap again for more') }), patSeg, { only: 'studio-pattern', term: 'pattern' });
+  const chainRow = h('div', { class: 'stack', 'data-ctl': 'studio-chain' }, [h('div', { class: 'chain-head' }, [h('div', { class: 'label' }, [h('span', {}, [W('串接', 'Chain'), ' ', info('chain')]), chainSub]), loopSeg]), chainSlots]);
 
   panel.replaceChildren(
     h('section', { class: 'card' }, [
@@ -179,6 +185,7 @@ export function mountStudio(panel, api) {
       instRow,
       setRow,
       grooveRow,
+      easyRow,
       keyRow,
       lenRow,
       tempoRow,
@@ -233,7 +240,7 @@ export function mountStudio(panel, api) {
     undoBtn.disabled = !undo.length;
     addBtn.textContent = W('存成片段（去做歌）', 'Save as piece (for Make)');
     const role = INSTRUMENT_ROLE[st.inst] || 'riff';
-    tip.textContent = drums ? W('點：打 · 再點：重音 · 長按：力度', 'Tap: hit · again: accent · hold: level') : st.chord ? W('點一個音放進三和弦 · 長按：力度', 'Tap: its triad · hold: level') : W('點：放進 · 再點：拿掉 · 長按：力度', 'Tap: in · again: out · hold: level');
+    tip.replaceChildren(drums ? W('點：打 · 再點：重音 · 長按：力度', 'Tap: hit · again: accent · hold: level') : st.chord ? W('點一個音放進三和弦 · 長按：力度', 'Tap: its triad · hold: level') : W('點：放進 · 再點：拿掉 · 長按：力度', 'Tap: in · again: out · hold: level'), ' ', info(!drums && st.chord ? 'chord' : 'velocity'));
     note.textContent = drums ? W('存成片段：放進「做歌」當素材，鼓也會用在歌裡', 'Save as piece: song material in Make, drums too') : W(`存成片段：放進「做歌」當${name(ROLE_NAMES, role)}`, `Save as piece: goes to Make as a ${name(ROLE_NAMES, role)}`);
     paintPlay();
     drawShelf();
@@ -288,6 +295,8 @@ export function mountStudio(panel, api) {
     }
     const none = bank().chain.every(i => clipEmpty(bank().pats[i]));
     addBtn.disabled = none;
+    easyAdd.disabled = none;
+    easyAuto.textContent = clipEmpty(c) ? W('✦ 幫我編一段', '✦ Write one') : W('✦ 再編一次', '✦ Write again');
     saveBtn.disabled = clipEmpty(c);
     midiBtn.disabled = none;
     undoBtn.disabled = !undo.length;
@@ -424,7 +433,8 @@ export function mountStudio(panel, api) {
     e.preventDefault();
     if (!held) levelMenu(b);
   });
-  autoBtn.onclick = () => {
+  // 自動編: a clip written in the groove (or the key), played (`play`) as it loops.
+  function autoWrite(play = true) {
     mark();
     seed += 1;
     setClip(st.mode === 'drums' ? drumPattern(st.groove, seed, st.bars) : melody(keyNow(), st.inst, seed, st.bars));
@@ -432,8 +442,11 @@ export function mountStudio(panel, api) {
     keep();
     drawControls();
     paintCells();
-    if (!playing) start();
-  };
+    if (play && !playing) start();
+  }
+  autoBtn.onclick = () => autoWrite();
+  easyAuto.onclick = () => autoWrite();
+  easyAdd.onclick = () => addBtn.click();
   clearBtn.onclick = () => {
     mark();
     const was = clip();
@@ -687,7 +700,11 @@ export function mountStudio(panel, api) {
 
   draw();
   return {
-    shown: () => drawControls(),
+    // (簡單 starts from 自動編: an empty grid gets one written, waiting for ▶.)
+    shown: () => {
+      if (api.simple?.() && bank().chain.every(i => clipEmpty(bank().pats[i]))) autoWrite(false);
+      else drawControls();
+    },
     hidden: () => stop(),
     stop,
     playing: () => playing
