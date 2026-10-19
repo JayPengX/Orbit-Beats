@@ -29,6 +29,7 @@ const CSS = `
 .gm { position: fixed; inset: 0; z-index: 90; background: #06060b; color: #fff; overflow: hidden; --text: #fff; --text-2: rgba(255,255,255,.7); --text-3: rgba(255,255,255,.45); --fill: rgba(255,255,255,.14); --fill-2: rgba(255,255,255,.26); --card: rgba(255,255,255,.08); --line: rgba(255,255,255,.12); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; opacity: 0; transform: scale(1.04); transition: opacity .28s ease, transform .38s cubic-bezier(.2,.8,.2,1); }
 .gm.in { opacity: 1; transform: none; }
 .gm[hidden] { display: none; }
+body.gm-open:has(.gm.in) { overflow: hidden; }
 .gm *, .gm *::before, .gm *::after { box-sizing: border-box; }
 .gm-bg { position: absolute; inset: -80px; width: calc(100% + 160px); height: calc(100% + 160px); object-fit: cover; filter: blur(70px) saturate(1.7) brightness(.55); transform: translateZ(0); transition: opacity .6s; pointer-events: none; }
 .gm-shade { position: absolute; inset: 0; background: radial-gradient(120% 70% at 50% 0%, rgba(0,0,0,0) 0%, rgba(6,6,11,.55) 60%, rgba(6,6,11,.92) 100%); pointer-events: none; }
@@ -993,7 +994,7 @@ export function mountGame(host, api) {
     if (root.hidden) {
       root.hidden = false;
       requestAnimationFrame(() => root.classList.add('in'));
-      document.body.classList.add('np-open');
+      document.body.classList.add('gm-open');
       hashWas = location.hash;
       try {
         history.replaceState(null, '', '#game');
@@ -1016,7 +1017,7 @@ export function mountGame(host, api) {
     root.classList.remove('in');
     removeEventListener('resize', onResize);
     setTimeout(() => (root.hidden = true), reduced() ? 0 : 280);
-    document.body.classList.remove('np-open');
+    document.body.classList.remove('gm-open');
     try {
       history.replaceState(null, '', hashWas && hashWas !== '#game' ? hashWas : '#create');
     } catch {}
