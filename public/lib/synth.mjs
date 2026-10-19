@@ -233,6 +233,7 @@ export function voice(inst, midi = 36, sr = 48000, hold = 0.25, vel = 0.7, varia
 //
 // { kind: 'drums', bars, swing, steps: { kick: [0/1/2/3 × 16·bars], … }, pitch: 808's MIDI }   (a hit's level: 1 normal, 2 accent, 3 soft)
 // { kind: 'notes', inst, bars, swing, key: { tonic, minor }, notes: [{ step, midi, len, chord, lv }] }   (len in 16ths; chord: its triad in the key; lv: 2 accent, 3 soft)
+// (A note may also carry g, a gain to scale it by, and dt, seconds early or late: the radio's tunes set them, so no two notes are alike.)
 export const STEPS = 16;
 // A hit's level (力度) as a loudness: 0 none, 1 normal, 2 accent, 3 soft
 // (soft came last, so clips kept before it read the same).
@@ -300,7 +301,7 @@ function hitList(clip, s) {
     }
   } else
     for (const n of clip.notes)
-      if (n.step === s) for (const m of n.chord ? chordOf(n.midi, clip.key) : [n.midi]) out.push({ inst: clip.inst, midi: m, len: n.len || 1, gain: (n.chord ? 0.62 : 1) * levelGain(n.lv || 1), vel: VELOCITY[n.lv || 1] ?? 0.7 });
+      if (n.step === s) for (const m of n.chord ? chordOf(n.midi, clip.key) : [n.midi]) out.push({ inst: clip.inst, midi: m, len: n.len || 1, gain: (n.chord ? 0.62 : 1) * levelGain(n.lv || 1) * (n.g ?? 1), vel: VELOCITY[n.lv || 1] ?? 0.7, ...(n.dt ? { dt: n.dt } : {}) });
   return out;
 }
 export const stepHits = (clip, s) => hitList(clip, s).map(({ vel, ...h }) => h);
@@ -327,7 +328,7 @@ export function renderClip(clip, sr = 48000, bpm = 120) {
   const seen = new Map();
   for (let s = 0; s < STEPS * clip.bars; s++) {
     const a = Math.round(((s + swingOf(clip, s)) / 4) * B);
-    for (const { inst, midi, len, gain, vel } of hitList(clip, s)) {
+    for (const { inst, midi, len, gain, vel, dt } of hitList(clip, s)) {
       const hold = clip.kind === 'drums' ? 0.25 : (len / 4) * (60 / bpm);
       const again = `${inst}|${midi}|${hold}|${vel}`;
       const take = (seen.get(again) || 0) % 2;
@@ -339,7 +340,7 @@ export function renderClip(clip, sr = 48000, bpm = 120) {
         voiceSamples += v.length;
       }
       const x = cache.get(key);
-      for (let k = 0, j = a; k < x.length && j < n; k++, j++) L[j] += x[k] * gain;
+      for (let k = 0, j = dt ? Math.max(0, a + Math.round(dt * sr)) : a; k < x.length && j < n; k++, j++) L[j] += x[k] * gain;
     }
   }
   const floor = noiseOf(n);

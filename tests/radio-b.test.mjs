@@ -19,7 +19,7 @@ test('ten more radio songs back to back: every moment of the music sounds (but t
     // (Nor a moment's hole: a break's rests, a stop bar, a riff laid out. Under -45 dBFS for over a quarter second.)
     const holes = quietRuns(seg, RADIO_SR).filter(([at]) => at >= from);
     assert.deepEqual(holes, [], `${spec.seed} ${info.style}: quiet at ${holes.map(([at, s]) => `${at.toFixed(2)} s for ${s.toFixed(2)} s`).join(', ')}`);
-    assert.ok(seg.L.length / RADIO_SR >= 55 && seg.L.length / RADIO_SR <= 150, `${spec.seed}: ${(seg.L.length / RADIO_SR).toFixed(0)} s`);
+    assert.ok(seg.L.length / RADIO_SR >= 70 && seg.L.length / RADIO_SR <= 250, `${spec.seed}: ${(seg.L.length / RADIO_SR).toFixed(0)} s`);
     assert.ok(seg.L.every(Number.isFinite) && seg.L.every(x => Math.abs(x) <= 1), `${spec.seed}: under full scale`);
     assert.ok(info.plan.every(([, n]) => n % 4 === 0), `${spec.seed}: sections of four or eight bars`);
   }

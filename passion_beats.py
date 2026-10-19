@@ -899,14 +899,14 @@ def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arran
     riff or a phrase; what a missing role plays is left out (or played by the
     nearest role there is). mix: the mixer (None: the pieces exactly as
     recorded); stems: also each bus as its own WAV; arranged: a plan by hand;
-    arrange: {intro, verse, verse2, hook, bridge, lift, hookBass, liftBass, liftSub, layer}, pieces' numbers
+    arrange: {intro, verse, verse2, hook, hook2, bridge, bridgeBass, lift, hookBass, liftBass, liftSub, layer}, pieces' numbers
     in lists, which riffs each section plays in place of the seed's riff sets (a second verse, a hook
     of its own, a last hook lifted into another key with its own bass and 808); varied: dress the drums."""
     r=np.random.default_rng(seed); R=random.Random(seed)
     pool={x:[i for i in sorted(roles) if roles[i]==x] for x in ROLES}
     P=arrange or {}
     if arrange:   # an arrangement by hand: the hook's own bass, the lifted hook's riffs, bass and 808 and the layer are theirs alone, never drawn for any other section
-        own={x for x in [*(P.get('lift') or []),*(P.get('hookBass') or []),*(P.get('liftBass') or []),P.get('liftSub'),P.get('layer')] if x is not None}
+        own={x for x in [*(P.get('lift') or []),*(P.get('hookBass') or []),*(P.get('liftBass') or []),*(P.get('hook2') or []),*(P.get('bridgeBass') or []),P.get('liftSub'),P.get('layer')] if x is not None}
         pool={x:[i for i in pool[x] if i not in own] for x in pool}
     riffs=pool['riff'] or pool['phrase']; phrases=pool['phrase'] or riffs
     def pick(xs,no=()):
@@ -987,7 +987,7 @@ def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arran
             hook_no+=1
             lifted=hooks>1 and hook_no==hooks and bool(P.get('lift'))   # (the last hook, a key higher)
             own=P.get('liftBass') if lifted else P.get('hookBass')
-            riff(b,L,P['lift'] if lifted else hook_set); bass(b,L,0,own or None)
+            riff(b,L,P['lift'] if lifted else P['hook2'] if hook_no>1 and P.get('hook2') else hook_set); bass(b,L,0,own or None)
             s.drums(hook_style,b,L,{**kit,'sub':P['liftSub']} if lifted and P.get('liftSub') is not None else kit,dress and (dress['last'] if hook_no==hooks else dress['hook'])); s.loop(hook_hat,b,L)
             if layer_fits and not lifted and (hook_layer or hook_no==hooks): riff(b,L,[layer])
         elif t=='break':   # strip back: no drums, no bass
@@ -995,7 +995,7 @@ def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arran
             if R.random()<0.6: s.loop(break_hat,b,L)
         elif t=='bridge':   # contrast: another riff set, half-time
             riff(b,L,bridge_set); s.drums('half',b,L,kit,dress and dress['bridge'])
-            if R.random()<0.5: bass(b,L)
+            if R.random()<0.5: bass(b,L,0,P.get('bridgeBass') or None)
         elif t=='outro':   # the intro's riff again, winding down
             riff(b,L,intro_set)
             if R.random()<0.6: s.drums(style,b,L//2,kit)
