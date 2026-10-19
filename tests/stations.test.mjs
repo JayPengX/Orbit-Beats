@@ -67,10 +67,13 @@ test('station ids become filters', () => {
 
 test('the home rows: taste first, moods, every groove, tempos', () => {
   const rows = homeRows({ jazz: 3, lofi: 1 });
-  assert.deepEqual(rows.map(r => r.key), ['for-you', 'moods', 'genres', 'tempo']);
-  assert.deepEqual(rows[0].ids, ['taste', 'style:jazz', 'style:lofi']);
+  assert.deepEqual(rows.map(r => r.key), ['for-you', 'moods', 'genres', 'tempo', 'liked']);
+  assert.deepEqual(rows[0].ids, ['taste', 'style:lofi', 'style:hiphop', 'style:house', 'style:kpop']);
   assert.equal(homeRows({})[0].ids.length, 5, 'popular when nothing is kept');
   assert.ok(rows[2].ids.length >= 40);
   assert.deepEqual(rows[3].ids, ['tempo:slow', 'tempo:mid', 'tempo:fast']);
+  assert.deepEqual(rows[4].ids, ['style:jazz'], '喜歡的 leaves out what 為你推薦 shows');
+  assert.ok(!rows[2].ids.some(id => rows[0].ids.includes(id)), 'no groove twice on the page');
+  assert.deepEqual(homeRows({})[4].ids, []);
   assert.deepEqual(tasteList({ jazz: 0, bogus: 4, rock: 2 }), [['rock', 2]]);
 });

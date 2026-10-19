@@ -25,7 +25,8 @@ import { maker } from './lib/maker.mjs';
 import { libraryView, nameSheet } from './lib/library.mjs';
 import { packSong, packWay, playsWhole, keptAudio, sameSong, slimTo, soundOf, formOf, kindOf, builtIn, mbText, PACKED } from './lib/pack.mjs';
 import { mountStudio } from './lib/studio.mjs';
-import { mountJam } from './lib/jamview.mjs';
+import { mountJam, readSet, setCover } from './lib/jamview.mjs';
+import { specOf } from './lib/jamset.mjs';
 import { W, en, lang } from './lib/lang.mjs';
 import { shows, levelCss, makeSettings } from './lib/easy.mjs';
 import { MOODS, radioPick, radioPlan, RADIO_V } from './lib/radio.mjs';
@@ -35,7 +36,7 @@ import * as kitQ from '#kit/quadra.mjs';
 import { icon, inner } from './lib/icons.mjs';
 import { createPlayer, coverOfTrack } from './lib/player.mjs';
 import { mountPlayerView, subOf, onLong, speedText } from './lib/playerview.mjs';
-import { mountHome } from './lib/homeview.mjs';
+import { mountHome, songShelf } from './lib/homeview.mjs';
 import { remix, surprise, remixId, remixTitle, kindOfRecipe, baseOf, radioBase, bandBase, lengthStep, retime, clipSpan, partOf } from './lib/remix.mjs';
 import { remixSheet, clipSheet, PART_NAMES } from './lib/remixview.mjs';
 import { stationId } from './lib/stations.mjs';
@@ -120,6 +121,7 @@ function setLevel(v) {
   if (sources.length && (makeSettings('simple', settings).silenceDb !== settings.silenceDb || makeSettings('simple', settings).minGap !== settings.minGap)) split();
   update();
   studio?.shown?.();
+  jam?.level?.();
   toast(v === 'pro' ? W('進階：所有工具都在', 'Advanced: every tool shown') : W('簡單：只留做歌需要的', 'Simple: just what you need'), { ms: 1600 });
 }
 
@@ -154,7 +156,7 @@ const TAB_ICONS = { home: inner('home'), create: inner('create'), library: inner
 // Every screen: the old hashes (#listen #make #studio #jam #library) still open theirs.
 const SCREEN_TAB = { home: 'home', listen: 'home', create: 'create', make: 'create', studio: 'create', jam: 'create', library: 'library' };
 const SUBS = ['make', 'studio', 'jam'];
-const SUB_NAMES = { make: ['做歌', 'Songs'], studio: ['樂器', 'Beat maker'], jam: ['即興', 'Pads'] };
+const SUB_NAMES = { make: ['做歌', 'Songs'], studio: ['樂器', 'Studio'], jam: ['即興', 'Jam'] };
 const tabs = tabBar({
   tabs: TABS.map(id => ({ id, label: name(TAB_NAMES, id), icon: TAB_ICONS[id] })),
   onSelect: (id, o) => showTab(id === 'create' && !o?.again && SUBS.includes(tabNow) ? tabNow : id),
@@ -177,6 +179,7 @@ function showTab(id) {
     if (location.hash !== hh) history.replaceState(null, '', hh);
   } catch {}
   if (id === 'library') lib.draw();
+  if (id === 'create') hubDraw();
   if (id === 'home') radio?.warm();
   if (id === 'studio') studio?.shown();
   else studio?.hidden();
@@ -186,17 +189,33 @@ function showTab(id) {
 const firstTab = () => (SCREEN_TAB[location.hash.slice(1)] ? location.hash.slice(1) : 'home');
 $('subnav-back').innerHTML = icon('back-chevron');
 $('subnav-back').onclick = () => showTab('create');
-// 創作: three cards, each opens one screen.
+// 創作: the path in three cards. 即興 (the band, with ▶), then 樂器 and 做歌 (with how many pieces wait there).
+let hubDraw = () => {};
 {
-  const cards = [
-    ['jam', 'grid', ['即興', 'Pads'], ['拍下去就有聲音', 'Tap pads, hear a groove']],
-    ['studio', 'create', ['樂器', 'Beat maker'], ['一格一格寫出節拍', 'Write a beat step by step']],
-    ['make', 'note', ['做歌', 'Songs'], ['用你的片段排成歌', 'Songs from your clips']]
-  ];
-  $('panel-create').append(
-    h('h1', { class: 'page-title', text: W('創作', 'Create') }),
-    h('div', { class: 'hub' }, cards.map(([id, ic, [zh, e], [lz, le]]) => h('button', { class: 'hub-card', type: 'button', 'data-screen': id, onclick: () => showTab(id), html: `<span class="hub-ico">${icon(ic)}</span><span><b>${W(zh, e)}</b><span class="l">${W(lz, le)}</span></span>${icon('chevron')}` })))
-  );
+  const cover = h('img', { alt: '', class: 'hub-cover' });
+  const badge = h('i', { class: 'hub-badge', hidden: true });
+  const hero = h('div', { class: 'hub-hero' }, [
+    cover,
+    h('button', { class: 'hub-open', type: 'button', 'aria-label': W('即興', 'Jam'), onclick: () => showTab('jam') }),
+    h('b', { text: W('即興', 'Jam') }),
+    h('button', { class: 'hub-play', type: 'button', 'aria-label': W('開始', 'Start'), html: icon('play'), onclick: () => (showTab('jam'), jam?.start()) })
+  ]);
+  const half = (id, ic, label, extra) => h('button', { class: 'hub-half', type: 'button', 'data-screen': id, onclick: () => showTab(id) }, [h('span', { class: 'hub-ico', html: icon(ic) }), h('b', { text: label }), extra]);
+  // (The songs just made first, the newest kept ones after: what 做歌 or 即興 made shows up here at once.)
+  const mineFirst = () => {
+    const fresh = songs.filter(x => !lib.has(x.id));
+    return [...fresh, ...[...lib.all()].sort((a, b) => (b.at || 0) - (a.at || 0))].slice(0, 12);
+  };
+  hubDraw = () => {
+    const set = readSet();
+    cover.src = setCover(set, specOf(set).bpm);
+    badge.textContent = String(pieces.length);
+    badge.hidden = !pieces.length;
+    const mine = songShelf({ P, trackMenu: (t, a) => trackMenuOf(t, a) }, 'mine', W('你的歌', 'Your songs'), mineFirst());
+    shelf.replaceChildren(...(mine ? [mine] : []));
+  };
+  const shelf = h('div', { class: 'hub-shelf' });
+  $('panel-create').append(h('h1', { class: 'page-title', text: W('創作', 'Create') }), hero, h('div', { class: 'hub-pair' }, [half('studio', 'grid', W('樂器', 'Studio')), half('make', 'note', W('做歌', 'Songs'), badge)]), shelf);
 }
 
 // ---- Settings (做歌) ----
@@ -240,8 +259,8 @@ const weights = () => (cfg().smart && Object.keys(kept.taste || {}).length ? kep
 // 長度: presets and a slider, in minutes and seconds.
 {
   const out = h('b', { class: 'len-val' });
-  const slider = h('input', { type: 'range', min: LENGTH_MIN, max: LENGTH_MAX, step: LENGTH_STEP, 'aria-label': W('長度', 'Length') });
-  const chips = h('div', { class: 'len-chips' }, LENGTH_PRESETS.map(v => h('button', { class: 'chip', type: 'button', 'data-len': String(v), text: clock(v), onclick: () => set(v) })));
+  const slider = h('input', { 'data-ctl': 'make-length-slider', type: 'range', min: LENGTH_MIN, max: LENGTH_MAX, step: LENGTH_STEP, 'aria-label': W('長度', 'Length') });
+  const chips = h('div', { class: 'len-chips' }, LENGTH_PRESETS.map(v => h('button', { class: 'chip', type: 'button', 'data-len': String(v), text: clock(v), 'data-ctl': [30, 60, 120, 180].includes(v) ? null : 'make-length-slider', onclick: () => set(v) })));
   const set = v => {
     settings.length = clampLength(v);
     paint();
@@ -256,7 +275,7 @@ const weights = () => (cfg().smart && Object.keys(kept.taste || {}).length ? kep
   slider.addEventListener('input', () => set(slider.value));
   paint();
   lengthPaint = paint;
-  document.querySelector('[data-ctl="make-count"]').before(h('div', { class: 'stack len-row' }, [h('div', { class: 'sheet-line' }, [h('span', { class: 'label', text: W('長度', 'Length') }), out]), chips, slider]));
+  document.querySelector('[data-ctl="make-count"]').before(h('div', { class: 'stack len-row' }, [h('div', { class: 'sheet-line', 'data-ctl': 'make-length-slider' }, [h('span', { class: 'label', text: W('長度', 'Length') }), out]), chips, slider]));
 }
 // What's wrong with the settings, if anything.
 function problem() {
@@ -292,9 +311,8 @@ function update() {
   $('count-up').disabled = busy || count >= MAX_SONGS;
   $('error').textContent = bad;
   if (!busy && simple()) {
-    $('go').innerHTML = `${icon('dice')}<span>${W('隨機做一批', 'Make a random batch')}</span>`;
+    $('go').innerHTML = `${icon('dice')}<span>${W(`做 ${count} 首歌`, `Make ${count} songs`)}</span>`;
     $('go').disabled = false;
-    $('easy-hint').textContent = ownBand() ? W(`${count} 首，用內建的樂器`, `${count} songs on the built-in band`) : W(`${count} 首，用你的 ${pieces.length} 個片段`, `${count} songs from your ${pieces.length} pieces`);
   } else if (!busy) {
     $('go').textContent = !pieces.length ? W('先放片段，或到「樂器」做', 'Add pieces or use Studio') : count >= 1 && count <= MAX_SONGS ? W(`做 ${count} 首`, `Make ${count} song${count === 1 ? '' : 's'}`) : W('做歌', 'Make songs');
     $('go').disabled = !!bad || !pieces.length;
@@ -512,12 +530,14 @@ async function load(get, add = false) {
 }
 // The ways in, as the kit stands: 再加檔案 once there is one, 示範 only before.
 function kitShown() {
+  if (!pieces.length && !$('pieces').children.length) ingredientCards($('pieces'));
   $('resplit').disabled = !sources.length;
   $('add').hidden = !sources.length;
   $('demo').hidden = sources.length > 0;
 }
 function clearPieces() {
   $('pieces').textContent = '';
+  ingredientCards($('pieces'));
   $('pieces-hint').hidden = true;
   $('clear-all').hidden = $('save-kit').hidden = true;
   pieces = [];
@@ -577,6 +597,26 @@ function tempoHint() {
   $('bpm-hint').textContent = !heard?.detected ? W('聽不出來：請設定', "Couldn't hear it: set it") : bpm === heard.detected ? W('從片段聽出來的', 'Heard from the pieces') : from ? W(`你設的 · 聽到 ${heard.detected}`, `Yours · heard ${heard.detected}`) : W(`手動設定 · 聽到 ${heard.detected}`, `Set by hand · heard ${heard.detected}`);
 }
 
+// 簡單's row: ＋ first, then the pieces; with none, the built-in band as a dimmed card (what the songs are made of).
+function ingredientCards(grid) {
+  const add = h('button', { class: 'ing-add', type: 'button', 'data-ctl': 'make-ingredients', 'aria-label': W('加材料', 'Add'), html: `${icon('plus')}` });
+  add.onclick = addSheet;
+  const nodes = [add];
+  if (!pieces.length) nodes.push(h('div', { class: 'ing-band', 'data-ctl': 'make-ingredients' }, [h('span', { html: icon('grid') }), h('span', { text: W('內建樂團', 'Built-in band') })]));
+  grid.prepend(...nodes);
+}
+// ＋: the ways in, as big rows.
+function addSheet() {
+  let s;
+  const go = (iconName, label, fn, cls = '') => h('button', { class: `add-row ${cls}`, type: 'button', html: `${icon(iconName)}<span>${esc(label)}</span>`, onclick: () => (fn(), s.close()) });
+  const rows = [go('mic', W('用麥克風錄', 'Record'), () => $('record').click()), go('upload', W('選檔案', 'Choose files'), () => (sources.length ? $('more') : $('file')).click()), go('create', W('用樂器寫', 'Write in Studio'), () => showTab('studio'))];
+  if (!sources.length) rows.push(go('note', W('試試示範', 'Try the demo'), () => $('demo').click()));
+  const body = h('div', { class: 'add-rows' }, rows);
+  s = sheet({ title: W('加材料', 'Add'), closeLabel: W('關閉', 'Close'), body });
+  // (我的套組 only once a kit is kept: a row that leads nowhere isn't shown.)
+  listNamed().catch(() => []).then(all => all.length && body.append(go('library', W('我的套組', 'My kits'), () => setTimeout(() => $('my-kits').click(), 250))));
+}
+
 function showPieces() {
   const B = (60 / bpm) * sr;
   const grid = $('pieces');
@@ -589,7 +629,9 @@ function showPieces() {
     tile.className = 'piece';
     tile.dataset.i = i;
     tile.title = from;
-    tile.innerHTML = `<button type="button" aria-label="${esc(W(`試聽第 ${i + 1} 段，${beats.toFixed(1)} 拍`, `Play piece ${i + 1}, ${beats.toFixed(1)} beats`))}${from ? ` · ${esc(from)}` : ''}"><b>${i + 1}</b><span>${beats < 10 ? beats.toFixed(1) : Math.round(beats)} ${W('拍', 'beats')}</span></button>
+    const mineClip = String(sources[p.src]?.name || '').startsWith('♪');
+    const short = baseName(sources[p.src]?.name || '').replace(/^♪\s*/, '') || String(i + 1);
+    tile.innerHTML = `<button type="button" aria-label="${esc(W(`試聽第 ${i + 1} 段，${beats.toFixed(1)} 拍`, `Play piece ${i + 1}, ${beats.toFixed(1)} beats`))}${from ? ` · ${esc(from)}` : ''}"><b data-ctl="make-piece">${i + 1}</b><span data-ctl="make-piece">${beats < 10 ? beats.toFixed(1) : Math.round(beats)} ${W('拍', 'beats')}</span><span class="ing" data-ctl="make-ingredients">${icon(mineClip ? 'note' : 'wave')}<b>${esc(short)}</b></span></button>
       <select data-ctl="make-roles" aria-label="${esc(W(`第 ${i + 1} 段的角色`, `Piece ${i + 1} role`))}">${ROLES.map(x => `<option value="${x}"${x === roles[i] ? ' selected' : ''}>${esc(name(ROLE_NAMES, x))}</option>`).join('')}</select>
       <button type="button" class="more" aria-label="${esc(W(`第 ${i + 1} 段：更多`, `Piece ${i + 1}: more`))}">⋯</button>`;
     tile.classList.toggle('off', roles[i] === 'off');
@@ -597,6 +639,7 @@ function showPieces() {
     tile.classList.toggle('mine', String(sources[p.src]?.name || '').startsWith('♪'));
     grid.append(tile);
   });
+  ingredientCards(grid);
   $('pieces-hint').hidden = !pieces.length;
   $('clear-all').hidden = $('save-kit').hidden = !pieces.length;
   kitChanged();
@@ -605,6 +648,7 @@ function showPieces() {
 // The kit, its tempo or its roles changed: the jam's pads follow.
 function kitChanged() {
   jam?.kit();
+  hubDraw();
 }
 
 // A new tempo: roles heard again at it (but not ones set by hand), and loop lengths.
@@ -1015,7 +1059,7 @@ function songRow(song, { lib: inLib = false, list = null } = {}) {
   const more = h('button', { class: 'act', type: 'button', 'aria-label': W('更多', 'More'), html: ICON.more, onclick: e => songMenu(song, e.currentTarget, inLib, list) });
   const bar = h('div', { class: 'plan', role: 'group', 'aria-label': plan });
   const total = info.plan.reduce((a, [, n]) => a + n, 0);
-  const width = Math.min(innerWidth, 560) - 32 - 62; // the strip's room (row padding, play column)
+  const width = Math.min(innerWidth, 560) - 32 - 62 - 40; // the strip's room (row and card padding, play column), on the safe side so no label is cut
   sectionTimes(info.plan, info.bpm || bpm).forEach((s, k) => {
     const label = name(SECTION_NAMES, s.type);
     const em = en ? label.length * 0.66 : label.length;
@@ -1425,6 +1469,7 @@ let loopAt = null; // { from, to } in seconds: the section looped
 let wantLoop = null; // a section to loop in the song about to play (held from its row)
 let P = null; // lib/player.mjs, made in boot
 let home = null;
+let trackMenuOf = () => {};
 async function urlOf(song) {
   if (song.url) return song.url;
   // (The kept record as it is now: 歌單瘦身 may have packed it since its row was drawn.)
@@ -1598,7 +1643,7 @@ function claimSession(o) {
 
 // ♡: into 歌單 (this phone) and your taste (the Pass); again, out of both.
 const keeping = new Set(); // (being packed: a second tap waits for the first)
-async function keepSong(song) {
+async function keepSong(song, { quiet = false } = {}) {
   if (lib.has(song.id)) {
     await deleteSong(song.id).catch(() => {});
     lib.remove(song.id);
@@ -1606,7 +1651,7 @@ async function keepSong(song) {
     keep();
     refreshHearts(song.id);
     tasteHint();
-    toast(W('已從歌單移除', 'Removed from Library'));
+    quiet || toast(W('已從歌單移除', 'Removed from Library'));
     return;
   }
   if (keeping.has(song.id)) return;
@@ -1630,7 +1675,7 @@ async function keepSong(song) {
   keep();
   refreshHearts(song.id);
   tasteHint();
-  toast(W('已存到歌單', 'Kept in Library'));
+  quiet || toast(W('已存到歌單', 'Kept in Library'));
 }
 // A song's WAV to hand over, at full quality: a batch's own; a kept one made
 // again from its recipe (聽's band, 即興's set, or the kit it was made on
@@ -1895,14 +1940,24 @@ async function keepRadio(item) {
     toast(W(`存不下來：${e.message}`, `Couldn't keep it: ${e.message}`), { tone: 'bad' });
   }
 }
-// A song from the jam's take: into the batch, played (on the built-in set: made from its seed and groove, no kit).
-async function jamSong(hits, beats, band) {
+// A song from the jam's take. Kept: straight into 資料庫 (made from its seed and groove on the built-in set), nothing played,
+// 復原 takes it out again. Otherwise into the batch, played.
+async function jamSong(hits, beats, band, { keep: kept = false } = {}) {
   try {
     if (!band) await kitToMaker();
     const recipe = { print: band ? 'band' : print, ...(band ? { band } : {}), jam: hits, plan: null, mix: { ...cfg().mix }, at: Date.now() };
     const { info, wav } = await make.song(recipe, cfg().bits);
     const at = new Date();
-    const song = { id: recipeId(recipe), name: `${W('即興', 'Jam')} ${at.getHours()}:${String(at.getMinutes()).padStart(2, '0')}`, info, data: wav, url: URL.createObjectURL(new Blob([wav], { type: 'audio/wav' })), bits: cfg().bits, recipe };
+    const when = `${at.getHours()}:${String(at.getMinutes()).padStart(2, '0')}`;
+    const label = `${W('即興', 'Jam')}${band ? ` · ${name(STYLE_NAMES, band.style)}` : ''} ${when}`;
+    const song = { id: recipeId(recipe), name: label, info, data: wav, url: URL.createObjectURL(new Blob([wav], { type: 'audio/wav' })), bits: cfg().bits, recipe };
+    if (kept) {
+      await keepSong(song, { quiet: true });
+      if (!lib.has(song.id)) return;
+      const t = toast(W('已存到資料庫', 'Kept in Library'), { ms: 5000 });
+      t.append(h('button', { type: 'button', class: 'toast-undo', text: W('復原', 'Undo'), onclick: async () => (t.remove(), await keepSong(song, { quiet: true }), toast(W('已復原', 'Undone'))) }));
+      return;
+    }
     songs.unshift(song);
     $('out').hidden = false;
     $('songs').prepend(songRow(song));
@@ -2083,7 +2138,21 @@ async function boot() {
     sleeping: () => radio.sleeping()
   };
   const view = mountPlayerView(P, core, { mini: $('player') });
-  home = mountHome($('panel-home'), { P, radio, taste: () => kept.taste, trackMenu: view.trackMenu, openNow: view.openNow });
+  trackMenuOf = view.trackMenu;
+  home = mountHome($('panel-home'), {
+    P,
+    radio,
+    taste: () => kept.taste,
+    trackMenu: view.trackMenu,
+    openNow: view.openNow,
+    songs: () => lib.all(),
+    go: (id, run) => {
+      showTab(id);
+      if (!run) return;
+      if (id === 'jam') jam?.start();
+      else $('go').click();
+    }
+  });
   // (The loop button leaves a section on repeat.)
   let loopWas = P.q.loop;
   P.on(w => {
@@ -2104,7 +2173,11 @@ async function boot() {
     ahead,
     live,
     quiet: () => quiet({ keep: 'studio' }),
-    goMake: () => showTab('make')
+    goMake: opts => {
+      showTab('make');
+      if (opts?.run) makeBatch();
+      $('out').scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    }
   });
   jam = mountJam($('panel-jam'), {
     kit: () => ({ pieces, roles, bpm, sr, heard, print, names: pieces.map(p => sources[p.src]?.name || '') }),
@@ -2115,7 +2188,8 @@ async function boot() {
     styles: () => cfg().styles,
     // (The built-in set made in a worker of its own: not queued behind 聽's songs.)
     band: set => (jamMake ||= maker(new URL('./lib/maker.worker.mjs', import.meta.url))).jamBand(set),
-    take: (hits, beats, band) => jamSong(hits, beats, band)
+    simple,
+    take: (hits, beats, band, opts) => jamSong(hits, beats, band, opts)
   });
   const last = await loadLast();
   if (last) {
@@ -2126,6 +2200,7 @@ async function boot() {
   kitShown();
   showTab(firstTab());
   await lib.read();
+  home?.refresh();
   $('loading').hidden = true;
   setTimeout(() => slimLibrary().catch(() => {}), 4000);
   const first = await q.start().catch(() => null);

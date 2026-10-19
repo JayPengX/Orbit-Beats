@@ -20,10 +20,12 @@ export const PRO_ONLY = [
   // 樂器: everything but ▶, 🎲, the grooves or instruments, the grid, 復原, 清除, ♡ 收藏 and 存成片段.
   'studio-set', 'studio-key', 'studio-length', 'studio-tempo', 'studio-swing', 'studio-pattern', 'studio-chain', 'studio-copy', 'studio-chord', 'studio-midi', 'studio-tools',
   // 即興: the groove's picker, the snap, the notes on levels and choke.
-  'jam-groove', 'jam-snap', 'jam-note'
+  'jam-groove', 'jam-snap', 'jam-note', 'jam-rec', 'jam-choke', 'jam-pads',
+  // 做歌 (簡單): the length slider, the section legend, the card's head and the pro piece grid; 樂器: its head.
+  'make-length-slider', 'make-legend', 'make-card', 'make-piece', 'studio-head'
 ];
 // Only in Simple.
-export const SIMPLE_ONLY = ['make-easy', 'jam-easy'];
+export const SIMPLE_ONLY = ['make-easy', 'jam-easy', 'jam-band', 'jam-keep', 'make-ingredients', 'studio-parts'];
 export const levelOk = v => LEVELS.includes(v);
 // Whether a control shows at this level.
 export const shows = (level, ctl) => (level === 'pro' ? !SIMPLE_ONLY.includes(ctl) : !PRO_ONLY.includes(ctl));

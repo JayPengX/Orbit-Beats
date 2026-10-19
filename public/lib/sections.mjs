@@ -20,4 +20,4 @@ export function sectionIndex(times, t) {
 
 // Whether a section's label fits its slice of a strip `px` wide: `em` is the label's
 // width in font sizes (2 for 前奏), size the font in px.
-export const labelFits = (bars, total, px, em, size = 11) => total > 0 && (bars / total) * px >= em * size + 6;
+export const labelFits = (bars, total, px, em, size = 11) => total > 0 && (bars / total) * px >= em * size + 12;

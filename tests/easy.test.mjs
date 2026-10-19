@@ -14,11 +14,11 @@ test('簡單 / 進階: advanced shows every tool, simple hides exactly the advan
   for (const c of SIMPLE_ONLY) assert.ok(shows('simple', c) && !shows('pro', c), c);
   assert.ok(!PRO_ONLY.some(c => SIMPLE_ONLY.includes(c)));
   // What a beginner needs is never hidden.
-  for (const c of ['make-go', 'studio-grid', 'studio-add', 'jam-pads', 'jam-record']) assert.ok(shows('simple', c) && shows('pro', c), c);
+  for (const c of ['make-go', 'studio-grid', 'studio-add', 'jam-record']) assert.ok(shows('simple', c) && shows('pro', c), c);
   // Simple's 做歌 is one button: no knobs.
   for (const c of ['make-moods', 'make-count', 'make-more', 'make-mix', 'make-styles']) assert.ok(!shows('simple', c) && shows('pro', c), c);
   assert.ok(shows('simple', 'make-easy') && !shows('pro', 'make-easy'));
-  for (const c of PRO_ONLY) assert.match(c, /^(make|studio|jam)-[a-z]+$/);
+  for (const c of PRO_ONLY) assert.match(c, /^(make|studio|jam)-[a-z-]+$/);
   const css = levelCss();
   for (const c of PRO_ONLY) assert.ok(css.includes(`body.lv-simple [data-ctl="${c}"]`), c);
   for (const c of SIMPLE_ONLY) assert.ok(css.includes(`body.lv-pro [data-ctl="${c}"]`), c);

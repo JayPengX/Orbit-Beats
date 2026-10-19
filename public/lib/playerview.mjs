@@ -259,9 +259,9 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
       body.replaceChildren(...[
         h('h3', { class: 'qhead', text: W('正在播放', 'Now playing') }),
         s?.track ? h('ul', { class: 'qlist' }, [row(s.track)]) : h('p', { class: 'qnone', text: W('沒有在播放', 'Nothing playing') }),
-        h('div', { class: 'qhead-row' }, [h('h3', { class: 'qhead', text: W('接下來', 'Up next') }), up.length ? h('button', { class: 'qclear', type: 'button', text: W('清除', 'Clear'), onclick: () => P.clear() }) : null]),
-        up.length ? list : h('p', { class: 'qnone', text: W('空的：用「稍後播放」加歌', 'Empty: add songs with Play later') }),
-        after.length ? h('h3', { class: 'qhead', text: P.q.station?.kind === 'radio' ? W('電台接著播', 'Radio plays next') : W('接著播', 'Then') }) : null,
+        // (One heading over what's next: the songs lined up, then what plays after them, dimmed.)
+        up.length || after.length ? h('div', { class: 'qhead-row' }, [h('h3', { class: 'qhead', text: W('接下來', 'Up next') }), up.length ? h('button', { class: 'qclear', type: 'button', text: W('清除', 'Clear'), onclick: () => P.clear() }) : null]) : null,
+        up.length ? list : null,
         after.length ? h('ul', { class: 'qlist dim' }, after.map(t => row(t))) : null
       ].filter(Boolean));
     };

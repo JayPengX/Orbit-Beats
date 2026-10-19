@@ -7,6 +7,7 @@
 // EXAMPLES[id] = { off, on: [zh, en], play(on) → { clips, bpm } }: the same
 // few bars without the thing and with it, played on the app's instruments.
 import { h } from './ui.mjs';
+import { icon } from './icons.mjs';
 import { emptyDrums, emptyNotes, melody } from './synth.mjs';
 import { lang, W } from './lang.mjs';
 
@@ -112,7 +113,7 @@ export const term = (id, to = lang) => TERMS[id]?.[to === 'en' ? 'en' : 'zh'] ||
 // A word's one-line hint, in the reader's language.
 export const hintOf = id => term(id)?.hint || '';
 // The ⓘ beside a control: a tap opens the word's sheet (app.js listens for .info-btn).
-export const info = id => h('button', { class: 'info-btn', type: 'button', 'data-term': id, 'aria-label': W(`說明：${term(id, 'zh').name}`, `What is ${term(id, 'en').name}?`), text: 'ⓘ' });
+export const info = id => h('button', { class: 'info-btn', type: 'button', 'data-term': id, 'aria-label': W(`說明：${term(id, 'zh').name}`, `What is ${term(id, 'en').name}?`), html: icon('info') });
 
 // ---- Hear it: the same bar without the thing and with it ----
 

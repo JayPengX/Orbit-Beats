@@ -117,6 +117,20 @@ export function withPads(all, print, pads, at = Date.now(), most = 40) {
   );
 }
 
+// A take is kept at its last 32 bars: what came before is dropped and the rest
+// shifted back. The cut falls where a 16-beat cycle begins (the take's `from`
+// counted in), so the four-bar parts, which hit again on every cycle, are
+// whole from the cut. -> { hits, beats }
+export const MOST_TAKE = 128;
+export function trimTake(hits, beats, from = 0, most = MOST_TAKE) {
+  if (beats <= most) return { hits, beats };
+  const cut = Math.ceil((beats - most + from) / 16 - 1e-9) * 16 - from;
+  return {
+    hits: hits.filter(h => h.beat >= cut - 1e-9).map(h => ({ ...h, beat: h.beat - cut })),
+    beats: beats - cut
+  };
+}
+
 export class Jam {
   // backing: hits over a few bars ([{ i, beat }], its `cycle` in beats), or none.
   constructor({ backing = [], cycle = 16 } = {}) {
@@ -205,6 +219,37 @@ export class Jam {
     const last = this.takes[this.takes.length - 1];
     return Boolean(last && last.to === Infinity);
   }
+  // The take still open (null: none).
+  openTake() {
+    const last = this.takes[this.takes.length - 1];
+    return last && last.to === Infinity ? last : null;
+  }
+  // Whether the open take can be kept at `beat`: a bar has gone by since it began
+  // and something has played in it (a take of nothing isn't a song).
+  keepable(beat) {
+    const t = this.openTake();
+    return Boolean(t && beat - t.from >= 4 && t.hits.length);
+  }
+  // 存下來: the open take ends at its next bar line (a bar at least) and the next
+  // one begins there, so nothing is lost between them and the second keeps only
+  // what came after the first. Loops already going join the new take partway
+  // (the way a part joined late does). -> the beat they meet at, or null when
+  // no take was open (one is begun, as record() does).
+  rotate(beat) {
+    const last = this.openTake();
+    if (!last) return void this.record(beat);
+    const to = Math.max(last.from + 4, nextBar(beat));
+    last.to = to;
+    this.takes.push({ from: to, to: Infinity, hits: [] });
+    for (const [i, l] of this.loops) {
+      if (!l.phase || l.from >= to || l.to <= to) continue;
+      const into = to - Math.floor(to / l.beats + 1e-9) * l.beats;
+      // (On the cycle's own start the windows emit the hit, unless they have passed it.)
+      if (into > 1e-9) this.keep([{ i, beat: to, off: into, lp: true }]);
+      else if (to <= this.upTo) this.keep([{ i, beat: to, lp: true }]);
+    }
+    return to;
+  }
   // Hits into the takes they fall in, each at its pad's level and choke as it
   // was played (a muted pad's left out).
   keep(hits) {
@@ -280,7 +325,10 @@ export class Jam {
         const end = lp ? Math.min(cut ?? Infinity, beats - h.beat, h.len ?? Infinity) : h.len;
         return end != null && end !== h.len ? { ...h, len: end } : h;
       });
-      this.done.push({ hits, beats });
+      const entry = { hits, beats };
+      // (Where the take began, for trimTake: not part of what's compared or kept.)
+      Object.defineProperty(entry, 'from', { value: t.from, enumerable: false });
+      this.done.push(entry);
       return false;
     });
     this.upTo = Math.max(this.upTo, b);

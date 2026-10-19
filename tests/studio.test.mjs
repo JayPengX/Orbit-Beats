@@ -94,3 +94,26 @@ test('the grid shows the drums in use and the kit’s core, in order; all of the
   assert.equal(new Set(Array.from({ length: 200 }, (_, k) => otherGroove('trap', k / 200))).size, GROOVE_STYLES.length - 1, '🎲 can land on every other groove');
   for (const d of ALL_DRUMS) assert.ok(LANE_COLOR[d], `${d} has a colour`);
 });
+
+import { tapHit, otherPart } from '../public/lib/studio.mjs';
+import { drumPattern as dp, melody as ml, emptyDrums as ed, emptyNotes as en } from '../public/lib/synth.mjs';
+
+test('簡單: a tap turns a drum cell on and off; 進階 still cycles on, accent, off', () => {
+  assert.equal(tapHit(0, true), 1);
+  assert.equal(tapHit(1, true), 0);
+  assert.equal(tapHit(2, true), 0);
+  assert.equal(tapHit(3, true), 0);
+  assert.deepEqual([0, 1, 2].map(v => tapHit(v, false)), [1, 2, 0]);
+});
+
+test('the part not being edited plays under it, unless it is empty', () => {
+  const st = { mode: 'notes', drums: { pats: [dp('trap', 1, 1)], at: 0, chain: [0] }, notes: { pats: [en('keys', 1)], at: 0, chain: [0] } };
+  assert.equal(otherPart(st), st.drums.pats[0], 'melody tab: the beat underneath');
+  st.mode = 'drums';
+  assert.equal(otherPart(st), null, 'an empty melody is skipped');
+  st.notes.pats[0] = ml({ tonic: 9, minor: true }, 'keys', 3, 1);
+  assert.equal(otherPart(st), st.notes.pats[0]);
+  st.drums.pats[0] = ed(1);
+  st.mode = 'notes';
+  assert.equal(otherPart(st), null);
+});
