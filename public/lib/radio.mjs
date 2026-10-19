@@ -799,7 +799,11 @@ function hatPiece(lanes, sp, H, clip) {
     if (H.random() < 0.5) [12, 13, 14, 15].forEach((s, k) => (c.steps[d0][48 + s] = [3, 3, 1, 2][k]));
     else c.steps.open[48 + 14] = 1;
   } else c.steps[d0][48 + 15] = 3;
-  return clip(c);
+  // (A band's drummer: soft ghost notes on the snare between the beats, now and then.)
+  if (bedFor(sp.style) === 'strings' && c.steps.snare && H.random() < 0.6)
+    for (let bar = 0; bar < 4; bar++) for (const s of [7, 15]) if (H.random() < 0.45 && !c.steps.snare[bar * 16 + s]) c.steps.snare[bar * 16 + s] = 3;
+  // (The hats a little to the right of the middle.)
+  return sum({ ...clip(c), pan: 0.2 });
 }
 
 // The song's band, for a song of the radio: the pieces, their roles and `parts`, which pieces each section plays. Every riff, phrase and bass piece is four bars
@@ -1141,7 +1145,7 @@ function shape(song, bpm) {
 export const PART_LIST = ['drums', 'bass', 'melody'];
 const PART_ROLES = { drums: ['hat', 'fill', 'kick', 'snare', 'tick', 'roll'], bass: ['bass', 'sub'], melody: ['riff', 'phrase'] };
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
-export const RADIO_V = 9;
+export const RADIO_V = 10;
 export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
   const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);

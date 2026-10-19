@@ -701,6 +701,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   const shortest = Math.min(...pool.hat.map(i => pieces[i].L.length));
   const breakHat = pool.hat.find(i => pieces[i].L.length === shortest) ?? null;
   const verseHat = pick(pool.hat), hookHat = pick(pool.hat, pool.hat.length > 2 ? [verseHat, breakHat] : [verseHat]);
+  const hookHat2 = pool.hat.find(i => i !== verseHat && i !== hookHat && i !== breakHat) ?? pool.hat.find(i => i !== verseHat && i !== hookHat) ?? null;
   // The kit: the first kick in the recording, a second as the heavier one,
   // an 808, and the rest; a missing kick or 808 is played by the other.
   const kicks = pool.kick;
@@ -720,11 +721,13 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   // a quiet section; a pre-hook's riser is its own.
   const CRASH_AT = new Set(['verse', 'hook', 'bridge', 'outro']);
   const INTO = { hook: ['roll2', 'stutter', 'fill', 'fill'], verse: ['roll', 'roll2', 'tick', 'drop'], pre: ['tick', 'drop'], break: ['drop', 'tick'], bridge: ['drop', 'tick'], outro: ['roll', 'roll2', 'stutter'], intro: ['drop', 'tick'] };
+  const lastHook = plan.map(([t]) => t).lastIndexOf('hook');
   const into = plan.map(([t, b, L], idx) => {
     const nb = b + L - 1, next = plan[idx + 1]?.[0];
     if (!next) return [nb, ['roll', 'roll2', 'stutter']];   // the ending
     if (t === 'pre') return [nb, ['drop']];
-    if (next === 'hook' && L >= 4 && R.random() < 0.35) { s.rest.add(nb); return [nb, ['fill', 'stutter']]; }
+    // (An arranged song always drops out for the bar before its last hook.)
+    if (next === 'hook' && L >= 4 && (R.random() < 0.35 || (arrange && idx + 1 === lastHook))) { s.rest.add(nb); return [nb, ['fill', 'stutter']]; }
     return [nb, INTO[next]];
   });
 
@@ -766,7 +769,8 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
       const lifted = hooks > 1 && hookNo === hooks && P.lift?.length > 0;   // (the last hook, a key higher)
       const own = lifted ? P.liftBass : P.hookBass;
       riff(b, L, lifted ? P.lift : hookNo > 1 && P.hook2?.length ? P.hook2 : hookSet); bass(b, L, 0, own?.length ? own : null);
-      s.drums(hookStyle, b, L, lifted && P.liftSub != null ? { ...kit, sub: P.liftSub } : kit, dress && (hookNo === hooks ? dress.last : dress.hook)); s.loop(hookHat, b, L);
+      s.drums(hookStyle, b, L, lifted && P.liftSub != null ? { ...kit, sub: P.liftSub } : kit, dress && (hookNo === hooks ? dress.last : dress.hook)); if (arrange && L === 8 && hookHat2 != null) s.loop(hookHat, b, 4), s.loop(hookHat2, b + 4, 4);   // (an arranged song's hook: its hats change halfway)
+      else s.loop(hookHat, b, L);
       if (layerFits && !lifted && (hookLayer || hookNo === hooks)) riff(b, L, [layer]);
     } else if (t === 'break') {   // strip back: no drums, no bass
       s.phrases(b, L, phrases);

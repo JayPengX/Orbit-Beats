@@ -936,6 +936,7 @@ def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arran
     # verse's, and other than the shaker when there's a choice
     break_hat=min(pool['hat'],key=lambda i:len(pc[i]),default=None)
     verse_hat=pick(pool['hat']); hook_hat=pick(pool['hat'],[verse_hat,break_hat] if len(pool['hat'])>2 else [verse_hat])
+    hook_hat2=next((i for i in pool['hat'] if i not in (verse_hat,hook_hat,break_hat)),next((i for i in pool['hat'] if i not in (verse_hat,hook_hat)),None))
     # the kit: the first kick in the recording, a second as the heavier one, an 808, and the rest
     kicks=pool['kick']
     kick=kicks[0] if kicks else pick(pool['sub']); heavy=kicks[1] if len(kicks)>1 else kick
@@ -950,12 +951,13 @@ def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arran
     # how each section hands over, decided first: the bar before a hook may be
     # a stop bar, where everything lays out but the fill; a pre-hook's riser
     # runs straight into its hook
+    last_hook=max([i for i,(t,_,_) in enumerate(plan) if t=='hook'],default=-1)
     into=[]
     for idx,(t,b,L) in enumerate(plan):
         nb=b+L-1; nxt=plan[idx+1][0] if idx<len(plan)-1 else None
         if nxt is None: into.append((nb,['roll','roll2','stutter']))   # the ending
         elif t=='pre': into.append((nb,['drop']))
-        elif nxt=='hook' and L>=4 and R.random()<0.35: s.rest.add(nb); into.append((nb,['fill','stutter']))
+        elif nxt=='hook' and L>=4 and (R.random()<0.35 or (arrange and idx+1==last_hook)): s.rest.add(nb); into.append((nb,['fill','stutter']))   # (an arranged song always drops out for the bar before its last hook)
         else: into.append((nb,INTO[nxt]))
     def walk(b,n,nxt,start=0,skip=lambda k,span:False):   # loops one after another, each for the whole bars it takes
         k=start; j=0
@@ -990,7 +992,9 @@ def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arran
             lifted=hooks>1 and hook_no==hooks and bool(P.get('lift'))   # (the last hook, a key higher)
             own=P.get('liftBass') if lifted else P.get('hookBass')
             riff(b,L,P['lift'] if lifted else P['hook2'] if hook_no>1 and P.get('hook2') else hook_set); bass(b,L,0,own or None)
-            s.drums(hook_style,b,L,{**kit,'sub':P['liftSub']} if lifted and P.get('liftSub') is not None else kit,dress and (dress['last'] if hook_no==hooks else dress['hook'])); s.loop(hook_hat,b,L)
+            s.drums(hook_style,b,L,{**kit,'sub':P['liftSub']} if lifted and P.get('liftSub') is not None else kit,dress and (dress['last'] if hook_no==hooks else dress['hook']))
+            if arrange and L==8 and hook_hat2 is not None: s.loop(hook_hat,b,4); s.loop(hook_hat2,b+4,4)   # (an arranged song's hook: its hats change halfway)
+            else: s.loop(hook_hat,b,L)
             if layer_fits and not lifted and (hook_layer or hook_no==hooks): riff(b,L,[layer])
         elif t=='break':   # strip back: no drums, no bass
             s.phrases(b,L,phrases)
