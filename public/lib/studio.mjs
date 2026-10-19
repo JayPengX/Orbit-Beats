@@ -117,6 +117,14 @@ const write = (k, v) => {
 };
 // A drum's step tapped: off, on, accented, off (a soft one, off).
 export const nextHit = v => (v === 0 || !v ? 1 : v === 1 ? 2 : 0);
+// 簡單: a tap is on or off (the accent is a long press's); 進階 cycles.
+export const tapHit = (v, easy) => (easy ? (v ? 0 : 1) : nextHit(v));
+// The part not being edited, to play under the one that is: its shown pattern, or none when empty.
+export const otherPart = st => {
+  const b = st.mode === 'drums' ? st.notes : st.drums;
+  const c = b.pats[b.at];
+  return c && !clipEmpty(c) ? c : null;
+};
 // A hit's level (力度) as the grid and the long press name it.
 export const LEVEL_NAMES = { 3: ['輕', 'Soft'], 1: ['中', 'Normal'], 2: ['重', 'Accent'] };
 
@@ -157,6 +165,38 @@ export function mountStudio(panel, api) {
     { value: st.mode, label: W('樂器', 'Instrument'), onChange: id => ((st.mode = id), (undo.length = 0), (page = 0), keep(), fresh(), showChip(false)) }
   );
   const setSeg = h('div', { class: 'seg' });
+  // 簡單: the two parts as tabs, each with a thumbnail of its pattern (both play together).
+  const tabEls = {};
+  const partTabs = h(
+    'div',
+    { class: 'st-parts', role: 'tablist', 'data-ctl': 'studio-parts' },
+    [
+      ['drums', W('鼓', 'Drums'), 'orange'],
+      ['notes', W('旋律', 'Melody'), 'pink']
+    ].map(([id, label, c]) => {
+      const dots = Array.from({ length: STEPS }, () => h('i'));
+      const b = h('button', { class: 'st-part', type: 'button', role: 'tab', style: `--c: var(--q-${c})`, onclick: () => pickPart(id) }, [h('span', { class: 'pn' }, [h('i', { class: 'pd' }), h('b', { text: label })]), h('span', { class: 'th' }, dots)]);
+      tabEls[id] = { b, dots };
+      return b;
+    })
+  );
+  function pickPart(id) {
+    if (st.mode === id) return;
+    st.mode = id;
+    modeSeg.set(id);
+    undo.length = 0;
+    page = 0;
+    keep();
+    fresh();
+    showChip(false);
+  }
+  function paintParts() {
+    for (const [id, { b, dots }] of Object.entries(tabEls)) {
+      b.setAttribute('aria-selected', String(st.mode === id));
+      const c = st[id].pats[st[id].at];
+      dots.forEach((d, k) => d.classList.toggle('on', id === 'drums' ? Object.values(c.steps).some(l => l?.[k]) : c.notes.some(x => x.step === k)));
+    }
+  }
   const barsSeg = h('div', { class: 'seg' });
   const tonicSel = h('select', { class: 'num short', 'aria-label': W('調', 'Key') }, NOTE_NAMES.map((n, i) => h('option', { value: String(i), text: n })));
   const modeSel = h('div', { class: 'seg' });
@@ -177,7 +217,8 @@ export function mountStudio(panel, api) {
   const undoBtn = stIcon('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>', W('復原', 'Undo'));
   const clearBtn = stIcon('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>', W('清除格子', 'Clear the grid'));
   const saveBtn = stIcon('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>', W('收藏到收藏架', 'Keep on the shelf'));
-  const addBtn = h('button', { class: 'st-add', type: 'button', text: W('存成片段', 'Save as piece') });
+  const addBtn = h('button', { class: 'st-add', type: 'button', text: W('做成歌', 'Make songs') });
+  const moreAct = stIcon('<circle cx="5.5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.5" cy="12" r="1.9"/>', W('更多', 'More'));
   const copyBtn = h('button', { class: 'mini', type: 'button', 'data-ctl': 'studio-copy', html: `${icon('copy')}<span>${W('複製', 'Copy')}</span>`, 'aria-label': W('第一小節複製到每一小節', 'Bar 1 over every bar') });
   const chordBtn = h('button', { class: 'mini', type: 'button', 'data-ctl': 'studio-chord', text: W('和弦', 'Chords'), 'aria-pressed': String(st.chord) });
   const midiBtn = h('button', { class: 'mini', type: 'button', 'data-ctl': 'studio-midi', text: 'MIDI' });
@@ -202,12 +243,13 @@ export function mountStudio(panel, api) {
 
   panel.replaceChildren(
     h('section', { class: 'card studio' }, [
-      h('div', { class: 'head' }, [h('h2', { text: W('樂器', 'Studio') }), modeSeg, info('step')]),
+      h('div', { class: 'head', 'data-ctl': 'studio-head' }, [h('h2', { text: W('樂器', 'Studio') }), modeSeg, info('step')]),
+      partTabs,
       h('div', { class: 'st-top' }, [playBtn, dice, chips]),
       pager,
       grid,
       moreBtn,
-      h('div', { class: 'st-actions' }, [undoBtn, clearBtn, saveBtn, addBtn]),
+      h('div', { class: 'st-actions' }, [undoBtn, moreAct, addBtn]),
       h('div', { class: 'st-pro' }, [setRow, keyRow, lenRow, tempoRow, swingRow, patRow, chainRow, h('div', { class: 'studio-tools', 'data-ctl': 'studio-tools' }, [copyBtn, chordBtn, midiBtn])])
     ]),
     shelfCard
@@ -289,7 +331,7 @@ export function mountStudio(panel, api) {
     const head = h('div', { class: 'st-head', 'aria-hidden': 'true' }, Array.from({ length: STEPS }, (_, c) => h('span', { 'data-s': String(at + c), class: c % 4 ? '' : 'beat', text: c % 4 ? '' : String(c / 4 + 1) })));
     const lanesEls = shown.map((r, i) => {
       const ri = all.indexOf(r);
-      const label = drums ? name(DRUM_NAMES, r) : noteName(r);
+      const label = drums ? (easy() && r === 'sub' ? W('重低音', 'Sub') : name(DRUM_NAMES, r)) : noteName(r);
       const root = !drums && r % 12 === k.tonic;
       return h('div', { class: `st-lane${root ? ' root' : ''}`, role: 'row', style: `--c: var(--q-${drums ? LANE_COLOR[r] : NOTE_COLOR[i % NOTE_COLOR.length]})` }, [
         h('div', { class: 'st-name' }, [h('i'), h('span', { text: label })]),
@@ -300,6 +342,7 @@ export function mountStudio(panel, api) {
         )
       ]);
     });
+    grid.classList.toggle('dots', easy() && !drums);
     grid.replaceChildren(head, ...lanesEls);
     const hidden = drums ? lanes().length - shown.length : 0;
     moreBtn.hidden = !drums || (!more && !hidden);
@@ -334,10 +377,9 @@ export function mountStudio(panel, api) {
       b.setAttribute('aria-pressed', String(on));
     }
     const none = bank().chain.every(i => clipEmpty(bank().pats[i]));
-    addBtn.disabled = none;
-    clearBtn.disabled = clipEmpty(c);
-    saveBtn.disabled = clipEmpty(c);
+    addBtn.disabled = [st.drums, st.notes].every(b => b.chain.every(i => clipEmpty(b.pats[i])));
     midiBtn.disabled = none;
+    paintParts();
     undoBtn.disabled = !undo.length;
   }
   function draw() {
@@ -426,8 +468,8 @@ export function mountStudio(panel, api) {
   });
   // A hit's level, on the grid: 0 none, else 1 normal, 2 accent, 3 soft.
   const levelAt = (r, s) => (st.mode === 'drums' ? clip().steps[r][s] || 0 : (n => (n ? n.lv || 1 : 0))(clip().notes.find(x => x.midi === r && x.step === s)));
-  function setLevel(r, s, lv) {
-    mark();
+  function setLevel(r, s, lv, noMark = false) {
+    if (!noMark) mark();
     const c = clip();
     if (st.mode === 'drums') c.steps[r][s] = lv;
     else {
@@ -442,15 +484,20 @@ export function mountStudio(panel, api) {
     }
     keep();
     paintCells();
-    if (lv) audition(r, lv, s);
+    if (lv) audition(r, lv, noMark);
   }
+  const easy = () => Boolean(api.simple?.());
+  const flip = (r, s) => {
+    const was = levelAt(r, s);
+    return st.mode === 'drums' ? tapHit(was, easy()) : was ? 0 : 1;
+  };
+  // (A tap is handled on the lift, below; a click with no pointer is the keyboard's.)
   grid.addEventListener('click', e => {
     const b = e.target.closest('.cell');
-    if (!b || held) return void (held = false);
+    if (!b || e.detail) return;
     const r = rows()[+b.dataset.r];
     const s = +b.dataset.s;
-    const was = levelAt(r, s);
-    setLevel(r, s, st.mode === 'drums' ? nextHit(was) : was ? 0 : 1);
+    setLevel(r, s, flip(r, s));
   });
   // A long press (or a right click): the hit's level, from a menu.
   let press = 0;
@@ -465,16 +512,42 @@ export function mountStudio(panel, api) {
       ...(was ? ['divider', { label: W('拿掉', 'Remove'), icon: 'close', danger: true, onClick: () => setLevel(r, s, 0) }] : [])
     ]);
   }
+  // A press: a tap flips the cell on lift; slid along its lane, it paints (every cell passed takes the first's new state,
+  // one undo step for the stroke); held, the level menu.
+  let stroke = null;
+  const cellAt = (x, y) => document.elementFromPoint(x, y)?.closest?.('.cell');
   grid.addEventListener('pointerdown', e => {
     const b = e.target.closest('.cell');
-    if (!b || e.button) return;
+    if (!b || e.button || stroke) return;
     held = false;
     from = [e.clientX, e.clientY];
+    const r = rows()[+b.dataset.r];
+    stroke = { id: e.pointerId, b, r, lane: b.dataset.r, to: flip(r, +b.dataset.s), painting: false, gone: false };
     clearTimeout(press);
-    press = setTimeout(() => ((held = true), levelMenu(b)), 450);
+    press = setTimeout(() => ((held = true), (stroke = null), levelMenu(b)), 450);
   });
-  grid.addEventListener('pointermove', e => from && Math.hypot(e.clientX - from[0], e.clientY - from[1]) > 10 && clearTimeout(press));
-  for (const t of ['pointerup', 'pointercancel', 'pointerleave']) grid.addEventListener(t, () => clearTimeout(press));
+  grid.addEventListener('pointermove', e => {
+    if (!stroke || e.pointerId !== stroke.id || !from) return;
+    if (Math.hypot(e.clientX - from[0], e.clientY - from[1]) <= 10) return;
+    clearTimeout(press);
+    const c = cellAt(e.clientX, e.clientY);
+    if (!stroke.painting) {
+      // (Off its lane: a scroll, not a stroke.)
+      if (!c || c.dataset.r !== stroke.lane) return void (stroke.gone = true);
+      stroke.painting = true;
+      mark();
+      setLevel(stroke.r, +stroke.b.dataset.s, stroke.to, true);
+    }
+    if (c && c.dataset.r === stroke.lane && levelAt(stroke.r, +c.dataset.s) !== stroke.to) setLevel(stroke.r, +c.dataset.s, stroke.to, true);
+  });
+  grid.addEventListener('pointerup', e => {
+    clearTimeout(press);
+    const s0 = stroke;
+    if (!s0 || e.pointerId !== s0.id) return;
+    stroke = null;
+    if (!s0.painting && !s0.gone && !held) setLevel(s0.r, +s0.b.dataset.s, s0.to);
+  });
+  for (const t of ['pointercancel', 'pointerleave']) grid.addEventListener(t, () => (clearTimeout(press), (stroke = null)));
   grid.addEventListener('contextmenu', e => {
     const b = e.target.closest('.cell');
     if (!b) return;
@@ -588,7 +661,18 @@ export function mountStudio(panel, api) {
     toast(W(`已加進 ${n} 個片段（在「做歌」）`, `Added ${n} piece${n === 1 ? '' : 's'} (in Make)`));
     drawControls();
   }
-  addBtn.onclick = () => addClip(chainOf(bank()));
+  // 做成歌: every part with something in it goes in as a piece, then 做歌 makes the batch.
+  addBtn.onclick = () => {
+    stop();
+    for (const b of [st.drums, st.notes]) if (!b.chain.every(i => clipEmpty(b.pats[i]))) api.add(JSON.parse(JSON.stringify(chainOf(b))));
+    api.goMake({ run: true });
+  };
+  moreAct.onclick = () =>
+    menu(moreAct, [
+      { label: W('清除', 'Clear'), icon: 'trash', danger: true, onClick: () => !clipEmpty(clip()) && clearBtn.onclick() },
+      { label: W('收藏到收藏架', 'Keep on the shelf'), icon: 'copy', onClick: () => !clipEmpty(clip()) && saveBtn.onclick() },
+      { label: W('只存成片段', 'Save as clip only'), icon: 'plus', onClick: () => addClip(chainOf(bank())) }
+    ]);
 
   // ---- Patterns and the chain ----
   function drawPatterns() {
@@ -668,8 +752,8 @@ export function mountStudio(panel, api) {
     src.start(when);
   }
   // A tap heard at once.
-  function audition(r, lv = 1) {
-    if (playing) return;
+  function audition(r, lv = 1, force = false) {
+    if (playing && !force) return;
     const c = clip();
     const one = st.mode === 'drums' ? { ...emptyDrums(1), pitch: c.pitch, steps: { [r]: [lv] } } : { ...c, notes: [{ step: 0, midi: r, len: NOTE_LEN[st.inst] || 2, chord: st.chord, lv }] };
     for (const x of stepHits(one, 0)) fire(x.inst, x.midi, x.len, 0, x.gain);
@@ -720,6 +804,13 @@ export function mountStudio(panel, api) {
       const s = nextStep % n;
       const at = nextTime + swingOf(cl, s) * per;
       for (const x of stepHits(cl, s)) fire(x.inst, x.midi, x.len, at, x.gain);
+      // (The other part plays under it, a little softer, so the beat and the tune are always heard together.)
+      const oc = otherPart(st);
+      if (oc) {
+        const o = s % (STEPS * oc.bars);
+        const at2 = nextTime + swingOf(oc, o) * per;
+        for (const x of stepHits(oc, o)) fire(x.inst, x.midi, x.len, at2, x.gain * 0.6);
+      }
       queue.push([nextTime, s]);
       nextTime += per;
       nextStep += 1;
@@ -756,8 +847,17 @@ export function mountStudio(panel, api) {
 
   // (簡單 starts from 自動編: an empty grid, drums or melody, gets one written, waiting for ▶.)
   function fresh() {
-    if (api.simple?.() && bank().chain.every(i => clipEmpty(bank().pats[i]))) autoWrite(false);
-    else draw();
+    if (api.simple?.()) {
+      // (Both parts written, so the first ▶ is a beat with a tune.)
+      for (const [mode, b] of [['drums', st.drums], ['notes', st.notes]]) {
+        if (!b.chain.every(i => clipEmpty(b.pats[i]))) continue;
+        seed += 1;
+        b.pats[b.at] = mode === 'drums' ? drumPattern(st.groove, seed, st.bars) : melody(keyNow(), st.inst, seed, st.bars);
+      }
+      sameSound();
+      keep();
+    }
+    draw();
   }
   draw();
   return {

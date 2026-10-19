@@ -440,6 +440,122 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .stack > .q-seg { margin-top: 8px; }
 .jam-rec.on { background: var(--q-red); color: #fff; }
 
+
+/* 創作: the path. */
+.hub-hero { position: relative; height: 160px; border-radius: 22px; overflow: hidden; background: var(--fill); margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 10px 26px rgba(0,0,0,.07); }
+.hub-hero .hub-cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hub-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,.5), transparent 60%); pointer-events: none; }
+.hub-open { position: absolute; inset: 0; width: 100%; border: 0; background: none; padding: 0; z-index: 1; }
+.hub-hero > b { position: absolute; left: 16px; bottom: 14px; z-index: 2; font-size: 22px; font-weight: 800; color: #fff; pointer-events: none; }
+.hub-play { position: absolute; right: 14px; bottom: 12px; z-index: 2; width: 52px; height: 52px; border: 0; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; box-shadow: 0 6px 16px rgba(0,0,0,.3); touch-action: manipulation; }
+.hub-play svg { width: 24px; height: 24px; }
+.hub-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.hub-half { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; min-height: 108px; padding: 16px; border: 0; border-radius: 22px; background: var(--card); color: var(--text); text-align: left; box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 10px 26px rgba(0,0,0,.07); touch-action: manipulation; }
+.hub-half .hub-ico { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.hub-half .hub-ico svg { width: 24px; height: 24px; }
+.hub-half b { font-size: 20px; font-weight: 800; }
+.hub-badge { position: absolute; top: 14px; right: 14px; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 12px; background: var(--accent); color: var(--accent-ink); font: 700 13px/24px var(--q-font, inherit); font-style: normal; text-align: center; font-variant-numeric: tabular-nums; }
+.hub-badge[hidden] { display: none; }
+
+/* 即興 簡單: the set card, the band's board, the hits. */
+.jam-set { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
+.jam-set.mine .jam-cover, .jam-set.mine .jam-name, .jam-set.mine .jam-dice, .jam-set.mine .jam-undo { display: none; }
+.jam-set.mine .jam-id { flex: 1; }
+.jam-cover { flex: none; width: 56px; height: 56px; padding: 0; border: 0; border-radius: 14px; overflow: hidden; background: var(--fill); touch-action: manipulation; }
+.jam-cover img { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.jam-id { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.jam-name { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; height: 28px; padding: 0; border: 0; background: none; color: var(--text); font-size: 18px; font-weight: 700; touch-action: manipulation; }
+.jam-name .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jam-name .chev svg { width: 16px; height: 16px; color: var(--text-3); }
+.jam-name > *, .jam-cover > *, .jam-undo > *, .jam-dice > * { pointer-events: none; }
+.jam-set .jam-beat { display: flex; gap: 6px; margin: 0; }
+.jam-set .jam-beat i { width: 14px; height: 6px; border-radius: 3px; background: var(--fill); transition: background-color .08s; }
+.jam-set .jam-beat i.on { background: var(--accent); }
+.jam-dice { background: var(--fill); color: var(--text); box-shadow: none; }
+.jam-dice svg, .jam-undo svg { width: 22px; height: 22px; }
+.jam-undo { flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--fill); color: var(--text); display: grid; place-items: center; touch-action: manipulation; }
+.jam-undo.ghost { visibility: hidden; }
+.jam-set .jam-src { flex: none; width: 84px; }
+.jam-src svg { width: 18px; height: 18px; pointer-events: none; }
+.jam-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.jam-tiles[hidden], .jam-hits[hidden], .pads[hidden] { display: none; }
+.col-head { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 13px; font-weight: 700; color: var(--text-2); white-space: nowrap; }
+.col-head i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
+[data-fam="drum"] { --c: var(--q-orange); --ink: #3d1a00; }
+[data-fam="bass"] { --c: var(--q-blue); --ink: #fff; }
+[data-fam="chords"] { --c: var(--q-indigo); --ink: #fff; }
+[data-fam="melody"] { --c: var(--q-pink); --ink: #fff; }
+.jam-tile { --p: 0; position: relative; height: 64px; padding: 4px; border: 0; border-radius: 16px; background: color-mix(in srgb, var(--c) 14%, var(--fill)); color: color-mix(in srgb, var(--c) 62%, var(--text)); font-size: clamp(11px, 3.5vw, 15px); font-weight: 700; display: grid; place-items: center; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s, color .15s; }
+.jam-tile b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.jam-tile .glow { position: absolute; inset: 0; border-radius: inherit; opacity: 0; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 40%, transparent), 0 0 18px color-mix(in srgb, var(--c) 70%, transparent); pointer-events: none; }
+.jam-tile .two { position: absolute; top: 4px; right: 7px; font-size: 10px; font-style: normal; opacity: .8; pointer-events: none; }
+.jam-tile.on { background: var(--c); color: var(--ink); }
+.jam-tile.idle { background: color-mix(in srgb, var(--c) 40%, var(--fill)); color: color-mix(in srgb, var(--c) 40%, var(--text)); }
+.jam-tile.wait::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 3px; background: conic-gradient(var(--c) calc(var(--p) * 1%), transparent 0); -webkit-mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); pointer-events: none; }
+.jam-tile.muted { opacity: .4; }
+.jam-tile .lvl { display: none; }
+.jam-hits { display: flex; justify-content: space-between; gap: 8px; margin-top: 18px; }
+.jam-hit { position: relative; flex: none; width: clamp(56px, 17vw, 66px); aspect-ratio: 1; border: 0; border-radius: 50%; background: color-mix(in srgb, var(--c) 18%, var(--fill)); color: color-mix(in srgb, var(--c) 55%, var(--text)); font-size: clamp(11px, 3.3vw, 14px); font-weight: 700; display: grid; place-items: center; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; transition: background-color .08s, color .08s; }
+.jam-hit b { max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.jam-hit.hit { background: var(--c); color: var(--ink); }
+.jam-hit.muted { opacity: .4; }
+.jam-hit .lvl { display: none; }
+.jam-pad.hit { transform: none; }
+.jam-bar { margin-top: 18px; }
+.jam-keep { background: var(--accent); color: var(--accent-ink); gap: 8px; }
+.jam-keep[hidden] { display: none; }
+.jam-keep .t { font-variant-numeric: tabular-nums; opacity: .85; font-weight: 600; min-width: 2.6em; text-align: right; }
+.jam-keep:disabled { background: var(--fill); color: var(--text-3); }
+.jam-keep.done, .jam-keep.done:disabled { background: color-mix(in srgb, var(--ok) 22%, var(--fill)); color: var(--ok); }
+.jam-keep .lab { display: inline-flex; align-items: center; gap: 6px; }
+body.lv-simple .jam-play { flex: 1; }
+body.lv-simple .jam-play.on { flex: none; width: 52px; height: 52px; padding: 0; border-radius: 50%; background: var(--fill); color: var(--text); }
+body.lv-simple .jam-keep { height: 52px; }
+body.lv-simple .jam-play:not(.on) { height: 52px; }
+.jam-styles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 10px; padding: 4px 0 8px; }
+.jam-style { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: var(--text); font-size: 13px; font-weight: 600; touch-action: manipulation; }
+.jam-style img { width: 100%; max-width: 96px; aspect-ratio: 1; border-radius: 16px; object-fit: cover; box-shadow: 0 0 0 0 var(--accent); pointer-events: none; }
+.jam-style[aria-pressed="true"] img { box-shadow: 0 0 0 3px var(--accent); }
+.jam-style span { pointer-events: none; }
+
+/* 樂器 簡單: the two parts as tabs. */
+.st-parts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.st-part { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 0; border-radius: 14px; background: transparent; color: var(--text-2); text-align: left; touch-action: manipulation; box-shadow: inset 0 0 0 1px var(--line); }
+.st-part[aria-selected="true"] { background: var(--q-elevated); color: var(--text); box-shadow: 0 3px 8px rgba(0,0,0,.12), 0 3px 1px rgba(0,0,0,.04); }
+.st-part .pn { display: flex; align-items: center; gap: 6px; font-size: 15px; }
+.st-part .pd { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.st-part .th { display: grid; grid-template-columns: repeat(16, 1fr); gap: 2px; }
+.st-part .th i { height: 6px; border-radius: 2px; background: var(--fill); }
+.st-part .th i.on { background: var(--c); }
+.st-part > * { pointer-events: none; }
+.st-grid.dots .st-name span { display: none; }
+.st-cells { touch-action: pan-y; }
+
+/* 做歌 簡單: the ingredients, a row. */
+body.lv-pro #pieces:not(:has(.piece)) { display: none; }
+body.lv-simple #panel-make > .pieces-card { order: -1; }
+body.lv-simple .ways.src .way:not(.on) { display: none; }
+body.lv-simple .ways.src { margin-top: 0; }
+body.lv-simple #status:not(.bad) { display: none; }
+body.lv-simple #pieces { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 8px; margin: 0 -16px; padding: 4px 16px; scrollbar-width: none; }
+body.lv-simple #pieces:empty { display: flex; }
+body.lv-simple #pieces::-webkit-scrollbar { display: none; }
+body.lv-simple #pieces .piece, .ing-add { position: relative; flex: none; width: 76px; height: 76px; border-radius: 16px; }
+.ing-add, .ing-band { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0; border: 0; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 600; touch-action: manipulation; position: relative; flex: none; width: 76px; height: 76px; border-radius: 16px; }
+.ing-add svg { width: 26px; height: 26px; }
+.ing-band { background: var(--fill); color: var(--text-3); opacity: .8; }
+.ing-band svg { width: 22px; height: 22px; }
+body.lv-simple #pieces .piece > button:first-child { width: 100%; height: 100%; padding: 6px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+.piece .ing { display: flex; flex-direction: column; align-items: center; gap: 4px; max-width: 100%; pointer-events: none; }
+.piece .ing svg { width: 22px; height: 22px; color: var(--accent); }
+.piece .ing b { max-width: 64px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+body.lv-simple #pieces .piece .more { width: 28px; height: 28px; }
+.add-rows { display: flex; flex-direction: column; gap: 8px; padding: 4px 0 8px; }
+.add-row { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 56px; padding: 0 16px; border: 0; border-radius: 16px; background: var(--fill); color: var(--text); font-size: 17px; font-weight: 600; text-align: left; touch-action: manipulation; }
+.add-row svg { width: 24px; height: 24px; color: var(--accent); flex: none; }
+.add-row.plain { background: none; padding: 0 4px; color: var(--text-2); }
+.add-row.plain svg { color: var(--text-3); }
+
 /* 歌單: search and order. */
 .lib-tools { display: flex; gap: 8px; align-items: center; margin: 0 0 12px; }
 .lib-tools input { flex: 1; min-width: 0; height: 36px; border: 0; border-radius: 10px; background: var(--fill); padding: 0 12px; font: inherit; color: inherit; }
@@ -673,13 +789,13 @@ footer, .q-brand { display: none; }
 
   <div id="panel-make" class="tab-panel" role="tabpanel" hidden>
     <section class="card pieces-card" aria-labelledby="h-rec">
-      <div class="head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10"/></svg><h2 id="h-rec" data-en="Pieces">片段</h2></div>
-      <label class="drop" id="drop">
+      <div class="head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10"/></svg><h2 id="h-rec"><span data-ctl="make-card" data-en="Pieces">片段</span><span data-ctl="make-ingredients" data-en="Ingredients">材料</span></h2></div>
+      <label class="drop" id="drop" data-ctl="make-card">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
         <div><b data-en="Choose recordings or samples">選錄音或取樣檔</b><span data-en="One file or a whole pack · split by silence">一個檔或一整包 · 依安靜切開</span></div>
         <input type="file" id="file" accept="audio/*,.wav" multiple>
       </label>
-      <div class="ways">
+      <div class="ways src">
         <button class="way" id="record" type="button"><span class="rec-dot" aria-hidden="true"></span><span id="record-text" data-en="Record">用麥克風錄</span></button>
         <button class="way" id="add" type="button" hidden data-en="Add files">再加檔案</button>
         <button class="way" id="demo" type="button" data-en="Demo">試試示範</button>
@@ -687,7 +803,7 @@ footer, .q-brand { display: none; }
       </div>
       <input type="file" id="more" accept="audio/*,.wav" multiple hidden>
       <div class="status" id="status" hidden><span class="dot"></span><span id="status-text"></span></div>
-      <div class="ways" id="kit-tools">
+      <div class="ways" id="kit-tools" data-ctl="make-card">
         <button class="way" id="my-kits" type="button" data-en="My kits">我的套組</button>
         <button class="way" id="save-kit" type="button" hidden data-en="Save as kit">存成套組</button>
         <button class="way danger" id="clear-all" type="button" hidden data-en="Clear all">全部清除</button>
@@ -719,7 +835,7 @@ footer, .q-brand { display: none; }
     </section>
 
     <section class="card" aria-labelledby="h-set">
-      <div class="head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg><h2 id="h-set" data-en="Make songs">做歌</h2></div>
+      <div class="head" data-ctl="make-card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg><h2 id="h-set" data-en="Make songs">做歌</h2></div>
       <div class="stack" data-ctl="make-moods">
         <div class="label"><span data-en="Mood">情境</span><small id="mood-hint" data-en="Picks the grooves for you">幫你挑節奏</small></div>
         <div class="chips five" id="moods"></div>
@@ -752,7 +868,7 @@ footer, .q-brand { display: none; }
     <section class="card" id="out" aria-labelledby="h-out" hidden>
       <div class="head"><h2 id="h-out" data-en="Songs">新歌</h2><button class="secondary" id="zip" type="button" disabled data-en="Download all">全部下載</button></div>
       <p class="meta" id="out-meta" data-ctl="make-meta"></p>
-      <div class="legend-line"><div class="legend" id="legend"></div><button class="info-btn" type="button" data-term="section" aria-label="說明：段落" data-en-label="What are sections?">ⓘ</button></div>
+      <div class="legend-line" data-ctl="make-legend"><div class="legend" id="legend"></div><button class="info-btn" type="button" data-term="section" aria-label="說明：段落" data-en-label="What are sections?">ⓘ</button></div>
       <ol class="songs" id="songs"></ol>
       <div class="busy-line" id="busy"></div>
     </section>

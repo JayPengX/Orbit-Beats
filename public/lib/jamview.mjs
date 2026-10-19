@@ -10,9 +10,11 @@
 // too, when it's on) becomes a song (api.take, mixed like any other), in
 // 做歌. A long press on a pad: its level, mute and choke (kept per kit on
 // this phone, by the kit's fingerprint; the built-in set's as one).
-import { h, segmented, sheet, toggle } from './ui.mjs';
+import { h, segmented, sheet, toggle, toast } from './ui.mjs';
 import { STYLES, NOTE_NAMES, drumKit, grooveHits, loopBeats } from '../engine.mjs';
-import { Jam, GRIDS, PAD, padsOf, padOf, gainOf, chokeKey, withPads } from './jam.mjs';
+import { Jam, GRIDS, PAD, padsOf, padOf, gainOf, chokeKey, withPads, trimTake, nextBar } from './jam.mjs';
+import { coverSvg, coverUrl } from './cover.mjs';
+import { clock } from './length.mjs';
 import { SET_STYLES, BAND_ROLES, FAMILY, bandPads, specOf, setOf, diceSet } from './jamset.mjs';
 import { ROLE_NAMES, STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
@@ -26,6 +28,20 @@ const HOLD = 700; // ms a pad is held still to open its level (a drummer's held 
 const PADS = 'orbit-beats.pads.v1'; // { <print>: { at, pads: { <piece>: { level, mute, choke } } } }
 const SET = 'orbit-beats.jam-set'; // the built-in set last played: { seed, style }
 const BUILT_IN = 'builtin'; // the built-in set's pads, kept as one kit's
+export const setCover = (set, bpm = 110) => coverUrl(coverSvg({ seed: set.seed, style: set.style, bpm, text: false }));
+// 簡單's board: four columns of the band, two choices each (the drums by what the hats do).
+const COLS = [
+  ['drum', ['鼓', 'Drums'], null],
+  ['bass', ['貝斯', 'Bass'], [6, 7]],
+  ['chords', ['和弦', 'Chords'], [0, 1]],
+  ['melody', ['旋律', 'Melody'], [2, 3]]
+];
+const DRUM_TILES = [
+  ['basic', ['基本', 'Basic']],
+  ['busy', ['熱鬧', 'Busy']]
+];
+const HIT_PADS = [11, 14, 15, 17];
+const DRUM_LOOPS = [8, 9, 10];
 // Every kit's pads on this phone. (A read that fails isn't "none": nothing is saved over it.)
 function readPads() {
   try {
@@ -35,7 +51,7 @@ function readPads() {
     return null;
   }
 }
-function readSet() {
+export function readSet() {
   try {
     return setOf(JSON.parse(localStorage.getItem(SET) || 'null') || { seed: 7, style: SET_STYLES[0] });
   } catch {
@@ -44,7 +60,7 @@ function readSet() {
 }
 const calm = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// api: { kit(), audio(), quiet(), styles(), band(set) -> the set's { pieces, roles, sr }, take(hits, beats, set|null) }
+// api: { kit(), audio(), quiet(), styles(), simple(), band(set) -> the set's { pieces, roles, sr }, take(hits, beats, set|null, { keep }) }
 export function mountJam(panel, api) {
   const jam = new Jam();
   let running = false;
@@ -71,6 +87,14 @@ export function mountJam(panel, api) {
   let band = null; // its sound once made: { id, pieces, roles, sr }
   let making = ''; // the set being made
   let waiting = false; // ▶ pressed before the set's sound was ready
+  let drumMode = 'basic'; // 簡單's drums column: 'basic', 'busy' or '' (off)
+  let want = new Set(); // the tiles that were on at ■, back on at ▶
+  let prevSet = null; // the set before the last change, for ↶
+  let undoTimer = 0;
+  let keptUntil = 0; // ✓ 已存 shows till then
+  const tileEls = new Map(); // 'basic' / 'busy' -> the drums column's tiles
+  const simple = () => api.simple?.() !== false;
+  const easyBand = () => simple() && usingBand();
   jam.pad = i => sets[i] || PAD;
 
   const hasClips = () => api.kit().pieces.length > 0;
@@ -81,11 +105,17 @@ export function mountJam(panel, api) {
 
   // ---- Drawing ----
   const playBtn = h('button', { class: 'q-btn tinted jam-play', type: 'button' });
-  const recBtn = h('button', { class: 'q-btn tinted jam-rec', type: 'button' });
-  const stopAllBtn = h('button', { class: 'q-btn plain', type: 'button', text: W('全停', 'All off') });
-  const beatDots = h('div', { class: 'jam-beat', 'aria-hidden': 'true' }, [0, 1, 2, 3].map(() => h('span', {}, [0, 1, 2, 3].map(() => h('i')))));
+  const keepBtn = h('button', { class: 'q-btn jam-keep', type: 'button', 'data-ctl': 'jam-keep', hidden: true }, [h('span', { class: 'lab' }), h('span', { class: 't' })]);
+  const keepLab = keepBtn.querySelector('.lab');
+  const keepTime = keepBtn.querySelector('.t');
+  const recBtn = h('button', { class: 'q-btn tinted jam-rec', type: 'button', 'data-ctl': 'jam-rec' });
+  const stopAllBtn = h('button', { class: 'q-btn plain', type: 'button', 'data-ctl': 'jam-rec', text: W('全停', 'All off') });
+  const beatDots = h('div', { class: 'jam-beat', 'aria-hidden': 'true' }, [0, 1, 2, 3].map(() => h('i')));
   const ticks = [...beatDots.querySelectorAll('i')];
-  const padGrid = h('div', { class: 'pads' });
+  const padGrid = h('div', { class: 'pads', 'data-ctl': 'jam-pads' });
+  const tileGrid = h('div', { class: 'jam-tiles', 'data-ctl': 'jam-band' });
+  const hitRow = h('div', { class: 'jam-hits', 'data-ctl': 'jam-band' });
+  const boards = [padGrid, tileGrid, hitRow];
   const styleSel = h('select', { class: 'num wide', 'aria-label': W('節奏', 'Groove') });
   const grooveSw = h('div', { class: 'seg' });
   const gridSeg = segmented(
@@ -97,48 +127,48 @@ export function mountJam(panel, api) {
     ],
     { value: '16', label: W('對齊', 'Snap'), onChange: id => (grid = +id) }
   );
-  // 內建 / 我的片段: only once there are pieces.
+  // 內建 / 我的片段: only once there are pieces; two icons.
   const srcSeg = segmented(
     [
-      { id: 'band', label: W('內建', 'Built-in') },
-      { id: 'mine', label: W('我的片段', 'My clips') }
+      { id: 'band', label: h('span', { html: icon('grid'), 'aria-label': W('內建', 'Built-in') }) },
+      { id: 'mine', label: h('span', { html: icon('mic'), 'aria-label': W('我的片段', 'My clips') }) }
     ],
     { value: 'band', label: W('打擊墊', 'Pads'), onChange: id => ((pick = id), stop(), draw()) }
   );
   srcSeg.classList.add('jam-src');
-  // The built-in set: 🎲 a new one, or a groove; under it, what's playing.
+  // The set card: its cover and groove (a tap opens the grooves), the bar's four beats, ↶, 🎲.
+  const coverImg = h('img', { alt: '', width: 56, height: 56 });
+  const coverBtn = h('button', { class: 'jam-cover', type: 'button', 'aria-label': W('風格', 'Style'), onclick: () => styleSheet() }, [coverImg]);
+  const nameEl = h('span', { class: 'nm' });
+  const nameBtn = h('button', { class: 'jam-name', type: 'button', 'aria-label': W('風格', 'Style'), onclick: () => styleSheet() }, [nameEl, h('span', { class: 'chev', html: icon('down') })]);
   const dice = h('button', { class: 'jam-dice', type: 'button', 'aria-label': W('隨機換一組', 'A random new set'), html: icon('dice'), onclick: () => changeSet(diceSet(set)) });
-  const chips = h('div', { class: 'jam-chips', role: 'group', 'aria-label': W('風格', 'Style') });
-  const meta = h('p', { class: 'jam-meta' });
-  const setRow = h('div', { class: 'jam-set' }, [h('div', { class: 'jam-set-row' }, [dice, chips]), meta]);
+  const undoSet = h('button', { class: 'jam-undo ghost', type: 'button', disabled: true, 'aria-label': W('回到上一組', 'Back to the last set'), html: icon('undo'), onclick: () => prevSet && changeSet(prevSet, { back: true }) });
+  const setRow = h('div', { class: 'jam-set' }, [coverBtn, h('div', { class: 'jam-id' }, [nameBtn, beatDots]), undoSet, dice, srcSeg]);
   const note = h('p', { class: 'studio-note', 'data-ctl': 'jam-note' });
-  // 簡單: what the pads do, in two lines.
-  const easyNote = h('p', { class: 'studio-note', 'data-ctl': 'jam-easy' }, [W('點打擊墊就會響', 'Tap a pad to play'), ' ', info('loop')]);
   // A row: its name (and the word's ⓘ), a line under it, its control; only: which of 簡單 / 進階 shows it.
   const row = (label, sub, ctl, { only = null, term = null } = {}) => h('div', { class: 'row', 'data-ctl': only }, [h('div', { class: 'label' }, [h('span', {}, [label, ...(term ? [' ', info(term)] : [])]), sub ? h('small', { text: sub }) : null]), ctl]);
   const grooveSub = h('small', {});
   const grooveRow = row(W('鼓', 'Groove'), null, h('div', { class: 'ctl' }, [grooveSw, styleSel]), { only: 'jam-groove', term: 'groove' });
   grooveRow.querySelector('.label').append(grooveSub);
   const body = h('section', { class: 'card jam' }, [
-    h('div', { class: 'head' }, [h('h2', { text: W('即興', 'Jam') }), srcSeg]),
     setRow,
-    h('div', { class: 'jam-bar' }, [playBtn, recBtn, stopAllBtn]),
-    beatDots,
+    tileGrid,
+    hitRow,
     padGrid,
-    easyNote,
+    h('div', { class: 'jam-bar' }, [playBtn, keepBtn, recBtn, stopAllBtn]),
     grooveRow,
     h('div', { class: 'stack', 'data-ctl': 'jam-snap' }, [h('div', { class: 'label' }, [h('span', {}, [W('對齊', 'Snap'), ' ', info('snap')]), h('small', { text: hintOf('snap') })]), gridSeg]),
     note
   ]);
+  const loading = on => boards.forEach(g => g.classList.toggle('loading', on));
 
   function draw() {
     const mine = !usingBand();
     srcSeg.hidden = !hasClips();
-    // (Nothing in the head but the switch: no empty band over the set when there are no clips.)
-    srcSeg.parentElement && (srcSeg.parentElement.hidden = srcSeg.hidden);
     srcSeg.set?.(mine ? 'mine' : 'band');
-    setRow.hidden = mine;
+    setRow.classList.toggle('mine', mine);
     styleSel.hidden = !mine;
+    if (simple() && !mine) jam.groove = drumMode !== '';
     grooveSub.textContent = mine ? W('用你的鼓打的節奏', 'Played on your drums') : W('跟著這組的風格', 'In the set’s style');
     if (!panel.contains(body)) panel.replaceChildren(body);
     drawPads();
@@ -165,22 +195,36 @@ export function mountJam(panel, api) {
       setsOf = cur.print;
     }
     hits.clear();
-    padGrid.replaceChildren(
-      ...pads.map(p => {
-        const big = p.name ? W(...p.name) : String(p.i + 1);
-        const small = p.name ? (p.sub ? W(...p.sub) : '') : name(ROLE_NAMES, p.role);
-        const b = h('button', { class: `jam-pad${p.loop ? ' loop' : ''}`, type: 'button', 'data-i': String(p.i), 'data-fam': p.fam, 'aria-label': `${p.name ? big : `${small} ${big}`}${p.loop ? W('（循環）', ' (loop)') : ''}` }, [
-          h('b', { text: big }),
-          small ? h('small', { text: small }) : null,
-          p.loop ? h('i', { class: 'mark', 'aria-hidden': 'true', html: p.name ? icon('loop') : `${icon('loop')}${p.beats}` }) : null,
-          h('i', { class: 'lvl', 'aria-hidden': 'true' })
-        ]);
-        hits.set(p.i, b);
-        paintPad(p.i);
-        return b;
-      })
-    );
-    padGrid.classList.toggle('loading', !sound());
+    tileEls.clear();
+    const easy = easyBand();
+    tileGrid.hidden = hitRow.hidden = !easy;
+    padGrid.hidden = easy;
+    // (The 16 pads are 進階's with the built-in set; my clips' pads show at both levels.)
+    if (usingBand()) padGrid.dataset.ctl = 'jam-pads';
+    else delete padGrid.dataset.ctl;
+    if (easy) {
+      drawBoard();
+      padGrid.replaceChildren();
+    } else {
+      tileGrid.replaceChildren();
+      hitRow.replaceChildren();
+      padGrid.replaceChildren(
+        ...pads.map(p => {
+          const big = p.name ? W(...p.name) : String(p.i + 1);
+          const small = p.name ? (p.sub ? W(...p.sub) : '') : name(ROLE_NAMES, p.role);
+          const b = h('button', { class: `jam-pad${p.loop ? ' loop' : ''}`, type: 'button', 'data-i': String(p.i), 'data-fam': p.fam, 'aria-label': `${p.name ? big : `${small} ${big}`}${p.loop ? W('（循環）', ' (loop)') : ''}` }, [
+            h('b', { text: big }),
+            small ? h('small', { text: small }) : null,
+            p.loop ? h('i', { class: 'mark', 'aria-hidden': 'true', html: p.name ? icon('loop') : `${icon('loop')}${p.beats}` }) : null,
+            h('i', { class: 'lvl', 'aria-hidden': 'true' })
+          ]);
+          hits.set(p.i, b);
+          paintPad(p.i);
+          return b;
+        })
+      );
+    }
+    loading(!sound());
     // My clips' groove: the styles picked in 做歌 (the first, until another is picked).
     if (!cur.band) {
       const styles = api.styles().length ? api.styles() : STYLES;
@@ -192,33 +236,74 @@ export function mountJam(panel, api) {
     paintGroove();
     note.replaceChildren(h('span', { text: speedText(bpm) }));
   }
-  // The set's chips (its groove lit; one the dice found that isn't offered, first) and what it is.
-  function paintSet() {
-    const list = SET_STYLES.includes(set.style) ? SET_STYLES : [set.style, ...SET_STYLES];
-    chips.replaceChildren(
-      ...list.map(s =>
-        h('button', {
-          class: 'chip',
-          type: 'button',
-          'aria-pressed': String(s === set.style),
-          text: name(STYLE_NAMES, s),
-          // (Its own chip again: another set of the same groove.)
-          onclick: () => changeSet({ seed: Math.floor(Math.random() * 1e9), style: s })
-        })
-      )
+  // 簡單's board: a column a part of the band (one lit at a time), then the hits as round pads.
+  function drawBoard() {
+    const byI = Object.fromEntries(pads.map(p => [p.i, p]));
+    const tile = (fam, key, big, { two = false, ids = [] } = {}) => {
+      const b = h('button', { class: 'jam-tile', type: 'button', 'data-t': key, 'data-fam': fam, 'aria-label': big }, [h('i', { class: 'glow', 'aria-hidden': 'true' }), h('b', { text: big }), two ? h('em', { class: 'two', 'aria-hidden': 'true', text: '2' }) : null, h('i', { class: 'lvl', 'aria-hidden': 'true' })]);
+      return b;
+    };
+    const heads = COLS.map(([fam, label]) => h('span', { class: 'col-head', 'data-fam': fam }, [h('i'), h('span', { text: W(...label) })]));
+    const first = [];
+    const second = [];
+    for (const [fam, , idx] of COLS) {
+      if (!idx) {
+        const [a1, a2] = DRUM_TILES.map(([m, label]) => {
+          const t = tile(fam, `d:${m}`, W(...label));
+          tileEls.set(m, t);
+          return t;
+        });
+        first.push(a1);
+        second.push(a2);
+        continue;
+      }
+      const [p1, p2] = idx.map(i => byI[i]);
+      const text = p => (p.sub ? W(...p.sub) : W(...p.name));
+      const same = text(p1) === text(p2);
+      [p1, p2].forEach((p, k) => {
+        const t = tile(fam, String(p.i), text(p), { two: k === 1 && same });
+        hits.set(p.i, t);
+        paintPad(p.i);
+        (k ? second : first).push(t);
+      });
+    }
+    tileGrid.replaceChildren(...heads, ...first, ...second);
+    hitRow.replaceChildren(
+      ...HIT_PADS.map(i => {
+        const p = byI[i];
+        const big = W(...p.name);
+        const b = h('button', { class: 'jam-hit', type: 'button', 'data-i': String(i), 'data-fam': 'drum', 'aria-label': big }, [h('b', { text: big }), h('i', { class: 'lvl', 'aria-hidden': 'true' })]);
+        hits.set(i, b);
+        paintPad(i);
+        return b;
+      })
     );
-    const key = `${NOTE_NAMES[sp.key.tonic]} ${sp.key.minor ? W('小調', 'minor') : W('大調', 'major')}`;
-    meta.textContent = `${name(STYLE_NAMES, sp.style)} · ${speedText(sp.bpm)}`;
+    paintIdle();
+  }
+  // Stopped: the drums choice shows dimmed (the groove plays as soon as anything starts).
+  function paintIdle() {
+    for (const [m, el] of tileEls) el.classList.toggle('idle', !running && drumMode === m);
+  }
+  function paintSet() {
+    nameEl.textContent = name(STYLE_NAMES, set.style);
+    coverImg.src = setCover(set, sp.bpm);
   }
   // Another built-in set: what was playing goes on with it (the same pads'
   // loops, from its first bar), once it's made. (Changed during a take, the
   // take ends and plays as a song instead.)
-  function changeSet(next) {
-    const was = (running || waiting) && !jam.takes.length;
+  function changeSet(next, { back = false } = {}) {
+    const was = (running || waiting) && (simple() || !jam.takes.length);
     const carry = was ? pads.filter(p => jam.loops.get(p.i)?.to === Infinity) : [];
+    const before = { ...set };
     stop();
     set = setOf(next);
     sp = specOf(set);
+    // ↶ for 8 seconds: the set before this one.
+    clearTimeout(undoTimer);
+    prevSet = back ? null : before;
+    undoSet.classList.toggle('ghost', back);
+    undoSet.disabled = back;
+    if (!back) undoTimer = setTimeout(() => (undoSet.classList.add('ghost'), (undoSet.disabled = true)), 8000);
     try {
       localStorage.setItem(SET, JSON.stringify(set));
     } catch {}
@@ -226,16 +311,28 @@ export function mountJam(panel, api) {
     paintSet();
     if (!was) return makeBand();
     start();
-    for (const p of carry) jam.toggle(p.i, 0, p.beats, { group: p.group, phase: p.phase });
+    for (const p of carry) loopSet(p.i, true, 0);
     if (!running) for (const p of carry) hits.get(p.i)?.classList.add('wait');
     shown = -1;
+  }
+  // A grooves sheet: every groove as its cover; a tap makes a new set of it and the music goes on.
+  function styleSheet() {
+    const tiles = SET_STYLES.map(s => {
+      const b = h('button', { class: 'jam-style', type: 'button', 'aria-pressed': String(s === set.style) }, [h('img', { alt: '', width: 96, height: 96, src: setCover({ seed: set.seed, style: s }) }), h('span', { text: name(STYLE_NAMES, s) })]);
+      b.onclick = () => {
+        changeSet({ seed: Math.floor(Math.random() * 1e9), style: s });
+        for (const o of tiles) o.setAttribute('aria-pressed', String(o === b));
+      };
+      return b;
+    });
+    sheet({ title: W('風格', 'Style'), closeLabel: W('關閉', 'Close'), body: h('div', { class: 'jam-styles' }, tiles) });
   }
   // The set's sound, made in the worker (a second or two on a phone).
   function makeBand() {
     const id = setId();
     if (band?.id === id || making === id) return;
     making = id;
-    padGrid.classList.add('loading');
+    loading(true);
     api.band(set).then(
       b => {
         if (making !== id) return;
@@ -243,14 +340,14 @@ export function mountJam(panel, api) {
         band = { id, pieces: b.pieces, roles: b.roles, sr: b.sr };
         if (!cur?.band) return;
         if (!panel.hidden) ready();
-        padGrid.classList.remove('loading');
+        loading(false);
         if (waiting) ((waiting = false), start());
       },
       () => {
         if (making !== id) return;
         making = '';
         waiting = false;
-        meta.textContent = W('這組做不出來，換一組試試', 'Couldn’t make this set: try another');
+        toast(W('這組做不出來，換一組試試', 'Couldn’t make this set: try another'), { tone: 'bad' });
         paintTransport();
       }
     );
@@ -281,16 +378,17 @@ export function mountJam(panel, api) {
     return p;
   }
   // The pad's own sheet: its level (live, and in a take from the next hit), mute and choke group.
-  function padSheet(p) {
+  function padSheet(p, ids = [p.i]) {
     const now = jam.pad(p.i);
     const pct = h('span', { class: 'pct', text: `${Math.round(now.level * 100)}%` });
     const level = h('input', { type: 'range', min: 0, max: 100, step: 1, 'aria-label': W('音量', 'Level') });
     level.value = String(Math.round(now.level * 100));
     level.addEventListener('input', () => {
       const q = setPad(p.i, { level: +level.value / 100 });
+      for (const i of ids) i !== p.i && setPad(i, { level: q.level });
       pct.textContent = `${Math.round(q.level * 100)}%`;
     });
-    const mute = toggle({ checked: now.mute, label: W('靜音', 'Mute'), onChange: on => setPad(p.i, { mute: on }) });
+    const mute = toggle({ checked: now.mute, label: W('靜音', 'Mute'), onChange: on => ids.forEach(i => setPad(i, { mute: on })) });
     const choke = segmented(
       [
         { id: '', label: W('不切', 'Off') },
@@ -301,12 +399,12 @@ export function mountJam(panel, api) {
       { value: now.choke, label: W('切音', 'Choke'), onChange: id => setPad(p.i, { choke: id }) }
     );
     sheet({
-      title: p.name ? W(...p.name) : `${name(ROLE_NAMES, p.role)} ${p.i + 1}`,
+      title: p.title || (p.name ? W(...p.name) : `${name(ROLE_NAMES, p.role)} ${p.i + 1}`),
       closeLabel: W('關閉', 'Close'),
       body: h('div', { class: 'card sheet-card jam-pad-sheet' }, [
         row(W('音量', 'Level'), null, h('div', { class: 'ctl' }, [level, pct])),
         row(W('靜音', 'Mute'), null, mute),
-        h('div', { class: 'stack' }, [h('div', { class: 'label' }, [h('span', {}, [W('切音', 'Choke'), ' ', info('choke')]), h('small', { text: hintOf('choke') })]), choke])
+        h('div', { class: 'stack', 'data-ctl': 'jam-choke' }, [h('div', { class: 'label' }, [h('span', {}, [W('切音', 'Choke'), ' ', info('choke')]), h('small', { text: hintOf('choke') })]), choke])
       ])
     });
   }
@@ -327,11 +425,40 @@ export function mountJam(panel, api) {
   // (Written only when it changes: a button rewritten under a finger, as every beat did, loses that tap on iPhone.)
   const put = (el, html) => el.dataset.html !== html && ((el.dataset.html = html), (el.innerHTML = html));
   function paintTransport() {
-    put(playBtn, waiting ? W('準備中…', 'Getting ready…') : running ? `${icon('stop')}<span>${W('停止', 'Stop')}</span>` : `${icon('play')}<span>${W('開始', 'Start')}</span>`);
+    const easy = simple();
+    put(playBtn, waiting ? W('準備中…', 'Getting ready…') : running ? (easy ? icon('stop') : `${icon('stop')}<span>${W('停止', 'Stop')}</span>`) : `${icon('play')}<span>${W('開始', 'Start')}</span>`);
+    playBtn.setAttribute('aria-label', running ? W('停止', 'Stop') : W('開始', 'Start'));
     playBtn.classList.toggle('on', running);
+    keepBtn.hidden = !running || !easy;
+    const beat = running ? beatNow() : 0;
+    const done = Date.now() < keptUntil;
+    put(keepLab, done ? `${icon('check')}<span>${W('已存', 'Kept')}</span>` : `${icon('heart')}<span>${W('存下來', 'Keep')}</span>`);
+    keepBtn.classList.toggle('done', done);
+    const can = running && jam.keepable(beat);
+    if (keepBtn.disabled === can) keepBtn.disabled = !can;
+    const t = jam.openTake();
+    const secs = t && running ? clock(Math.max(0, ((beat - t.from) * 60) / bpm)) : '';
+    if (keepTime.textContent !== secs) keepTime.textContent = secs;
     const rec = jam.recording();
     recBtn.classList.toggle('on', rec);
     put(recBtn, rec ? `${icon('stop')}<span>${W('完成', 'Done')}</span>` : `${icon('record')}<span>${W('錄一段', 'Record')}</span>`);
+    paintIdle();
+  }
+  // Loops wanted on (or off) from `beat`, whatever they are now: nothing toggled twice.
+  function loopSet(i, on, beat) {
+    const p = pads.find(x => x.i === i);
+    const l = jam.loops.get(i);
+    if (!p || Boolean(l && l.to === Infinity) === on) return [];
+    const r = jam.toggle(i, beat, p.beats, { group: p.group, phase: p.phase });
+    return [...r.off, ...(r.on ? [] : [i])];
+  }
+  // The drums column: 基本 (slow hats), 熱鬧 (fast and open hats), or off (no groove, no hats).
+  function setDrums(mode, beat) {
+    drumMode = mode;
+    jam.groove = mode !== '';
+    const off = [];
+    for (const i of DRUM_LOOPS) off.push(...loopSet(i, (mode === 'basic' && i === 8) || (mode === 'busy' && i !== 8), beat));
+    cutLoops(off, nextBar(beat));
   }
   // Every piece as a buffer (made once per kit, ahead of the first tap; one
   // channel when both sides are the same). A buffer needs no audio context,
@@ -384,6 +511,12 @@ export function mountJam(panel, api) {
     t0 = c.currentTime + 0.1;
     upTo = 0;
     running = true;
+    // 簡單: a take is always open, and ▶ brings back what ■ put away.
+    if (simple() && cur?.band) {
+      jam.record(0);
+      setDrums(drumMode, 0);
+      for (const i of want) if (!DRUM_LOOPS.includes(i)) loopSet(i, true, 0);
+    }
     timer = setInterval(schedule, 25);
     schedule();
     raf = requestAnimationFrame(paint);
@@ -395,15 +528,20 @@ export function mountJam(panel, api) {
     // (Not started yet, ▶ waiting for the set: what was tapped meanwhile is let go.)
     if (!running) {
       jam.reset();
-      for (const b of padGrid.children) b.classList.remove('wait');
+      for (const g of boards) for (const b of g.children) b.classList.remove('wait');
       return paintTransport();
     }
     running = false;
     clearInterval(timer);
     cancelAnimationFrame(raf);
     api.live?.(false);
-    // (A take still open is kept up to here, rounded to its bar; one finishing its bar is kept whole.)
-    jam.end(beatNow());
+    // (A take still open is kept up to here, rounded to its bar; one finishing its bar is kept whole.
+    // 簡單's isn't: ■ puts the tiles away, 存下來 is what keeps.)
+    if (simple() && cur?.band) {
+      want = new Set([...jam.loops].filter(([, l]) => l.to === Infinity).map(([i]) => i));
+      jam.reset();
+      jam.done.length = 0;
+    } else jam.end(beatNow());
     voices.clear();
     // What's still sounding fades out at once (a four-bar part doesn't play on after ■).
     const c = api.audio();
@@ -411,8 +549,8 @@ export function mountJam(panel, api) {
     live.clear();
     looping.clear();
     finish();
-    for (const b of padGrid.children) b.classList.remove('on', 'wait', 'hit');
-    for (const d of ticks) d.classList.remove('on', 'past');
+    for (const g of boards) for (const b of g.children) b.classList.remove('on', 'wait', 'hit');
+    for (const d of ticks) d.classList.remove('on');
     paintTransport();
   }
   function schedule() {
@@ -484,29 +622,54 @@ export function mountJam(panel, api) {
     if (!jam.done.length) return;
     paintTransport();
     const from = cur?.band ? { ...set } : null;
-    for (const { hits: took, beats } of jam.done.splice(0)) if (took.length) api.take(took, beats, from);
+    for (const t of jam.done.splice(0)) {
+      if (!t.hits.length) continue;
+      const { hits: took, beats } = trimTake(t.hits, t.beats, t.from);
+      api.take(took, beats, from, { keep: true });
+    }
   }
-  // The beat: which of the four bars and beats (the cycle a four-bar part goes round in).
+  // The beat: which of the four beats of the bar, and the loops' tiles (on, waiting for the bar, leaving).
   let shown = -1;
+  const waits = new Set(); // tiles with a ring
   function paint() {
     if (!running) return;
     const beat = beatNow();
-    const at = beat < 0 ? -1 : Math.floor(beat) % 16;
+    const at = beat < 0 ? -1 : Math.floor(beat);
     if (at !== shown) {
-      ticks.forEach((d, k) => (d.classList.toggle('on', k === at), d.classList.toggle('past', at >= 0 && k < at)));
+      const k = at < 0 ? -1 : at % 4;
+      ticks.forEach((d, j) => d.classList.toggle('on', j === k));
       shown = at;
       const still = calm();
+      waits.clear();
+      const glow = el => !still && at >= 0 && el.firstElementChild?.animate?.([{ opacity: 0.85 }, { opacity: 0 }], { duration: 320, easing: 'ease-out' });
       for (const p of pads) {
         if (!p.loop) continue;
         const l = jam.loops.get(p.i);
         const pad = hits.get(p.i);
+        if (!pad) continue;
         const on = Boolean(l && beat >= l.from && beat < l.to);
+        const wait = Boolean(l && (beat < l.from || (l.to !== Infinity && beat < l.to)));
         pad.classList.toggle('on', on);
-        pad.classList.toggle('wait', Boolean(l && (beat < l.from || (l.to !== Infinity && beat < l.to))));
-        // (Lit pads beat along.)
-        if (on && !still && at >= 0) pad.animate?.([{ transform: 'scale(0.95)' }, { transform: 'scale(1)' }], { duration: 180, easing: 'ease-out' });
+        pad.classList.toggle('wait', wait);
+        if (wait) waits.add(pad);
+        // (Lit pads beat along: a glow inside the tile, never the tile itself.)
+        if (on) glow(pad);
+      }
+      for (const [m, el] of tileEls) {
+        const lit = drumMode === m;
+        const l = lit ? jam.loops.get(m === 'basic' ? 8 : 9) : null;
+        const wait = Boolean(l && beat < l.from);
+        el.classList.toggle('on', lit);
+        el.classList.toggle('wait', wait);
+        if (wait) waits.add(el);
+        if (lit) glow(el);
       }
       paintTransport();
+    }
+    // (The ring fills toward the bar line, draining when the tile is the one leaving.)
+    if (waits.size) {
+      const f = ((beat % 4) + 4) % 4 / 4;
+      for (const el of waits) el.style.setProperty('--p', String((el.classList.contains('on') ? 1 - f : f) * 100));
     }
     raf = requestAnimationFrame(paint);
   }
@@ -517,53 +680,84 @@ export function mountJam(panel, api) {
   // opens the pad's sheet instead. It only starts on a bar line anyway.)
   // (One press per finger: two fingers drumming at once each lift their own pad.)
   const presses = new Map();
-  padGrid.addEventListener('pointerdown', e => {
-    const b = e.target.closest('.jam-pad');
-    if (!b) return;
-    e.preventDefault();
-    const p = pads.find(x => x.i === +b.dataset.i);
-    if (!p) return;
-    clearTimeout(presses.get(e.pointerId)?.timer);
-    const press = { p, x: e.clientX, y: e.clientY, beat: running ? Math.max(0, beatNow()) : null };
-    press.timer = setTimeout(() => {
-      // (Only one finger down: a held pad among others is drumming, not asking for its level.)
-      if (presses.size === 1) (press.sheet = true), padSheet(p);
-    }, HOLD);
-    presses.set(e.pointerId, press);
-    if (p.loop) return;
-    // (Stopped: just that sound, now. The groove starts with ▶ or a loop.)
-    if (!running) {
-      if (ready()) play(p.i, api.audio().currentTime + 0.005);
-      return;
+  const padOfEl = b => {
+    if (b.dataset.t?.startsWith('d:')) {
+      const m = b.dataset.t.slice(2);
+      return { drum: m, i: 8, loop: true, title: W(...DRUM_TILES.find(x => x[0] === m)[1]) };
     }
-    const beat = Math.max(0, beatNow());
-    const at = jam.shot(p.i, beat, GRIDS[grid], (LATE * bpm) / 60);
-    // (Already due: played now rather than missed; jam keeps it in the take.)
-    if (at < upTo) play(p.i, timeOf(at));
-    shown = -1;
-  });
-  // (A finger that slides off is no hold.)
-  padGrid.addEventListener('pointermove', e => {
-    const press = presses.get(e.pointerId);
-    if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 12) clearTimeout(press.timer);
-  });
-  const lift = tapped => e => {
-    const press = presses.get(e.pointerId);
-    if (!press) return;
-    clearTimeout(press.timer);
-    presses.delete(e.pointerId);
-    const { p, beat, sheet } = press;
-    if (!tapped || sheet || !p.loop) return;
-    if (!running) start();
-    const r = jam.toggle(p.i, beat ?? Math.max(0, running ? beatNow() : 0), p.beats, { group: p.group, phase: p.phase });
-    if (running) cutLoops(r.off, r.at);
-    else hits.get(p.i)?.classList.toggle('wait', r.on);
-    shown = -1;
+    return pads.find(x => x.i === +(b.dataset.t ?? b.dataset.i));
   };
-  padGrid.addEventListener('pointerup', lift(true));
-  padGrid.addEventListener('pointercancel', lift(false));
-  padGrid.addEventListener('contextmenu', e => e.preventDefault());
+  function wire(g) {
+    g.addEventListener('pointerdown', e => {
+      const b = e.target.closest('.jam-pad, .jam-tile, .jam-hit');
+      if (!b) return;
+      e.preventDefault();
+      const p = padOfEl(b);
+      if (!p) return;
+      clearTimeout(presses.get(e.pointerId)?.timer);
+      const press = { p, x: e.clientX, y: e.clientY, beat: running ? Math.max(0, beatNow()) : null, was: running };
+      press.timer = setTimeout(() => {
+        // (Only one finger down: a held pad among others is drumming, not asking for its level.)
+        if (presses.size === 1) (press.sheet = true), padSheet(p, p.drum ? DRUM_LOOPS : [p.i]);
+      }, HOLD);
+      presses.set(e.pointerId, press);
+      if (p.loop) return;
+      // (Stopped: just that sound, now. The groove starts with ▶ or a loop.)
+      if (!running) {
+        if (ready()) play(p.i, api.audio().currentTime + 0.005);
+        return;
+      }
+      const beat = Math.max(0, beatNow());
+      const at = jam.shot(p.i, beat, GRIDS[easyBand() ? 8 : grid], (LATE * bpm) / 60);
+      // (Already due: played now rather than missed; jam keeps it in the take.)
+      if (at < upTo) play(p.i, timeOf(at));
+      shown = -1;
+    });
+    // (A finger that slides off is no hold.)
+    g.addEventListener('pointermove', e => {
+      const press = presses.get(e.pointerId);
+      if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 12) clearTimeout(press.timer);
+    });
+    g.addEventListener('pointerup', lift(true));
+    g.addEventListener('pointercancel', lift(false));
+    g.addEventListener('contextmenu', e => e.preventDefault());
+  }
+  function lift(tapped) {
+    return e => {
+      const press = presses.get(e.pointerId);
+      if (!press) return;
+      clearTimeout(press.timer);
+      presses.delete(e.pointerId);
+      const { p, beat, sheet, was } = press;
+      if (!tapped || sheet || !p.loop) return;
+      // (Moved off it: no tap.)
+      if (Math.hypot(e.clientX - press.x, e.clientY - press.y) > 12) return;
+      if (!running) start();
+      if (!running) return;
+      const at = Math.max(0, beat ?? (running ? beatNow() : 0));
+      if (p.drum) {
+        // (▶ brought the dimmed choice back: a tap on it then is just "play".)
+        if (!was && drumMode === p.drum) return void (shown = -1);
+        setDrums(drumMode === p.drum ? '' : p.drum, at);
+        shown = -1;
+        return;
+      }
+      if (!was && jam.loops.get(p.i)?.to === Infinity) return void (shown = -1);
+      const r = jam.toggle(p.i, at, p.beats, { group: p.group, phase: p.phase });
+      if (running) cutLoops(r.off, r.at);
+      else hits.get(p.i)?.classList.toggle('wait', r.on);
+      shown = -1;
+    };
+  }
+  boards.forEach(wire);
   playBtn.onclick = () => (running || waiting ? stop() : start());
+  keepBtn.onclick = () => {
+    if (!running || !jam.keepable(beatNow())) return;
+    jam.rotate(beatNow());
+    keptUntil = Date.now() + 1500;
+    setTimeout(paintTransport, 1600);
+    paintTransport();
+  };
   recBtn.onclick = () => {
     if (!running) start();
     jam.record(Math.max(0, running ? beatNow() : 0));
@@ -600,6 +794,8 @@ export function mountJam(panel, api) {
       if (!panel.hidden) draw();
     },
     shown: () => (draw(), ready()),
+    level: () => (stop(), draw()),
+    start,
     hidden: () => stop(),
     stop,
     playing: () => running
