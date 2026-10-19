@@ -198,13 +198,28 @@ class Song {
       this.hit(i, t); t += this.per[i];
     }
   }
-  drums(style, bar, nbars, k) {   // k: the song's drum kit
+  drums(style, bar, nbars, k, dress = null) {   // k: the song's drum kit; dress: { flavors, turn } (a varied song's)
     for (let br = bar; br < bar + nbars; br++) {
       if (this.rest.has(br)) continue;
       const t = br * 4;
       (GROOVES[style] || GROOVES.four)(this, t, k);
       if (this.r.random() < 0.35 && !FULL_HATS.has(style))   // ticks between the hits
         for (const q of this.py.choice([[0.5], [1.5, 3.5], [0.5, 1.5, 2.5, 3.5]])) this.hit(k.tick, t + q);
+      if (dress) this.dressed(style, br, br - bar, nbars, t, k, dress);
+    }
+  }
+  dressed(style, br, at, nbars, t, k, { flavors, turn }) {   // a bar's own touches, none of them drawn (so a song's other choices stay put)
+    for (const f of flavors) {
+      if (f === 'ghost') for (const q of [0.75, 2.75]) this.hit(k.tick, t + q);
+      else if (f === 'push' && br % 2) this.hit(k.kick, t + 3.75);
+      else if (f === 'skip' && br % 2 === 0) this.hit(k.kick, t + 2.75);
+      else if (f === 'open' && !FULL_HATS.has(style)) for (const q of [0.5, 1.5, 2.5, 3.5]) this.hit(k.tick, t + q);
+      else if (f === 'snap' && at % 2) this.hit(k.snare, t + 1.75);
+    }
+    if (nbars >= 4 && at % 4 === 3) {   // the end of a phrase turns
+      if (turn === 'tick') for (const q of [3.25, 3.5, 3.75]) this.hit(k.tick, t + q);
+      else if (turn === 'snare') for (const q of [3.5, 3.75]) this.hit(k.snare, t + q);
+      else if (turn === 'kick') for (const q of [3.5, 3.75]) this.hit(k.kick, t + q);
     }
   }
   build(bar, nbars, k) {   // a pre-hook's riser: the snare (or a roll) a beat apart, then eighths, then sixteenths
@@ -605,6 +620,17 @@ export function planOf(sections) {
 // Riff sets: a pattern over a few riffs (as numbered in a shuffled order).
 const PATTERNS = [[0, 1, 2, 1], [0, 1], [0, 0, 1, 1], [0, 1, 0, 2], [0]];
 
+// A varied song's drum touches (opt-in: `varied`), drawn from their own stream
+// so nothing else in the song moves: for the verses, the hooks (two more than
+// the verses', a third on the last) and the bridge, and how a phrase ends.
+export const FLAVORS = ['ghost', 'push', 'skip', 'open', 'snap'];
+export const TURNS = ['tick', 'snare', 'kick', 'none'];
+export function dressOf(V) {
+  const order = V.sample(FLAVORS.length, FLAVORS.length).map(i => FLAVORS[i]);
+  const verse = [order[0]], hook = [order[1], order[2]];
+  return { verse: { flavors: verse, turn: V.choice(TURNS) }, hook: { flavors: hook, turn: V.choice(TURNS) }, last: { flavors: [...hook, order[3]], turn: V.choice(TURNS) }, bridge: { flavors: [order[4]], turn: 'none' }, id: [...verse, ...hook].join('+') };
+}
+
 // How alike two pieces' notes are (their pitch classes): 1 the same, 0 none shared.
 const alike = (a, b) => a && b ? a.reduce((s, v, k) => s + v * b[k], 0) : 0;
 
@@ -618,10 +644,15 @@ const alike = (a, b) => a && b ? a.reduce((s, v, k) => s + v * b[k], 0) : 0;
 // riff sets, its fills, timing and the riffs' lay-outs played anew);
 // `weights` ({ style: n }) leans the groove's choice to the styles liked;
 // `plan` ([[type, bars], …]) its sections as arranged by hand, every other
-// choice as the seed makes it. `mix` (lib/mix.mjs's MIX; null or on: false
+// choice as the seed makes it. `arrange` ({ intro, verse, verse2, hook, bridge,
+// lift, hookBass, liftBass, liftSub, layer }: pieces' numbers, in lists) sets
+// which riffs each section plays (a second verse, a hook of its own, a last hook
+// lifted into another key with its own bass and 808) in place of the seed's
+// riff sets (a hand-made arrangement); `varied` (true, or a `dressOf` result) dresses the drums, a
+// different touch for each kind of section; `key` the song's key when known (not heard from the riffs again). `mix` (lib/mix.mjs's MIX; null or on: false
 // for the pieces exactly as recorded); `stems` also returns each bus apart.
 // -> { audio, info, events, stems }
-export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25, maxBars = 29, styles = STYLES, humanize = 1, style: forced = null, detail = null, weights = null, plan: arranged = null, mix = null, stems = false } = {}) {
+export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25, maxBars = 29, styles = STYLES, humanize = 1, style: forced = null, detail = null, weights = null, plan: arranged = null, mix = null, stems = false, arrange = null, varied = null, key: known = null } = {}) {
   analysis ??= analyzeRecording(pieces, sr, { bpm });
   bpm ??= analysis.bpm; roles ??= analysis.roles;
   const loops = bpm === analysis.bpm ? analysis.loops : analyzeRecording(pieces, sr, { bpm }).loops;
@@ -629,6 +660,12 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   if (roles.length !== pieces.length) throw new Error(`Need a role for each of the ${pieces.length} pieces`);
   const pool = Object.fromEntries(ROLES.map(x => [x, []]));
   roles.forEach((x, i) => pool[x]?.push(i));
+  // (An arrangement by hand: the hook's own bass, the lifted hook's riffs, bass and 808 and the layer are theirs alone, never drawn for any other section.)
+  const P = arrange || {};
+  if (arrange) {
+    const own = new Set([...(P.lift || []), ...(P.hookBass || []), ...(P.liftBass || []), P.liftSub, P.layer].filter(x => x != null));
+    for (const x of ROLES) pool[x] = pool[x].filter(i => !own.has(i));
+  }
   const riffs = pool.riff.length ? pool.riff : pool.phrase, phrases = pool.phrase.length ? pool.phrase : riffs;
   if (!riffs.length) throw new Error('Needs at least one riff or phrase');
   if (!(minBars >= MIN_BARS && minBars <= maxBars)) throw new Error(`Length must be ${MIN_BARS} bars or more, shortest first`);
@@ -648,14 +685,15 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   const [introSet, verseSet, hookSet, bridgeSet] = [0, 1, 2, 3].map(j => {
     const lead = order[(j * step) % order.length];
     const kin = [lead, ...riffs.filter(x => x !== lead).sort((x, y) => alike(chroma[y], chroma[lead]) - alike(chroma[x], chroma[lead]))];
-    return R.choice(PATTERNS).map(x => kin[x % kin.length]);
+    const set = R.choice(PATTERNS).map(x => kin[x % kin.length]), by = P[['intro', 'verse', 'hook', 'bridge'][j]];
+    return by?.length ? by : set;
   });
   // Another riff over hooks: the one most alike in notes not already there.
   const others = riffs.filter(x => !hookSet.includes(x)).sort((x, y) => alike(chroma[y], chroma[hookSet[0]]) - alike(chroma[x], chroma[hookSet[0]]));
-  const layer = others[0] ?? null;
-  // (Only one alike enough in notes, so in the same key: no clash on top.)
+  const layer = arrange ? P.layer ?? null : others[0] ?? null;
+  // (Only one alike enough in notes, so in the same key: no clash on top. An arrangement by hand: the layer is theirs.)
   const hookLayer = layer != null && R.random() < 0.5;
-  const layerFits = layer != null && (!chroma[layer] || !chroma[hookSet[0]] || alike(chroma[layer], chroma[hookSet[0]]) >= 0.45);
+  const layerFits = layer != null && (arrange != null || !chroma[layer] || !chroma[hookSet[0]] || alike(chroma[layer], chroma[hookSet[0]]) >= 0.45);
   const bassMode = R.choice(pool.bass.length > 1 ? ['alt', 'one', 'one', 'sparse'] : pool.bass.length ? ['one', 'sparse'] : ['none']);
   const bassA = pick(pool.bass), bassB = pick(pool.bass, [bassA]);
   // A break gets the shortest hat loop (a shaker); a hook a hat other than
@@ -698,9 +736,11 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
       k += span;
     }
   };
-  const bass = (b, n, from = 0) => walk(b, n, j => bassMode === 'alt' ? [bassA, bassB][j % 2] : bassMode === 'sparse' ? (r.random() < 0.4 ? null : R.choice(pool.bass)) : bassA, from);
+  const bass = (b, n, from = 0, own = null) => walk(b, n, j => own ? own[j % own.length] : bassMode === 'alt' ? [bassA, bassB][j % 2] : bassMode === 'sparse' ? (r.random() < 0.4 ? null : R.choice(pool.bass)) : bassA, from);
   const riff = (b, n, set) =>   // lay out at a phrase's end, not mid-phrase (a bar or two: never a whole four-bar loop)
     walk(b, n, j => set[j % set.length], 0, (k, span) => (k + span) % 4 === 0 && k + span < n && span < 4 && r.random() < 0.2);
+  // (A varied song's drum touches, from a stream of their own.)
+  const dress = varied ? (varied === true ? dressOf(makeRng(seed ^ 0x7f4a7c15)) : varied) : null;
   let verseNo = 0, hookNo = 0;
   plan.forEach(([t, b, L], idx) => {
     if (t === 'intro') {   // previews: hats then a riff, a riff, or phrases
@@ -713,20 +753,23 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
       }
     } else if (t === 'verse') {   // the first verse builds: bass comes in halfway
       verseNo++;
-      riff(b, L, verseSet); bass(b, L, verseNo === 1 ? Math.floor(L / 2) : 0);
-      s.drums(style, b, L, kit); s.loop(verseHat, b, L);
+      riff(b, L, verseNo > 1 && P.verse2?.length ? P.verse2 : verseSet); bass(b, L, verseNo === 1 ? Math.floor(L / 2) : 0);
+      s.drums(style, b, L, kit, dress?.verse); s.loop(verseHat, b, L);
       if (R.random() < 0.4) s.phrases(b + L - Math.min(4, L), Math.min(4, L), phrases);   // (a verse under 4 bars: its own bars, never before the song)
     } else if (t === 'pre') {   // the lift: the verse's riffs and hat, no kick, a riser into the hook
       riff(b, L, verseSet); s.loop(verseHat, b, L); s.build(b, L, kit);
     } else if (t === 'hook') {   // the last hook is the fullest
       hookNo++;
-      riff(b, L, hookSet); bass(b, L); s.drums(hookStyle, b, L, kit); s.loop(hookHat, b, L);
-      if (layerFits && (hookLayer || hookNo === hooks)) riff(b, L, [layer]);
+      const lifted = hooks > 1 && hookNo === hooks && P.lift?.length > 0;   // (the last hook, a key higher)
+      const own = lifted ? P.liftBass : P.hookBass;
+      riff(b, L, lifted ? P.lift : hookSet); bass(b, L, 0, own?.length ? own : null);
+      s.drums(hookStyle, b, L, lifted && P.liftSub != null ? { ...kit, sub: P.liftSub } : kit, dress && (hookNo === hooks ? dress.last : dress.hook)); s.loop(hookHat, b, L);
+      if (layerFits && !lifted && (hookLayer || hookNo === hooks)) riff(b, L, [layer]);
     } else if (t === 'break') {   // strip back: no drums, no bass
       s.phrases(b, L, phrases);
       if (R.random() < 0.6) s.loop(breakHat, b, L);
     } else if (t === 'bridge') {   // contrast: another riff set, half-time
-      riff(b, L, bridgeSet); s.drums('half', b, L, kit);
+      riff(b, L, bridgeSet); s.drums('half', b, L, kit, dress?.bridge);
       if (R.random() < 0.5) bass(b, L);
     } else if (t === 'outro') {   // the intro's riff again, winding down
       riff(b, L, introSet);
@@ -739,7 +782,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   s.hit(R.choice([kit.heavy, kit.sub]), bars * 4);   // one last hit on the next downbeat
   const m = mix && mix.on !== false ? mixOf(mix) : null;
   const { audio, stems: parts } = renderSong(s, { roles, plan, mix: m, stems });
-  return { audio, events: s.events, stems: parts, info: { seed, detail, key: keyOf(riffs.map(i => pieceChroma(pieces[i], sr))), bpm, style, alt: hookStyle, bass: bassMode, riffSets: [introSet, verseSet, hookSet, bridgeSet], layer, bars, beats: bars * 4, seconds: audio.L.length / sr, peak: audio.peak, over: audio.over, mixed: Boolean(m), plan: plan.map(([t, , L]) => [t, L]) } };
+  return { audio, events: s.events, stems: parts, info: { seed, detail, key: known ?? keyOf(riffs.map(i => pieceChroma(pieces[i], sr))), bpm, style, alt: hookStyle, bass: bassMode, riffSets: [introSet, verseSet, hookSet, bridgeSet], layer, bars, beats: bars * 4, seconds: audio.L.length / sr, peak: audio.peak, over: audio.over, mixed: Boolean(m), plan: plan.map(([t, , L]) => [t, L]) } };
 }
 
 // Hits placed by hand (即興, the jam's pads): [{ i, beat, g?, len? }] (g: the

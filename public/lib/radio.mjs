@@ -11,7 +11,7 @@
 // kind of groove, another tempo, key and mode, other instruments, another
 // form. No DOM: the worker makes them (lib/make.mjs), the tests listen to them.
 
-import { makeSong, makeRng, analyzeRecording, STYLES, FAMILY, SHUFFLE } from '../engine.mjs';
+import { makeSong, makeRng, analyzeRecording, dressOf, STYLES, FAMILY, SHUFFLE } from '../engine.mjs';
 import { voice, renderClip, emptyDrums } from './synth.mjs';
 import { mixOf } from './mix.mjs';
 
@@ -65,6 +65,27 @@ export const SOUND = {
 const tempoJump = (a, b) => Math.abs(a - b) >= 15 || Math.abs(a / b - 2) < 0.12 || Math.abs(b / a - 2) < 0.12;
 const modeName = sp => sp.mode || (sp.key.minor ? 'minor' : 'major');
 const planSig = sp => radioPlan(makeRng(sp.seed ^ 0x1b873593), sp.bpm, sp.seconds).map(p => p.join('')).join();
+// What a song is remembered by, so the next ones can steer clear of it: the verse's chord loop and the hook's (a loop and its turns are one family), the key, the lead and chord instruments, the form, the tempo and the drums' touches.
+const marks = sp => ({ fam: progFamily(sp.prog), famB: sp.progB ? progFamily(sp.progB) : null, tonic: sp.key.tonic, lead: sp.lead, chords: sp.chords, form: planSig(sp), bpm: sp.bpm, dress: sp.dress.id });
+export const MEMORY = 8;
+// How much `sp` repeats of the last songs (`mem`: their marks, oldest first): what is near counts the most. 0 is a song with nothing in common.
+function clash(sp, mem) {
+  const m = marks(sp);
+  let c = 0;
+  for (let d = 0; d < mem.length; d++) {
+    const o = mem[mem.length - 1 - d];
+    const w = d === 0 ? 4 : d < 3 ? 2 : 1;
+    if (m.fam === o.fam) c += 3 * w;
+    if (m.famB && (m.famB === o.famB || m.famB === o.fam)) c += 2 * w;
+    if (d < 6 && m.tonic === o.tonic) c += 2 * w;
+    if (d < 4 && m.lead === o.lead) c += 2 * w;
+    if (d < 3 && m.chords === o.chords) c += 2 * w;
+    if (d < 6 && m.form === o.form) c += 2 * w;
+    if (d < 3 && Math.abs(m.bpm - o.bpm) < 6) c += w;
+    if (m.dress === o.dress) c += 2 * w;
+  }
+  return c;
+}
 // How a song differs from the one before it: [tempo, key, mode, chords, lead, form] each true when it does.
 export function contrast(a, b) {
   return [tempoJump(a.bpm, b.bpm), a.key.tonic !== b.key.tonic, modeName(a) !== modeName(b), a.chords !== b.chords, a.lead !== b.lead, planSig(a) !== planSig(b)];
@@ -77,7 +98,8 @@ export function contrast(a, b) {
 // one whose tempo can jump from the last. Then the seed: the first of a few
 // drawn from `seed` whose song differs from the last in tempo (15 BPM or a
 // half / double-time feel), key, mode, chord and lead instruments and form,
-// else the one differing most. One groove asked for (`style:<id>`): always it.
+// and repeats nothing of the last eight (their chord loops, keys, leads, forms,
+// tempos and drum touches), else the one that does best. One groove asked for (`style:<id>`): always it.
 export function radioPick(mood, recent = [], seed = Math.floor(Math.random() * 1e9), station = null) {
   const styles = station ? stationStyles({ mood, ...station }) : moodStyles(mood);
   // (A tempo station: a seed whose song falls in its range.)
@@ -86,7 +108,11 @@ export function radioPick(mood, recent = [], seed = Math.floor(Math.random() * 1
   const R = makeRng(seed);
   const past = recent.map(x => (typeof x === 'string' ? x : x?.style)).filter(Boolean);
   const prev = recent.length && typeof recent.at(-1) === 'object' && Number.isInteger(recent.at(-1).seed) ? recent.at(-1) : null;
-  const was = prev && STYLES.includes(prev.style) ? radioSpec(prev.seed, MOODS[prev.mood] || /^style:/.test(prev.mood) ? prev.mood : 'all', prev.style) : null;
+  const specOf = x => radioSpec(x.seed, MOODS[x.mood] || /^style:/.test(x.mood) ? x.mood : 'all', x.style);
+  const was = prev && STYLES.includes(prev.style) ? specOf(prev) : null;
+  // (The last eight, as far as they are known by their seeds.)
+  const mem = recent.slice(-MEMORY).filter(x => typeof x === 'object' && Number.isInteger(x?.seed) && STYLES.includes(x.style)).map(x => marks(specOf(x)));
+  const lastBpms = mem.slice(-3).map(x => x.bpm);
   const last = past.at(-1);
   const keep = (pool, ok) => (pool.filter(ok).length ? pool.filter(ok) : pool);
   let pool = styles.filter(s => !past.slice(-Math.min(6, Math.max(1, styles.length - 5))).includes(s));
@@ -99,6 +125,8 @@ export function radioPick(mood, recent = [], seed = Math.floor(Math.random() * 1
     if (!pool.some(jumps)) pool = keep(styles.filter(s => s !== last && !past.slice(-2).includes(s) && jumps(s)), () => true);
     pool = keep(pool, jumps);
   }
+  // (A groove whose tempo is not where the last three were, when there is one.)
+  pool = keep(pool, s => lastBpms.every(b => Math.abs((BAND[s].bpm[0] + BAND[s].bpm[1]) / 2 - b) >= 10));
   pool = keep(pool, s => !past.includes(s));
   const style = R.choice(pool);
   const out = s => ({ seed: s, mood: outMood, style });
@@ -111,8 +139,9 @@ export function radioPick(mood, recent = [], seed = Math.floor(Math.random() * 1
   for (let k = 0; k < 120; k++) {
     const s = k ? R.int(0, 1e9 - 1) : seed;
     if (!fits(s, style) && (best || k < 119)) continue;
-    const c = contrast(radioSpec(s, out(s).mood, style), was);
-    const score = c.filter(Boolean).length + (c[0] ? 10 : 0) + (c[1] || c[2] ? 10 : 0);
+    const sp = radioSpec(s, out(s).mood, style);
+    const c = contrast(sp, was);
+    const score = c.filter(Boolean).length + (c[0] ? 10 : 0) + (c[1] || c[2] ? 10 : 0) - clash(sp, mem);
     if (!best || score > best.score) best = { s, score };
     if (score === 26) break;
   }
@@ -127,7 +156,11 @@ export const radioQueue = () => ({ ready: [], busy: false, skip: false, gen: 0 }
 const ALL16 = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 const E8 = [0, 2, 4, 6, 8, 10, 12, 14];
 const OFF8 = [2, 6, 10, 14];
-const HATS = [[['hat', E8], ['hat', OFF8, 3]], [['hat', ALL16, 3], ['hat', [0, 4, 8, 12], 1]], [['open', OFF8], ['shaker', [1, 3, 5, 7, 9, 11, 13, 15], 3]]];
+const HATS = [
+  [['hat', E8], ['hat', OFF8, 3]], [['hat', ALL16, 3], ['hat', [0, 4, 8, 12], 1]], [['open', OFF8], ['shaker', [1, 3, 5, 7, 9, 11, 13, 15], 3]],
+  // (Three more, and a song keeps three of the six, drawn by its seed: `hatsPick`.)
+  [['hat', [0, 3, 4, 7, 8, 11, 12, 15]], ['hat', OFF8, 3]], [['shaker', ALL16, 3], ['open', [6, 14]]], [['hat', [0, 2, 4, 6, 8, 10, 12, 13, 14, 15]], ['tamb', [2, 6, 10, 14], 3]]
+];
 // The drums the newer grooves play on (the first ones keep a kick, an 808 and the snare or clap and hat drawn): kick, the boom under the heavy kick, the hit on the last downbeat (the 808's place), the snares and ticks to choose from.
 const ACOUSTIC = { kick: 'kick', boom: 'tom', sub: ['kick', 'crash'] };
 const ROCK = { kick: 'rkick', boom: 'rkick', sub: ['rkick', 'crash'], snare: ['rsnare'] };
@@ -308,6 +341,20 @@ const PROGS = {
   minor: [[0, 5, 2, 6], [0, 3, 5, 4], [0, 6, 5, 6], [0, 3, 0, 4], [0, 5, 3, 4], [0, 2, 6, 3], [3, 4, 0, 0]],
   major: [[0, 4, 5, 3], [0, 5, 3, 4], [0, 3, 4, 3], [5, 3, 0, 4], [0, 3, 5, 4], [0, 1, 3, 4], [3, 0, 4, 5]]
 };
+// More four-chord loops for a hook of its own (the verse keeps PROGS and a groove's own).
+const EXTRA = {
+  minor: [[0, 3, 5, 4], [0, 6, 5, 4], [0, 3, 6, 2], [0, 5, 6, 0], [5, 6, 0, 0], [0, 2, 6, 5], [0, 4, 5, 3], [0, 5, 3, 6], [2, 6, 3, 0], [0, 6, 3, 4]],
+  major: [[0, 4, 5, 2], [0, 2, 3, 4], [1, 4, 0, 5], [0, 3, 1, 4], [0, 5, 1, 4], [0, 3, 0, 4], [5, 4, 3, 4], [0, 4, 3, 4], [3, 5, 0, 4], [0, 2, 5, 4], [5, 3, 4, 0], [3, 2, 5, 4]]
+};
+// A loop and its turns are one family (I-V-vi-IV is vi-IV-I-V round again).
+export const progFamily = p => {
+  let best = null;
+  for (let i = 0; i < p.length; i++) {
+    const r = [...p.slice(i), ...p.slice(0, i)].join('');
+    if (best === null || r < best) best = r;
+  }
+  return best;
+};
 // How the chords are played in a bar: [16th, length] pairs.
 const COMP = {
   held: [[[0, 16]], [[0, 8], [8, 8]]],
@@ -395,6 +442,18 @@ export function radioSpec(seed, mood = 'all', style = null) {
   if (band.tune) sp.tune = band.tune;
   if (SHUFFLE[st]) sp.shuffle = SHUFFLE[st];
   if (band.swing) sp.swing = band.swing;
+  // (The variety's own choices, drawn after, from a stream of their own: the draws above are as they were, so a jam set stays itself.)
+  // A hook of its own: another loop of chords (a family other than the verse's) and another lead; the last hook maybe lifted a step or two; the hats three of six; the drums' touches.
+  const Q = makeRng(seed ^ 0x3c6ef372);
+  const mode2 = minor ? 'minor' : 'major';
+  const own = band.progs?.[mode2];
+  const pool = (own && new Set(own.map(progFamily)).size > 1 ? own : [...PROGS[mode2], ...EXTRA[mode2]]).filter(x => progFamily(x) !== progFamily(sp.prog));
+  sp.progB = pool.length && Q.random() < 0.85 ? Q.choice(pool) : null;
+  const others = band.leads.filter(x => x !== sp.lead);
+  sp.leadB = others.length && Q.random() < 0.85 ? Q.choice(others) : sp.lead;
+  sp.lift = Q.random() < 0.6 ? Q.choice([2, 2, 1, 3, 5]) : 0;
+  sp.hatsPick = Q.sample(HATS.length, 3).sort((a, b) => a - b);
+  sp.dress = dressOf(Q);
   return sp;
 }
 
@@ -489,8 +548,12 @@ const shot = (inst, sr, midi) => {
   return { L: x, R: x };
 };
 
-// The song's band as pieces and their roles: [{ L, R }], [role].
-export function radioKit(sp, sr = RADIO_SR) {
+// The song's band as pieces and their roles: [{ L, R }], [role]. The jam's set is these
+// alone. A song of the radio (`song`: true) has more after them, and `parts`, which
+// pieces each section plays: a second verse, a hook of its own (another loop of chords,
+// another lead, a bass to suit), the last hook lifted a step or two with its own bass and
+// 808 (`lift`: false when the plan has one hook), a layer of its arpeggio.
+export function radioKit(sp, sr = RADIO_SR, { song = false, lift = true } = {}) {
   const R = makeRng(sp.seed ^ 0x68e31da4);
   const band = BAND[sp.style];
   const clip = c => renderClip(c, sr, sp.bpm);
@@ -518,7 +581,7 @@ export function radioKit(sp, sr = RADIO_SR) {
   add(sum(arp, { ...bed, g: 0.4 }), 'phrase');
   for (const line of LINES[band.line]) add(clip(bassClip(sp, sp.bass, line)), 'bass');
   // The hats: eighths, sixteenths with accents, off-beat open hats (or the groove's own).
-  for (const lanes of band.hats || HATS) add(clip(hatClip(lanes, sp)), 'hat');
+  for (const lanes of band.hats || (song ? sp.hatsPick.map(i => HATS[i]) : HATS.slice(0, 3))) add(clip(hatClip(lanes, sp)), 'hat');
   // The drums: the kit's (a kick, the heavy one with an 808 or a boom under it, the 808 or a last big hit), the snare, the tick.
   const k = sp.kit;
   const tonic808 = 28 + ((sp.key.tonic - 4 + 12) % 12);
@@ -535,7 +598,45 @@ export function radioKit(sp, sr = RADIO_SR) {
   add({ L: rolled, R: rolled }, 'roll');
   const fill = hatClip([['tom', [0, 3, 6]], [snare, [8, 10, 12, 13, 14, 15]], [kick, [0]], ['crash', [0], 3]]);
   add(clip(fill), 'fill');
-  return { pieces, roles };
+  if (!song) return { pieces, roles };
+
+  // The hook: its chords (another loop when the spec has one), its lead, a bass on those chords. (The lifted hook is the same notes: its own stream, drawn the same.)
+  const spB = { ...sp, prog: sp.progB || sp.prog };
+  const hookKit = (spX, tonic808X, bass, sub) => {
+    const H = makeRng(sp.seed ^ 0x51ed270b);
+    const bedB = clip(chordClip(spX, 'pad', COMP.held[0]));
+    const underB = x => (band.comp === 'held' ? x : sum(x, { ...bedB, g: 0.3 }));
+    const arpB = clip(arpClip(H, spX, sp.lead2));
+    const melB = clip(melodyClip(H, spX, sp.leadB, rb, rc));
+    const melB2 = clip(melodyClip(H, spX, sp.leadB, ra, rb));
+    const chB = underB(clip(chordClip(spX, sp.chords2, comp[0])));
+    const chB2 = underB(clip(chordClip(spX, sp.chords, comp[1])));
+    return {
+      riffs: [sum(chB, melB), sum(chB2, { ...arpB, g: 0.7 }, { ...melB2, g: 0.8 })],
+      phrase: sum(melB, { ...bedB, g: 0.4 }), layer: sum({ ...arpB, g: 0.8 }, { ...bedB, g: 0.2 }),
+      bass: bass ? LINES[band.line].map(line => clip(bassClip(spX, sp.bass, line))) : [],
+      sub: sub ? (k ? sum(...k.sub.map((v, j) => ({ ...shot(v, sr, tonic808X), g: j ? 0.6 : 1 }))) : shot('sub', sr, tonic808X)) : null
+    };
+  };
+  const nBase = pieces.length;
+  const at = p => (add(p.p, p.role), pieces.length - 1);
+  const here = hookKit(spB, tonic808, Boolean(sp.progB), false);
+  const A = [0, 1, 2, 3];
+  const parts = { intro: [A[0]], verse: [A[0], A[1]], verse2: [A[2], A[1], A[3], A[2]], bridge: [A[3], A[1]] };
+  parts.hook = here.riffs.map(p => at({ p, role: 'riff' }));
+  at({ p: here.phrase, role: 'phrase' });
+  parts.layer = at({ p: here.layer, role: 'riff' });
+  // (Its bass follows the hook's chords only when they are not the verse's.)
+  if (sp.progB) parts.hookBass = here.bass.map(p => at({ p, role: 'bass' }));
+  if (sp.lift && lift) {
+    const spL = { ...spB, key: { ...sp.key, tonic: (sp.key.tonic + sp.lift) % 12 } };
+    const up = hookKit(spL, 28 + ((spL.key.tonic - 4 + 12) % 12), true, true);
+    parts.lift = up.riffs.map(p => at({ p, role: 'riff' }));
+    parts.liftBass = up.bass.map(p => at({ p, role: 'bass' }));
+    parts.liftSub = at({ p: up.sub, role: 'sub' });
+  }
+  // (`like`: for each piece after the first `base`, the one of those it is a cousin of, so the song needs hearing only those.)
+  return { pieces, roles, parts, base: nBase, like: roles.slice(nBase).map(r => roles.indexOf(r)) };
 }
 
 // Its sections, every one four or eight bars (so the four-bar loops stay on
@@ -552,22 +653,42 @@ export function radioPlan(R, bpm, seconds = 90, asked = false) {
     const n = Math.max(2, Math.floor((bars - 2 * end) / 2));
     return [['intro', end], ['verse', n], ['hook', bars - 2 * end - n], ['outro', end]];
   }
+  if (asked) return longPlan(R, bars);
+  // The radio's own: an intro of four bars (eight in a long one), verse–hook pairs, each verse of eight bars (four now and then) and
+  // each with or without a pre-hook, a break or a bridge between pairs now and then, a hook shown early now and then,
+  // the last hook doubled when a pair would not fit, and an outro.
+  const intro = bars >= 44 && R.random() < 0.3 ? 8 : 4;
+  let left = bars - intro - 4;
+  const body = [];
+  const turn = () => [R.choice(['break', 'bridge']), 4];
+  if (left >= 28 && R.random() < 0.25) body.push(['hook', 4]), (left -= 4);
+  while (left >= 16) {
+    const pre = left >= 20 && R.random() < 0.45;
+    const vl = left >= 36 && R.random() < 0.25 ? 4 : 8;
+    body.push(['verse', vl], ...(pre ? [['pre', 4]] : []), ['hook', 8]);
+    left -= vl + (pre ? 4 : 0) + 8;
+    if (left >= 20 && R.random() < 0.35) body.push(turn()), (left -= 4);
+  }
+  // (What is left, 0 to 12 bars: a hook, a break before the last hook, or both.)
+  const lastHook = () => body.map(([t]) => t).lastIndexOf('hook');
+  if (left >= 12) body.splice(lastHook(), 0, turn()), body.push(['hook', 8]);
+  else if (left >= 8 && R.random() < 0.5) body.push(['hook', 8]);
+  else if (left >= 8) body.splice(lastHook(), 0, turn()), body.push(['hook', 4]);
+  else if (left >= 4) body.splice(lastHook(), 0, turn());
+  return [['intro', intro], ...body, ['outro', 4]];
+}
+// A length asked for: pairs, a break or a bridge between every three, so it isn't the same eight bars for minutes.
+function longPlan(R, bars) {
   const pre = R.random() < 0.5;
   const unit = pre ? 20 : 16;
   const body = [];
   let pairs = 0;
-  if (asked) {
-    // (A long one: a break or a bridge between every three, so it isn't the same eight bars for minutes.)
-    for (let used = 0; ; pairs++) {
-      const gap = pairs && pairs % 3 === 0 ? 4 : 0;
-      if (pairs && used + gap + unit > bars - 8) break;
-      if (gap) body.push([pairs % 2 ? 'bridge' : 'break', 4]);
-      body.push(['verse', 8], ...(pre ? [['pre', 4]] : []), ['hook', 8]);
-      used += gap + unit;
-    }
-  } else {
-    pairs = Math.max(1, Math.floor((bars - 8) / unit));
-    for (let k = 0; k < pairs; k++) body.push(['verse', 8], ...(pre ? [['pre', 4]] : []), ['hook', 8]);
+  for (let used = 0; ; pairs++) {
+    const gap = pairs && pairs % 3 === 0 ? 4 : 0;
+    if (pairs && used + gap + unit > bars - 8) break;
+    if (gap) body.push([pairs % 2 ? 'bridge' : 'break', 4]);
+    body.push(['verse', 8], ...(pre ? [['pre', 4]] : []), ['hook', 8]);
+    used += gap + unit;
   }
   let rest = bars - 8 - body.reduce((a, [, n]) => a + n, 0);
   const turn = [R.choice(['break', 'bridge']), 4];
@@ -599,15 +720,17 @@ export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
   const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);
   const sp = Object.assign(radioSpec(seed, mood, style), Object.fromEntries(over));
-  const { pieces, roles } = radioKit(sp, sr);
-  const analysis = analyzeRecording(pieces, sr, { bpm: sp.bpm });
   const R = makeRng(seed ^ 0x1b873593);
   // (`seconds`: a length asked for, 0:30 to 8:00, in place of the song's own.)
   const asked = Number.isFinite(spec.seconds);
   const plan = radioPlan(R, sp.bpm, asked ? spec.seconds : sp.seconds, asked);
+  const { pieces, roles, parts: arrange, base, like } = radioKit(sp, sr, { song: true, lift: plan.filter(([t]) => t === 'hook').length > 1 });
+  // (Hearing the first pieces is enough: the rest are the same lengths, in other chords.)
+  const heard = analyzeRecording(pieces.slice(0, base), sr, { bpm: sp.bpm });
+  const analysis = { ...heard, analyses: [...heard.analyses, ...like.map(i => heard.analyses[i])], loops: [...heard.loops, ...like.map(i => heard.loops[i])], roles: [...heard.roles, ...like.map(i => heard.roles[i])] };
   const song = makeSong(pieces, sr, seed, {
     analysis, roles, bpm: sp.bpm, styles: moodStyles(mood), style: sp.style,
-    humanize: (MOODS[mood]?.humanize ?? 100) / 100, plan, mix: mixOf({ ...MIXES[mood], ...BAND[sp.style].mix }), stems
+    humanize: (MOODS[mood]?.humanize ?? 100) / 100, plan, mix: mixOf({ ...MIXES[mood], ...BAND[sp.style].mix }), stems, arrange, varied: sp.dress, key: sp.key
   });
   // (A remix's own choices ride along in `radio`, so the song is made again as it was.)
   return { audio: song.audio, stems: song.stems, info: { ...song.info, key: sp.key, mood, radio: { seed, mood, style: sp.style, ...Object.fromEntries(over), ...(asked ? { seconds: spec.seconds } : {}) } } };

@@ -267,6 +267,14 @@ LENS = {'verse':[4,8],'pre':[2,4],'hook':[4,8],'break':[2,4],'bridge':[2,4]}
 FORMS = [['hook']] + [lead + (['verse','pre','hook'] if pre else ['verse','hook'])*k + end
                       for pre in (False, True) for k in range(1,5) for lead in ([],['break']) for end in ([],['break','hook'],['bridge','hook'])]
 PATTERNS = [[0,1,2,1],[0,1],[0,0,1,1],[0,1,0,2],[0]]   # riff sets, over a shuffled order of riffs
+# a varied song's drum touches (--varied; the page's radio): their own random stream, so nothing else in the song moves.
+# verses one, hooks two more, the last hook a third, the bridge a fifth; and how a phrase ends
+FLAVORS = ['ghost','push','skip','open','snap']
+TURNS = ['tick','snare','kick','none']
+def dress_of(V):
+    order = V.sample(FLAVORS, len(FLAVORS))
+    hook = order[1:3]
+    return dict(verse=(order[:1], V.choice(TURNS)), hook=(hook, V.choice(TURNS)), last=(hook + order[3:4], V.choice(TURNS)), bridge=(order[4:5], 'none'))
 # fills fit where they lead: a build into a hook, something light into a
 # verse, next to nothing into a quiet section (a pre-hook's riser is its own)
 INTO = {'hook':['roll','roll2','stutter','fill'],'verse':['roll','roll2','tick','drop'],'pre':['tick','drop'],'break':['drop','tick'],
@@ -575,13 +583,28 @@ class Song:
             if not fit and t==bar*4 and pool: fit=[min(pool,key=lambda i:s.per[i])]
             if not fit: break
             i=s.py.choice(fit); s.hit(i,t); t+=s.per[i]
-    def drums(s,style,bar,nbars,k):   # k: the song's drum kit
+    def drums(s,style,bar,nbars,k,dress=None):   # k: the song's drum kit; dress: (flavors, turn) of a varied song
         for br in range(bar,bar+nbars):
             if br in s.rest: continue
             t=br*4
             GROOVES.get(style,_four)(s,t,k)
             if s.r.random()<0.35 and style not in FULL_HATS:   # ticks between the hits
                 for q in s.py.choice([[0.5],[1.5,3.5],[0.5,1.5,2.5,3.5]]): s.hit(k['tick'],t+q)
+            if dress: s.dressed(style,br,br-bar,nbars,t,k,*dress)
+    def dressed(s,style,br,at,nbars,t,k,flavors,turn):   # a bar's own touches, none of them drawn (a song's other choices stay put)
+        for f in flavors:
+            if f=='ghost':
+                for q in (0.75,2.75): s.hit(k['tick'],t+q)
+            elif f=='push' and br%2: s.hit(k['kick'],t+3.75)
+            elif f=='skip' and br%2==0: s.hit(k['kick'],t+2.75)
+            elif f=='open' and style not in FULL_HATS:
+                for q in (0.5,1.5,2.5,3.5): s.hit(k['tick'],t+q)
+            elif f=='snap' and at%2: s.hit(k['snare'],t+1.75)
+        if nbars>=4 and at%4==3:   # the end of a phrase turns
+            if turn=='tick':
+                for q in (3.25,3.5,3.75): s.hit(k['tick'],t+q)
+            elif turn in ('snare','kick'):
+                for q in (3.5,3.75): s.hit(k[turn],t+q)
     def build(s,bar,nbars,k):   # a pre-hook's riser: the snare (or a roll) a beat apart, then eighths, then sixteenths
         for j in range(nbars):
             step=0.25 if j==nbars-1 else 0.5 if j>=nbars/2 else 1
@@ -781,13 +804,20 @@ def render(s, roles, plan, m, stems=False):
 
 def write_wav(path, L, R): wavfile.write(path, sr, np.stack([L, R], 1).astype(np.float32))
 
-def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arranged=None):
+def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arranged=None,arrange=None,varied=False):
     """One song; roles, loops (in beats) and chroma: {piece number: ...}. Needs a
     riff or a phrase; what a missing role plays is left out (or played by the
     nearest role there is). mix: the mixer (None: the pieces exactly as
-    recorded); stems: also each bus as its own WAV; arranged: a plan by hand."""
+    recorded); stems: also each bus as its own WAV; arranged: a plan by hand;
+    arrange: {intro, verse, verse2, hook, bridge, lift, hookBass, liftBass, liftSub, layer}, pieces' numbers
+    in lists, which riffs each section plays in place of the seed's riff sets (a second verse, a hook
+    of its own, a last hook lifted into another key with its own bass and 808); varied: dress the drums."""
     r=np.random.default_rng(seed); R=random.Random(seed)
     pool={x:[i for i in sorted(roles) if roles[i]==x] for x in ROLES}
+    P=arrange or {}
+    if arrange:   # an arrangement by hand: the hook's own bass, the lifted hook's riffs, bass and 808 and the layer are theirs alone, never drawn for any other section
+        own={x for x in [*(P.get('lift') or []),*(P.get('hookBass') or []),*(P.get('liftBass') or []),P.get('liftSub'),P.get('layer')] if x is not None}
+        pool={x:[i for i in pool[x] if i not in own] for x in pool}
     riffs=pool['riff'] or pool['phrase']; phrases=pool['phrase'] or riffs
     def pick(xs,no=()):
         ok=[x for x in xs if x not in no]
@@ -804,11 +834,12 @@ def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arran
         lead=order[(j*step)%len(order)]
         kin=[lead]+sorted([x for x in riffs if x!=lead],key=lambda x:-alike(x,lead))
         return [kin[x%len(kin)] for x in R.choice(PATTERNS)]
-    intro_set,verse_set,hook_set,bridge_set=[riff_set(j) for j in range(4)]
+    drawn_sets=[riff_set(j) for j in range(4)]   # (always drawn, so every later choice is the seed's)
+    intro_set,verse_set,hook_set,bridge_set=[P.get(n) or drawn_sets[j] for j,n in enumerate(['intro','verse','hook','bridge'])]
     others=sorted([x for x in riffs if x not in hook_set],key=lambda x:-alike(x,hook_set[0]))
-    layer=others[0] if others else None                            # another riff over hooks: the most alike in notes
+    layer=P.get('layer') if arrange else others[0] if others else None   # another riff over hooks: the most alike in notes
     hook_layer=layer is not None and R.random()<0.5
-    layer_fits=layer is not None and alike(layer,hook_set[0])>=0.45   # only one alike enough in notes: no clash on top
+    layer_fits=layer is not None and (arrange is not None or alike(layer,hook_set[0])>=0.45)   # only one alike enough in notes: no clash on top
     bass_mode=R.choice(['alt','one','one','sparse'] if len(pool['bass'])>1 else ['one','sparse'] if pool['bass'] else ['none'])
     bass_a=pick(pool['bass']); bass_b=pick(pool['bass'],[bass_a])
     # a break gets the shortest hat loop (a shaker); a hook a hat other than the
@@ -842,10 +873,11 @@ def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arran
             i=nxt(j); span=min(n-k,s.span(i))
             if not skip(k,span): s.loop(i,b+k,span)
             k+=span; j+=1
-    def bass(b,n,start=0):
-        walk(b,n,lambda j:[bass_a,bass_b][j%2] if bass_mode=='alt' else (None if r.random()<0.4 else R.choice(pool['bass'])) if bass_mode=='sparse' else bass_a,start)
+    def bass(b,n,start=0,own=None):
+        walk(b,n,lambda j:own[j%len(own)] if own else [bass_a,bass_b][j%2] if bass_mode=='alt' else (None if r.random()<0.4 else R.choice(pool['bass'])) if bass_mode=='sparse' else bass_a,start)
     def riff(b,n,set_):   # lay out at a phrase's end, not mid-phrase (a bar or two: never a whole four-bar loop)
         walk(b,n,lambda j:set_[j%len(set_)],0,lambda k,span:(k+span)%4==0 and k+span<n and span<4 and r.random()<0.2)
+    dress=dress_of(random.Random(seed^0x7f4a7c15)) if varied else None   # (a varied song's drum touches, a stream of their own)
     verse_no=hook_no=0
     for idx,(t,b,L) in enumerate(plan):
         if t=='intro':   # previews: hats then a riff, a riff, or phrases
@@ -856,20 +888,23 @@ def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arran
                 at=max(0,min(L//2,L-s.span(intro_set[0]))); s.loop(verse_hat,b,L); s.loop(intro_set[0],b+at,L-at)
         elif t=='verse':   # the first verse builds: bass comes in halfway
             verse_no+=1
-            riff(b,L,verse_set); bass(b,L,L//2 if verse_no==1 else 0); s.drums(style,b,L,kit); s.loop(verse_hat,b,L)
+            riff(b,L,P.get('verse2') if verse_no>1 and P.get('verse2') else verse_set); bass(b,L,L//2 if verse_no==1 else 0); s.drums(style,b,L,kit,dress and dress['verse']); s.loop(verse_hat,b,L)
             # (its last 4 bars, or all of a shorter verse arranged by hand: never into the bars before it)
             if R.random()<0.4: s.phrases(b+L-min(4,L),min(4,L),phrases)
         elif t=='pre':   # the lift: the verse's riffs and hat, no kick, a riser into the hook
             riff(b,L,verse_set); s.loop(verse_hat,b,L); s.build(b,L,kit)
         elif t=='hook':   # the last hook is the fullest
             hook_no+=1
-            riff(b,L,hook_set); bass(b,L); s.drums(hook_style,b,L,kit); s.loop(hook_hat,b,L)
-            if layer_fits and (hook_layer or hook_no==hooks): riff(b,L,[layer])
+            lifted=hooks>1 and hook_no==hooks and bool(P.get('lift'))   # (the last hook, a key higher)
+            own=P.get('liftBass') if lifted else P.get('hookBass')
+            riff(b,L,P['lift'] if lifted else hook_set); bass(b,L,0,own or None)
+            s.drums(hook_style,b,L,{**kit,'sub':P['liftSub']} if lifted and P.get('liftSub') is not None else kit,dress and (dress['last'] if hook_no==hooks else dress['hook'])); s.loop(hook_hat,b,L)
+            if layer_fits and not lifted and (hook_layer or hook_no==hooks): riff(b,L,[layer])
         elif t=='break':   # strip back: no drums, no bass
             s.phrases(b,L,phrases)
             if R.random()<0.6: s.loop(break_hat,b,L)
         elif t=='bridge':   # contrast: another riff set, half-time
-            riff(b,L,bridge_set); s.drums('half',b,L,kit)
+            riff(b,L,bridge_set); s.drums('half',b,L,kit,dress and dress['bridge'])
             if R.random()<0.5: bass(b,L)
         elif t=='outro':   # the intro's riff again, winding down
             riff(b,L,intro_set)
@@ -900,6 +935,7 @@ def main():
     ap.add_argument('--humanize', type=float, default=100, help='swing and timing drift, percent (default 100; 0 is a strict grid)')
     ap.add_argument('--bpm', type=float, default=None, help='the tempo the pieces were recorded at (default: heard from them)')
     ap.add_argument('--roles', default='', help='set pieces\' roles, e.g. 3=riff,6-8=hat,12=off (roles: ' + ','.join(ROLES) + ')')
+    ap.add_argument('--varied', action='store_true', help='dress the drums: a different touch for the verses, the hooks and the bridge, and how a phrase ends')
     ap.add_argument('--plan', default=None, help='arrange every song by hand, e.g. intro:4,verse:8,pre:2,hook:8,outro:4 (sections: '
                     + ','.join(SECTIONS) + '; 1-16 bars each, 400 in all; overrides --min-bars/--max-bars)')
     mx = ap.add_argument_group('the mixer (on unless --raw)')
@@ -961,7 +997,7 @@ def main():
         while os.path.exists(path := f"{a.out}/Beats {t:%d-%m-%Y %H-%M}.wav"):   # never overwrite
             t += datetime.timedelta(minutes=1)
         t += datetime.timedelta(minutes=1)
-        info = make(rnd.randint(0, 10**9), path, styles, a.humanize / 100, roles, loops, chroma, mix, a.stems, arranged)
+        info = make(rnd.randint(0, 10**9), path, styles, a.humanize / 100, roles, loops, chroma, mix, a.stems, arranged, None, a.varied)
         style = info['style'] + (f"/{info['alt']}" if info['alt'] != info['style'] else '')
         over = f" peaks +{20*np.log10(info['peak']):.1f} dB" if info['peak'] > 1 else ''
         print(os.path.basename(path), info['beats'], 'beats', info['dur'], 's', style, '-'.join(info['sections']) + over)

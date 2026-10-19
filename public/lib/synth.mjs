@@ -366,18 +366,21 @@ export function stepHits(clip, s) {
 // (A swung clip, `shuffle`: its off-beat eighths late too, by that share of a 16th, as engine.mjs's SHUFFLE.)
 export const swingOf = (clip, s) => (s % 2 ? clip.swing || 0 : 0) + (s % 4 === 2 ? clip.shuffle || 0 : 0);
 
+// The notes rendered lately (a note is the same each time: a clip's own, and the next clip's).
+const VOICES = new Map();
 // A clip as a piece: exactly its bars long (a loop of them), with a phone
 // mic's faint noise floor all through, so splitting keeps it whole.
 export function renderClip(clip, sr = 48000, bpm = 120) {
   const B = (60 / bpm) * sr;
   const n = Math.round(clip.bars * 4 * B);
   const L = new Float32Array(n);
-  const cache = new Map();
+  const cache = VOICES;
+  if (cache.size > 400) cache.clear();   // (a song's own notes are a couple of hundred)
   for (let s = 0; s < STEPS * clip.bars; s++) {
     const a = Math.round(((s + swingOf(clip, s)) / 4) * B);
     for (const { inst, midi, len, gain } of stepHits(clip, s)) {
       const hold = clip.kind === 'drums' ? 0.25 : (len / 4) * (60 / bpm);
-      const key = `${inst}|${midi}|${hold}`;
+      const key = `${sr}|${inst}|${midi}|${hold}`;
       if (!cache.has(key)) cache.set(key, voice(inst, midi, sr, hold));
       const x = cache.get(key);
       for (let k = 0, j = a; k < x.length && j < n; k++, j++) L[j] += x[k] * gain;
