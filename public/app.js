@@ -32,6 +32,7 @@ import { W, en, lang } from './lib/lang.mjs';
 import { shows, levelCss, makeSettings, makeWith, easyMood, EASY_MOODS } from './lib/easy.mjs';
 import { MOODS, radioPick, radioPlan, RADIO_V } from './lib/radio.mjs';
 import { mountRadio } from './lib/radioview.mjs';
+import { mountGame } from './lib/gameview.mjs';
 import { TERM_ORDER, TOUR, EXAMPLES, term, info } from './lib/help.mjs';
 import * as kitQ from '#kit/quadra.mjs';
 import { icon, inner } from './lib/icons.mjs';
@@ -205,6 +206,7 @@ $('subnav-back').onclick = () => showTab('create');
 // 創作: the path in cards. 即興 (the band, with ▶), then 樂器 and 做歌 (with how many pieces wait there),
 // then shelves: your songs (or ways to start, before there are any) and 即興's sets.
 let hubDraw = () => {};
+let game = null;
 {
   const cover = h('img', { alt: '', class: 'hub-cover' });
   const badge = h('i', { class: 'hub-badge', hidden: true });
@@ -249,7 +251,13 @@ let hubDraw = () => {};
     shelf.replaceChildren(...(mine ? [mine] : [shelfOf('start', W('從這裡開始', 'Start here'), starters())]), sets);
   };
   const shelf = h('div', { class: 'hub-shelf' });
-  $('panel-create').append(ui.navTitle?.(W('創作', 'Create')) ?? '', hero, h('div', { class: 'hub-pair' }, [half('studio', 'grid', W('樂器', 'Studio')), half('make', 'note', W('做歌', 'Songs'), badge)]), shelf);
+  // 節奏遊戲: every song a level (lib/gameview.mjs).
+  const play = h('button', { class: 'hub-game', type: 'button', onclick: () => game?.open() }, [
+    h('span', { class: 'hub-game-lanes', 'aria-hidden': 'true' }, [0, 1, 2, 3].map(k => h('i', { style: { animationDelay: `${k * -0.37}s` } }))),
+    h('span', { class: 'hub-game-t' }, [h('b', { text: W('節奏遊戲', 'Rhythm game') }), h('span', { text: W('跟著每首歌的節拍點', 'Tap along to any song') })]),
+    h('span', { class: 'hub-game-go', html: icon('play') })
+  ]);
+  $('panel-create').append(ui.navTitle?.(W('創作', 'Create')) ?? '', hero, play, h('div', { class: 'hub-pair' }, [half('studio', 'grid', W('樂器', 'Studio')), half('make', 'note', W('做歌', 'Songs'), badge)]), shelf);
 }
 
 // ---- Settings (做歌) ----
@@ -2243,8 +2251,18 @@ async function boot() {
       if (song) keepSong(song);
     },
     sleep: anchor => radio.sleepMenu(anchor),
-    sleeping: () => radio.sleeping()
+    sleeping: () => radio.sleeping(),
+    // (A song of the radio's band, its own or kept: played as a level.)
+    game: t => (Number.isFinite(t?.seed) && t.style ? game?.open({ seed: t.seed, mood: t.mood || 'all', style: t.style, title: t.title }) : null)
   };
+  game = mountGame(document.body, {
+    make,
+    audio: audioCtx,
+    quiet: () => quiet(),
+    title: songTitle,
+    keep: item => keepRadio(item),
+    kept: id => lib.has(id)
+  });
   const view = mountPlayerView(P, core, { mini: $('player') });
   trackMenuOf = view.trackMenu;
   home = mountHome($('panel-home'), {
@@ -2314,6 +2332,7 @@ async function boot() {
   }
   kitShown();
   showTab(firstTab());
+  if (location.hash === '#game') game?.open();
   await lib.read();
   home?.refresh();
   $('loading').hidden = true;

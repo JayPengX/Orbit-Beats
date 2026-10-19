@@ -29,6 +29,7 @@ const CSS = `
 .gm { position: fixed; inset: 0; z-index: 90; background: #06060b; color: #fff; overflow: hidden; --text: #fff; --text-2: rgba(255,255,255,.7); --text-3: rgba(255,255,255,.45); --fill: rgba(255,255,255,.14); --fill-2: rgba(255,255,255,.26); --card: rgba(255,255,255,.08); --line: rgba(255,255,255,.12); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; opacity: 0; transform: scale(1.04); transition: opacity .28s ease, transform .38s cubic-bezier(.2,.8,.2,1); }
 .gm.in { opacity: 1; transform: none; }
 .gm[hidden] { display: none; }
+.gm *, .gm *::before, .gm *::after { box-sizing: border-box; }
 .gm-bg { position: absolute; inset: -80px; width: calc(100% + 160px); height: calc(100% + 160px); object-fit: cover; filter: blur(70px) saturate(1.7) brightness(.55); transform: translateZ(0); transition: opacity .6s; pointer-events: none; }
 .gm-shade { position: absolute; inset: 0; background: radial-gradient(120% 70% at 50% 0%, rgba(0,0,0,0) 0%, rgba(6,6,11,.55) 60%, rgba(6,6,11,.92) 100%); pointer-events: none; }
 .gm-screen { position: absolute; inset: 0; display: flex; flex-direction: column; }
@@ -42,25 +43,28 @@ const CSS = `
 .gm-top .gm-gap { width: 34px; }
 .gm-title { margin: 6px 0 14px; font-size: 34px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
 .gm-title i { font-style: normal; background: linear-gradient(90deg, #ff5fa2, #ffb44a 40%, #5ee2ff 80%); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.gm-hero { position: relative; display: block; width: 100%; aspect-ratio: 1 / 1; max-height: 56vh; padding: 0; border: 0; border-radius: 26px; overflow: hidden; background: #111; color: #fff; text-align: left; box-shadow: 0 24px 60px rgba(0,0,0,.5); transition: transform .3s cubic-bezier(.2,.8,.2,1); touch-action: manipulation; }
+.gm-hero { position: relative; display: block; width: 100%; aspect-ratio: 1 / 1; max-height: 46vh; padding: 0; border: 0; border-radius: 26px; overflow: hidden; background: #111; color: #fff; text-align: left; box-shadow: 0 24px 60px rgba(0,0,0,.5); transition: transform .3s cubic-bezier(.2,.8,.2,1); touch-action: manipulation; }
 .gm-hero:active { transform: scale(.98); }
 .gm-hero img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; animation: gm-drift 18s ease-in-out infinite alternate; }
 .gm-hero::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,.72) 100%); }
 .gm-hero-text { position: absolute; z-index: 1; left: 20px; right: 92px; bottom: 20px; display: flex; flex-direction: column; gap: 3px; }
-.gm-eyebrow { font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: rgba(255,255,255,.8); }
-.gm-hero-text b { font-size: 28px; font-weight: 800; letter-spacing: -.01em; line-height: 1.15; }
+.gm-eyebrow { font-size: 13px; font-weight: 700; letter-spacing: .04em; white-space: nowrap; text-transform: uppercase; color: rgba(255,255,255,.8); }
+.gm-hero-text b { font-size: clamp(22px, 7vw, 28px); font-weight: 800; letter-spacing: -.01em; line-height: 1.15; }
 .gm-hero-text span { font-size: 15px; color: rgba(255,255,255,.78); }
 .gm-go { position: absolute; z-index: 1; right: 18px; bottom: 18px; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: #0b0b12; box-shadow: 0 0 0 0 rgba(255,255,255,.5); animation: gm-ping 2.2s ease-out infinite; }
 .gm-go svg { width: 30px; height: 30px; margin-left: 3px; }
 .gm-best { position: absolute; z-index: 1; top: 16px; right: 16px; min-width: 40px; padding: 5px 11px; border-radius: 999px; font-size: 14px; font-weight: 800; text-align: center; background: rgba(0,0,0,.38); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 .gm-sect { margin: 26px 0 10px; font-size: 22px; font-weight: 800; letter-spacing: -.01em; }
-.gm-pick .q-seg { margin-top: 18px; }
-.gm-chips { display: flex; gap: 8px; margin: 0 -16px; padding: 0 16px 2px; overflow-x: auto; scrollbar-width: none; }
+.gm-pick .q-seg { margin-top: 18px; --q-label: #fff; --q-fill-3: rgba(255,255,255,.12); }
+.gm .q-seg::before { background: #fff !important; }
+.gm .q-seg > button { padding: 0 4px; }
+.gm .q-seg > button[aria-selected='true'] { color: #0b0b12; }
+.gm-chips { display: flex; gap: 8px; padding-bottom: 2px; overflow-x: auto; scrollbar-width: none; }
 .gm-chips::-webkit-scrollbar { display: none; }
 .gm-chip { flex: none; height: 36px; padding: 0 16px; border: 0; border-radius: 18px; background: var(--fill); color: #fff; font-size: 15px; font-weight: 600; touch-action: manipulation; transition: background .2s, color .2s, transform .2s; }
 .gm-chip[aria-pressed="true"] { background: #fff; color: #0b0b12; }
 .gm-chip:active { transform: scale(.95); }
-.gm-list { display: grid; gap: 10px; margin-top: 14px; }
+.gm-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-top: 14px; }
 .gm-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 10px 12px 10px 10px; border: 0; border-radius: 18px; background: var(--card); color: #fff; text-align: left; touch-action: manipulation; transition: transform .2s cubic-bezier(.2,.8,.2,1), background .2s; animation: gm-in .45s cubic-bezier(.2,.8,.2,1) both; }
 .gm-row:active { transform: scale(.98); background: var(--fill); }
 .gm-row img { flex: none; width: 58px; height: 58px; border-radius: 12px; object-fit: cover; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
@@ -69,7 +73,8 @@ const CSS = `
 .gm-row-t span { font-size: 14px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gm-rank { flex: none; min-width: 34px; height: 30px; padding: 0 8px; border-radius: 10px; display: grid; place-items: center; font-size: 15px; font-weight: 800; background: rgba(255,255,255,.1); color: var(--text-3); }
 .gm-rank.on { color: #0b0b12; }
-.gm-row > svg { flex: none; width: 22px; height: 22px; color: var(--text-2); }
+.gm-row-go { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); }
+.gm-row-go svg { width: 16px; height: 16px; margin-left: 2px; }
 .gm-stage { touch-action: none; }
 .gm-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .gm-hud { position: absolute; left: 0; right: 0; top: 0; padding: max(8px, env(safe-area-inset-top)) 12px 0; display: flex; align-items: center; gap: 10px; pointer-events: none; }
@@ -187,11 +192,11 @@ export function mountGame(host, api) {
       h('span', { class: 'gm-hero-text' }, [h('span', { class: 'gm-eyebrow', text: W('今日挑戰', "Today's challenge") }), h('b', { text: today.title }), h('span', { text: subOf(today) })]),
       h('span', { class: 'gm-go', html: icon('play') })
     ]);
-    const seg = segmented(LEVELS.map(id => ({ id, label: name(LEVEL_NAMES, id) })), { value: level, label: W('難度', 'Level'), onChange: v => ((level = store.level = v), save(), drawPick()) });
+    const seg = segmented(LEVELS.map(id => ({ id, label: name(LEVEL_NAMES, id) })), { value: level, big: true, label: W('難度', 'Level'), onChange: v => ((level = store.level = v), save(), drawPick()) });
     const chips = h(
       'div',
       { class: 'gm-chips', role: 'group', 'aria-label': W('心情', 'Mood') },
-      ['all', ...Object.keys(MOODS)].map(id =>
+      ['all', ...Object.keys(MOODS).filter(id => id !== 'all')].map(id =>
         h('button', { class: 'gm-chip', type: 'button', 'aria-pressed': String(id === mood), text: id === 'all' ? W('隨機', 'Mix') : en ? MOODS[id].en : MOODS[id].zh, onclick: () => ((mood = store.mood = id), save(), drawPick()) })
       )
     );
@@ -200,8 +205,7 @@ export function mountGame(host, api) {
       return h('button', { class: 'gm-row', type: 'button', style: { animationDelay: `${k * 40}ms` }, onclick: () => play(it, list) }, [
         h('img', { alt: '', src: coverOf(it), draggable: 'false', loading: 'lazy' }),
         h('span', { class: 'gm-row-t' }, [h('b', { text: it.title }), h('span', { text: subOf(it) })]),
-        h('span', { class: `gm-rank${b ? ' on' : ''}`, text: b ? b.grade : '–', style: b ? { background: RANK_TINT[b.grade] } : null }),
-        h('span', { html: icon('play') }).firstChild
+        b ? h('span', { class: 'gm-rank on', text: b.grade, style: { background: RANK_TINT[b.grade] } }) : h('span', { class: 'gm-row-go', html: icon('play') })
       ]);
     });
     pick.replaceChildren(
@@ -313,7 +317,7 @@ export function mountGame(host, api) {
     root.style.setProperty('--gm-b', tint[3]);
     sprites = tint.map((c, k) => {
       const w = 220;
-      const hh = 84;
+      const hh = 104;
       const o = document.createElement('canvas');
       o.width = w;
       o.height = hh;
@@ -557,6 +561,23 @@ export function mountGame(host, api) {
     }
   }
 
+  // (For screenshots and the Mac's walkthrough: localStorage['orbit-beats-game-auto'] = '1' plays every note itself.)
+  const auto = (() => {
+    try {
+      return localStorage.getItem('orbit-beats-game-auto') === '1';
+    } catch {
+      return false;
+    }
+  })();
+  if (auto) globalThis.__game = () => R && { tally: R.tally, combo: R.combo, units: R.units, n: R.notes.length };
+  function autoplay(t) {
+    for (let k = 0; k < LANES; k++) {
+      const n = R.byLane[k][R.next[k]];
+      if (R.held[k] && t >= R.held[k].end - 0.05) up(k, performance.now());
+      if (n && !n.st && t >= n.t - 0.01) down(k, performance.now()), R.held[k] || (R.pressed[k] = false);
+    }
+  }
+
   // ---- Drawing ----
   let lastFrame = 0;
   function frame(now) {
@@ -565,8 +586,9 @@ export function mountGame(host, api) {
     const dt = Math.min(0.05, (now - (lastFrame || now)) / 1000);
     lastFrame = now;
     const t = clockAt(performance.now());
+    if (auto) autoplay(t);
     judgeMisses(t);
-    draw(t, dt, now);
+    draw(t, dt, performance.now());
     if (t > R.end && !R.over) finish();
   }
   function draw(t, dt, now) {
@@ -678,6 +700,17 @@ export function mountGame(host, api) {
       g.stroke();
       g.globalAlpha = 1;
     }
+    // The combo, under the notes (they're what you watch).
+    R.bump = Math.max(0, R.bump - dt * 6);
+    if (R.combo >= 3) {
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      const sc = 1 + R.bump * 0.18;
+      g.globalAlpha = 0.6;
+      text(g, String(R.combo), cx, Ht * 0.34, 72 * sc, R.fever ? `hsl(${(now / 6) % 360} 95% 70%)` : '#fff', 900, R.fever ? 26 : 12);
+      text(g, W('連擊', 'COMBO'), cx, Ht * 0.34 + 48, 13, 'rgba(255,255,255,.8)', 800, 0);
+      g.globalAlpha = 1;
+    }
     // Holds' trails, then the notes, far first.
     for (let k = 0; k < LANES; k++) {
       const ns = R.byLane[k];
@@ -701,8 +734,8 @@ export function mountGame(host, api) {
         if (n.st === 2 || n.st === 1 || d < -0.24 * ap) continue;
         const { s, y } = proj(d, ap);
         const w = LW * s * 1.18;
-        const hh = (w * 84) / 220;
-        g.globalAlpha = Math.min(1, (1 - d / ap) * 3);
+        const hh = (w * 104) / 220;
+        g.globalAlpha = Math.max(0, Math.min(1, (1 - d / ap) * 3, d < 0 ? 1 + d / (0.24 * ap) : 1));
         g.drawImage(sprites[k], laneX(k, s) - w / 2, y - hh / 2, w, hh);
       }
     }
@@ -799,14 +832,6 @@ export function mountGame(host, api) {
         if (R.pop.early) text(g, R.pop.early < 0 ? W('早', 'EARLY') : W('晚', 'LATE'), cx, y + 30, 13, 'rgba(255,255,255,.7)', 700, 0);
         g.globalAlpha = 1;
       }
-    }
-    R.bump = Math.max(0, R.bump - dt * 6);
-    if (R.combo >= 3) {
-      const sc = 1 + R.bump * 0.18;
-      g.globalAlpha = 0.95;
-      text(g, String(R.combo), cx, Ht * 0.36, 64 * sc, R.fever ? `hsl(${(now / 6) % 360} 95% 70%)` : '#fff', 900, R.fever ? 26 : 12);
-      text(g, W('連擊', 'COMBO'), cx, Ht * 0.36 + 44, 13, 'rgba(255,255,255,.7)', 800, 0);
-      g.globalAlpha = 1;
     }
     // The score, counting up to what it is; how far into the song.
     const sc = scoreOf({ ...R.tally, combo: R.best }, R.units).score;

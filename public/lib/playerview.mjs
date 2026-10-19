@@ -63,6 +63,7 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
         'divider',
         ...(np ? [] : [{ label: kept ? W('取消收藏', 'Remove from Library') : W('收藏', 'Keep'), icon: kept ? 'heart-fill' : 'heart', onClick: () => core.toggleKeep(track).then(() => paint()) }]),
         { label: W('分享', 'Share'), icon: 'share', onClick: () => core.share(track) },
+        ...(core.game && Number.isFinite(track.seed) && track.style ? [{ label: W('玩節奏遊戲', 'Play the rhythm game'), icon: 'grid', onClick: () => core.game(track) }] : []),
         ...(core.remix ? [{ label: W('重新混音', 'Remix'), icon: 'shuffle', onClick: () => core.remix(track) }, ...(np ? [] : [{ label: W('取出片段', 'Take a clip'), icon: 'cut', onClick: () => core.clip(track) }])] : []),
         ...(core.inLibrary(track) ? ['divider', { label: W('從資料庫移除', 'Remove from Library'), icon: 'trash', danger: true, onClick: () => core.remove(track) }] : [])
       ],
