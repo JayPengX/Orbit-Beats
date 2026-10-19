@@ -152,7 +152,9 @@ export function mountJam(panel, api) {
       const k = api.kit();
       cur = { band: false, roles: k.roles, bpm: k.bpm, print: k.print, heard: k.heard };
       const loops = k.heard ? k.heard.analyses.map(a => loopBeats(a, k.bpm)) : [];
-      pads = padsOf(k.roles, loops).map(p => ({ ...p, fam: FAMILY[p.role] || 'drum' }));
+      // (A clip taken from a song keeps its own name on the pad: ♪ title · section.)
+      const named = i => (k.names?.[i]?.startsWith('♪') ? k.names[i] : '');
+      pads = padsOf(k.roles, loops).map(p => ({ ...p, fam: FAMILY[p.role] || 'drum', ...(named(p.i) ? { name: [named(p.i), named(p.i)], sub: null } : {}) }));
     }
     bpm = cur.bpm;
     if (setsOf !== cur.print) {

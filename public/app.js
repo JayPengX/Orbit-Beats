@@ -1324,7 +1324,7 @@ async function clipOf(x) {
       const out = got.get(`${k}:${part}`);
       if (!out) return false;
       addAudioClip({ title: song.name, section: name(SECTION_NAMES, info.plan[k][0]), part, audio: parseWav(out.wav), bpm: out.bpm });
-      toast(W('已加到片段', 'Added to clips'));
+      toast(W('已加到「做歌」的片段，也能在「即興」彈', 'Added to Make songs’ clips, and to Jam’s pads'));
       return true;
     }
   });
@@ -1447,9 +1447,11 @@ async function playSong(song, at = 0) {
   if (turn !== songTurn) return;
   audio.src = url;
   audio.currentTime = at;
+  // (Safari can keep the last song's time across a new src: set again once it's loaded.)
+  audio.addEventListener('loadedmetadata', () => Math.abs(audio.currentTime - at) > 0.5 && (audio.currentTime = at), { once: true });
   // (A play refused, iOS between songs with the screen locked: once more a moment later.)
   await audio.play().catch(() => new Promise(r => setTimeout(r, 300)).then(() => audio.play()).catch(() => {}));
-  claimSession({ title: song.name, artist: 'Orbit Beats', album: song.info.style ? name(STYLE_NAMES, song.info.style) : W('即興', 'Jam'), play: () => audio.play(), pause: () => audio.pause() });
+  claimSession({ title: song.name, artist: song.info.style ? name(STYLE_NAMES, song.info.style) : W('即興', 'Jam'), album: 'Orbit Beats', play: () => audio.play(), pause: () => audio.pause() });
   P.songStarted(song);
   paintPlayer();
   for (const li of rowsOf(song.id)) markRow(li, true);
@@ -2105,7 +2107,7 @@ async function boot() {
     goMake: () => showTab('make')
   });
   jam = mountJam($('panel-jam'), {
-    kit: () => ({ pieces, roles, bpm, sr, heard, print }),
+    kit: () => ({ pieces, roles, bpm, sr, heard, print, names: pieces.map(p => sources[p.src]?.name || '') }),
     audio: audioCtx,
     ahead,
     live,

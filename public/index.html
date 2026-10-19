@@ -418,7 +418,7 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .jam-pad[data-fam="chords"] { --c: var(--q-indigo); }
 .jam-pad[data-fam="melody"] { --c: var(--q-pink); }
 .jam-pad[data-fam="hat"] { color: color-mix(in srgb, var(--c) 40%, var(--text)); }
-.jam-pad b { font-size: clamp(10.5px, 3.4vw, 15px); font-weight: 700; line-height: 1.15; text-align: center; letter-spacing: -0.02em; white-space: nowrap; }
+.jam-pad b { font-size: clamp(10.5px, 3.4vw, 15px); font-weight: 700; line-height: 1.15; text-align: center; letter-spacing: -0.02em; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .jam-pad small { font-size: clamp(10px, 2.8vw, 11px); font-weight: 500; opacity: .75; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .jam-pad.loop { padding-top: 12px; }
 .jam-pad .mark { position: absolute; top: 4px; left: 7px; font-style: normal; font-size: 11px; font-weight: 700; opacity: .7; }
