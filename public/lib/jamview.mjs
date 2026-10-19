@@ -185,8 +185,8 @@ export function mountJam(panel, api) {
       cur = { band: false, roles: k.roles, bpm: k.bpm, print: k.print, heard: k.heard };
       const loops = k.heard ? k.heard.analyses.map(a => loopBeats(a, k.bpm)) : [];
       // (A clip taken from a song keeps its own name on the pad: ♪ title · section.)
-      const named = i => (k.names?.[i]?.startsWith('♪') ? k.names[i] : '');
-      pads = padsOf(k.roles, loops).map(p => ({ ...p, fam: FAMILY[p.role] || 'drum', ...(named(p.i) ? { name: [named(p.i), named(p.i)], sub: null } : {}) }));
+      const named = i => (k.names?.[i]?.startsWith('♪') ? k.names[i].replace(/^♪\s*/, '') : '');
+      pads = padsOf(k.roles, loops).map(p => ({ ...p, fam: FAMILY[p.role] || 'drum', ...(named(p.i) ? { name: [named(p.i), named(p.i)], sub: null, clip: true } : {}) }));
     }
     bpm = cur.bpm;
     if (setsOf !== cur.print) {
@@ -213,7 +213,8 @@ export function mountJam(panel, api) {
           const big = p.name ? W(...p.name) : String(p.i + 1);
           const small = p.name ? (p.sub ? W(...p.sub) : '') : name(ROLE_NAMES, p.role);
           const b = h('button', { class: `jam-pad${p.loop ? ' loop' : ''}`, type: 'button', 'data-i': String(p.i), 'data-fam': p.fam, 'aria-label': `${p.name ? big : `${small} ${big}`}${p.loop ? W('（循環）', ' (loop)') : ''}` }, [
-            h('b', { text: big }),
+            // (A clip from a song: the note icon, not a ♪ typed in its name.)
+            p.clip ? h('b', { class: 'clip' }, [h('i', { class: 'clip-ico', 'aria-hidden': 'true', html: icon('note') }), h('span', { text: big })]) : h('b', { text: big }),
             small ? h('small', { text: small }) : null,
             p.loop ? h('i', { class: 'mark', 'aria-hidden': 'true', html: p.name ? icon('loop') : `${icon('loop')}${p.beats}` }) : null,
             h('i', { class: 'lvl', 'aria-hidden': 'true' })
