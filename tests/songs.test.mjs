@@ -14,9 +14,9 @@ const roles = analysis.roles;
 const kit = drumKit(roles);
 const bpm = 125, B = (60 / bpm) * rec.sr;
 
-test('twenty grooves, each its family led by itself, every relative a groove; the studio writes each', () => {
-  assert.equal(STYLES.length, 20);
-  assert.equal(new Set(STYLES).size, 20);
+test('forty-nine grooves, each its family led by itself, every relative a groove; the studio writes each', () => {
+  assert.equal(STYLES.length, 49);
+  assert.equal(new Set(STYLES).size, 49);
   assert.deepEqual(Object.keys(FAMILY).sort(), [...STYLES].sort());
   for (const s of STYLES) {
     assert.equal(FAMILY[s][0], s);
@@ -44,7 +44,7 @@ test("each groove's bar of drums: on the kit's drums, inside its bars, on a 16th
     assert.ok(hits.some(h => h.beat < 4) && hits.some(h => h.beat >= 12), `${s}: every bar`);
     seen.add(JSON.stringify(grooveHits(s, kit, 1, 1)));
   }
-  assert.equal(seen.size, STYLES.length, 'twenty different grooves');
+  assert.equal(seen.size, STYLES.length, 'every groove its own');
   assert.deepEqual(grooveHits('trap', drumKit(['riff']), 4), [], 'no drums, no hits');
   assert.ok(grooveHits('nope', kit, 1).length > 0, 'an unknown groove: four on the floor');
   assert.deepEqual(grooveHits('four', kit, 0), []);

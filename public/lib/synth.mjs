@@ -10,56 +10,57 @@
 //   renderClip(clip, sr, bpm) -> { sr, L, R } (exactly its bars long)
 //   drumPattern(style, seed, bars), melody(key, inst, seed, bars) (自動編: a start written for you)
 
-import { makeRng } from '../engine.mjs';
+import { makeRng, SHUFFLE } from '../engine.mjs';
+import { NOTE_VOICES, DRUM_VOICES, RELEASE, PEAK, noiseOf, bandpass } from './voices.mjs';
 
-// The drums, left to right as the grid shows them: the kit, and the
-// percussion beside it (a lane set each, eight to a phone's width).
+// The drums, left to right as the grid shows them: the kit, the
+// percussion beside it, the world's hand drums and bells, and the other
+// kits' own (brush, rock, hardstyle, 8-bit, a gong): a lane set each,
+// eight to a phone's width.
 export const DRUMS = ['kick', 'snare', 'clap', 'hat', 'open', 'rim', 'tom', 'sub'];
 export const PERC = ['crash', 'ride', 'shaker', 'cowbell', 'conga', 'bongo', 'snap', 'perc'];
-export const ALL_DRUMS = [...DRUMS, ...PERC];
+export const WORLD = ['timbale', 'cajon', 'tabla', 'clave', 'tamb', 'guiro', 'agogo', 'dhol'];
+export const KITS = ['brush', 'rkick', 'rsnare', 'hardkick', 'chipk', 'chipn', 'chiph', 'gong'];
+export const DRUM_SETS = { kit: DRUMS, perc: PERC, world: WORLD, kits: KITS };
+export const ALL_DRUMS = [...DRUMS, ...PERC, ...WORLD, ...KITS];
 export const DRUM_NAMES = {
   kick: ['大鼓', 'Kick'], snare: ['小鼓', 'Snare'], clap: ['拍手', 'Clap'], hat: ['閉鈸', 'Hat'], open: ['開鈸', 'Open'], rim: ['邊擊', 'Rim'], tom: ['中鼓', 'Tom'], sub: ['808', '808'],
-  crash: ['銅鈸', 'Crash'], ride: ['疊音鈸', 'Ride'], shaker: ['沙鈴', 'Shaker'], cowbell: ['牛鈴', 'Cowbell'], conga: ['康加', 'Conga'], bongo: ['邦哥', 'Bongo'], snap: ['彈指', 'Snap'], perc: ['木魚', 'Block']
+  crash: ['銅鈸', 'Crash'], ride: ['疊音鈸', 'Ride'], shaker: ['沙鈴', 'Shaker'], cowbell: ['牛鈴', 'Cowbell'], conga: ['康加', 'Conga'], bongo: ['邦哥', 'Bongo'], snap: ['彈指', 'Snap'], perc: ['木魚', 'Block'],
+  timbale: ['天巴鼓', 'Timbale'], cajon: ['木箱鼓', 'Cajón'], tabla: ['塔布拉', 'Tabla'], clave: ['響棒', 'Clave'], tamb: ['鈴鼓', 'Tambourine'], guiro: ['刮瓜', 'Güiro'], agogo: ['阿哥哥鈴', 'Agogô'], dhol: ['多爾鼓', 'Dhol'],
+  brush: ['刷鼓', 'Brush'], rkick: ['搖滾大鼓', 'Rock kick'], rsnare: ['搖滾小鼓', 'Rock snare'], hardkick: ['硬派大鼓', 'Hard kick'], chipk: ['8-bit 大鼓', '8-bit kick'], chipn: ['8-bit 小鼓', '8-bit snare'], chiph: ['8-bit 鈸', '8-bit hat'], gong: ['鑼', 'Gong']
 };
-// The instruments that play notes, and the role each one's clip takes in a song.
-export const INSTRUMENTS = ['keys', 'pluck', 'bass', 'lead', 'pad', 'bell', 'organ', 'strings', 'brass', 'guitar', 'subbass', 'vox'];
+// The instruments that play notes (the chips' order: the most played first,
+// then by kind), and the role each one's clip takes in a song.
+export const INSTRUMENTS = [
+  'keys', 'piano', 'rhodes', 'pluck', 'guitar', 'nylon', 'bass', 'subbass', 'bass808', 'upright', 'lead', 'pad', 'strings', 'bell', 'organ', 'brass', 'vox', 'choir',
+  'sax', 'flute', 'harmonica', 'accordion', 'supersaw', 'chip', 'tri', 'acid', 'reese', 'slap', 'distgtr', 'clav', 'vibes', 'marimba', 'kalimba', 'musicbox', 'glass', 'steel',
+  'harp', 'banjo', 'pizz', 'guzheng', 'erhu', 'sitar'
+];
 export const INSTRUMENT_NAMES = {
   keys: ['電鋼琴', 'Keys'], pluck: ['撥弦', 'Pluck'], bass: ['貝斯', 'Bass'], lead: ['主音', 'Lead'], pad: ['鋪底', 'Pad'], bell: ['鐘聲', 'Bell'],
-  organ: ['風琴', 'Organ'], strings: ['弦樂', 'Strings'], brass: ['銅管', 'Brass'], guitar: ['吉他', 'Guitar'], subbass: ['低音', 'Sub bass'], vox: ['人聲', 'Vox']
+  organ: ['風琴', 'Organ'], strings: ['弦樂', 'Strings'], brass: ['銅管', 'Brass'], guitar: ['吉他', 'Guitar'], subbass: ['低音', 'Sub bass'], vox: ['人聲', 'Vox'],
+  piano: ['鋼琴', 'Piano'], rhodes: ['復古電鋼', 'Rhodes'], clav: ['克拉維', 'Clavinet'], vibes: ['顫音琴', 'Vibes'], marimba: ['馬林巴', 'Marimba'], kalimba: ['拇指琴', 'Kalimba'],
+  musicbox: ['音樂盒', 'Music box'], glass: ['玻璃鐘', 'Glass bell'], steel: ['鋼鼓', 'Steel drum'], harp: ['豎琴', 'Harp'], nylon: ['古典吉他', 'Nylon guitar'], banjo: ['斑鳩琴', 'Banjo'],
+  guzheng: ['古箏', 'Guzheng'], sitar: ['西塔琴', 'Sitar'], pizz: ['撥奏弦樂', 'Pizzicato'], erhu: ['二胡', 'Erhu'], sax: ['薩克斯風', 'Sax'], flute: ['長笛', 'Flute'],
+  harmonica: ['口琴', 'Harmonica'], accordion: ['手風琴', 'Accordion'], choir: ['合唱', 'Choir'], supersaw: ['超級鋸齒', 'Supersaw'], chip: ['8-bit 方波', 'Chip'], tri: ['8-bit 貝斯', 'Chip bass'],
+  bass808: ['808 滑音', '808 glide'], upright: ['低音提琴', 'Upright bass'], acid: ['酸性貝斯', 'Acid bass'], reese: ['Reese 貝斯', 'Reese bass'], distgtr: ['破音吉他', 'Dist. guitar'], slap: ['擊弦貝斯', 'Slap bass']
 };
-export const INSTRUMENT_ROLE = { keys: 'riff', pluck: 'riff', bass: 'bass', lead: 'riff', pad: 'riff', bell: 'riff', organ: 'riff', strings: 'riff', brass: 'riff', guitar: 'riff', subbass: 'bass', vox: 'riff' };
+const BASSES = new Set(['bass', 'subbass', 'bass808', 'upright', 'tri', 'acid', 'reese', 'slap']);
+export const INSTRUMENT_ROLE = Object.fromEntries(INSTRUMENTS.map(i => [i, BASSES.has(i) ? 'bass' : 'riff']));
 // Each instrument's octave (the grid's lowest note's MIDI number for C).
-export const OCTAVE = { keys: 60, pluck: 60, bass: 36, lead: 72, pad: 60, bell: 72, organ: 60, strings: 60, brass: 60, guitar: 48, subbass: 36, vox: 60 };
+export const OCTAVE = {
+  keys: 60, pluck: 60, bass: 36, lead: 72, pad: 60, bell: 72, organ: 60, strings: 60, brass: 60, guitar: 48, subbass: 36, vox: 60,
+  piano: 60, rhodes: 60, clav: 60, vibes: 60, marimba: 60, kalimba: 72, musicbox: 72, glass: 72, steel: 60, harp: 60, nylon: 48, banjo: 60, guzheng: 60, sitar: 60,
+  pizz: 60, erhu: 60, sax: 60, flute: 72, harmonica: 60, accordion: 60, choir: 60, supersaw: 60, chip: 72, tri: 36, bass808: 36, upright: 36, acid: 36, reese: 36, distgtr: 48, slap: 36
+};
 // How long a note is when tapped in (16ths): a pad holds, a bass is short.
-export const NOTE_LEN = { keys: 2, pluck: 2, bass: 2, lead: 2, pad: 8, bell: 2, organ: 4, strings: 8, brass: 2, guitar: 2, subbass: 2, vox: 4 };
+const LONG = { pad: 8, strings: 8, choir: 8, organ: 4, vox: 4, sax: 4, flute: 4, erhu: 4, harmonica: 4, accordion: 4, supersaw: 4 };
+export const NOTE_LEN = Object.fromEntries(INSTRUMENTS.map(i => [i, LONG[i] || 2]));
 // The instruments that hold chords when written for you.
-const CHORDAL = new Set(['pad', 'strings', 'organ']);
+const CHORDAL = new Set(['pad', 'strings', 'organ', 'choir', 'accordion']);
 
 const hz = m => 440 * 2 ** ((m - 69) / 12);
 const TAU = 2 * Math.PI;
-
-// A small random source for the noisy voices: the same sound every time.
-function noiseOf(seed) {
-  let x = seed >>> 0 || 1;
-  return () => {
-    x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
-    return ((x >>> 0) / 4294967296) * 2 - 1;
-  };
-}
-// A two-pole resonant band-pass (a state-variable filter), for the vox's vowels and the cowbell.
-function bandpass(x, sr, f, q = 6) {
-  const out = new Float32Array(x.length);
-  const k = 2 * Math.sin((Math.PI * f) / sr);
-  let low = 0;
-  let band = 0;
-  for (let i = 0; i < x.length; i++) {
-    low += k * band;
-    const high = x[i] - low - band / q;
-    band += k * high;
-    out[i] = band;
-  }
-  return out;
-}
 
 // One hit or note: a drum (midi only for the 808's pitch) or an
 // instrument's note, held `hold` seconds (the notes), then ringing out.
@@ -68,6 +69,22 @@ export function voice(inst, midi = 36, sr = 48000, hold = 0.25) {
   const env = (t, d) => Math.exp(-t / d);
   const noise = noiseOf(inst.length * 7919 + midi);
   let x;
+  if (DRUM_VOICES[inst]) {
+    x = DRUM_VOICES[inst](sr, noise);
+    // (A noisy hit never goes over full scale, whatever its seed.)
+    let top = 0;
+    for (let i = 0; i < x.length; i++) top = Math.max(top, Math.abs(x[i]));
+    if (top > 0.95) for (let i = 0; i < x.length; i++) x[i] *= 0.95 / top;
+  }
+  else if (NOTE_VOICES[inst]) {
+    // (The newer notes: each its own loop, then brought to its own loudness, whatever the pitch.)
+    x = len(hold + RELEASE[inst]);
+    NOTE_VOICES[inst](x, hz(midi), sr, hold, noise);
+    let peak = 0;
+    for (let i = 0; i < x.length; i++) peak = Math.max(peak, Math.abs(x[i]));
+    const g = peak > 1e-9 ? PEAK[inst] / peak : 0;
+    for (let i = 0; i < x.length; i++) x[i] *= g;
+  } else
   switch (inst) {
     case 'kick': {
       x = len(0.5);
@@ -293,8 +310,9 @@ export function clipOf(c) {
   if (!c || typeof c !== 'object') return null;
   const bars = BAR_CHOICES.includes(c.bars) ? c.bars : 1;
   const swing = Number.isFinite(c.swing) ? Math.min(0.6, Math.max(0, c.swing)) : 0;
+  const shuffle = Number.isFinite(c.shuffle) && c.shuffle > 0 ? { shuffle: Math.min(0.8, c.shuffle) } : {};
   if (c.kind === 'drums') {
-    const out = emptyDrums(bars);
+    const out = { ...emptyDrums(bars), ...shuffle };
     out.swing = swing;
     out.pitch = Number.isInteger(c.pitch) && c.pitch >= 24 && c.pitch <= 48 ? c.pitch : 33;
     for (const d of ALL_DRUMS) {
@@ -309,7 +327,7 @@ export function clipOf(c) {
     const notes = (Array.isArray(c.notes) ? c.notes : [])
       .filter(n => n && Number.isInteger(n.step) && n.step >= 0 && n.step < STEPS * bars && Number.isInteger(n.midi) && n.midi >= 12 && n.midi <= 120)
       .map(n => ({ step: n.step, midi: n.midi, len: Math.min(STEPS * 4, Math.max(1, Math.round(n.len) || 1)), ...(n.chord ? { chord: true } : {}), ...(n.lv === 2 || n.lv === 3 ? { lv: n.lv } : {}) }));
-    return { kind: 'notes', inst, bars, swing, key, notes };
+    return { kind: 'notes', inst, bars, swing, ...shuffle, key, notes };
   }
   return null;
 }
@@ -345,7 +363,8 @@ export function stepHits(clip, s) {
       if (n.step === s) for (const m of n.chord ? chordOf(n.midi, clip.key) : [n.midi]) out.push({ inst: clip.inst, midi: m, len: n.len || 1, gain: (n.chord ? 0.62 : 1) * levelGain(n.lv || 1) });
   return out;
 }
-export const swingOf = (clip, s) => (s % 2 ? clip.swing || 0 : 0);
+// (A swung clip, `shuffle`: its off-beat eighths late too, by that share of a 16th, as engine.mjs's SHUFFLE.)
+export const swingOf = (clip, s) => (s % 2 ? clip.swing || 0 : 0) + (s % 4 === 2 ? clip.shuffle || 0 : 0);
 
 // A clip as a piece: exactly its bars long (a loop of them), with a phone
 // mic's faint noise floor all through, so splitting keeps it whole.
@@ -442,8 +461,40 @@ const GROOVES = {
   reggae: { kick: [8], rim: [8], hat: [2, 6, 10, 14] },
   phonk: { sub: [0, 10], kick: [7], snare: [4, 12], cowbell: [0, 3, 6, 10, 12], hat: [0, 2, 4, 6, 8, 10, 12, 13, 14, 15] },
   baile: { kick: [0, 3, 8, 11], snare: [6, 14], hat: [2, 4, 10, 12] },
-  techno: { kick: [0, 4, 8, 12], clap: [4, 12], open: [2, 6, 10, 14], hat: [1, 3, 5, 7, 9, 11, 13, 15] }
+  techno: { kick: [0, 4, 8, 12], clap: [4, 12], open: [2, 6, 10, 14], hat: [1, 3, 5, 7, 9, 11, 13, 15] },
+  jazz: { kick: [0], brush: [4, 12], ride: [0, 4, 6, 8, 12, 14], hat: [4, 12] },
+  bossa: { kick: [0, 6, 8, 14], rim: [0, 3, 6, 10, 12], shaker: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] },
+  samba: { kick: [0, 8], tom: [4, 12], timbale: [2, 3, 7, 10, 13, 14], shaker: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] },
+  salsa: { kick: [6], clave: [0, 3, 6, 10, 12], cowbell: [0, 4, 8, 12], conga: [6, 7, 14, 15] },
+  rock: { rkick: [0, 8, 10], rsnare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14] },
+  punk: { rkick: [0, 6, 8], rsnare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14], crash: [0] },
+  metal: { rkick: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], rsnare: [8], ride: [0, 4, 8, 12], crash: [0] },
+  citypop: { kick: [0, 6, 8, 11], snare: [4, 12], hat: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], open: [14] },
+  kpop: { kick: [0, 4, 8, 12, 14], clap: [4, 12], hat: [2, 6, 10, 12, 13, 14, 15] },
+  synthwave: { kick: [0, 8, 11], rsnare: [4, 12], hat: [2, 6, 10, 14], tom: [13, 15] },
+  disco: { kick: [0, 4, 8, 12], snare: [4, 12], open: [2, 6, 10, 14], hat: [1, 5, 9, 13] },
+  gospel: { kick: [0, 6, 8], rsnare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14], tamb: [4, 12] },
+  neosoul: { kick: [0, 7, 10], snare: [4, 12], rim: [11], hat: [0, 2, 4, 6, 8, 10, 12, 14] },
+  ballad: { kick: [0, 6], snare: [8], hat: [0, 4, 8, 12] },
+  ambient: { kick: [0], shaker: [4, 10, 12], gong: [0] },
+  cinematic: { kick: [0, 8], tom: [3, 6, 11, 14], rsnare: [12], gong: [0] },
+  chiptune: { chipk: [0, 6, 10], chipn: [4, 12], chiph: [0, 2, 3, 4, 6, 8, 10, 11, 12, 14] },
+  kizomba: { kick: [0, 6, 8], snare: [4, 12], rim: [2, 3, 10, 11, 15], shaker: [0, 2, 4, 6, 8, 10, 12, 14] },
+  highlife: { kick: [0, 6, 10], snare: [4, 12], agogo: [0, 2, 5, 7, 10, 13, 15], shaker: [1, 3, 5, 7, 9, 11, 13, 15] },
+  cumbia: { kick: [0, 8], conga: [6, 14], guiro: [0, 2, 3, 4, 6, 7, 8, 10, 11, 12, 14, 15] },
+  bhangra: { dhol: [0, 3, 8, 11], clap: [4, 6, 12, 14], tamb: [0, 2, 4, 6, 8, 10, 12, 14] },
+  dubstep: { kick: [0, 13], snare: [8], hat: [0, 2, 4, 6, 8, 10, 12, 14], sub: [0] },
+  footwork: { kick: [0, 3, 6, 10, 13], clap: [4, 12], hat: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], sub: [9] },
+  jungle: { kick: [0, 2, 10, 11], snare: [4, 7, 12, 15], hat: [0, 2, 4, 6, 8, 10, 12, 14] },
+  trance: { kick: [0, 4, 8, 12], clap: [4, 12], open: [2, 6, 10, 14], hat: [3, 7, 11, 15] },
+  hardstyle: { hardkick: [0, 4, 8, 12], clap: [4, 12], sub: [2, 6, 10, 14], open: [2, 6, 10, 14] },
+  chinese: { kick: [0, 3, 10], snare: [4, 12], perc: [14], hat: [0, 4, 8, 12] },
+  blues: { kick: [0, 6, 8, 14], snare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14] },
+  country: { kick: [0, 8], snare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14], tamb: [4, 12] }
 };
+// (A groove on another kit's kick: its downbeat accent and extra kick there; its hat roll on its own hat.)
+const KICK_OF = g => (g.rkick ? 'rkick' : g.chipk ? 'chipk' : g.hardkick ? 'hardkick' : g.dhol ? 'dhol' : 'kick');
+const ROLL_OF = { jazz: 'ride', chiptune: 'chiph', ambient: 'shaker', cinematic: 'tom', bhangra: 'tamb', cumbia: 'guiro', salsa: 'clave' };
 export const GROOVE_STYLES = Object.keys(GROOVES);
 export function drumPattern(style = 'trap', seed = 1, bars = 1) {
   const rng = makeRng(seed);
@@ -453,12 +504,14 @@ export function drumPattern(style = 'trap', seed = 1, bars = 1) {
     for (const [d, hits] of Object.entries(g))
       for (const s of hits) if (rng.random() < 0.94) clip.steps[d][b * STEPS + s] = 1;
   // The downbeat's kick a little harder; a bar's own touch: a ghost hit, or a hat roll at the end of the last bar.
-  for (let b = 0; b < bars; b++) if (clip.steps.kick[b * STEPS]) clip.steps.kick[b * STEPS] = 2;
+  const kick = clip.steps[KICK_OF(g)];
+  for (let b = 0; b < bars; b++) if (kick[b * STEPS]) kick[b * STEPS] = 2;
   const last = (bars - 1) * STEPS;
-  if (rng.random() < 0.5) for (const s of [13, 14, 15]) clip.steps.hat[last + s] = 1;
-  if (rng.random() < 0.4) clip.steps.kick[last + rng.choice([3, 7, 14])] = 1;
+  if (rng.random() < 0.5) for (const s of [13, 14, 15]) clip.steps[ROLL_OF[style] || 'hat'][last + s] = 1;
+  if (rng.random() < 0.4) kick[last + rng.choice([3, 7, 14])] = 1;
   clip.pitch = rng.choice([31, 33, 34, 36]);
-  clip.swing = ['lofi', 'boombap', 'garage', 'hiphop'].includes(style) ? 0.25 : 0;
+  clip.swing = ['lofi', 'boombap', 'garage', 'hiphop', 'neosoul'].includes(style) ? 0.25 : 0;
+  if (SHUFFLE[style]) clip.shuffle = SHUFFLE[style];
   return clip;
 }
 

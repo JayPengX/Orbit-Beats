@@ -1,22 +1,24 @@
-// The studio's instruments and clips (lib/synth.mjs): 16 drums, 12
+// The studio's instruments and clips (lib/synth.mjs): 32 drums, 42
 // instruments, accents, chords, swing, 1/2/4 bars, clips kept and resized,
 // a groove written for every style, melodies.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  DRUMS, PERC, ALL_DRUMS, INSTRUMENTS, INSTRUMENT_ROLE, OCTAVE, NOTE_LEN, STEPS, BAR_CHOICES, SCALES, GROOVE_STYLES,
+  DRUMS, PERC, WORLD, KITS, ALL_DRUMS, INSTRUMENTS, INSTRUMENT_ROLE, OCTAVE, NOTE_LEN, STEPS, BAR_CHOICES, SCALES, GROOVE_STYLES,
   voice, emptyDrums, emptyNotes, clipOf, chordOf, stepHits, swingOf, renderClip, clipEmpty, copyFirstBar, resizeClip, drumPattern, melody, scaleRows
 } from '../public/lib/synth.mjs';
 import { ROLES, splitPieces } from '../public/engine.mjs';
 
+const KICKS = ['kick', 'rkick', 'chipk', 'hardkick', 'dhol'];
 const peak = x => x.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
 const onset = (x, thr = 0.02) => x.findIndex(v => Math.abs(v) > thr);
 
-test('sixteen drums and twelve instruments, each with its role, octave and note length; every sound finite, the same every time', () => {
-  assert.equal(ALL_DRUMS.length, 16);
-  assert.equal(new Set(ALL_DRUMS).size, 16);
-  assert.deepEqual([...DRUMS, ...PERC], ALL_DRUMS);
-  assert.equal(INSTRUMENTS.length, 12);
+test('thirty-two drums and forty-two instruments, each with its role, octave and note length; every sound finite, the same every time', () => {
+  assert.equal(ALL_DRUMS.length, 32);
+  assert.equal(new Set(ALL_DRUMS).size, 32);
+  assert.deepEqual([...DRUMS, ...PERC, ...WORLD, ...KITS], ALL_DRUMS);
+  assert.equal(INSTRUMENTS.length, 42);
+  assert.equal(new Set(INSTRUMENTS).size, 42);
   for (const i of INSTRUMENTS) {
     assert.ok(ROLES.includes(INSTRUMENT_ROLE[i]) && ['riff', 'bass'].includes(INSTRUMENT_ROLE[i]), i);
     assert.ok(Number.isInteger(OCTAVE[i]) && OCTAVE[i] % 12 === 0, i);
@@ -176,11 +178,14 @@ test('a groove written for every style: its lanes on the grid, a harder downbeat
       for (const lane of ALL_DRUMS) {
         assert.equal(c.steps[lane].length, 16 * bars);
         assert.ok(c.steps[lane].every(v => v === 0 || v === 1 || v === 2), `${style} ${lane}`);
-        if (lane !== 'kick') assert.ok(!c.steps[lane].includes(2), `${style}: accents on the kick's downbeats only`);
+        if (!KICKS.includes(lane)) assert.ok(!c.steps[lane].includes(2), `${style}: accents on the kick's downbeats only`);
       }
-      for (let b = 0; b < bars; b++) assert.ok([0, 2].includes(c.steps.kick[b * 16]), `${style} bar ${b}`);
+      // A style's kick is whichever kick its kit has (the studio's kick, or the rock, 8-bit, hard or dhol one).
+      const kickLane = KICKS.find(k => c.steps[k].some(v => v)) ;
+      assert.ok(kickLane, `${style}: a kick`);
+      for (let b = 0; b < bars; b++) assert.ok([0, 2].includes(c.steps[kickLane][b * 16]), `${style} bar ${b}`);
       assert.ok([31, 33, 34, 36].includes(c.pitch));
-      assert.equal(c.swing, ['lofi', 'boombap', 'garage', 'hiphop'].includes(style) ? 0.25 : 0);
+      assert.equal(c.swing, ['lofi', 'boombap', 'garage', 'hiphop', 'neosoul'].includes(style) ? 0.25 : 0);
       assert.deepEqual(clipOf(c), c, 'a valid clip');
     }
   assert.deepEqual(drumPattern('nope', 2, 1), drumPattern('trap', 2, 1), 'an unknown style: trap');
@@ -202,7 +207,7 @@ test('melodies: in the key, in the bars, ending home; basses low, pads in chords
           assert.ok(n.midi >= OCTAVE[inst] - 12 && n.midi < OCTAVE[inst] + 24, `${inst} ${n.midi}`);
         }
         assert.equal((m.notes.at(-1).midi - key.tonic + 120) % 12, 0, 'ends home');
-        assert.equal(m.notes.every(n => n.chord), ['pad', 'strings', 'organ'].includes(inst));
+        assert.equal(m.notes.every(n => n.chord), ['pad', 'strings', 'organ', 'choir', 'accordion'].includes(inst));
         assert.deepEqual(clipOf(m), m);
       }
   assert.deepEqual(scaleRows(0, false, 60, 8), [60, 62, 64, 65, 67, 69, 71, 72]);

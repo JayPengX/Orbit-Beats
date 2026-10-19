@@ -9,7 +9,14 @@ import { analyzeRecording } from './analyze.mjs';
 import { BUSES, BUS_OF, mixdown, mixOf } from './lib/mix.mjs';
 export { analyzeRecording, analyzePiece, detectTempo, guessRole, loopBeats } from './analyze.mjs';
 
-export const STYLES = ['four', 'hiphop', 'trap', 'half', 'broken', 'house', 'dembow', 'afro', 'drill', 'boombap', 'jersey', 'amapiano', 'lofi', 'funk', 'garage', 'dnb', 'reggae', 'phonk', 'baile', 'techno'];
+export const STYLES = ['four', 'hiphop', 'trap', 'half', 'broken', 'house', 'dembow', 'afro', 'drill', 'boombap', 'jersey', 'amapiano', 'lofi', 'funk', 'garage', 'dnb', 'reggae', 'phonk', 'baile', 'techno',
+  'jazz', 'bossa', 'samba', 'salsa', 'rock', 'punk', 'metal', 'citypop', 'kpop', 'synthwave', 'disco', 'gospel', 'neosoul', 'ballad', 'ambient', 'cinematic', 'chiptune', 'kizomba', 'highlife', 'cumbia', 'bhangra', 'dubstep', 'footwork', 'jungle', 'trance', 'hardstyle', 'chinese', 'blues', 'country'];
+// The styles as the app lists them: the most played first (names.mjs shows them; here so a worker can read it).
+export const STYLE_ORDER = [
+  'lofi', 'hiphop', 'trap', 'kpop', 'house', 'afro', 'reggae', 'jazz', 'rock', 'citypop', 'dembow', 'ballad', 'chinese', 'synthwave', 'disco', 'bossa',
+  'drill', 'boombap', 'phonk', 'half', 'neosoul', 'funk', 'gospel', 'four', 'techno', 'trance', 'garage', 'dnb', 'jungle', 'dubstep', 'jersey', 'footwork', 'hardstyle', 'broken',
+  'amapiano', 'baile', 'samba', 'salsa', 'cumbia', 'kizomba', 'highlife', 'bhangra', 'blues', 'country', 'punk', 'metal', 'ambient', 'cinematic', 'chiptune'
+];
 export const SECTIONS = ['intro', 'verse', 'pre', 'hook', 'break', 'bridge', 'outro'];
 
 // What a piece does in a song. Loops repeat every so many beats (a loop
@@ -24,7 +31,15 @@ export const FAMILY = {
   half: ['half', 'hiphop'], house: ['house', 'four', 'jersey', 'amapiano', 'garage'], dembow: ['dembow', 'afro', 'reggae', 'baile'], afro: ['afro', 'dembow', 'amapiano'],
   drill: ['drill', 'trap'], boombap: ['boombap', 'hiphop', 'lofi'], jersey: ['jersey', 'house', 'baile'], amapiano: ['amapiano', 'house', 'afro'],
   lofi: ['lofi', 'boombap', 'hiphop'], funk: ['funk', 'broken', 'boombap'], garage: ['garage', 'house', 'broken'], dnb: ['dnb', 'broken'],
-  reggae: ['reggae', 'dembow'], phonk: ['phonk', 'trap', 'drill'], baile: ['baile', 'dembow', 'jersey'], techno: ['techno', 'four', 'house']
+  reggae: ['reggae', 'dembow'], phonk: ['phonk', 'trap', 'drill'], baile: ['baile', 'dembow', 'jersey'], techno: ['techno', 'four', 'house'],
+  jazz: ['jazz', 'bossa', 'blues', 'neosoul'], bossa: ['bossa', 'jazz', 'samba'], samba: ['samba', 'bossa', 'baile'], salsa: ['salsa', 'cumbia', 'samba'],
+  rock: ['rock', 'punk', 'metal', 'blues'], punk: ['punk', 'rock'], metal: ['metal', 'rock'], citypop: ['citypop', 'disco', 'funk', 'neosoul'],
+  kpop: ['kpop', 'house', 'trap'], synthwave: ['synthwave', 'citypop', 'four'], disco: ['disco', 'house', 'funk', 'citypop'], gospel: ['gospel', 'neosoul', 'blues'],
+  neosoul: ['neosoul', 'lofi', 'hiphop', 'gospel'], ballad: ['ballad', 'half', 'cinematic'], ambient: ['ambient', 'half', 'ballad'], cinematic: ['cinematic', 'half', 'ambient'],
+  chiptune: ['chiptune', 'synthwave', 'four'], kizomba: ['kizomba', 'dembow', 'afro'], highlife: ['highlife', 'afro', 'amapiano'], cumbia: ['cumbia', 'reggae', 'dembow', 'salsa'],
+  bhangra: ['bhangra', 'dembow', 'afro'], dubstep: ['dubstep', 'trap', 'half'], footwork: ['footwork', 'jersey', 'trap'], jungle: ['jungle', 'dnb', 'broken'],
+  trance: ['trance', 'techno', 'house', 'four'], hardstyle: ['hardstyle', 'techno', 'trance'], chinese: ['chinese', 'ballad', 'lofi'], blues: ['blues', 'jazz', 'rock', 'gospel'],
+  country: ['country', 'rock', 'ballad']
 };
 // and the song's body is verse–hook pairs (each verse maybe with a pre-hook
 // before its hook, every one the same), maybe a break first, maybe a break
@@ -155,12 +170,14 @@ class Song {
     this.swing = r.uniform(0, 0.06) * humanize;        // beat fraction pushed on off-16ths
     this.loose = r.uniform(0.004, 0.012) * humanize;   // timing sd in seconds
     this.rest = new Set();                              // stop bars: loops and drums lay out
+    this.sh = 0;                                        // a swung groove's off-beat eighths, late by this (beats)
   }
   hit(i, beat, tight = false) {   // piece i, as recorded, from `beat`
     if (i == null) return;
     const { r, sr, B } = this;
     const at = beat;
     if (Math.abs((beat % 0.5) - 0.25) < 1e-6) beat += this.swing;
+    else if (this.sh && Math.abs((beat % 1) - 0.5) < 1e-6) beat += this.sh;
     const a = Math.max(0, Math.round(beat * B + r.normal(0, this.loose * (tight ? 0.4 : 1)) * sr));
     this.events.push({ i, beat: at, a });
   }
@@ -314,10 +331,179 @@ const GROOVES = {
     for (const q of [0.5, 1.5, 2.5, 3.5]) s.hit(k.tick, t + q);
     if (s.r.random() < 0.5) { s.hit(k.snare, t + 1); s.hit(k.snare, t + 3); }
     if (s.r.random() < 0.3) s.hit(k.tick, t + 3.75);
+  },
+  jazz(s, t, k) {   // swing: the ride's ding, ding-a ding, the brush on 2 and 4, a feathered kick, a bomb now and then
+    s.hit(k.kick, t); s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
+    for (const q of [0, 1, 1.5, 2, 3, 3.5]) s.hit(k.tick, t + q);
+    if (s.r.random() < 0.3) s.hit(k.roll, t + 2.5);
+    if (s.r.random() < 0.25) s.hit(k.heavy, t + 3.5);
+  },
+  bossa(s, t, k) {   // bossa nova's: the kick's two-beat lilt, the rim's clave, a shaker on every 16th
+    for (const q of [0, 1.5, 2, 3.5]) s.hit(k.kick, t + q);
+    for (const q of [0, 0.75, 1.5, 2.5, 3]) s.hit(k.snare, t + q);
+    for (let q = 0; q < 4; q += 0.25) if (q % 1 === 0 || s.r.random() < 0.85) s.hit(k.tick, t + q);
+  },
+  samba(s, t, k) {   // samba's: the surdos answering on 2 and 4, the tamborim's syncopation, sixteenths shaken
+    s.hit(k.kick, t); s.hit(k.heavy, t + 1); s.hit(k.kick, t + 2); s.hit(k.heavy, t + 3);
+    for (const q of [0.5, 0.75, 1.75, 2.5, 3.25, 3.5]) s.hit(k.snare, t + q);
+    for (let q = 0; q < 4; q += 0.25) s.hit(k.tick, t + q);
+    if (s.r.random() < 0.3) s.hit(k.roll, t + 3.75);
+  },
+  salsa(s, t, k) {   // salsa's: the clave (three, then two) on the sticks, the bell on the beat, the bass drum's push before 3 and 1
+    s.hit(k.kick, t + 1.5); s.hit(k.heavy, t + 3.5);
+    for (const q of [0, 0.75, 1.5, 2.5, 3]) s.hit(k.snare, t + q);
+    for (const q of [0, 1, 2, 3]) s.hit(k.tick, t + q);
+    if (s.r.random() < 0.5) { s.hit(k.tick, t + 0.5); s.hit(k.tick, t + 2.5); }
+  },
+  rock(s, t, k) {   // rock's: the kick on 1 and 3 and the and of 3, the snare on 2 and 4, eighths on the hat
+    s.hit(k.heavy, t); s.hit(k.kick, t + 2); s.hit(k.kick, t + 2.5);
+    s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
+    for (let q = 0; q < 4; q += 0.5) s.hit(k.tick, t + q);
+    if (s.r.random() < 0.3) s.hit(k.kick, t + 3.5);
+    if (s.r.random() < 0.2) s.hit(k.kick, t + 1.75);
+  },
+  punk(s, t, k) {   // pop-punk's: fast, the kick on 1 and 2-and, or the skate beat (snare on every off-beat)
+    if (s.r.random() < 0.35) {
+      for (let q = 0; q < 4; q++) { s.hit(k.kick, t + q); s.hit(k.snare, t + q + 0.5); }
+    } else {
+      s.hit(k.heavy, t); s.hit(k.kick, t + 1.5); s.hit(k.kick, t + 2);
+      s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
+    }
+    for (let q = 0; q < 4; q += 0.5) s.hit(k.tick, t + q);
+  },
+  metal(s, t, k) {   // metal's half-time chug: double kicks running in sixteenths (or galloping), one huge snare on 3, the cymbal on the beat
+    if (s.r.random() < 0.5) { for (let q = 0; q < 4; q += 0.25) s.hit(k.kick, t + q); }
+    else for (let q = 0; q < 4; q++) for (const d of [0, 0.5, 0.75]) s.hit(k.kick, t + q + d);
+    s.hit(k.heavy, t); s.hit(k.snare, t + 2);
+    for (let q = 0; q < 4; q++) s.hit(k.tick, t + q);
+  },
+  citypop(s, t, k) {   // city pop's: a dance-floor kick that skips into 3, the snare on 2 and 4, busy sixteenths, a ghost before the bar
+    s.hit(k.heavy, t); s.hit(k.kick, t + 1.5); s.hit(k.kick, t + 2); s.hit(k.kick, t + 2.75);
+    s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
+    for (let q = 0; q < 4; q += 0.25) if (q % 0.5 === 0 || s.r.random() < 0.6) s.hit(k.tick, t + q);
+    if (s.r.random() < 0.3) s.hit(k.roll, t + 3.75);
+  },
+  kpop(s, t, k) {   // K-pop and J-pop dance: four on the floor with a kick before the bar, the clap on 2 and 4, a hat roll into the next
+    for (let q = 0; q < 4; q++) s.hit(k.kick, t + q);
+    s.hit(k.kick, t + 3.5); s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
+    for (const q of [0.5, 1.5, 2.5]) s.hit(k.tick, t + q);
+    if (s.r.random() < 0.4) for (const q of [3, 3.25, 3.5, 3.75]) s.hit(k.tick, t + q);
+  },
+  synthwave(s, t, k) {   // synthwave's: the eighties drum machine, a big gated snare on 2 and 4, the hat on the off-beats
+    s.hit(k.heavy, t); s.hit(k.kick, t + 2);
+    s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
+    for (const q of [0.5, 1.5, 2.5, 3.5]) s.hit(k.tick, t + q);
+    if (s.r.random() < 0.5) s.hit(k.kick, t + 2.75);
+  },
+  disco(s, t, k) {   // disco's: four on the floor, the snare on 2 and 4, the open hat's tss on the off-beats and its little ka before
+    for (let q = 0; q < 4; q++) s.hit(k.kick, t + q);
+    s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
+    for (const q of [0.25, 0.5, 1.25, 1.5, 2.25, 2.5, 3.25, 3.5]) s.hit(k.tick, t + q);
+    if (s.r.random() < 0.25) s.hit(k.roll, t + 3.75);
+  },
+  gospel(s, t, k) {   // gospel's shuffle: a kick that rolls into 2, a heavy backbeat, the hat in shuffled eighths, a chop fill now and then
+    s.hit(k.heavy, t); s.hit(k.kick, t + 0.75); s.hit(k.kick, t + 1.5); s.hit(k.kick, t + 2.5);
+    s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
+    for (let q = 0; q < 4; q += 0.5) s.hit(k.tick, t + q);
+    if (s.r.random() < 0.35) s.hit(k.roll, t + 3.5);
+  },
+  neosoul(s, t, k) {   // neo-soul's: a lazy kick off the grid's corners, the snare on 2 and 4, a ghost note, hats that come and go
+    s.hit(k.heavy, t); s.hit(k.kick, t + 1.75); s.hit(k.kick, t + 2.5);
+    s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
+    if (s.r.random() < 0.5) s.hit(k.roll, t + 2.75);
+    for (let q = 0; q < 4; q += 0.5) if (s.r.random() < 0.7) s.hit(k.tick, t + q);
+  },
+  ballad(s, t, k) {   // a ballad's: the kick on 1 (and the and of 2), the snare once on 3, quarter notes on the hat
+    s.hit(k.heavy, t); s.hit(k.snare, t + 2);
+    if (s.r.random() < 0.5) s.hit(k.kick, t + 1.5);
+    for (let q = 0; q < 4; q++) s.hit(k.tick, t + q);
+  },
+  ambient(s, t, k) {   // ambient's: hardly there, a soft kick on 1 and a shaker's breath on 2 and 4
+    s.hit(k.kick, t);
+    s.hit(k.tick, t + 1); s.hit(k.tick, t + 3);
+    if (s.r.random() < 0.3) s.hit(k.tick, t + 2.5);
+  },
+  cinematic(s, t, k) {   // a film score's: war drums, the big hit on 1, toms marching, one huge snare at the end of the bar
+    s.hit(k.heavy, t); s.hit(k.kick, t + 0.75); s.hit(k.kick, t + 1.5); s.hit(k.heavy, t + 2); s.hit(k.snare, t + 3);
+    if (s.r.random() < 0.4) s.hit(k.roll, t + 3.5);
+  },
+  chiptune(s, t, k) {   // 8-bit's: a game's kick and noise snare, the hat chattering in sixteenths
+    s.hit(k.kick, t); s.hit(k.kick, t + 1.5); s.hit(k.kick, t + 2.5);
+    s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
+    for (let q = 0; q < 4; q += 0.25) if (q % 0.5 === 0 || s.r.random() < 0.5) s.hit(k.tick, t + q);
+  },
+  kizomba(s, t, k) {   // kizomba's (and zouk's): a slow, swaying kick, the snare on 2 and 4, the rim's tresillo ticking round it
+    s.hit(k.heavy, t); s.hit(k.kick, t + 1.5); s.hit(k.kick, t + 2);
+    s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
+    for (const q of [0.5, 0.75, 2.5, 2.75, 3.75]) s.hit(k.tick, t + q);
+  },
+  highlife(s, t, k) {   // highlife's: the bell's pattern over a kick that skips, light snares on 2 and 4
+    s.hit(k.kick, t); s.hit(k.kick, t + 1.5); s.hit(k.kick, t + 2.5);
+    s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
+    for (const q of [0, 0.5, 1.25, 1.75, 2.5, 3.25, 3.75]) s.hit(k.tick, t + q);
+  },
+  cumbia(s, t, k) {   // cumbia's: the güiro's chu-chucu on every beat, the kick on 1 and 3, the drum answering on the and of 2 and 4
+    s.hit(k.heavy, t); s.hit(k.kick, t + 2);
+    if (s.r.random() < 0.5) s.hit(k.kick, t + 1.75);
+    s.hit(k.snare, t + 1.5); s.hit(k.snare, t + 3.5);
+    for (let q = 0; q < 4; q++) for (const d of [0, 0.5, 0.75]) s.hit(k.tick, t + q + d);
+  },
+  bhangra(s, t, k) {   // bhangra's: the dhol's chaal, its bass head booming 1 and 3 with the pickups, the high head and claps on 2 and 4
+    for (const q of [0, 0.75, 2, 2.75]) s.hit(k.heavy, t + q);
+    for (const q of [1, 1.5, 3, 3.5]) s.hit(k.snare, t + q);
+    for (let q = 0; q < 4; q += 0.5) s.hit(k.tick, t + q);
+  },
+  dubstep(s, t, k) {   // dubstep's half-time: the heavy kick, the snare on 3, kicks that stumble, hats in eighths
+    s.hit(k.heavy, t); s.hit(k.snare, t + 2);
+    if (s.r.random() < 0.5) s.hit(k.kick, t + 0.75);
+    s.hit(k.kick, t + 3.25);
+    for (let q = 0; q < 4; q += 0.5) s.hit(k.tick, t + q);
+  },
+  footwork(s, t, k) {   // footwork's (juke): kicks in threes against the beat, claps on 2 and 4, sixteenth hats
+    for (const q of [0, 0.75, 1.5, 2.5, 3.25]) s.hit(k.kick, t + q);
+    s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
+    s.hit(k.sub, t + 2.25);
+    for (let q = 0; q < 4; q += 0.25) s.hit(k.tick, t + q);
+  },
+  jungle(s, t, k) {   // jungle's chopped break (the Amen's shape): kick, kick, snare, the ghost, kicks, snare, a late one
+    s.hit(k.heavy, t); s.hit(k.kick, t + 0.5); s.hit(k.kick, t + 2.5); s.hit(k.kick, t + 2.75);
+    s.hit(k.snare, t + 1); s.hit(k.snare, t + 1.75); s.hit(k.snare, t + 3);
+    s.hit(k.snare, s.r.random() < 0.5 ? t + 3.75 : t + 3.5);
+    for (let q = 0; q < 4; q += 0.5) s.hit(k.tick, t + q);
+  },
+  trance(s, t, k) {   // trance's: four on the floor, the clap on 2 and 4, the hat rolling on each off-beat and the 16th after it
+    for (let q = 0; q < 4; q++) s.hit(k.kick, t + q);
+    s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
+    for (const q of [0.5, 0.75, 1.5, 1.75, 2.5, 2.75, 3.5, 3.75]) s.hit(k.tick, t + q);
+  },
+  hardstyle(s, t, k) {   // hardstyle's: the distorted kick on every beat, its reverse bass on every off-beat, the clap on 2 and 4
+    for (let q = 0; q < 4; q++) { s.hit(k.heavy, t + q); s.hit(k.sub, t + q + 0.5); }
+    s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
+    if (s.r.random() < 0.3) s.hit(k.tick, t + 3.75);
+  },
+  chinese(s, t, k) {   // 中國風: a pop ballad's beat, the kick's skip, the snare on 2 and 4, the hat on the beat and a woodblock's push
+    s.hit(k.heavy, t); s.hit(k.kick, t + 0.75); s.hit(k.kick, t + 2.5);
+    s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
+    for (const q of [0, 1, 2, 3, 3.5]) s.hit(k.tick, t + q);
+  },
+  blues(s, t, k) {   // the blues shuffle: the kick walking 1, 2-and, 3, 4-and, the snare on 2 and 4, shuffled eighths
+    for (const q of [0, 1.5, 2, 3.5]) s.hit(k.kick, t + q);
+    s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
+    for (let q = 0; q < 4; q += 0.5) s.hit(k.tick, t + q);
+  },
+  country(s, t, k) {   // country's boom-chick: the kick on 1 and 3, the snare on 2 and 4, eighths, a pickup into the bar
+    s.hit(k.heavy, t); s.hit(k.kick, t + 2);
+    s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
+    for (let q = 0; q < 4; q += 0.5) s.hit(k.tick, t + q);
+    if (s.r.random() < 0.3) s.hit(k.snare, t + 3.5);
   }
 };
 // The grooves whose hats are part of them: no extra ticks.
-const FULL_HATS = new Set(['drill', 'boombap', 'amapiano', 'lofi', 'funk', 'garage', 'dnb', 'reggae', 'phonk', 'baile', 'techno']);
+const FULL_HATS = new Set(['drill', 'boombap', 'amapiano', 'lofi', 'funk', 'garage', 'dnb', 'reggae', 'phonk', 'baile', 'techno', ...STYLES.slice(20)]);
+// The swung grooves: each off-beat eighth played late, by this share of a
+// 16th (2/3 is a full triplet), every hit of the song (lib/synth.mjs swings
+// their clips the same).
+export const SHUFFLE = { jazz: 0.62, blues: 0.66, gospel: 0.56 };
 
 // The hits summed and mixed. -> { audio: { sr, L, R, peak, over }, stems }
 function renderSong(s, { roles, plan, mix, stems = false }) {
@@ -488,6 +674,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   const plan = arranged ? planOf(arranged) : drawn, bars = plan.at(-1)[1] + plan.at(-1)[2];
   const hooks = plan.filter(([t]) => t === 'hook').length;
   const s = new Song(bars, r, pieces, sr, humanize, bpm, loops);
+  if (humanize > 0) s.sh = (SHUFFLE[style] || 0) * 0.25;   // (humanize 0: strictly on the grid)
 
   // How each section hands over, decided first: the bar before a hook may be
   // a stop bar (everything lays out but the fill). Fills fit where they lead:

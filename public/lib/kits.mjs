@@ -29,14 +29,15 @@ const CHECK = {
   smart: v => typeof v === 'boolean',
   studioBpm: v => Number.isFinite(v) && v >= 60 && v <= 200,
   level: levelOk,
-  radioMood: v => typeof v === 'string' && /^(all|chill|hype|groove|classic|style:[a-z]+)$/.test(v)
+  radioMood: v => typeof v === 'string' && /^(all|chill|hype|groove|classic|pop|jazz|world|style:[a-z]+)$/.test(v)
 };
 export function settingsOf(kept, base = DEFAULTS) {
   const out = { ...base, styles: [...base.styles], mix: mixOf(base.mix) };
   for (const [k, v] of Object.entries(kept && typeof kept === 'object' ? kept : {})) {
     if (k === 'styles') {
       const ok = Array.isArray(v) ? STYLES.filter(x => v.includes(x)) : [];
-      if (ok.length) out.styles = ok;
+      // (Every one of the first twenty kept: every groove there is now, the newer ones too.)
+      if (ok.length) out.styles = STYLES.slice(0, 20).every(x => ok.includes(x)) ? [...STYLES] : ok;
     } else if (k === 'mix') out.mix = mixOf(v);
     else if (CHECK[k]?.(v)) out[k] = v;
   }
