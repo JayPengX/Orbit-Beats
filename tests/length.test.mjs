@@ -35,10 +35,10 @@ test('every length from 0:30 to 8:00 plans to about that many bars, in sections 
     assert.equal(plan[0][0], 'intro');
     assert.equal(plan.at(-1)[0], 'outro');
   }
-  // (The radio's own, no length asked: as it was, 24 to 64 bars.)
+  // (The radio's own, no length asked: 24 to 96 bars.)
   const own = radioPlan(makeRng(3), 100, 90);
   const n = own.reduce((a, [, x]) => a + x, 0);
-  assert.ok(n >= 24 && n <= 64);
+  assert.ok(n >= 24 && n <= 96);
 });
 
 test('a song made for a length is about that long', () => {

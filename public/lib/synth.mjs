@@ -295,6 +295,7 @@ export function voice(inst, midi = 36, sr = 48000, hold = 0.25) {
 //
 // { kind: 'drums', bars, swing, steps: { kick: [0/1/2/3 × 16·bars], … }, pitch: 808's MIDI }   (a hit's level: 1 normal, 2 accent, 3 soft)
 // { kind: 'notes', inst, bars, swing, key: { tonic, minor }, notes: [{ step, midi, len, chord, lv }] }   (len in 16ths; chord: its triad in the key; lv: 2 accent, 3 soft)
+// (A note may also carry g, a gain to scale it by, and dt, seconds early or late: the radio's tunes set them, so no two notes are alike.)
 export const STEPS = 16;
 // A hit's level (力度) as a loudness: 0 none, 1 normal, 2 accent, 3 soft
 // (soft came last, so clips kept before it read the same).
@@ -360,7 +361,7 @@ export function stepHits(clip, s) {
     }
   } else
     for (const n of clip.notes)
-      if (n.step === s) for (const m of n.chord ? chordOf(n.midi, clip.key) : [n.midi]) out.push({ inst: clip.inst, midi: m, len: n.len || 1, gain: (n.chord ? 0.62 : 1) * levelGain(n.lv || 1) });
+      if (n.step === s) for (const m of n.chord ? chordOf(n.midi, clip.key) : [n.midi]) out.push({ inst: clip.inst, midi: m, len: n.len || 1, gain: (n.chord ? 0.62 : 1) * levelGain(n.lv || 1) * (n.g ?? 1), ...(n.dt ? { dt: n.dt } : {}) });
   return out;
 }
 // (A swung clip, `shuffle`: its off-beat eighths late too, by that share of a 16th, as engine.mjs's SHUFFLE.)
@@ -378,12 +379,12 @@ export function renderClip(clip, sr = 48000, bpm = 120) {
   if (cache.size > 400) cache.clear();   // (a song's own notes are a couple of hundred)
   for (let s = 0; s < STEPS * clip.bars; s++) {
     const a = Math.round(((s + swingOf(clip, s)) / 4) * B);
-    for (const { inst, midi, len, gain } of stepHits(clip, s)) {
+    for (const { inst, midi, len, gain, dt } of stepHits(clip, s)) {
       const hold = clip.kind === 'drums' ? 0.25 : (len / 4) * (60 / bpm);
       const key = `${sr}|${inst}|${midi}|${hold}`;
       if (!cache.has(key)) cache.set(key, voice(inst, midi, sr, hold));
       const x = cache.get(key);
-      for (let k = 0, j = a; k < x.length && j < n; k++, j++) L[j] += x[k] * gain;
+      for (let k = 0, j = dt ? Math.max(0, a + Math.round(dt * sr)) : a; k < x.length && j < n; k++, j++) L[j] += x[k] * gain;
     }
   }
   const floor = noiseOf(n);

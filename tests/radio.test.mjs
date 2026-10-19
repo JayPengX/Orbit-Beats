@@ -30,19 +30,19 @@ test('the next song: a new groove of the mood each time (never the one just play
   assert.ok(MOODS.chill.styles.includes(radioSpec(5, 'chill', 'trap').style), 'a groove not of the mood: the mood picks');
 });
 
-test('the sections: an intro, verse–hook pairs, an outro, all four or eight bars, about the length asked at any tempo', () => {
+test('the sections: an intro, verse–hook pairs, an outro, all four or eight bars, about the length asked at any tempo (up to 96 bars)', () => {
   for (let k = 0; k < 200; k++) {
     const R = makeRng(k);
     const bpm = 70 + (k % 107);
-    const plan = radioPlan(R, bpm, 80 + (k % 31));
+    const plan = radioPlan(R, bpm, 80 + (k % 131));
     assert.equal(plan[0][0], 'intro');
     assert.equal(plan.at(-1)[0], 'outro');
     assert.ok(plan.some(([t]) => t === 'hook') && plan.some(([t]) => t === 'verse'), JSON.stringify(plan));
     assert.ok(plan.every(([, n]) => n === 4 || n === 8), JSON.stringify(plan));
     const bars = plan.reduce((s, [, n]) => s + n, 0);
-    assert.ok(bars >= 24 && bars <= 68, `${bars} bars`);
+    assert.ok(bars >= 24 && bars <= 96, `${bars} bars`);
     const secs = (bars * 240) / bpm;
-    assert.ok(secs >= 55 && secs <= 150, `${bpm} BPM: ${secs.toFixed(0)} s`);
+    assert.ok(secs >= 55 && secs <= 250, `${bpm} BPM: ${secs.toFixed(0)} s`);
   }
 });
 

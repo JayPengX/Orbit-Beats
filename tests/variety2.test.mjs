@@ -93,13 +93,14 @@ test('sections differ: a second verse, a hook of its own, the last hook lifted w
     assert.ok(!same(v1.riffs, v2.riffs), `${style}: a second verse plays other riffs`);
     assert.ok(!same(v1.riffs, h1.riffs), `${style}: the hook plays riffs of its own`);
     assert.notEqual(v1.drums, h1.drums, `${style}: the hook's drums are not the verse's`);
-    if (sp.lift) {
+    if (parts.lift) {
       lifted++;
       assert.ok([...h3.riffs].every(i => parts.lift.includes(i)), `${style}: the last hook plays the lifted riffs`);
       assert.ok([...h3.bass].every(i => parts.liftBass.includes(i)) && h3.bass.size, `${style}: and the lifted bass`);
       assert.ok([...h3.subs].every(i => i === parts.liftSub), `${style}: and the lifted 808 where the groove has one`);
       for (const h of [h1, h2]) assert.ok([...h.riffs, ...h.bass, ...h.subs].every(i => !parts.lift.includes(i) && !parts.liftBass.includes(i) && i !== parts.liftSub), `${style}: earlier hooks stay down`);
-    } else assert.ok(![...h3.riffs].some(i => parts.lift?.includes(i)));
+    }
+    assert.ok(!same(h1.riffs, h2.riffs), `${style}: the second hook plays its own tune`);
     if (sp.progB) {
       ownHook++;
       assert.notEqual(progFamily(sp.progB), progFamily(sp.prog), `${style}: the hook's chords are another loop`);

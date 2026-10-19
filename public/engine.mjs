@@ -644,8 +644,8 @@ const alike = (a, b) => a && b ? a.reduce((s, v, k) => s + v * b[k], 0) : 0;
 // riff sets, its fills, timing and the riffs' lay-outs played anew);
 // `weights` ({ style: n }) leans the groove's choice to the styles liked;
 // `plan` ([[type, bars], …]) its sections as arranged by hand, every other
-// choice as the seed makes it. `arrange` ({ intro, verse, verse2, hook, bridge,
-// lift, hookBass, liftBass, liftSub, layer }: pieces' numbers, in lists) sets
+// choice as the seed makes it. `arrange` ({ intro, verse, verse2, hook, hook2, bridge,
+// bridgeBass, lift, hookBass, liftBass, liftSub, layer }: pieces' numbers, in lists) sets
 // which riffs each section plays (a second verse, a hook of its own, a last hook
 // lifted into another key with its own bass and 808) in place of the seed's
 // riff sets (a hand-made arrangement); `varied` (true, or a `dressOf` result) dresses the drums, a
@@ -663,7 +663,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   // (An arrangement by hand: the hook's own bass, the lifted hook's riffs, bass and 808 and the layer are theirs alone, never drawn for any other section.)
   const P = arrange || {};
   if (arrange) {
-    const own = new Set([...(P.lift || []), ...(P.hookBass || []), ...(P.liftBass || []), P.liftSub, P.layer].filter(x => x != null));
+    const own = new Set([...(P.lift || []), ...(P.hookBass || []), ...(P.liftBass || []), ...(P.hook2 || []), ...(P.bridgeBass || []), P.liftSub, P.layer].filter(x => x != null));
     for (const x of ROLES) pool[x] = pool[x].filter(i => !own.has(i));
   }
   const riffs = pool.riff.length ? pool.riff : pool.phrase, phrases = pool.phrase.length ? pool.phrase : riffs;
@@ -762,7 +762,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
       hookNo++;
       const lifted = hooks > 1 && hookNo === hooks && P.lift?.length > 0;   // (the last hook, a key higher)
       const own = lifted ? P.liftBass : P.hookBass;
-      riff(b, L, lifted ? P.lift : hookSet); bass(b, L, 0, own?.length ? own : null);
+      riff(b, L, lifted ? P.lift : hookNo > 1 && P.hook2?.length ? P.hook2 : hookSet); bass(b, L, 0, own?.length ? own : null);
       s.drums(hookStyle, b, L, lifted && P.liftSub != null ? { ...kit, sub: P.liftSub } : kit, dress && (hookNo === hooks ? dress.last : dress.hook)); s.loop(hookHat, b, L);
       if (layerFits && !lifted && (hookLayer || hookNo === hooks)) riff(b, L, [layer]);
     } else if (t === 'break') {   // strip back: no drums, no bass
@@ -770,7 +770,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
       if (R.random() < 0.6) s.loop(breakHat, b, L);
     } else if (t === 'bridge') {   // contrast: another riff set, half-time
       riff(b, L, bridgeSet); s.drums('half', b, L, kit, dress?.bridge);
-      if (R.random() < 0.5) bass(b, L);
+      if (R.random() < 0.5) bass(b, L, 0, P.bridgeBass?.length ? P.bridgeBass : null);
     } else if (t === 'outro') {   // the intro's riff again, winding down
       riff(b, L, introSet);
       if (R.random() < 0.6) s.drums(style, b, Math.floor(L / 2), kit);

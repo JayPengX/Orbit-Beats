@@ -30,8 +30,12 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
     one play button and the moods (隨機, 放鬆, 熱血, 律動, 經典, or one groove).
     Each song is its own band on the app's instruments: a groove of the mood
     (never the one just played), its tempo, a key, four chords, chords,
-    melodies, an arpeggio, two bass lines, hats and drums as four-bar loops,
-    arranged by the engine in sections of four or eight bars and mixed.
+    melodies, an arpeggio, bass lines, hats and drums, written as phrases (eight
+    bars: a question and its answer; the second verse, the second hook and the
+    lifted last hook are variants of their tunes, the bridge has chords and a
+    lead of its own; every note has its own level and timing), arranged by the
+    engine in sections of four or eight bars (a song runs about 2:30, a fifth
+    are short forms) and mixed.
     The worker makes them two ahead; each is cut just before its last hit and
     that hit's ring plays under the next one's intro, in one `<audio>` (it
     plays on with the screen locked; lock-screen title, play/pause, next,
