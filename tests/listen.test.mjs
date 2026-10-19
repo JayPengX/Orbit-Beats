@@ -57,6 +57,24 @@ test('the title is set in the cover, escaped; a thumbnail has no words', () => {
   assert.ok(size('Midnight Secrets') >= 24);
 });
 
+test('covers: no two grooves of one mood share a shape, and there are many shapes', async () => {
+  const { MOODS } = await import('../public/lib/radio.mjs');
+  for (const [m, v] of Object.entries(MOODS)) {
+    if (m === 'all') continue;
+    const shapes = v.styles.map(s => STYLE_ART[s][1]);
+    assert.equal(new Set(shapes).size, shapes.length, `${m}: ${shapes.join()}`);
+  }
+  assert.ok(new Set(Object.values(STYLE_ART).map(a => a[1])).size >= 16);
+});
+
+test('a station cover has its name large; a seed turns and places the shape', () => {
+  const size = svg => Number(/font-size="([\d.]+)" font-weight="800"/.exec(svg)[1]);
+  const st = coverSvg({ ...song, title: 'Lo-fi', station: true });
+  assert.ok(size(st) > size(coverSvg({ ...song, title: 'Lo-fi' })) * 2);
+  assert.ok(st.includes('>Lo-fi</text>'));
+  assert.match(coverSvg(song), /<g transform="translate\(/);
+});
+
 test('sleep timer: minutes from now, or the song’s end', () => {
   const now = 1_000_000;
   assert.deepEqual(sleepSet(15, now), { until: now + 15 * 60000 });

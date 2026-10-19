@@ -1,12 +1,13 @@
-// 首頁, like Apple Music's Listen Now: a hero for Orbit 電台 (the song playing, or the
-// last station), then rows of square covers: 為你推薦, 心情, 類型, 節奏 stations (a tap
-// starts one) and 最近播放 (a tap plays that song again).
-import { h } from './ui.mjs';
+// 首頁, like Apple Music's Listen Now: a hero (the first of today's picks), then shelves:
+// 今日精選 (songs picked for the day, a tap plays that song and the radio goes on), 適合現在
+// (the station for the hour), 最近播放, 為你推薦 (the stations of what you keep), 你的歌, 心情 and
+// 瀏覽類型 (eight grooves and 全部類型). A station's cover has its name in the art.
+import { h, sheet } from './ui.mjs';
 import { icon } from './icons.mjs';
 import { W } from './lang.mjs';
-import { STYLE_NAMES, name } from './names.mjs';
+import { STYLE_NAMES, STYLE_ORDER, name } from './names.mjs';
 import { MOODS, stationStyles } from './radio.mjs';
-import { stationFilter, stationName, homeRows, TEMPOS } from './stations.mjs';
+import { stationFilter, stationName, homeRows, dailyPicks, dayKey, nowStation, tasteList } from './stations.mjs';
 import { coverSvg, coverUrl } from './cover.mjs';
 import { coverOfTrack } from './player.mjs';
 import { onLong, subOf } from './playerview.mjs';
@@ -15,19 +16,21 @@ const hash = s => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>>
 const covers = new Map();
 // A station's cover: a groove of it, drawn from the station's own seed (the same every time).
 export function stationCover(id, taste = {}) {
-  const k = id === 'taste' ? `taste:${Object.keys(taste).sort().join()}` : id;
+  const title = stationName(id);
+  const k = `${id === 'taste' ? `taste:${Object.keys(taste).sort().join()}` : id}|${title}`;
   if (!covers.has(k)) {
     const f = stationFilter(id, taste);
     const styles = stationStyles(f);
     const seed = hash(k);
     const style = /^style:/.test(id) ? id.slice(6) : styles[seed % styles.length];
+    // (A station's art carries its name, large, as Apple's station art does.)
     const bpm = f.bpm ? Math.round((f.bpm[0] + f.bpm[1]) / 2) : 100;
-    covers.set(k, coverUrl(coverSvg({ seed, style, mood: MOODS[id] ? id : 'all', key: null, bpm, text: false })));
+    covers.set(k, coverUrl(coverSvg({ seed, style, mood: MOODS[id] ? id : 'all', key: null, bpm, title, text: true, station: true })));
   }
   return covers.get(k);
 }
 
-const ROW_NAMES = { 'for-you': ['為你推薦', 'For you'], liked: ['喜歡的', 'Liked'], moods: ['心情', 'Moods'], genres: ['類型', 'Genres'], tempo: ['節奏', 'Tempo'] };
+const ROW_NAMES = { 'for-you': ['為你推薦', 'For you'], moods: ['心情', 'Moods'], genres: ['瀏覽類型', 'Browse genres'] };
 
 export const sqCard = (cover, title, sub, props = {}, cls = 'sq') =>
   h('button', { class: cls, type: 'button', ...props }, [h('span', { class: 'sq-cover' }, [h('img', { alt: '', src: cover, loading: 'lazy', decoding: 'async', draggable: 'false' })]), h('b', { text: title }), sub ? h('small', { text: sub }) : null]);
@@ -45,116 +48,156 @@ export function songShelf(api, key, title, songs) {
   }));
 }
 
-// api: { P, radio, taste() -> { style: n }, trackMenu(track, anchor), openNow(), kept(track) }
+// 全部類型: every groove as its cover; a tap starts its station. (Until lib/genres.mjs has the
+// shared genre sheet, grouped by mood: then this opens that.)
+function allGenres(api) {
+  const s = sheet({ title: W('全部類型', 'All genres'), closeLabel: W('關閉', 'Close'), body: h('div', { class: 'gx-grid' }, STYLE_ORDER.map(g => h('button', { class: 'gx', type: 'button', 'aria-label': stationName(`style:${g}`), onclick: () => (s.close(), api.P.station(`style:${g}`)) }, [h('img', { alt: '', src: stationCover(`style:${g}`, api.taste()), width: 96, height: 96 })]))) });
+}
+
+// api: { P, radio, taste() -> { style: n }, trackMenu(track, anchor), openNow(), songs(), go(tab, run) }
 export function mountHome(panel, api) {
   const { P, radio } = api;
   const card = sqCard;
-  const station = id => {
-    const sub = /^tempo:/.test(id) ? `${TEMPOS[id.slice(6)].bpm[0]}–${TEMPOS[id.slice(6)].bpm[1]} BPM` : '';
-    return card(stationCover(id, api.taste()), stationName(id), sub, { 'data-station': id, onclick: () => P.station(id) });
-  };
+  const station = (id, cls = 'lg') => card(stationCover(id, api.taste()), stationName(id), '', { 'data-station': id, onclick: () => P.station(id) }, `sq st ${cls}`);
   const shelf = shelfOf;
+  const more = (t, c) => h('span', { class: 'sq-more', role: 'button', tabindex: '0', 'aria-label': W('更多', 'More'), html: icon('more'), onclick: e => (e.stopPropagation(), api.trackMenu(t, c.querySelector('.sq-cover'))) });
 
-  // The hero.
+  // 今日精選: the day's songs, and the hero is the first of them.
+  let picks = [];
+  let picksKey = '';
+  const pickTracks = () => {
+    const key = `${dayKey()}|${tasteList(api.taste(), 1).map(x => x[0])}`;
+    if (key !== picksKey) {
+      picksKey = key;
+      picks = dailyPicks(dayKey(), api.taste()).map(e => ({ e, t: radio.trackOf(e) }));
+    }
+    return picks;
+  };
+  const playingId = () => {
+    const s = P.state();
+    return s?.track && (s.playing || s.busy) ? s.track.id : '';
+  };
+
+  // The hero: the top pick. Its ▶ starts that song; playing, it is ❚❚.
   const heroImg = h('img', { class: 'hero-cover', alt: '', draggable: 'false' });
   const heroKick = h('small', { class: 'hero-kick' });
   const heroTitle = h('b', { class: 'hero-title' });
   const heroSub = h('span', { class: 'hero-sub' });
-  const heroPlay = h('button', { class: 'hero-play', type: 'button', onclick: () => P.toggle() });
+  const heroPlay = h('button', { class: 'hero-play', type: 'button' });
+  const top = () => pickTracks()[0];
+  const startTop = () => {
+    const s = P.state();
+    if (s?.track?.id === top().t.id) return P.toggle();
+    P.play(top().t);
+  };
   const hero = h('section', { class: 'hero' }, [
-    h('button', { class: 'hero-main', type: 'button', onclick: () => (P.state() ? api.openNow() : P.radioPlay()) }, [heroImg, h('span', { class: 'hero-shade' }, [heroKick, heroTitle, heroSub])]),
+    h('button', { class: 'hero-main', type: 'button', onclick: () => (P.state()?.track?.id === top().t.id ? api.openNow() : startTop()) }, [heroImg, h('span', { class: 'hero-shade' }, [heroKick, heroTitle, heroSub])]),
     heroPlay
   ]);
+  heroPlay.onclick = startTop;
   let heroKey = '';
   function paintHero() {
-    const s = P.state();
-    const idle = !s?.track;
-    const cover = idle ? radio.idle().cover : s.cover;
-    const playing = Boolean(s && (s.playing || s.busy));
-    const title = idle ? stationName(radio.station()) : s.track.title;
-    const sub = idle ? '' : s.busy ? W('調頻中…', 'Tuning in…') : subOf(s.track);
-    const kick = idle ? W('電台', 'Radio') : s.source === 'radio' ? W('電台', 'Radio') : W('正在播放', 'Now playing');
-    const key = [cover?.length, title, sub, kick, playing].join('|');
+    const { e, t } = top();
+    const playing = playingId() === t.id;
+    const key = [t.id, playing].join('|');
     if (key === heroKey) return;
     heroKey = key;
-    heroImg.src = cover || '';
-    heroKick.textContent = kick;
-    heroTitle.textContent = title;
-    heroSub.textContent = sub;
+    heroImg.src = radio.coverOf(e);
+    heroKick.textContent = W('今日精選', 'Today’s pick');
+    heroTitle.textContent = t.title;
+    heroSub.textContent = subOf(t);
     heroPlay.innerHTML = icon(playing ? 'pause' : 'play');
     heroPlay.setAttribute('aria-label', playing ? W('暫停', 'Pause') : W('播放', 'Play'));
   }
 
-  // The rows.
+  // The shelves.
   const slots = {};
+  const picksSlot = h('div', { class: 'recent-slot' });
+  const nowSlot = h('div', { class: 'recent-slot' });
   const recentSlot = h('div', { class: 'recent-slot' });
   const mineSlot = h('div', { class: 'recent-slot' });
-  const tile = (ic, title, go) => h('button', { class: 'sq', type: 'button', onclick: go }, [h('span', { class: 'sq-cover tile', html: icon(ic) }), h('b', { text: title })]);
-  const quick = shelfOf('quick', W('快速做歌', 'Make'), [
-    tile('grid', W('即興', 'Jam'), () => api.go('jam', true)),
-    tile('dice', W('做一批歌', 'Make songs'), () => api.go('make', true)),
-    tile('grid', W('樂器', 'Studio'), () => api.go('studio'))
-  ]);
-  const keep = new Set(['moods', 'genres', 'tempo']);
+  function drawPicks() {
+    const nodes = pickTracks().map(({ e, t }) => {
+      const c = card(radio.coverOf(e), t.title, subOf(t), { 'data-id': t.id, 'data-pick': t.id, onclick: () => P.play(t) }, 'sq lg');
+      c.querySelector('.sq-cover').append(more(t, c));
+      onLong(c, () => api.trackMenu(t, c.querySelector('.sq-cover')));
+      return c;
+    });
+    picksSlot.replaceChildren(shelf('picks', W('今日精選', 'Today’s picks'), nodes));
+  }
+  function drawNow() {
+    const n = nowStation(new Date().getHours());
+    const c = card(stationCover(n.id, api.taste()), stationName(n.id), '', { 'data-station': n.id, onclick: () => P.station(n.id) }, 'sq st wide');
+    c.querySelector('.sq-cover').append(h('span', { class: 'sq-tag', text: W(...n.part) }));
+    nowSlot.replaceChildren(shelf('now', W('適合現在', 'Right now'), [c]));
+  }
+  const browse = () => {
+    const ids = homeRows(api.taste()).find(r => r.key === 'genres').ids;
+    const all = h('button', { class: 'sq st sm all', type: 'button', onclick: () => allGenres(api) }, [h('span', { class: 'sq-cover tile', html: icon('grid') }), h('b', { text: W('全部類型', 'All genres') })]);
+    const el = shelf('genres', W(...ROW_NAMES.genres), [...ids.map(id => station(id, 'sm')), all]);
+    el.querySelector('.rail').classList.add('rail-grid');
+    return el;
+  };
   function drawRows() {
     const rows = homeRows(api.taste());
     for (const r of rows) {
-      if (!r.ids.length) {
-        slots[r.key]?.remove();
-        slots[r.key] = null;
-        continue;
-      }
-      if (slots[r.key] && keep.has(r.key)) continue;
-      const el = shelf(r.key, W(...ROW_NAMES[r.key]), r.ids.map(station));
-      if (r.key === 'for-you') for (const c of el.querySelectorAll('.sq')) c.classList.add('big');
-      slots[r.key] = el;
+      slots[r.key]?.remove();
+      slots[r.key] = null;
+      if (!r.ids.length) continue;
+      slots[r.key] = r.key === 'genres' ? browse() : shelf(r.key, W(...ROW_NAMES[r.key]), r.ids.map(id => station(id)));
     }
-    return rows.map(r => slots[r.key]).filter(Boolean);
   }
+  let recentId = '';
   function drawRecent() {
-    const list = radio.recent();
+    // (The song playing now is not in the list: the mini player has it.)
+    recentId = P.state()?.track?.id || '';
+    const list = radio.recent().filter(t => t.id !== recentId);
+    const was = recentSlot.querySelector('.rail')?.scrollLeft || 0;
     recentSlot.replaceChildren();
     if (list.length) {
       const nodes = list.map(t => {
         const c = card(radio.coverOf(t), t.title, subOf(t), { 'data-id': t.id, onclick: () => P.play(t) });
-        const more = h('span', { class: 'sq-more', role: 'button', tabindex: '0', 'aria-label': W('更多', 'More'), html: icon('more'), onclick: e => (e.stopPropagation(), api.trackMenu(t, e.currentTarget)) });
-        c.querySelector('.sq-cover').append(more);
+        c.querySelector('.sq-cover').append(more(t, c));
         onLong(c, () => api.trackMenu(t, c.querySelector('.sq-cover')));
         return c;
       });
       recentSlot.append(shelf('recent', W('最近播放', 'Recently played'), nodes));
+      recentSlot.querySelector('.rail').scrollLeft = was;
     }
     const mine = songShelf(api, 'mine', W('你的歌', 'Your songs'), [...api.songs()].sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 12));
     mineSlot.replaceChildren(...(mine ? [mine] : []));
   }
   const order = () => {
-    const r = drawRows();
-    const by = k => r.find(x => x.dataset.row === k);
-    return [by('for-you'), recentSlot, mineSlot, by('moods'), by('genres'), by('tempo'), quick, by('liked')].filter(Boolean);
+    drawRows();
+    return [picksSlot, nowSlot, recentSlot, slots['for-you'], mineSlot, slots.moods, slots.genres].filter(Boolean);
   };
-  drawRecent();
-  panel.append(hero, ...order());
-  paintHero();
-  // The station playing is marked.
+  const drawAll = () => {
+    drawPicks();
+    drawNow();
+    drawRecent();
+    panel.replaceChildren(hero, ...order());
+    heroKey = '';
+    paintHero();
+    paintOn();
+  };
+  // The station playing is marked, and the pick.
   function paintOn() {
     const s = P.state();
     const on = s?.source === 'radio' ? radio.station() : '';
-    for (const b of panel.querySelectorAll('[data-station]')) b.classList.toggle('on', b.dataset.station === on && Boolean(s?.playing || s?.busy));
+    const live = Boolean(s?.playing || s?.busy);
+    for (const b of panel.querySelectorAll('[data-station]')) b.classList.toggle('on', b.dataset.station === on && live);
+    const id = playingId();
+    for (const b of panel.querySelectorAll('[data-pick]')) b.classList.toggle('on', b.dataset.pick === id);
   }
-  paintOn();
+  drawAll();
   P.on(w => {
     if (w === 'time') return;
     paintHero();
     paintOn();
-    if (w === 'recent') drawRecent();
+    if (w === 'recent' || (P.state()?.track?.id || '') !== recentId) drawRecent();
   });
   return {
-    // The taste row again (a song kept or let go), and the recent ones.
-    refresh() {
-      drawRecent();
-      panel.replaceChildren(hero, ...order());
-      paintHero();
-      paintOn();
-    }
+    // The rows again (a song kept or let go).
+    refresh: drawAll
   };
 }

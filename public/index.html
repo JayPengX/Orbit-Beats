@@ -617,6 +617,24 @@ body.lv-simple #pieces .piece .more { width: 28px; height: 28px; }
 .sq.on .sq-cover { box-shadow: 0 0 0 2.5px var(--accent), 0 8px 18px rgba(0,0,0,.16); }
 .sq-more { position: absolute; right: 6px; bottom: 6px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(0,0,0,.42); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
 .sq-more svg { width: 18px; height: 18px; }
+.sq.lg, .sq.lg .sq-cover { width: 172px; }
+.sq.lg .sq-cover { height: 172px; border-radius: 16px; }
+.sq.st b { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.sq.wide { width: 100%; }
+.sq.wide .sq-cover { width: 100%; height: 148px; border-radius: 18px; }
+.sq.wide .sq-cover img { object-position: 50% 100%; }
+.sq-tag { position: absolute; left: 12px; top: 12px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; color: #fff; background: rgba(0,0,0,.34); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.rail-grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(2, 108px); grid-auto-columns: 108px; gap: 12px; }
+.sq.sm, .sq.sm .sq-cover { width: 108px; }
+.sq.sm .sq-cover { height: 108px; border-radius: 13px; }
+.sq.sm.all { grid-row: span 2; display: flex; flex-direction: column; }
+.sq.sm.all .sq-cover { flex: 1; height: auto; }
+.sq.sm.all b { position: static; width: auto; height: auto; clip: auto; margin-top: 8px; font-size: 14px; text-align: center; }
+.sq.sm.all .sq-cover.tile svg { width: 34px; height: 34px; }
+.gx-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 10px; padding: 4px 0 8px; }
+.gx { padding: 0; border: 0; background: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.gx img { display: block; width: 100%; aspect-ratio: 1; border-radius: 14px; object-fit: cover; box-shadow: 0 6px 14px rgba(0,0,0,.16); }
+.gx:active img { transform: scale(.96); }
 
 /* 創作: three big cards; a screen opened from one has a back chevron. */
 .hub { display: grid; gap: 14px; }
