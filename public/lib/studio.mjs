@@ -21,6 +21,7 @@ import { tapper } from './tap.mjs';
 import { download, fileName } from './download.mjs';
 import { STYLE_NAMES, STYLE_ORDER, name } from './names.mjs';
 import { W } from './lang.mjs';
+import { icon } from './icons.mjs';
 import { info, hintOf } from './help.mjs';
 
 // (v2: each of drums and notes a set of patterns and a chain; the first key held one clip each.)
@@ -165,17 +166,17 @@ export function mountStudio(panel, api) {
   const swingIn = h('input', { type: 'range', min: 0, max: 0.6, step: 0.05, 'aria-label': W('搖擺', 'Swing') });
   const swingVal = h('span', { class: 'val' });
   const playBtn = h('button', { class: 'st-play', type: 'button' });
-  const dice = h('button', { class: 'jam-dice st-dice', type: 'button', text: '🎲' });
+  const dice = h('button', { class: 'jam-dice st-dice', type: 'button', html: icon('dice') });
   const chips = h('div', { class: 'jam-chips st-chips', role: 'group' });
   // (Scrolled along: the left edge fades too, so a chip cut there reads as more to the left.)
   chips.addEventListener('scroll', () => chips.classList.toggle('st-along', chips.scrollLeft > 4), { passive: true });
   const pager = h('div', { class: 'st-pages' });
   const grid = h('div', { class: 'st-grid', role: 'grid' });
   const moreBtn = h('button', { class: 'st-more', type: 'button' });
-  const icon = (svg, label, cls = '') => h('button', { class: `st-icon ${cls}`, type: 'button', 'aria-label': label, title: label, html: `<svg viewBox="0 0 24 24" aria-hidden="true">${svg}</svg>` });
-  const undoBtn = icon('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>', W('復原', 'Undo'));
-  const clearBtn = icon('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>', W('清除格子', 'Clear the grid'));
-  const saveBtn = icon('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>', W('收藏到收藏架', 'Keep on the shelf'));
+  const stIcon = (svg, label, cls = '') => h('button', { class: `st-icon ${cls}`, type: 'button', 'aria-label': label, title: label, html: `<svg viewBox="0 0 24 24" aria-hidden="true">${svg}</svg>` });
+  const undoBtn = stIcon('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>', W('復原', 'Undo'));
+  const clearBtn = stIcon('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>', W('清除格子', 'Clear the grid'));
+  const saveBtn = stIcon('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>', W('收藏到收藏架', 'Keep on the shelf'));
   const addBtn = h('button', { class: 'st-add', type: 'button', text: W('存成片段', 'Save as piece') });
   const copyBtn = h('button', { class: 'mini', type: 'button', 'data-ctl': 'studio-copy', text: W('⧉ 複製', '⧉ Copy'), 'aria-label': W('第一小節複製到每一小節', 'Bar 1 over every bar') });
   const chordBtn = h('button', { class: 'mini', type: 'button', 'data-ctl': 'studio-chord', text: W('和弦', 'Chords'), 'aria-pressed': String(st.chord) });
@@ -460,8 +461,8 @@ export function mountStudio(panel, api) {
     const s = +b.dataset.s;
     const was = levelAt(r, s);
     menu(b, [
-      ...LEVELS.map(lv => ({ label: W(...LEVEL_NAMES[lv]), icon: was === lv ? '✓' : '', onClick: () => setLevel(r, s, lv) })),
-      ...(was ? ['divider', { label: W('拿掉', 'Remove'), icon: '✕', danger: true, onClick: () => setLevel(r, s, 0) }] : [])
+      ...LEVELS.map(lv => ({ label: W(...LEVEL_NAMES[lv]), icon: was === lv ? 'check' : '', onClick: () => setLevel(r, s, lv) })),
+      ...(was ? ['divider', { label: W('拿掉', 'Remove'), icon: 'close', danger: true, onClick: () => setLevel(r, s, 0) }] : [])
     ]);
   }
   grid.addEventListener('pointerdown', e => {
@@ -560,8 +561,8 @@ export function mountStudio(panel, api) {
   }
   function shelfMenu(k, anchor) {
     menu(anchor, [
-      { label: W('存成片段', 'Save as piece'), icon: '+', onClick: () => addClip(clipOf(shelf[k].clip)) },
-      { label: W('刪除', 'Delete'), icon: '✕', danger: true, onClick: () => dropKept(k) }
+      { label: W('存成片段', 'Save as piece'), icon: 'plus', onClick: () => addClip(clipOf(shelf[k].clip)) },
+      { label: W('刪除', 'Delete'), icon: 'trash', danger: true, onClick: () => dropKept(k) }
     ]);
   }
   function dropKept(k) {
@@ -638,8 +639,8 @@ export function mountStudio(panel, api) {
   }
   function patMenu(k, anchor) {
     menu(anchor, [
-      ...(bank().pats.length < MOST_PATS ? [{ label: W('複製成新的一段', 'Copy as a new one'), icon: '⧉', onClick: () => newPattern() }] : []),
-      { label: W('刪除這段', 'Delete this one'), icon: '✕', danger: true, onClick: () => (bank().pats.length > 1 ? (mark(), (st[st.mode] = dropPattern(bank(), k)), keep(), drawControls(), paintCells()) : toast(W('至少要留一段', 'Keep at least one'))) }
+      ...(bank().pats.length < MOST_PATS ? [{ label: W('複製成新的一段', 'Copy as a new one'), icon: 'copy', onClick: () => newPattern() }] : []),
+      { label: W('刪除這段', 'Delete this one'), icon: 'trash', danger: true, onClick: () => (bank().pats.length > 1 ? (mark(), (st[st.mode] = dropPattern(bank(), k)), keep(), drawControls(), paintCells()) : toast(W('至少要留一段', 'Keep at least one'))) }
     ]);
   }
 

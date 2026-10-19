@@ -130,7 +130,7 @@ button { cursor: pointer; }
   padding: 5px 4px 6px; font-size: 13px; text-align: center; text-align-last: center; color: var(--text);
 }
 .piece.off { opacity: 0.5; }
-.piece.mine b::after { content: "♪"; margin-left: 2px; color: var(--accent); font-size: 11px; vertical-align: 2px; }
+.piece.mine b::after { content: ""; display: inline-block; width: 5px; height: 5px; margin-left: 3px; border-radius: 50%; background: var(--accent); vertical-align: 3px; }
 .piece button.on { background: var(--accent); color: var(--accent-ink); }
 .piece button.on span { color: inherit; opacity: 0.85; }
 .hint { margin: 8px 0 0; font-size: 13px; color: var(--text-2); }
@@ -288,7 +288,7 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .st-lane { --c: var(--accent); margin-top: 4px; }
 .st-name { display: flex; align-items: center; gap: 5px; height: 17px; padding-left: 3px; font-size: 12px; font-weight: 600; white-space: nowrap; color: color-mix(in srgb, var(--c) 58%, var(--text)); }
 .st-name i { width: 7px; height: 7px; border-radius: 50%; background: var(--c); flex: none; }
-.st-lane.root .st-name span::after { content: " ●"; font-size: 8px; vertical-align: 2px; }
+.st-lane.root .st-name span::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 4px; border-radius: 50%; background: currentColor; vertical-align: 1px; }
 .st-cells .cell {
   position: relative; height: 34px; min-width: 0; border: 0; padding: 0; background: none;
   touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
@@ -594,6 +594,9 @@ body.np-open { overflow: hidden; }
 .easy-hint { text-align: center; }
 
 footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 8px; white-space: nowrap; }
+#badge, #pieces-hint, #easy-hint, #mood-hint, .drop span { display: none; }
+.q-btn svg, .primary svg { width: 18px; height: 18px; flex: none; }
+.jam-bar .q-btn, .way, .primary { gap: 6px; }
 </style>
 </head>
 <body>

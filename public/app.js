@@ -273,7 +273,7 @@ function update() {
   $('count-up').disabled = busy || count >= MAX_SONGS;
   $('error').textContent = bad;
   if (!busy && simple()) {
-    $('go').textContent = W('🎲 隨機做一批', '🎲 Make a random batch');
+    $('go').innerHTML = `${icon('dice')}<span>${W('隨機做一批', 'Make a random batch')}</span>`;
     $('go').disabled = false;
     $('easy-hint').textContent = ownBand() ? W(`${count} 首，用內建的樂器`, `${count} songs on the built-in band`) : W(`${count} 首，用你的 ${pieces.length} 個片段`, `${count} songs from your ${pieces.length} pieces`);
   } else if (!busy) {
@@ -580,7 +580,7 @@ function showPieces() {
   pieces.forEach((p, i) => {
     const tile = document.createElement('div');
     const beats = p.L.length / B;
-    const from = many ? baseName(sources[p.src]?.name) : '';
+    const from = many ? baseName(sources[p.src]?.name).replace(/^♪\s*/, '') : '';
     tile.className = 'piece';
     tile.dataset.i = i;
     tile.title = from;
@@ -798,7 +798,7 @@ $('pieces').addEventListener('change', e => {
 });
 $('pieces').addEventListener('click', e => {
   const more = e.target.closest('.piece .more');
-  if (more) return menu(more, [{ label: W('刪除這一段', 'Delete this piece'), icon: '✕', danger: true, onClick: () => removePiece(+more.parentNode.dataset.i) }]);
+  if (more) return menu(more, [{ label: W('刪除這一段', 'Delete this piece'), icon: 'close', danger: true, onClick: () => removePiece(+more.parentNode.dataset.i) }]);
   const btn = e.target.closest('.piece button');
   if (!btn) return;
   const again = playing && playing.btn === btn;
@@ -900,12 +900,12 @@ async function kitsSheet() {
         ? h('ul', { class: 'mine-list' }, all.map(k => h('li', {}, [
             h('div', { class: 't' }, [h('span', { text: k.name }), h('small', { text: `${W(`${k.count} 個片段`, `${k.count} piece${k.count === 1 ? '' : 's'}`)} · ${new Date(k.at).toLocaleDateString(en ? 'en' : 'zh-TW')}` })]),
             h('button', { class: 'mini', type: 'button', text: W('打開', 'Open'), onclick: () => (s.close(), openKit(k)) }),
-            h('button', { class: 'mini', type: 'button', text: '⋯', 'aria-label': W('更多', 'More'), onclick: e => menu(e.currentTarget, [
-              { label: W('重新命名', 'Rename'), icon: '✎', onClick: () => nameSheet(W('重新命名', 'Rename'), k.name, async v => (await renameNamed(k.id, v), draw())) },
-              { label: W('刪除', 'Delete'), icon: '✕', danger: true, onClick: async () => { await deleteNamed(k.id); draw(); const t = toast(W(`已刪除「${k.name}」`, `“${k.name}” deleted`), { ms: 5000 }); t.append(h('button', { type: 'button', class: 'toast-undo', text: W('復原', 'Undo'), onclick: async () => (t.remove(), await saveNamed(k), toast(W('已復原', 'Restored')))})); } }
+            h('button', { class: 'mini', type: 'button', html: icon('more'), 'aria-label': W('更多', 'More'), onclick: e => menu(e.currentTarget, [
+              { label: W('重新命名', 'Rename'), icon: 'edit', onClick: () => nameSheet(W('重新命名', 'Rename'), k.name, async v => (await renameNamed(k.id, v), draw())) },
+              { label: W('刪除', 'Delete'), icon: 'trash', danger: true, onClick: async () => { await deleteNamed(k.id); draw(); const t = toast(W(`已刪除「${k.name}」`, `“${k.name}” deleted`), { ms: 5000 }); t.append(h('button', { type: 'button', class: 'toast-undo', text: W('復原', 'Undo'), onclick: async () => (t.remove(), await saveNamed(k), toast(W('已復原', 'Restored')))})); } }
             ]) })
           ])))
-        : empty({ icon: '♪', title: W('還沒有存過套組', 'No kits saved yet'), body: W('把目前的片段存成套組，之後隨時打開。', 'Save the pieces you have now as a kit, and open it any time.') }),
+        : empty({ icon: icon('note'), title: W('還沒有存過套組', 'No kits saved yet'), body: W('把目前的片段存成套組，之後隨時打開。', 'Save the pieces you have now as a kit, and open it any time.') }),
       pieces.length ? h('button', { class: 'primary', type: 'button', text: W('把目前的片段存成套組', 'Save these pieces as a kit'), onclick: () => (s.close(), saveKit()) }) : null
     );
   };
@@ -1243,15 +1243,15 @@ function arrange(song) {
         const lenSel = h('select', { class: 'num short', 'aria-label': W('小節', 'Bars') }, [1, 2, 3, 4, 6, 8, 12, 16].map(x => h('option', { value: String(x), text: String(x) })));
         lenSel.value = String(n);
         lenSel.onchange = () => ((plan[k][1] = +lenSel.value), draw());
-        const btn = (txt, label, fn, off = false) => h('button', { class: 'mini', type: 'button', text: txt, 'aria-label': label, disabled: off, onclick: () => (fn(), draw()) });
+        const btn = (txt, label, fn, off = false) => h('button', { class: 'mini', type: 'button', html: icon(txt), 'aria-label': label, disabled: off, onclick: () => (fn(), draw()) });
         return h('li', {}, [
           h('i', { style: { background: `var(--${t})` } }),
           typeSel,
           lenSel,
           h('div', { class: 'ctl' }, [
-            btn('↑', W('上移', 'Move up'), () => plan.splice(k - 1, 0, ...plan.splice(k, 1)), k === 0),
-            btn('⧉', W('重複', 'Repeat'), () => plan.splice(k + 1, 0, [...plan[k]]), plan.length >= 24),
-            btn('✕', W('拿掉', 'Remove'), () => plan.splice(k, 1), plan.length <= 1)
+            btn('arrow-up', W('上移', 'Move up'), () => plan.splice(k - 1, 0, ...plan.splice(k, 1)), k === 0),
+            btn('copy', W('重複', 'Repeat'), () => plan.splice(k + 1, 0, [...plan[k]]), plan.length >= 24),
+            btn('close', W('拿掉', 'Remove'), () => plan.splice(k, 1), plan.length <= 1)
           ])
         ]);
       })
@@ -1484,7 +1484,7 @@ async function keepSong(song) {
   keep();
   refreshHearts(song.id);
   tasteHint();
-  toast(W('已存到歌單 ♡', 'Kept in Library ♡'));
+  toast(W('已存到歌單', 'Kept in Library'));
 }
 // A song's WAV to hand over, at full quality: a batch's own; a kept one made
 // again from its recipe (聽's band, 即興's set, or the kit it was made on
@@ -1816,7 +1816,7 @@ function explain(id) {
           h('button', {
             class: 'q-btn tinted',
             type: 'button',
-            text: `▶ ${W(...(on ? ex.on : ex.off))}`,
+            html: `${icon('play')}<span>${esc(W(...(on ? ex.on : ex.off)))}</span>`,
             onclick: e => {
               const btn = e.currentTarget;
               const again = example?.btn === btn;

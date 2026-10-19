@@ -363,7 +363,6 @@ export function mountRadio(panel, api) {
     try {
       localStorage.setItem('orbit-beats-radio-path', `${path}: ${reason}`);
     } catch {}
-    if (debug) debug.textContent = `${path}${codec && path === 'stream' ? ` · ${codec}` : ''} · ${reason}`;
   }
   // ('orbit-beats-radio' on this phone: 'files', or one codec to try alone: 'flac', 'aac', 'opus'.)
   let forced = null;
