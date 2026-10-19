@@ -1221,7 +1221,9 @@ export function mountGame(host, api) {
       } catch {}
     }
     addEventListener('resize', onResize);
-    if (spec) {
+    // ('records': straight to 我的紀錄, from 資料庫.)
+    if (spec === 'records') drawRecords();
+    else if (spec) {
       const it = itemOf(spec);
       list = setOf(dayKey(), mood).map(itemOf);
       today ||= itemOf(dailyOf(dayKey()));

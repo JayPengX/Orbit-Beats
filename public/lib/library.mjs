@@ -15,6 +15,17 @@ import { W, en, lang } from './lang.mjs';
 import { icon } from './icons.mjs';
 
 export const ORDERS = ['new', 'name', 'long', 'style'];
+// Where a kept song came from: 'radio' (kept from 聽), 'made' (做歌, 簡單's batches), 'remix' (重新混音), 'jam' (即興).
+// (Songs kept before `from` was noted: told by their id and recipe.)
+export const KINDS = ['radio', 'made', 'remix', 'jam'];
+export const KIND_NAMES = { radio: ['電台收藏', 'From the radio'], made: ['我做的歌', 'Made by me'], remix: ['混音', 'Remixes'], jam: ['即興', 'Jams'] };
+const KIND_ICONS = { radio: 'radio', made: 'create', remix: 'shuffle', jam: 'grid' };
+export function songKind(song) {
+  if (KINDS.includes(song.from)) return song.from;
+  if (/:rx[0-9a-z]+$/.test(song.id)) return 'remix';
+  if (song.recipe?.jam) return 'jam';
+  return String(song.id).startsWith('radio:') ? 'radio' : 'made';
+}
 const ORDER_NAMES = { new: ['最新', 'Newest'], name: ['歌名', 'Name'], long: ['最長', 'Longest'], style: ['節奏', 'Groove'] };
 
 // What a search finds a song by: its name, its groove's name (both
@@ -82,8 +93,11 @@ const timeText = s => `${Math.floor(s / 60)}:${String(Math.floor(s) % 60).padSta
 const subText = song => [song.info?.style ? name(STYLE_NAMES, song.info.style) : W('即興', 'Jam'), song.info?.seconds ? timeText(song.info.seconds) : ''].filter(Boolean).join(' · ');
 
 // d: { panel, row(song, listId), play(song), goMake(), zip(list), cover(song) -> url, songMenu(song, anchor),
-//      recent() -> [{ track, cover, sub }] (the radio's, to keep), keepTrack(track), playTrack(track), goListen() }
-export function libraryView({ panel, row, goMake, zip, play, cover = () => '', songMenu = () => {}, recent = () => [], keepTrack = () => {}, playTrack = () => {}, goListen = () => {} }) {
+//      recent() -> [{ track, cover, sub }] (the radio's, to keep), keepTrack(track), playTrack(track), goListen(),
+//      others() -> Promise<[{ icon, title, value, onClick }]> (what else is kept: kits, clips, game records; only what there is)
+export function libraryView({ panel, row, goMake, zip, play, cover = () => '', songMenu = () => {}, recent = () => [], keepTrack = () => {}, playTrack = () => {}, goListen = () => {}, others = async () => [] }) {
+  let kind = null; // the songs page shows one kind only (null: all)
+  let extra = [];
   let songs = [];
   let read = null;
   let query = '';
@@ -132,7 +146,7 @@ export function libraryView({ panel, row, goMake, zip, play, cover = () => '', s
   const navTitle = text => h('h2', { class: 'lib-nav-title', text });
 
   function draw() {
-    return readAll().then(paint);
+    return Promise.all([readAll(), others().catch(() => []).then(x => (extra = x))]).then(paint);
   }
   function paint() {
     if (!songs.length) {
@@ -152,10 +166,17 @@ export function libraryView({ panel, row, goMake, zip, play, cover = () => '', s
     const has = songs.length > 0;
     const rows = group([
       cell({ icon: icon('queue'), title: W('清單', 'Playlists'), value: has && lists.length ? lists.length : '', chevron: has, onClick: has ? () => go('lists') : null }),
-      cell({ icon: icon('note'), title: W('歌曲', 'Songs'), value: has ? songs.length : '', chevron: has, onClick: has ? () => go('songs') : null })
+      cell({ icon: icon('note'), title: W('歌曲', 'Songs'), value: has ? songs.length : '', chevron: has, onClick: has ? () => ((kind = null), go('songs')) : null })
     ]);
     rows.classList.toggle('lib-dim', !has);
     const top = ui.navTitle?.(W('資料庫', 'Library')) ?? h('h1', { class: 'sr-only', text: W('資料庫', 'Library') });
+    // The kept songs by where they came from, and everything else kept on this phone: only what there is.
+    const counts = Object.fromEntries(KINDS.map(k => [k, songs.filter(s => songKind(s) === k).length]));
+    const kinds = KINDS.filter(k => counts[k]).map(k => cell({ icon: icon(KIND_ICONS[k]), title: name(KIND_NAMES, k), value: counts[k], chevron: true, onClick: () => ((kind = k), go('songs')) }));
+    const sections = [
+      kinds.length > 1 ? h('section', { class: 'lib-sec' }, [h('h2', { class: 'lib-sec-t', text: W('歌從哪裡來', 'Where they came from') }), group(kinds)]) : null,
+      extra.length ? h('section', { class: 'lib-sec' }, [h('h2', { class: 'lib-sec-t', text: W('其他收藏', 'Also kept') }), group(extra.map(x => cell({ icon: icon(x.icon), title: x.title, value: x.value, chevron: true, onClick: x.onClick })))]) : null
+    ].filter(Boolean);
     if (has) {
       const grid = h('div', { class: 'lib-grid' }, recentOf(songs).map(s => {
         const more = h('button', { class: 'lib-card-more', type: 'button', 'aria-label': W('更多', 'More'), html: icon('more'), onclick: e => (e.stopPropagation(), songMenu(s, e.currentTarget)) });
@@ -167,7 +188,7 @@ export function libraryView({ panel, row, goMake, zip, play, cover = () => '', s
         ]);
       }));
       list = recentOf(songs);
-      panel.replaceChildren(top, rows, h('section', { class: 'lib-shelf' }, [h('h2', { text: W('最近收藏', 'Recently kept') }), grid]));
+      panel.replaceChildren(top, rows, ...sections, h('section', { class: 'lib-shelf' }, [h('h2', { text: W('最近收藏', 'Recently kept') }), grid]));
       return;
     }
     const heard = recent();
@@ -181,6 +202,7 @@ export function libraryView({ panel, row, goMake, zip, play, cover = () => '', s
     panel.replaceChildren(
       ...[top,
       rows,
+      ...sections,
       nodes.length ? h('section', { class: 'lib-shelf' }, [h('h2', { text: W('最近播放', 'Recently played') }), h('ol', { class: 'lib-recs' }, nodes)]) : null,
       h('div', { class: 'lib-actions' }, [
         h('button', { class: 'primary', type: 'button', html: `${icon('radio')}<span>${W('聽電台', 'Listen to Radio')}</span>`, onclick: goListen }),
@@ -212,13 +234,13 @@ export function libraryView({ panel, row, goMake, zip, play, cover = () => '', s
     const ol = h('ol', { class: 'songs' });
     const none = h('p', { class: 'lib-none', text: W('沒有符合的歌', 'No song matches') });
     const fill = () => {
-      list = shownOf(songs, { query, order });
+      list = shownOf(kind ? songs.filter(s => songKind(s) === kind) : songs, { query, order });
       ol.replaceChildren(...list.map(s => row(s, null)));
       none.hidden = list.length > 0;
     };
     search.addEventListener('input', () => ((query = search.value.trim()), fill()));
     fill();
-    panel.replaceChildren(bar(back('root'), navTitle(W('歌曲', 'Songs')), h('span', { class: 'lib-btns' }, [sort, more])), h('div', { class: 'lib-tools' }, [search]), h('section', { class: 'card' }, [none, ol]));
+    panel.replaceChildren(bar(back('root'), navTitle(kind ? name(KIND_NAMES, kind) : W('歌曲', 'Songs')), h('span', { class: 'lib-btns' }, [sort, more])), h('div', { class: 'lib-tools' }, [search]), h('section', { class: 'card' }, [none, ol]));
   }
 
   // One list: its cover and name, 播放 and 隨機播放, then its songs in order.

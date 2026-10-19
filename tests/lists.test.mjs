@@ -55,3 +55,13 @@ test('library helpers: recent kept songs, list cover, shuffle', async () => {
   assert.deepEqual([...mix].sort(), ['a', 'b', 'c', 'd'], 'nothing lost or doubled');
   assert.deepEqual(shuffled(['a']), ['a']);
 });
+
+test('資料庫 tells where a kept song came from: as noted, else by its id and recipe', async () => {
+  const { songKind } = await import('../public/lib/library.mjs');
+  assert.equal(songKind({ id: 'radio:1:all:afro', from: 'radio' }), 'radio');
+  assert.equal(songKind({ id: 'radio:1:all:afro', from: 'made' }), 'made');
+  assert.equal(songKind({ id: 'radio:1:all:afro' }), 'radio');
+  assert.equal(songKind({ id: 'radio:1:all:afro:rx1k2z' }), 'remix');
+  assert.equal(songKind({ id: 'j1', recipe: { jam: [] } }), 'jam');
+  assert.equal(songKind({ id: 'k1', recipe: { print: 'abc' } }), 'made');
+});

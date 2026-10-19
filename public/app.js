@@ -24,7 +24,7 @@ import { tapper } from './lib/tap.mjs';
 import { download, shareFile, fileName } from './lib/download.mjs';
 import { toFile, toText, fromText } from './lib/project.mjs';
 import { maker } from './lib/maker.mjs';
-import { libraryView, nameSheet } from './lib/library.mjs';
+import { libraryView, nameSheet, songKind } from './lib/library.mjs';
 import { packSong, packWay, playsWhole, keptAudio, sameSong, slimTo, soundOf, formOf, kindOf, builtIn, mbText, PACKED } from './lib/pack.mjs';
 import { mountStudio } from './lib/studio.mjs';
 import { mountJam, readSet, setCover } from './lib/jamview.mjs';
@@ -34,6 +34,7 @@ import { shows, levelCss, makeSettings, makeWith, easyMood, EASY_MOODS } from '.
 import { MOODS, radioPick, radioPlan, RADIO_V } from './lib/radio.mjs';
 import { mountRadio } from './lib/radioview.mjs';
 import { mountGame } from './lib/gameview.mjs';
+import { recordsOf } from './lib/game.mjs';
 import { TERM_ORDER, TOUR, EXAMPLES, term, info } from './lib/help.mjs';
 import * as kitQ from '#kit/quadra.mjs';
 import { icon, inner } from './lib/icons.mjs';
@@ -1120,8 +1121,26 @@ const lib = libraryView({
   recent: () => (radio?.recent() || []).map(t => ({ track: t, cover: radio.coverOf(t), sub: subOf(t) })),
   keepTrack: t => keepRadio({ id: t.id, title: t.title, spec: { seed: t.seed, mood: t.mood }, info: { style: t.style, bpm: t.bpm, key: t.key } }),
   playTrack: t => P.play(t),
-  goListen: () => (showTab('home'), P.station('all'))
+  goListen: () => (showTab('home'), P.station('all')),
+  // (Everything else kept on this phone, in 資料庫 too: 我的套組, the pieces in 做歌, 節奏遊戲's records.)
+  others: async () => {
+    const kits = await listNamed().catch(() => []);
+    const played = gameRecords();
+    return [
+      kits.length && { icon: 'wave', title: W('我的套組', 'My kits'), value: kits.length, onClick: () => kitsSheet() },
+      pieces.length && { icon: 'cut', title: W('做歌的片段', 'Pieces in Make'), value: pieces.length, onClick: () => showTab('make') },
+      played && { icon: 'trophy', title: W('節奏遊戲紀錄', 'Rhythm game records'), value: played, onClick: () => game?.open('records') }
+    ].filter(Boolean);
+  }
 });
+// How many songs the rhythm game has records of (lib/gameview.mjs keeps them).
+function gameRecords() {
+  try {
+    return recordsOf(JSON.parse(localStorage.getItem('orbit-beats-game.v1') || 'null')).songs.length;
+  } catch {
+    return 0;
+  }
+}
 
 // One row: the whole of it plays (a tap on its cover or name), ♡ and ⋯ beside it. On 做歌, the song playing shows its sections under it (tap one to go there).
 function songRow(song, { lib: inLib = false, list = null } = {}) {
@@ -1428,7 +1447,7 @@ async function madeFrom(recipe, title, fromId) {
   } else {
     s = await makeOne(recipe, title);
   }
-  return { ...s, id: remixId(fromId, recipe), name: title, url: s.url || URL.createObjectURL(new Blob([s.data], { type: 'audio/wav' })) };
+  return { ...s, id: remixId(fromId, recipe), name: title, from: 'remix', url: s.url || URL.createObjectURL(new Blob([s.data], { type: 'audio/wav' })) };
 }
 async function makeRemix(base, choice, title, fromId) {
   const { recipe, changed } = remix(base, choice === 'surprise' ? surprise(base) : choice);
@@ -1790,7 +1809,8 @@ async function keepSong(song, { quiet = false } = {}) {
   try {
     // (Kept small: packed by the phone, about a tenth of the WAV; made again whole to export, lib/pack.mjs.)
     const small = await packSong(song.data || new Uint8Array(await soundOf(song).arrayBuffer()), { built: builtIn(song.recipe) });
-    rec = { id: song.id, name: song.name, at: Date.now(), info: song.info, recipe: song.recipe, sound: small.sound, form: small.form, sr: small.sr, seconds: small.seconds };
+    // (`from`: where it came from, for 資料庫's sections, lib/library.mjs songKind.)
+    rec = { id: song.id, name: song.name, at: Date.now(), info: song.info, recipe: song.recipe, sound: small.sound, form: small.form, sr: small.sr, seconds: small.seconds, from: song.from || songKind(song) };
     await saveSong(rec);
   } catch {
     return toast(W('存不下：手機空間不夠？', "Couldn't keep it: phone storage full?"), { tone: 'bad' });
@@ -1813,7 +1833,7 @@ let autoKept = [];
 let autoTimer = 0;
 async function autoKeep(song) {
   if (lib.has(song.id)) return;
-  await keepSong(song, { quiet: true });
+  await keepSong({ ...song, from: song.from || 'made' }, { quiet: true });
   if (!lib.has(song.id)) return;
   autoKept.push(song);
   clearTimeout(autoTimer);
@@ -2094,7 +2114,7 @@ async function keepRadio(item) {
   const there = lib.has(id);
   if (!there) toast(W('存到資料庫中…', 'Keeping it…'), { ms: 1200 });
   try {
-    await keepSong(there ? { id, info: item.info } : await bandSong({ ...item.spec, style: item.info.style }).then(s => ({ ...s, name: item.title })));
+    await keepSong(there ? { id, info: item.info } : await bandSong({ ...item.spec, style: item.info.style }).then(s => ({ ...s, name: item.title, from: 'radio' })));
   } catch (e) {
     toast(W(`存不下來：${e.message}`, `Couldn't keep it: ${e.message}`), { tone: 'bad' });
   }
@@ -2109,7 +2129,7 @@ async function jamSong(hits, beats, band, { keep: kept = false } = {}) {
     const at = new Date();
     const when = `${at.getHours()}:${String(at.getMinutes()).padStart(2, '0')}`;
     const label = `${W('即興', 'Jam')}${band ? ` · ${name(STYLE_NAMES, band.style)}` : ''} ${when}`;
-    const song = { id: recipeId(recipe), name: label, info, data: wav, url: URL.createObjectURL(new Blob([wav], { type: 'audio/wav' })), bits: cfg().bits, recipe };
+    const song = { id: recipeId(recipe), name: label, info, data: wav, url: URL.createObjectURL(new Blob([wav], { type: 'audio/wav' })), bits: cfg().bits, recipe, from: 'jam' };
     await autoKeep(song);
     if (kept) return;
     songs.unshift(song);
