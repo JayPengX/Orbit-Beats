@@ -106,6 +106,14 @@ export const TERMS = {
   }
 };
 
+// The ? sheet's four cards, one a screen: its icon, a line, and what ▶ plays.
+// go: 'home' | 'jam' | 'studio' | 'make' (app.js knows how to start each).
+export const TOUR = [
+  { id: 'home', icon: 'radio', zh: ['聽', '電台一直播，不用選'], en: ['Listen', 'A radio that never stops'] },
+  { id: 'jam', icon: 'wave', zh: ['即興', '點打擊墊，現場玩'], en: ['Jam', 'Tap pads and play live'] },
+  { id: 'studio', icon: 'grid', zh: ['樂器', '點格子，寫一段節奏'], en: ['Studio', 'Tap squares to write a beat'] },
+  { id: 'make', icon: 'note', zh: ['做歌', '一次做出一批歌'], en: ['Songs', 'Make a batch in one tap'] }
+];
 // The order of the 名詞小辭典: from what a beginner meets first.
 export const TERM_ORDER = ['bpm', 'bar', 'section', 'riff', 'hat', 'sub', 'groove', 'swing', 'key', 'chord', 'velocity', 'step', 'loop', 'snap', 'choke', 'roles', 'mix', 'humanize', 'pattern', 'chain', 'seed', 'stems', 'midi'];
 

@@ -9,6 +9,7 @@
 
 import { STYLES } from '../engine.mjs';
 import { MIX, mixOf } from './mix.mjs';
+import { MOODS } from './radio.mjs';
 
 export const LEVELS = ['simple', 'pro'];
 // Only in Advanced.
@@ -25,7 +26,7 @@ export const PRO_ONLY = [
   'make-length-slider', 'make-legend', 'make-card', 'make-piece', 'studio-head'
 ];
 // Only in Simple.
-export const SIMPLE_ONLY = ['make-easy', 'jam-easy', 'jam-band', 'jam-keep', 'make-ingredients', 'studio-parts'];
+export const SIMPLE_ONLY = ['make-easy', 'make-mood-cards', 'jam-easy', 'jam-band', 'jam-keep', 'make-ingredients', 'studio-parts'];
 export const levelOk = v => LEVELS.includes(v);
 // Whether a control shows at this level.
 export const shows = (level, ctl) => (level === 'pro' ? !SIMPLE_ONLY.includes(ctl) : !PRO_ONLY.includes(ctl));
@@ -43,4 +44,19 @@ export const SIMPLE_MAKE = Object.freeze({ count: 6, minBars: 25, maxBars: 29, h
 export function makeSettings(level, settings) {
   if (level === 'pro') return settings;
   return { ...settings, ...SIMPLE_MAKE, length: settings.length, styles: [...STYLES], mix: mixOf(MIX) };
+}
+
+// ---- 簡單's 情境 cards ----
+//
+// 簡單 has no mood chips, but four cards (放鬆, 熱血, 律動, 經典) a tap picks
+// one, a tap again lets it go (every groove, as before). The pick only narrows
+// the grooves (and the human feel) a batch is made from: the rest stays fixed.
+export const EASY_MOODS = ['chill', 'hype', 'groove', 'classic'];
+export const easyMood = v => (EASY_MOODS.includes(v) ? v : 'all');
+// What a batch is made on at this level, with the mood picked on 簡單's cards.
+export function makeWith(level, settings, mood = 'all') {
+  const base = makeSettings(level, settings);
+  const m = easyMood(mood);
+  if (level === 'pro' || m === 'all') return base;
+  return { ...base, mood: m, styles: [...MOODS[m].styles], humanize: MOODS[m].humanize };
 }
