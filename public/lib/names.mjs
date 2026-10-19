@@ -15,11 +15,8 @@ export const STYLE_NAMES = {
 // The grooves as the chips list them: the most played first, then by kind
 // (hip-hop, pop, dance, Latin and the world's, jazz and soul, rock, calm,
 // game and film). engine.mjs's STYLES keeps its own order (the songs' seeds).
-export const STYLE_ORDER = [
-  'lofi', 'hiphop', 'trap', 'kpop', 'house', 'afro', 'reggae', 'jazz', 'rock', 'citypop', 'dembow', 'ballad', 'chinese', 'synthwave', 'disco', 'bossa',
-  'drill', 'boombap', 'phonk', 'half', 'neosoul', 'funk', 'gospel', 'four', 'techno', 'trance', 'garage', 'dnb', 'jungle', 'dubstep', 'jersey', 'footwork', 'hardstyle', 'broken',
-  'amapiano', 'baile', 'samba', 'salsa', 'cumbia', 'kizomba', 'highlife', 'bhangra', 'blues', 'country', 'punk', 'metal', 'ambient', 'cinematic', 'chiptune'
-];
+// (The order, kept where the worker can read it too: engine.mjs.)
+export { STYLE_ORDER } from '../engine.mjs';
 export const SECTION_NAMES = { intro: ['前奏', 'Intro'], verse: ['主歌', 'Verse'], pre: ['導歌', 'Pre-hook'], hook: ['副歌', 'Hook'], break: ['間奏', 'Break'], bridge: ['橋段', 'Bridge'], outro: ['尾奏', 'Outro'] };
 export const ROLE_NAMES = { riff: ['Riff', 'Riff'], phrase: ['樂句', 'Phrase'], bass: ['貝斯', 'Bass'], hat: ['閉鈸', 'Hats'], fill: ['過門', 'Fill'], kick: ['大鼓', 'Kick'], sub: ['808', '808'], snare: ['小鼓', 'Snare'], tick: ['滴答', 'Tick'], roll: ['滾奏', 'Roll'], off: ['不用', 'Not used'] };
 export const BUS_NAMES = { drums: ['鼓', 'Drums'], hats: ['閉鈸', 'Hats'], bass: ['貝斯', 'Bass'], keys: ['旋律', 'Melody'], fx: ['殘響', 'Echo & room'] };

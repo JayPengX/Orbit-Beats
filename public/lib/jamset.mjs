@@ -8,10 +8,9 @@
 // right together; one of a group plays at a time (the chord parts, the bass
 // lines, the closed hats). No DOM, no sound: the tests run it.
 
-import { STYLES, makeRng } from '../engine.mjs';
+import { STYLES, STYLE_ORDER, makeRng } from '../engine.mjs';
 import { radioSpec } from './radio.mjs';
 import { INSTRUMENT_NAMES, DRUM_NAMES } from './synth.mjs';
-import { STYLE_ORDER } from './names.mjs';
 
 // The grooves offered as chips, every one, the most played first (the dice picks from every one).
 export const SET_STYLES = STYLE_ORDER;
