@@ -201,12 +201,17 @@ let hubDraw = () => {};
     h('button', { class: 'hub-play', type: 'button', 'aria-label': W('開始', 'Start'), html: icon('play'), onclick: () => (showTab('jam'), jam?.start()) })
   ]);
   const half = (id, ic, label, extra) => h('button', { class: 'hub-half', type: 'button', 'data-screen': id, onclick: () => showTab(id) }, [h('span', { class: 'hub-ico', html: icon(ic) }), h('b', { text: label }), extra]);
+  // (The songs just made first, the newest kept ones after: what 做歌 or 即興 made shows up here at once.)
+  const mineFirst = () => {
+    const fresh = songs.filter(x => !lib.has(x.id));
+    return [...fresh, ...[...lib.all()].sort((a, b) => (b.at || 0) - (a.at || 0))].slice(0, 12);
+  };
   hubDraw = () => {
     const set = readSet();
     cover.src = setCover(set, specOf(set).bpm);
     badge.textContent = String(pieces.length);
     badge.hidden = !pieces.length;
-    const mine = songShelf({ P, trackMenu: (t, a) => trackMenuOf(t, a) }, 'mine', W('你的歌', 'Your songs'), [...lib.all()].sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 12));
+    const mine = songShelf({ P, trackMenu: (t, a) => trackMenuOf(t, a) }, 'mine', W('你的歌', 'Your songs'), mineFirst());
     shelf.replaceChildren(...(mine ? [mine] : []));
   };
   const shelf = h('div', { class: 'hub-shelf' });
@@ -606,7 +611,10 @@ function addSheet() {
   const go = (iconName, label, fn, cls = '') => h('button', { class: `add-row ${cls}`, type: 'button', html: `${icon(iconName)}<span>${esc(label)}</span>`, onclick: () => (fn(), s.close()) });
   const rows = [go('mic', W('用麥克風錄', 'Record'), () => $('record').click()), go('upload', W('選檔案', 'Choose files'), () => (sources.length ? $('more') : $('file')).click()), go('create', W('用樂器寫', 'Write in Studio'), () => showTab('studio'))];
   if (!sources.length) rows.push(go('note', W('試試示範', 'Try the demo'), () => $('demo').click()));
-  s = sheet({ title: W('加材料', 'Add'), closeLabel: W('關閉', 'Close'), body: h('div', { class: 'add-rows' }, [...rows, h('hr'), go('library', W('我的套組', 'My kits'), () => setTimeout(() => $('my-kits').click(), 250), 'plain')]) });
+  const body = h('div', { class: 'add-rows' }, rows);
+  s = sheet({ title: W('加材料', 'Add'), closeLabel: W('關閉', 'Close'), body });
+  // (我的套組 only once a kit is kept: a row that leads nowhere isn't shown.)
+  listNamed().catch(() => []).then(all => all.length && body.append(go('library', W('我的套組', 'My kits'), () => setTimeout(() => $('my-kits').click(), 250))));
 }
 
 function showPieces() {
@@ -1051,7 +1059,7 @@ function songRow(song, { lib: inLib = false, list = null } = {}) {
   const more = h('button', { class: 'act', type: 'button', 'aria-label': W('更多', 'More'), html: ICON.more, onclick: e => songMenu(song, e.currentTarget, inLib, list) });
   const bar = h('div', { class: 'plan', role: 'group', 'aria-label': plan });
   const total = info.plan.reduce((a, [, n]) => a + n, 0);
-  const width = Math.min(innerWidth, 560) - 32 - 62; // the strip's room (row padding, play column)
+  const width = Math.min(innerWidth, 560) - 32 - 62 - 40; // the strip's room (row and card padding, play column), on the safe side so no label is cut
   sectionTimes(info.plan, info.bpm || bpm).forEach((s, k) => {
     const label = name(SECTION_NAMES, s.type);
     const em = en ? label.length * 0.66 : label.length;

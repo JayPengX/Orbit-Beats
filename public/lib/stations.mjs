@@ -44,12 +44,15 @@ export const stationId = id => (id === 'taste' || MOODS[id] || /^style:[a-z]+$/.
 export function homeRows(taste = {}) {
   const liked = tasteList(taste, 6);
   const pop = POPULAR.slice(0, 5).map(s => `style:${s}`);
+  // (No station twice on the page: 類型 and 喜歡的 leave out what 為你推薦 already shows.)
+  const forYou = liked.length ? ['taste', ...pop.slice(0, 4)] : pop;
+  const fresh = id => !forYou.includes(id);
   return [
-    { key: 'for-you', ids: liked.length ? ['taste', ...pop.slice(0, 4)] : pop },
+    { key: 'for-you', ids: forYou },
     { key: 'moods', ids: Object.keys(MOODS) },
-    { key: 'genres', ids: STYLE_ORDER.map(s => `style:${s}`) },
+    { key: 'genres', ids: STYLE_ORDER.map(s => `style:${s}`).filter(fresh) },
     { key: 'tempo', ids: Object.keys(TEMPOS).map(t => `tempo:${t}`) },
-    { key: 'liked', ids: liked.map(([s]) => `style:${s}`) }
+    { key: 'liked', ids: liked.map(([s]) => `style:${s}`).filter(fresh) }
   ];
 }
 // The grooves a station plays (for a card's cover and the tests).

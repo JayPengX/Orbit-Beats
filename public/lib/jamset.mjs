@@ -61,6 +61,9 @@ function subOf(p, sp) {
 // A loop of the set keeps step with the song's four-bar cycle (phase): joined on
 // a later bar it plays from that bar of itself, so it's on the same chord as the rest.
 export function bandPads(sp) {
+  // (Two pads on the same instrument: it's named under the first only, so no two pads read the same.)
+  const named = new Set();
+  const once = (p, n) => (n && named.has(`${p.fam}:${n[0]}`) ? null : (n && named.add(`${p.fam}:${n[0]}`), n));
   return LAYOUT.map(p => ({
     i: p.i,
     role: BAND_ROLES[p.i],
@@ -68,7 +71,7 @@ export function bandPads(sp) {
     beats: p.loop || 4,
     fam: p.fam,
     name: p.name(sp),
-    sub: subOf(p, sp),
+    sub: once(p, subOf(p, sp)),
     group: p.group || null,
     phase: Boolean(p.loop)
   }));

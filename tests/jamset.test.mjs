@@ -31,7 +31,9 @@ test('the built-in set: sixteen pads on the band radioKit makes, each loop its p
     assert.deepEqual(Object.keys(groups).sort(), ['bass', 'chords', 'hat', 'melody']);
     assert.equal(groups.chords.length, 2);
     assert.equal(groups.melody.length, 2);
-    for (const p of pads.filter(p => p.fam === 'chords' || p.fam === 'melody')) assert.ok(p.sub, 'its instrument named');
+    for (const fam of ['chords', 'melody']) assert.ok(pads.find(p => p.fam === fam).sub, 'its instrument named');
+    const subs = pads.filter(p => p.sub).map(p => `${p.fam}:${p.sub[0]}`);
+    assert.equal(new Set(subs).size, subs.length, 'no instrument named twice in a family');
     assert.equal(new Set(pads.map(p => p.name[0])).size, 16, 'no two pads named alike');
   }
   for (const r of BAND_ROLES) assert.ok(ROLES.includes(r) && FAMILY[r]);

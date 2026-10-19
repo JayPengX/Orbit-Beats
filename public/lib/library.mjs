@@ -131,7 +131,7 @@ export function libraryView({ panel, row, goMake, zip, play }) {
       h('div', { class: 'head' }, [h('h2', { text: W('清單', 'Playlists') }), h('button', { class: 'secondary', type: 'button', html: `${icon('plus')}<span>${W('新清單', 'New')}</span>`, onclick: () => newList() })]),
       lists.length
         ? h('div', { class: 'q-list' }, lists.map(x => cell({ title: x.name, value: countText(songsOf(x, songs).length), chevron: true, onClick: () => ((open = x.id), draw(), panel.scrollIntoView?.({ block: 'start' })) })))
-        : h('p', { class: 'hint', text: W('在歌的 ⋯ 選「加到清單」', 'Add a song from its ⋯ menu') })
+        : null
     ]);
     panel.replaceChildren(head, h('div', { class: 'lib-tools' }, [search, sort]), playlists, h('section', { class: 'card' }, [h('div', { class: 'head' }, [h('h2', { text: W('收藏的歌', 'Kept songs') }), zipBtn]), none, ol]), h('footer', { text: W('存在這支手機上 · 不上傳', 'Kept on this phone · never uploaded') }));
   }
@@ -160,7 +160,7 @@ export function libraryView({ panel, row, goMake, zip, play }) {
     panel.replaceChildren(
       h('div', { class: 'lib-nav' }, [back, more]),
       h('div', { class: 'lib-head' }, [h('h2', { text: l.name }), h('small', { text: countText(list.length) })]),
-      h('section', { class: 'card' }, [playBtn, list.length ? ol : h('p', { class: 'hint', text: W('在歌的 ⋯ 選「加到清單」', 'Add a song from its ⋯ menu') })])
+      h('section', { class: 'card' }, [playBtn, list.length ? ol : null])
     );
   }
   // ⋯ 加到清單: each list, ✓ on those the song is in; a tap puts it in or takes it out.
