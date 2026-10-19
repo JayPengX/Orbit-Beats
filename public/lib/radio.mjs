@@ -66,7 +66,7 @@ const tempoJump = (a, b) => Math.abs(a - b) >= 15 || Math.abs(a / b - 2) < 0.12 
 const modeName = sp => sp.mode || (sp.key.minor ? 'minor' : 'major');
 const planSig = sp => radioPlan(makeRng(sp.seed ^ 0x1b873593), sp.bpm, sp.seconds).map(p => p.join('')).join();
 // What a song is remembered by, so the next ones can steer clear of it: the verse's chord loop and the hook's (a loop and its turns are one family), the key, the lead and chord instruments, the form, the tempo and the drums' touches.
-const marks = sp => ({ fam: progFamily(sp.prog), famB: sp.progB ? progFamily(sp.progB) : null, tonic: sp.key.tonic, lead: sp.lead, chords: sp.chords, form: planSig(sp), bpm: sp.bpm, dress: sp.dress.id });
+const marks = sp => ({ fam: progFamily(sp.prog), famB: sp.progB ? progFamily(sp.progB) : null, tonic: sp.key.tonic, lead: sp.lead, chords: sp.chords, chords2: sp.chords2, form: planSig(sp), bpm: sp.bpm, dress: sp.dress.id });
 export const MEMORY = 8;
 // How much `sp` repeats of the last songs (`mem`: their marks, oldest first): what is near counts the most. 0 is a song with nothing in common.
 function clash(sp, mem) {
@@ -79,7 +79,9 @@ function clash(sp, mem) {
     if (m.famB && (m.famB === o.famB || m.famB === o.fam)) c += 2 * w;
     if (d < 6 && m.tonic === o.tonic) c += 2 * w;
     if (d < 4 && m.lead === o.lead) c += 2 * w;
-    if (d < 3 && m.chords === o.chords) c += 2 * w;
+    // (The chord instrument is what a song sounds like underneath: none of the last eight, either of the pair, repeats it without a cost.)
+    if (m.chords === o.chords) c += 2 * w + 1;
+    else if (m.chords === o.chords2 || m.chords2 === o.chords) c += w + 1;
     if (d < 6 && m.form === o.form) c += 2 * w;
     if (d < 3 && Math.abs(m.bpm - o.bpm) < 6) c += w;
     if (m.dress === o.dress) c += 2 * w;
@@ -171,43 +173,43 @@ const ROCK = { kick: 'rkick', boom: 'rkick', sub: ['rkick', 'crash'], snare: ['r
 // pentatonic, blues), the melody's rhythms, an arpeggio's instruments
 // (`arps`) and sixteenths (`arp16`), a 16th swing, their drums (`kit`) and hats.
 const BAND = {
-  four: { bpm: [118, 126], chords: ['pad', 'organ', 'keys'], leads: ['pluck', 'lead', 'bell', 'supersaw'], bass: ['bass'], comp: 'stab8', line: 'off8' },
-  hiphop: { bpm: [84, 94], chords: ['keys', 'strings', 'organ', 'piano'], leads: ['bell', 'pluck', 'vox', 'piano', 'flute'], bass: ['bass', 'subbass'], comp: 'held', line: 'hop' },
-  trap: { bpm: [132, 148], chords: ['pad', 'strings', 'bell', 'choir'], leads: ['bell', 'pluck', 'vox', 'flute', 'glass'], bass: ['subbass', 'bass808'], comp: 'held', line: 'long' },
-  half: { bpm: [70, 84], chords: ['strings', 'pad', 'keys', 'piano'], leads: ['bell', 'keys', 'guitar', 'kalimba'], bass: ['subbass', 'bass'], comp: 'held', line: 'long' },
-  broken: { bpm: [120, 128], chords: ['pad', 'keys', 'rhodes'], leads: ['pluck', 'lead', 'vibes'], bass: ['bass'], comp: 'stab', line: 'hop' },
-  house: { bpm: [120, 125], chords: ['organ', 'keys', 'pad', 'piano'], leads: ['pluck', 'vox', 'lead', 'piano'], bass: ['bass'], comp: 'stab8', line: 'off8' },
-  dembow: { bpm: [90, 100], chords: ['pad', 'keys', 'guitar', 'nylon'], leads: ['pluck', 'lead', 'bell', 'steel'], bass: ['subbass', 'bass'], comp: 'stab', line: 'dembow' },
-  afro: { bpm: [100, 110], chords: ['keys', 'guitar', 'organ', 'rhodes'], leads: ['pluck', 'bell', 'guitar', 'kalimba', 'marimba'], bass: ['bass'], comp: 'stab', line: 'afro' },
-  drill: { bpm: [138, 144], chords: ['strings', 'pad', 'bell', 'choir'], leads: ['bell', 'vox', 'strings', 'piano', 'pizz'], bass: ['subbass', 'bass808'], comp: 'held', line: 'long' },
-  boombap: { bpm: [86, 94], chords: ['keys', 'organ', 'strings', 'piano'], leads: ['keys', 'brass', 'guitar', 'sax'], bass: ['bass', 'upright'], comp: 'held', line: 'hop' },
-  jersey: { bpm: [136, 144], chords: ['pad', 'organ'], leads: ['vox', 'pluck', 'lead'], bass: ['subbass', 'bass808'], comp: 'stab8', line: 'long' },
-  amapiano: { bpm: [110, 114], chords: ['keys', 'organ', 'pad', 'rhodes'], leads: ['pluck', 'bell', 'keys', 'marimba', 'sax'], bass: ['subbass'], comp: 'stab', line: 'afro' },
-  lofi: { bpm: [72, 84], chords: ['keys', 'guitar', 'strings', 'rhodes'], leads: ['keys', 'bell', 'guitar', 'vibes', 'kalimba'], bass: ['bass', 'upright'], comp: 'held', line: 'hop' },
-  funk: { bpm: [100, 112], chords: ['organ', 'keys', 'brass', 'clav'], leads: ['brass', 'lead', 'guitar', 'sax'], bass: ['bass', 'slap'], comp: 'stab', line: 'funk' },
-  garage: { bpm: [128, 134], chords: ['organ', 'pad', 'keys', 'rhodes'], leads: ['vox', 'pluck'], bass: ['subbass', 'bass'], comp: 'stab8', line: 'off8' },
-  dnb: { bpm: [168, 176], chords: ['pad', 'strings'], leads: ['pluck', 'bell', 'lead'], bass: ['subbass', 'bass', 'reese'], comp: 'held', line: 'long' },
-  reggae: { bpm: [72, 84], chords: ['organ', 'guitar', 'keys'], leads: ['keys', 'brass', 'guitar', 'harmonica'], bass: ['bass'], comp: 'skank', line: 'drop' },
-  phonk: { bpm: [126, 138], chords: ['bell', 'pad', 'strings'], leads: ['bell', 'lead', 'vox', 'glass'], bass: ['subbass', 'bass808'], comp: 'held', line: 'long' },
-  baile: { bpm: [126, 132], chords: ['pad', 'organ'], leads: ['vox', 'lead', 'pluck'], bass: ['subbass'], comp: 'stab8', line: 'off8' },
-  techno: { bpm: [124, 132], chords: ['pad', 'organ'], leads: ['lead', 'pluck', 'bell'], bass: ['bass', 'subbass', 'acid'], comp: 'stab8', line: 'off8' },
+  four: { bpm: [118, 126], chords: ['pad', 'organ', 'keys', 'piano', 'rhodes', 'clav', 'brass'], leads: ['pluck', 'lead', 'bell', 'supersaw'], bass: ['bass'], comp: 'stab8', line: 'off8' },
+  hiphop: { bpm: [84, 94], chords: ['keys', 'strings', 'organ', 'piano', 'rhodes', 'guitar', 'nylon', 'vibes'], leads: ['bell', 'pluck', 'vox', 'piano', 'flute'], bass: ['bass', 'subbass'], comp: 'held', line: 'hop' },
+  trap: { bpm: [132, 148], chords: ['pad', 'strings', 'bell', 'choir', 'piano', 'harp', 'glass', 'keys'], leads: ['bell', 'pluck', 'vox', 'flute', 'glass'], bass: ['subbass', 'bass808'], comp: 'held', line: 'long' },
+  half: { bpm: [70, 84], chords: ['strings', 'pad', 'keys', 'piano', 'rhodes', 'guitar', 'nylon', 'harp'], leads: ['bell', 'keys', 'guitar', 'kalimba'], bass: ['subbass', 'bass'], comp: 'held', line: 'long' },
+  broken: { bpm: [120, 128], chords: ['pad', 'keys', 'rhodes', 'piano', 'clav', 'organ', 'guitar', 'strings'], leads: ['pluck', 'lead', 'vibes'], bass: ['bass'], comp: 'stab', line: 'hop' },
+  house: { bpm: [120, 125], chords: ['organ', 'keys', 'pad', 'piano', 'rhodes', 'clav', 'brass', 'strings'], leads: ['pluck', 'vox', 'lead', 'piano'], bass: ['bass'], comp: 'stab8', line: 'off8' },
+  dembow: { bpm: [90, 100], chords: ['pad', 'keys', 'guitar', 'nylon', 'rhodes', 'brass', 'organ'], leads: ['pluck', 'lead', 'bell', 'steel'], bass: ['subbass', 'bass'], comp: 'stab', line: 'dembow' },
+  afro: { bpm: [100, 110], chords: ['keys', 'guitar', 'organ', 'rhodes', 'piano', 'nylon', 'clav', 'marimba'], leads: ['pluck', 'bell', 'guitar', 'kalimba', 'marimba'], bass: ['bass'], comp: 'stab', line: 'afro' },
+  drill: { bpm: [138, 144], chords: ['strings', 'pad', 'bell', 'choir', 'piano', 'keys', 'harp', 'glass'], leads: ['bell', 'vox', 'strings', 'piano', 'pizz'], bass: ['subbass', 'bass808'], comp: 'held', line: 'long' },
+  boombap: { bpm: [86, 94], chords: ['keys', 'organ', 'strings', 'piano', 'rhodes', 'clav', 'brass', 'guitar'], leads: ['keys', 'brass', 'guitar', 'sax'], bass: ['bass', 'upright'], comp: 'held', line: 'hop' },
+  jersey: { bpm: [136, 144], chords: ['pad', 'organ', 'keys', 'piano', 'brass', 'supersaw'], leads: ['vox', 'pluck', 'lead'], bass: ['subbass', 'bass808'], comp: 'stab8', line: 'long' },
+  amapiano: { bpm: [110, 114], chords: ['keys', 'organ', 'pad', 'rhodes', 'piano', 'strings', 'vibes', 'marimba'], leads: ['pluck', 'bell', 'keys', 'marimba', 'sax'], bass: ['subbass'], comp: 'stab', line: 'afro' },
+  lofi: { bpm: [72, 84], chords: ['keys', 'guitar', 'strings', 'rhodes', 'piano', 'nylon', 'vibes', 'organ'], leads: ['keys', 'bell', 'guitar', 'vibes', 'kalimba'], bass: ['bass', 'upright'], comp: 'held', line: 'hop' },
+  funk: { bpm: [100, 112], chords: ['organ', 'keys', 'brass', 'clav', 'guitar', 'rhodes', 'piano', 'strings'], leads: ['brass', 'lead', 'guitar', 'sax'], bass: ['bass', 'slap'], comp: 'stab', line: 'funk' },
+  garage: { bpm: [128, 134], chords: ['organ', 'pad', 'keys', 'rhodes', 'piano', 'strings', 'brass', 'clav'], leads: ['vox', 'pluck'], bass: ['subbass', 'bass'], comp: 'stab8', line: 'off8' },
+  dnb: { bpm: [168, 176], chords: ['pad', 'strings', 'rhodes', 'keys', 'piano', 'choir'], leads: ['pluck', 'bell', 'lead'], bass: ['subbass', 'bass', 'reese'], comp: 'held', line: 'long' },
+  reggae: { bpm: [72, 84], chords: ['organ', 'guitar', 'keys', 'clav', 'piano', 'brass'], leads: ['keys', 'brass', 'guitar', 'harmonica'], bass: ['bass'], comp: 'skank', line: 'drop' },
+  phonk: { bpm: [126, 138], chords: ['bell', 'pad', 'strings', 'keys', 'choir', 'organ', 'piano', 'glass'], leads: ['bell', 'lead', 'vox', 'glass'], bass: ['subbass', 'bass808'], comp: 'held', line: 'long' },
+  baile: { bpm: [126, 132], chords: ['pad', 'organ', 'keys', 'brass', 'strings', 'piano'], leads: ['vox', 'lead', 'pluck'], bass: ['subbass'], comp: 'stab8', line: 'off8' },
+  techno: { bpm: [124, 132], chords: ['pad', 'organ', 'strings', 'keys', 'supersaw', 'clav'], leads: ['lead', 'pluck', 'bell'], bass: ['bass', 'subbass', 'acid'], comp: 'stab8', line: 'off8' },
   jazz: {
-    bpm: [112, 150], chords: ['piano', 'rhodes', 'vibes'], leads: ['sax', 'vibes', 'piano', 'flute'], arps: ['vibes', 'piano'], bass: ['upright'], comp: 'charleston', line: 'walk',
+    bpm: [112, 150], chords: ['piano', 'rhodes', 'vibes', 'organ', 'guitar', 'nylon', 'harp'], leads: ['sax', 'vibes', 'piano', 'flute'], arps: ['vibes', 'piano'], bass: ['upright'], comp: 'charleston', line: 'walk',
     minor: 0.3, modes: { minor: ['harm', 'dorian'] }, progs: { major: [[1, 4, 0, 0], [1, 4, 0, 5], [0, 5, 1, 4], [2, 5, 1, 4]], minor: [[1, 4, 0, 0], [0, 3, 1, 4]] }, ext: 1, ninths: 0.6,
     kit: { ...ACOUSTIC, snare: ['brush'], tick: ['ride'] }, hats: [[['ride', [0, 4, 6, 8, 12, 14]], ['hat', [4, 12], 3]], [['ride', [0, 4, 8, 12], 3], ['hat', [4, 12], 3]], [['brush', E8, 3]]]
   },
   bossa: {
-    bpm: [64, 76], chords: ['nylon', 'rhodes', 'piano'], leads: ['flute', 'sax', 'vibes', 'nylon'], arps: ['nylon', 'vibes'], bass: ['upright', 'bass'], comp: 'bossa', line: 'bossa',
+    bpm: [64, 76], chords: ['nylon', 'rhodes', 'piano', 'guitar', 'vibes', 'harp'], leads: ['flute', 'sax', 'vibes', 'nylon'], arps: ['nylon', 'vibes'], bass: ['upright', 'bass'], comp: 'bossa', line: 'bossa',
     minor: 0.35, modes: { minor: ['dorian'] }, progs: { major: [[1, 4, 0, 0], [0, 0, 1, 4], [0, 5, 1, 4], [3, 2, 1, 0]], minor: [[0, 3, 1, 4], [0, 5, 1, 4]] }, ext: 1, ninths: 0.5,
     kit: { ...ACOUSTIC, sub: ['kick', 'ride'], snare: ['rim', 'clave'], tick: ['shaker'] }, hats: [[['shaker', ALL16, 3], ['shaker', [0, 4, 8, 12]]], [['hat', E8, 3]], [['clave', [0, 3, 6, 10, 12], 3]]]
   },
   samba: {
-    bpm: [96, 108], chords: ['nylon', 'guitar', 'brass'], leads: ['flute', 'brass', 'steel', 'sax'], arps: ['nylon', 'pluck'], bass: ['bass', 'upright'], comp: 'montuno', line: 'samba',
+    bpm: [96, 108], chords: ['nylon', 'guitar', 'brass', 'piano', 'accordion', 'banjo'], leads: ['flute', 'brass', 'steel', 'sax'], arps: ['nylon', 'pluck'], bass: ['bass', 'upright'], comp: 'montuno', line: 'samba',
     minor: 0.3, progs: { major: [[0, 5, 1, 4], [0, 3, 4, 0], [0, 1, 4, 0]] }, ext: 0.7,
     kit: { kick: 'kick', boom: 'dhol', sub: ['dhol', 'crash'], snare: ['timbale', 'rim'], tick: ['shaker', 'tamb'] }, hats: [[['shaker', ALL16, 3], ['shaker', [3, 7, 11, 15]]], [['tamb', [0, 2, 3, 4, 6, 7, 8, 10, 11, 12, 14, 15], 3]], [['agogo', [0, 2, 5, 7, 10, 12]]]]
   },
   salsa: {
-    bpm: [90, 102], chords: ['piano', 'brass'], leads: ['brass', 'sax', 'flute', 'piano'], arps: ['piano', 'vibes'], bass: ['upright', 'bass'], comp: 'montuno', line: 'tumbao',
+    bpm: [90, 102], chords: ['piano', 'brass', 'guitar', 'organ', 'vibes', 'clav'], leads: ['brass', 'sax', 'flute', 'piano'], arps: ['piano', 'vibes'], bass: ['upright', 'bass'], comp: 'montuno', line: 'tumbao',
     minor: 0.7, modes: { minor: ['harm'] }, progs: { minor: [[0, 3, 4, 0], [0, 4, 0, 4], [0, 3, 6, 4]], major: [[0, 3, 4, 3], [0, 4, 4, 0]] }, ext: 0.3,
     kit: { kick: 'kick', boom: 'conga', sub: ['kick', 'crash'], snare: ['clave'], tick: ['cowbell'] }, hats: [[['clave', [0, 3, 6, 10, 12]], ['cowbell', [0, 4, 8, 12], 3]], [['guiro', E8, 3], ['clave', [0, 3, 6, 10, 12], 3]], [['timbale', [0, 2, 3, 5, 6, 8, 10, 11, 13, 14], 3]]]
   },
@@ -227,47 +229,47 @@ const BAND = {
     kit: { ...ROCK, tick: ['ride', 'hat'] }, hats: [[['hat', E8]], [['ride', [0, 4, 8, 12]], ['ride', OFF8, 3]], [['crash', [0, 8], 3]]]
   },
   citypop: {
-    bpm: [100, 118], chords: ['rhodes', 'piano', 'strings'], leads: ['sax', 'lead', 'brass', 'vibes', 'supersaw'], arps: ['rhodes', 'glass', 'pluck'], bass: ['slap', 'bass'], comp: 'stab', line: 'disco',
+    bpm: [100, 118], chords: ['rhodes', 'piano', 'strings', 'keys', 'guitar', 'brass', 'clav'], leads: ['sax', 'lead', 'brass', 'vibes', 'supersaw'], arps: ['rhodes', 'glass', 'pluck'], bass: ['slap', 'bass'], comp: 'stab', line: 'disco',
     minor: 0.35, modes: { minor: ['dorian'] }, progs: { major: [[3, 4, 2, 5], [3, 4, 0, 5], [1, 4, 0, 5], [5, 3, 4, 0]], minor: [[0, 3, 1, 4], [5, 3, 4, 0]] }, ext: 1, ninths: 0.4,
     kit: { kick: 'kick', boom: 'kick', sub: ['kick', 'crash'], snare: ['snare', 'clap'], tick: ['hat'] }, hats: [[['hat', ALL16, 3], ['hat', E8]], [['hat', E8], ['open', [14], 3]], [['tamb', [4, 12]], ['shaker', ALL16, 3]]]
   },
   kpop: {
-    bpm: [116, 128], chords: ['supersaw', 'piano', 'pad'], leads: ['supersaw', 'vox', 'pluck', 'lead', 'bell'], arps: ['pluck', 'bell'], bass: ['bass808', 'subbass', 'bass'], comp: 'stab8', line: 'off8',
+    bpm: [116, 128], chords: ['supersaw', 'piano', 'pad', 'keys', 'strings', 'guitar', 'rhodes'], leads: ['supersaw', 'vox', 'pluck', 'lead', 'bell'], arps: ['pluck', 'bell'], bass: ['bass808', 'subbass', 'bass'], comp: 'stab8', line: 'off8',
     minor: 0.6, progs: { major: [[5, 3, 0, 4], [3, 4, 2, 5], [0, 4, 5, 3]] }, ext: 0.3
   },
   synthwave: {
-    bpm: [84, 110], chords: ['supersaw', 'pad', 'strings'], leads: ['lead', 'chip', 'supersaw', 'sax'], arps: ['pluck', 'supersaw', 'chip'], arp16: true, bass: ['bass', 'acid'], comp: 'pulse', line: 'rock8',
+    bpm: [84, 110], chords: ['supersaw', 'pad', 'strings', 'keys', 'organ', 'choir'], leads: ['lead', 'chip', 'supersaw', 'sax'], arps: ['pluck', 'supersaw', 'chip'], arp16: true, bass: ['bass', 'acid'], comp: 'pulse', line: 'rock8',
     minor: 0.85, progs: { minor: [[0, 5, 6, 4], [0, 5, 2, 6], [0, 3, 5, 6], [5, 6, 0, 0]] }, ext: 0.2,
     kit: { kick: 'kick', boom: 'kick', sub: ['kick', 'crash'], snare: ['rsnare', 'clap'], tick: ['hat'] }, hats: [[['hat', OFF8]], [['hat', E8, 3], ['hat', OFF8]], [['open', OFF8, 3], ['tamb', [4, 12], 3]]]
   },
   disco: {
-    bpm: [114, 124], chords: ['strings', 'clav', 'piano', 'guitar'], leads: ['strings', 'brass', 'vox', 'piano'], arps: ['clav', 'guitar', 'strings'], bass: ['slap', 'bass'], comp: 'stab8', line: 'disco',
+    bpm: [114, 124], chords: ['strings', 'clav', 'piano', 'guitar', 'rhodes', 'brass', 'organ'], leads: ['strings', 'brass', 'vox', 'piano'], arps: ['clav', 'guitar', 'strings'], bass: ['slap', 'bass'], comp: 'stab8', line: 'disco',
     minor: 0.5, modes: { minor: ['dorian'] }, progs: { minor: [[0, 3, 0, 3], [0, 5, 3, 4], [0, 3, 6, 4]], major: [[0, 3, 4, 3], [1, 4, 0, 5]] }, ext: 0.7,
     kit: { kick: 'kick', boom: 'kick', sub: ['kick', 'crash'], snare: ['snare', 'clap'], tick: ['hat'] }, hats: [[['open', OFF8], ['hat', [0, 4, 8, 12], 3]], [['hat', ALL16, 3], ['open', OFF8]], [['tamb', [4, 12]], ['shaker', E8, 3]]]
   },
   gospel: {
-    bpm: [68, 84], chords: ['organ', 'piano', 'choir'], leads: ['choir', 'piano', 'organ', 'vox'], arps: ['piano', 'organ'], bass: ['bass', 'upright'], comp: 'gospel', line: 'walk',
+    bpm: [68, 84], chords: ['organ', 'piano', 'choir', 'rhodes', 'strings', 'brass'], leads: ['choir', 'piano', 'organ', 'vox'], arps: ['piano', 'organ'], bass: ['bass', 'upright'], comp: 'gospel', line: 'walk',
     minor: 0.25, progs: { major: [[3, 4, 2, 5], [0, 3, 4, 0], [0, 2, 3, 4], [5, 1, 4, 0]] }, ext: 1, ninths: 0.5,
     kit: { kick: 'kick', boom: 'kick', sub: ['kick', 'crash'], snare: ['rsnare', 'clap'], tick: ['hat', 'tamb'] }, hats: [[['hat', E8], ['tamb', [4, 12], 3]], [['ride', [0, 4, 6, 8, 12, 14], 3]], [['tamb', E8, 3]]]
   },
   neosoul: {
-    bpm: [70, 90], chords: ['rhodes', 'keys', 'choir'], leads: ['vox', 'rhodes', 'sax', 'guitar', 'flute'], arps: ['rhodes', 'vibes', 'guitar'], bass: ['subbass', 'bass', 'upright'], comp: 'held', line: 'hop',
+    bpm: [70, 90], chords: ['rhodes', 'keys', 'choir', 'piano', 'guitar', 'organ', 'vibes'], leads: ['vox', 'rhodes', 'sax', 'guitar', 'flute'], arps: ['rhodes', 'vibes', 'guitar'], bass: ['subbass', 'bass', 'upright'], comp: 'held', line: 'hop',
     minor: 0.75, modes: { minor: ['dorian', 'minor'] }, progs: { minor: [[0, 3, 0, 3], [0, 5, 3, 4], [3, 2, 1, 0]], major: [[3, 2, 1, 0], [1, 4, 0, 5], [3, 4, 2, 5]] }, ext: 1, ninths: 0.7, swing: 0.25,
     kit: { kick: 'kick', boom: 'kick', sub: ['sub'], snare: ['snare', 'rim'], tick: ['hat', 'shaker'] }
   },
   ballad: {
-    bpm: [62, 76], chords: ['piano', 'strings', 'harp'], leads: ['piano', 'strings', 'flute', 'vox'], arps: ['piano', 'harp', 'musicbox'], bass: ['bass', 'upright'], comp: 'pulse', line: 'whole',
+    bpm: [62, 76], chords: ['piano', 'strings', 'harp', 'nylon', 'rhodes', 'pad', 'guitar'], leads: ['piano', 'strings', 'flute', 'vox'], arps: ['piano', 'harp', 'musicbox'], bass: ['bass', 'upright'], comp: 'pulse', line: 'whole',
     minor: 0.3, progs: { major: [[0, 4, 5, 3], [0, 5, 3, 4], [3, 4, 0, 0], [0, 4, 5, 2]] }, ext: 0.4,
     kit: { ...ACOUSTIC, snare: ['rim', 'snare'], tick: ['hat', 'shaker'] }, hats: [[['hat', [0, 4, 8, 12]]], [['hat', E8, 3]], [['shaker', E8, 3]]]
   },
   ambient: {
-    bpm: [60, 78], chords: ['pad', 'choir', 'strings', 'glass'], leads: ['glass', 'kalimba', 'musicbox', 'flute', 'vibes'], arps: ['kalimba', 'glass', 'harp', 'musicbox'], bass: ['subbass'], comp: 'held', line: 'whole',
+    bpm: [60, 78], chords: ['pad', 'choir', 'strings', 'glass', 'harp', 'rhodes', 'vibes'], leads: ['glass', 'kalimba', 'musicbox', 'flute', 'vibes'], arps: ['kalimba', 'glass', 'harp', 'musicbox'], bass: ['subbass'], comp: 'held', line: 'whole',
     minor: 0.5, modes: { major: ['major', 'mixo'], minor: ['dorian'] }, progs: { major: [[0, 3, 0, 3], [0, 5, 3, 0], [3, 0, 3, 0]], minor: [[0, 5, 0, 5], [0, 3, 0, 6]] }, ext: 0.8, ninths: 0.6,
     rhythms: [[0, 6, 10], [0, 8], [2, 8, 12], [0, 4, 10]],
     kit: { ...ACOUSTIC, sub: ['kick', 'gong'], snare: ['rim', 'snap'], tick: ['shaker'] }, hats: [[['shaker', [4, 12], 3]], [['shaker', OFF8, 3]], [['tamb', [4], 3]]]
   },
   cinematic: {
-    bpm: [70, 92], chords: ['strings', 'choir', 'brass'], leads: ['strings', 'brass', 'choir', 'piano', 'flute'], arps: ['pizz', 'harp', 'piano', 'strings'], arp16: true, bass: ['bass', 'subbass'], comp: 'pulse', line: 'whole',
+    bpm: [70, 92], chords: ['strings', 'choir', 'brass', 'piano', 'harp', 'pad'], leads: ['strings', 'brass', 'choir', 'piano', 'flute'], arps: ['pizz', 'harp', 'piano', 'strings'], arp16: true, bass: ['bass', 'subbass'], comp: 'pulse', line: 'whole',
     minor: 0.9, modes: { minor: ['harm', 'minor'] }, progs: { minor: [[0, 5, 2, 6], [0, 5, 3, 4], [0, 3, 5, 4], [0, 6, 5, 4]] }, ext: 0,
     kit: { kick: 'kick', boom: 'dhol', sub: ['dhol', 'gong'], snare: ['rsnare'], tick: ['shaker'] }, hats: [[['shaker', ALL16, 3]], [['tom', [0, 3, 6, 8, 11, 14]]], [['timbale', [0, 3, 6, 10, 12], 3]]]
   },
@@ -277,60 +279,60 @@ const BAND = {
     kit: { kick: 'chipk', boom: 'chipk', sub: ['chipk', 'chipn'], snare: ['chipn'], tick: ['chiph'] }, hats: [[['chiph', E8]], [['chiph', ALL16, 3], ['chiph', [0, 4, 8, 12]]], [['chipn', OFF8, 3]]]
   },
   kizomba: {
-    bpm: [84, 96], chords: ['pad', 'rhodes', 'guitar'], leads: ['sax', 'guitar', 'pluck', 'vox'], arps: ['guitar', 'nylon'], bass: ['subbass', 'bass808'], comp: 'stab', line: 'kizomba',
+    bpm: [84, 96], chords: ['pad', 'rhodes', 'guitar', 'nylon', 'keys', 'piano'], leads: ['sax', 'guitar', 'pluck', 'vox'], arps: ['guitar', 'nylon'], bass: ['subbass', 'bass808'], comp: 'stab', line: 'kizomba',
     minor: 0.75, progs: { minor: [[0, 5, 2, 6], [0, 3, 5, 4], [0, 5, 3, 4]] }, ext: 0.5,
     kit: { kick: 'kick', boom: 'kick', sub: ['sub'], snare: ['snare', 'clap'], tick: ['rim', 'shaker'] }, hats: [[['shaker', E8], ['rim', [2, 3, 10, 11], 3]], [['shaker', ALL16, 3]], [['open', [6, 14], 3]]]
   },
   highlife: {
-    bpm: [108, 124], chords: ['guitar', 'organ', 'rhodes'], leads: ['guitar', 'brass', 'sax', 'marimba'], arps: ['guitar', 'nylon', 'marimba'], bass: ['bass'], comp: 'stab', line: 'afro',
+    bpm: [108, 124], chords: ['guitar', 'organ', 'rhodes', 'piano', 'brass', 'marimba', 'nylon'], leads: ['guitar', 'brass', 'sax', 'marimba'], arps: ['guitar', 'nylon', 'marimba'], bass: ['bass'], comp: 'stab', line: 'afro',
     minor: 0.2, progs: { major: [[0, 3, 4, 0], [0, 4, 3, 4], [0, 3, 0, 4], [0, 5, 3, 4]] }, ext: 0.2,
     kit: { kick: 'kick', boom: 'conga', sub: ['kick', 'crash'], snare: ['rim', 'snare'], tick: ['agogo', 'cowbell', 'shaker'] }, hats: [[['agogo', [0, 2, 5, 7, 10, 13, 15]]], [['shaker', ALL16, 3]], [['conga', [6, 7, 14], 3]]]
   },
   cumbia: {
-    bpm: [88, 100], chords: ['accordion', 'guitar', 'organ'], leads: ['accordion', 'flute', 'brass', 'sax'], arps: ['guitar', 'accordion'], bass: ['bass'], comp: 'stab8', line: 'cumbia',
+    bpm: [88, 100], chords: ['accordion', 'guitar', 'organ', 'piano', 'brass', 'nylon'], leads: ['accordion', 'flute', 'brass', 'sax'], arps: ['guitar', 'accordion'], bass: ['bass'], comp: 'stab8', line: 'cumbia',
     minor: 0.55, modes: { minor: ['harm'] }, progs: { minor: [[0, 3, 4, 0], [0, 4, 4, 0], [0, 6, 5, 4]], major: [[0, 4, 4, 0], [0, 3, 4, 0], [0, 3, 4, 4]] }, ext: 0,
     kit: { kick: 'kick', boom: 'conga', sub: ['kick', 'crash'], snare: ['conga'], tick: ['guiro'] }, hats: [[['guiro', [0, 2, 3, 4, 6, 7, 8, 10, 11, 12, 14, 15]]], [['shaker', E8, 3]], [['conga', [6, 14]], ['open', [2, 10], 3]]]
   },
   bhangra: {
-    bpm: [92, 106], chords: ['accordion', 'pad', 'strings'], leads: ['sitar', 'flute', 'vox', 'lead'], arps: ['sitar', 'pluck'], bass: ['bass', 'subbass'], comp: 'stab', line: 'bhangra',
+    bpm: [92, 106], chords: ['accordion', 'pad', 'strings', 'guitar', 'organ', 'keys'], leads: ['sitar', 'flute', 'vox', 'lead'], arps: ['sitar', 'pluck'], bass: ['bass', 'subbass'], comp: 'stab', line: 'bhangra',
     minor: 0.3, modes: { major: ['mixo'], minor: ['dorian'] }, progs: { major: [[0, 6, 0, 6], [0, 6, 3, 0], [0, 0, 6, 4]], minor: [[0, 6, 5, 6], [0, 3, 6, 0]] }, ext: 0,
     kit: { kick: 'dhol', boom: 'dhol', sub: ['dhol', 'tamb'], snare: ['clap', 'tabla'], tick: ['tamb'] }, hats: [[['tamb', E8]], [['tabla', [0, 3, 6, 8, 11, 14], 3], ['tamb', [4, 12]]], [['shaker', ALL16, 3]]]
   },
   dubstep: {
-    bpm: [138, 142], chords: ['pad', 'supersaw', 'choir'], leads: ['lead', 'supersaw', 'bell', 'vox'], arps: ['pluck', 'bell'], bass: ['reese', 'acid', 'subbass'], comp: 'held', line: 'wobble',
+    bpm: [138, 142], chords: ['pad', 'supersaw', 'choir', 'strings', 'keys', 'organ'], leads: ['lead', 'supersaw', 'bell', 'vox'], arps: ['pluck', 'bell'], bass: ['reese', 'acid', 'subbass'], comp: 'held', line: 'wobble',
     minor: 0.95, modes: { minor: ['phryg', 'minor'] }, progs: { minor: [[0, 0, 5, 6], [0, 1, 0, 1], [0, 5, 0, 6], [0, 3, 1, 0]] }, ext: 0,
     kit: { kick: 'kick', boom: 'kick', sub: ['sub'], snare: ['rsnare', 'snare'], tick: ['hat'] }
   },
   footwork: {
-    bpm: [156, 164], chords: ['pad', 'rhodes', 'vox'], leads: ['vox', 'pluck', 'piano'], arps: ['pluck', 'rhodes'], bass: ['bass808', 'subbass'], comp: 'stab', line: 'long', minor: 0.7, ext: 0.4
+    bpm: [156, 164], chords: ['pad', 'rhodes', 'vox', 'piano', 'keys', 'strings', 'choir'], leads: ['vox', 'pluck', 'piano'], arps: ['pluck', 'rhodes'], bass: ['bass808', 'subbass'], comp: 'stab', line: 'long', minor: 0.7, ext: 0.4
   },
   jungle: {
-    bpm: [160, 174], chords: ['pad', 'strings', 'rhodes'], leads: ['pluck', 'bell', 'vox', 'piano'], arps: ['pluck', 'rhodes', 'glass'], bass: ['reese', 'subbass'], comp: 'held', line: 'long',
+    bpm: [160, 174], chords: ['pad', 'strings', 'rhodes', 'keys', 'piano', 'choir', 'organ'], leads: ['pluck', 'bell', 'vox', 'piano'], arps: ['pluck', 'rhodes', 'glass'], bass: ['reese', 'subbass'], comp: 'held', line: 'long',
     minor: 0.8, modes: { minor: ['dorian', 'minor'] }, ext: 0.5,
     kit: { kick: 'kick', boom: 'kick', sub: ['sub'], snare: ['rsnare', 'snare'], tick: ['hat', 'ride'] }, hats: [[['hat', E8]], [['ride', E8, 3]], [['shaker', ALL16, 3], ['open', [14], 3]]]
   },
   trance: {
-    bpm: [134, 142], chords: ['supersaw', 'pad'], leads: ['supersaw', 'pluck', 'lead'], arps: ['pluck', 'supersaw'], arp16: true, bass: ['bass', 'acid'], comp: 'gate16', line: 'roll16',
+    bpm: [134, 142], chords: ['supersaw', 'pad', 'piano', 'strings', 'keys'], leads: ['supersaw', 'pluck', 'lead'], arps: ['pluck', 'supersaw'], arp16: true, bass: ['bass', 'acid'], comp: 'gate16', line: 'roll16',
     minor: 0.85, progs: { minor: [[0, 5, 2, 6], [0, 3, 5, 6], [5, 6, 0, 0], [0, 5, 3, 6]] }, ext: 0,
     kit: { kick: 'kick', boom: 'kick', sub: ['sub'], snare: ['clap'], tick: ['hat'] }
   },
   hardstyle: {
-    bpm: [148, 156], chords: ['supersaw', 'pad', 'choir'], leads: ['supersaw', 'lead'], arps: ['supersaw', 'pluck'], bass: ['subbass'], comp: 'stab8', line: 'off8',
+    bpm: [148, 156], chords: ['supersaw', 'pad', 'choir', 'strings', 'piano'], leads: ['supersaw', 'lead'], arps: ['supersaw', 'pluck'], bass: ['subbass'], comp: 'stab8', line: 'off8',
     minor: 0.9, modes: { minor: ['harm', 'minor'] }, ext: 0, mix: { drums: -10, hats: -5, bass: -4, pump: 0.2 },
     kit: { kick: 'hardkick', boom: 'hardkick', sub: ['sub'], snare: ['clap'], tick: ['hat'] }, hats: [[['open', OFF8]], [['hat', ALL16, 3]], [['crash', [0], 3], ['open', OFF8, 3]]]
   },
   chinese: {
-    bpm: [70, 92], chords: ['piano', 'strings', 'guzheng', 'pad'], leads: ['erhu', 'flute', 'guzheng', 'piano'], arps: ['guzheng', 'harp', 'piano'], bass: ['bass', 'subbass'], comp: 'pulse', line: 'long',
+    bpm: [70, 92], chords: ['piano', 'strings', 'guzheng', 'pad', 'harp'], leads: ['erhu', 'flute', 'guzheng', 'piano'], arps: ['guzheng', 'harp', 'piano'], bass: ['bass', 'subbass'], comp: 'pulse', line: 'long',
     minor: 0.3, tune: 'penta', mix: { keys: 5, bass: 3, drums: -3 }, progs: { major: [[3, 4, 2, 5], [0, 4, 5, 2], [5, 3, 4, 0], [0, 4, 5, 3]], minor: [[0, 5, 6, 2], [0, 5, 3, 4]] }, ext: 0.2,
     kit: { kick: 'kick', boom: 'tom', sub: ['kick', 'gong'], snare: ['snare', 'rim'], tick: ['perc', 'hat'] }, hats: [[['hat', [0, 4, 8, 12]], ['perc', [14], 3]], [['hat', E8, 3]], [['shaker', E8, 3], ['perc', [6], 3]]]
   },
   blues: {
-    bpm: [68, 96], chords: ['organ', 'piano', 'guitar'], leads: ['harmonica', 'guitar', 'sax', 'organ'], arps: ['piano', 'guitar'], bass: ['bass', 'upright'], comp: 'charleston', line: 'walk',
+    bpm: [68, 96], chords: ['organ', 'piano', 'guitar', 'rhodes', 'clav'], leads: ['harmonica', 'guitar', 'sax', 'organ'], arps: ['piano', 'guitar'], bass: ['bass', 'upright'], comp: 'charleston', line: 'walk',
     minor: 0.15, modes: { major: ['mixo'], minor: ['dorian'] }, tune: 'blues', progs: { major: [[0, 3, 0, 0], [0, 3, 0, 4], [3, 3, 0, 0], [0, 3, 4, 3]], minor: [[0, 3, 0, 4], [0, 3, 0, 0]] }, ext: 1,
     kit: { ...ACOUSTIC, snare: ['rsnare', 'snare'], tick: ['hat', 'ride'] }, hats: [[['hat', E8]], [['ride', [0, 4, 6, 8, 12, 14]]], [['hat', [4, 12], 3], ['ride', E8, 3]]]
   },
   country: {
-    bpm: [96, 124], chords: ['guitar', 'nylon', 'piano'], leads: ['banjo', 'harmonica', 'guitar'], arps: ['banjo', 'guitar'], bass: ['bass', 'upright'], comp: 'strum', line: 'boomchick',
+    bpm: [96, 124], chords: ['guitar', 'nylon', 'piano', 'banjo', 'organ'], leads: ['banjo', 'harmonica', 'guitar'], arps: ['banjo', 'guitar'], bass: ['bass', 'upright'], comp: 'strum', line: 'boomchick',
     minor: 0.15, progs: { major: [[0, 3, 4, 0], [0, 0, 3, 4], [0, 4, 3, 0], [0, 3, 0, 4]] }, ext: 0,
     kit: { kick: 'kick', boom: 'kick', sub: ['kick', 'crash'], snare: ['brush', 'snare', 'rim'], tick: ['hat', 'tamb'] }, hats: [[['hat', E8]], [['tamb', [4, 12]], ['hat', E8, 3]], [['shaker', ALL16, 3]]]
   }
@@ -399,6 +401,8 @@ const LINES = {
 // A melody's rhythm in a bar: the 16ths its notes start on.
 const RHYTHMS = [[0, 3, 6, 8, 10, 12], [0, 2, 6, 8, 11, 14], [0, 4, 6, 10, 12], [0, 3, 4, 8, 11, 12, 14], [0, 6, 8, 14], [2, 4, 8, 10, 14], [0, 3, 6, 10]];
 const CHILL7 = new Set(['hiphop', 'lofi', 'boombap', 'half', 'funk', 'garage', 'house', 'amapiano']);
+// The chord instruments that sustain a held chord by themselves; the plucked and struck ones get a soft pad under, so a long chord never dies away.
+const HOLDS = new Set(['pad', 'strings', 'organ', 'choir', 'supersaw', 'accordion', 'brass']);
 // The instruments' octaves (their lowest C).
 const LOW = {
   keys: 55, pluck: 60, lead: 67, pad: 55, bell: 72, organ: 55, strings: 55, brass: 55, guitar: 52, vox: 60, bass: 36, subbass: 28,
@@ -418,13 +422,14 @@ export function radioSpec(seed, mood = 'all', style = null) {
   const styles = moodStyles(mood);
   const st = style && styles.includes(style) ? style : R.choice(styles);
   const band = BAND[st];
+  let c1;
   const minor = R.random() < (band.minor ?? { chill: 0.6, hype: 0.85, groove: 0.5, classic: 0.6 }[mood] ?? 0.65);
   const sp = {
     seed, mood, style: st,
     bpm: R.int(band.bpm[0], band.bpm[1]),
     key: { tonic: R.int(0, 11), minor },
     prog: R.choice(PROGS[minor ? 'minor' : 'major']),
-    chords: R.choice(band.chords), chords2: R.choice(band.chords), lead: R.choice(band.leads), lead2: R.choice(['pluck', 'bell', 'keys', 'guitar'].filter(x => x !== band.chords[0])), bass: R.choice(band.bass),
+    chords: (c1 = R.choice(band.chords)), chords2: R.choice(band.chords.length > 1 ? band.chords.filter(x => x !== c1) : band.chords), lead: R.choice(band.leads), lead2: R.choice(['pluck', 'bell', 'keys', 'guitar'].filter(x => x !== band.chords[0])), bass: R.choice(band.bass),
     snare: R.choice(['snare', 'clap', 'both']), tick: R.choice(['hat', 'shaker', 'rim']),
     sevenths: CHILL7.has(st) && R.random() < 0.7,
     seconds: R.uniform(60, 150)
@@ -562,9 +567,9 @@ export function radioKit(sp, sr = RADIO_SR, { song = false, lift = true } = {}) 
   const [ra, rb, rc] = [R.choice(rhythms), R.choice(rhythms), R.choice(rhythms)];
   // A soft held pad under every riff that does not hold its own chords (an off-beat stab, a pulse): no bar of a riff is ever empty.
   const bed = clip(chordClip(sp, 'pad', COMP.held[0]));
-  const under = x => (band.comp === 'held' ? x : sum(x, { ...bed, g: 0.3 }));
-  const chords = under(clip(chordClip(sp, sp.chords, comp[0])));
-  const chords2 = under(clip(chordClip(sp, sp.chords2, comp[1])));
+  const under = (x, inst) => (band.comp === 'held' && HOLDS.has(inst) ? x : sum(x, { ...bed, g: 0.3 }));
+  const chords = under(clip(chordClip(sp, sp.chords, comp[0])), sp.chords);
+  const chords2 = under(clip(chordClip(sp, sp.chords2, comp[1])), sp.chords2);
   const melody = clip(melodyClip(R, sp, sp.lead, ra, rb));
   const melody2 = clip(melodyClip(R, sp, sp.lead, rc, ra));
   const arp = clip(arpClip(R, sp, sp.lead2));
@@ -605,12 +610,12 @@ export function radioKit(sp, sr = RADIO_SR, { song = false, lift = true } = {}) 
   const hookKit = (spX, tonic808X, bass, sub) => {
     const H = makeRng(sp.seed ^ 0x51ed270b);
     const bedB = clip(chordClip(spX, 'pad', COMP.held[0]));
-    const underB = x => (band.comp === 'held' ? x : sum(x, { ...bedB, g: 0.3 }));
+    const underB = (x, inst) => (band.comp === 'held' && HOLDS.has(inst) ? x : sum(x, { ...bedB, g: 0.3 }));
     const arpB = clip(arpClip(H, spX, sp.lead2));
     const melB = clip(melodyClip(H, spX, sp.leadB, rb, rc));
     const melB2 = clip(melodyClip(H, spX, sp.leadB, ra, rb));
-    const chB = underB(clip(chordClip(spX, sp.chords2, comp[0])));
-    const chB2 = underB(clip(chordClip(spX, sp.chords, comp[1])));
+    const chB = underB(clip(chordClip(spX, sp.chords2, comp[0])), sp.chords2);
+    const chB2 = underB(clip(chordClip(spX, sp.chords, comp[1])), sp.chords);
     return {
       riffs: [sum(chB, melB), sum(chB2, { ...arpB, g: 0.7 }, { ...melB2, g: 0.8 })],
       phrase: sum(melB, { ...bedB, g: 0.4 }), layer: sum({ ...arpB, g: 0.8 }, { ...bedB, g: 0.2 }),
@@ -716,7 +721,7 @@ export const REMIX_KEYS = ['bpm', 'lead', 'chords', 'chords2'];
 // The instruments a groove's band may play: { leads, chords }.
 export const bandSounds = style => ({ leads: [...(BAND[style]?.leads || [])], chords: [...(BAND[style]?.chords || [])] });
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
-export const RADIO_V = 2;
+export const RADIO_V = 3;
 export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
   const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);
