@@ -6,8 +6,10 @@
 // made once and kept (the page caches them), so the cost is at the first
 // hit. No DOM.
 //
-//   NOTE_VOICES[inst](x, f, sr, hold, noise)  fills x (hold + release long)
-//   DRUM_VOICES[drum](sr, noise)  -> Float32Array
+//   NOTE_VOICES[inst](x, f, sr, hold, noise, o)  fills x (hold + release long)
+//   DRUM_VOICES[drum](sr, noise, o)  -> Float32Array
+//   o = { vel: 0..1 how hard it is struck (brighter as it grows), v: 0 or 1 which of the
+//   two round-robin takes (another noise, phase and a hair of pitch), ph: a start phase }
 
 const TAU = 2 * Math.PI;
 
@@ -148,27 +150,170 @@ function pluckString(x, f, sr, hold, { bright = 0.5, decay = 0.996, mute = 0.9, 
 }
 
 // Each note: x (its length set by RELEASE), f in Hz, held `hold` seconds.
+
+// ---- The core voices: the ones every song plays (keys, piano, pad, strings, pluck, lead, bass) ----
+// Each is built from band-limited oscillators (PolyBLEP) or sines, through a
+// filter that moves with its own envelope, and answers `o.vel` with brightness.
+const dec = (tau, sr) => Math.exp(-1 / (tau * sr));
+// The six squares of a TR-808's metal hats (Hz), the hat's own ratios.
+const METAL = [205.3, 304.4, 369.6, 522.7, 540, 800];
+
 export const NOTE_VOICES = {
-  piano(x, f, sr, hold) {
-    // Strings a hair out of tune with each other, the high partials dying first.
-    const parts = [1, 0.62, 0.38, 0.25, 0.16, 0.1];
-    const list = [];
-    parts.forEach((a, j) => {
-      const k = j + 1;
-      const fk = f * k * Math.sqrt(1 + 0.0004 * k * k);
-      const d = 1 / ((0.9 + 0.7 * k) * (f > 600 ? 1.6 : 1));
-      list.push([fk, a, d], [fk * 1.0009, a * 0.6, d]);
-    });
-    shape(partials(x, sr, list), sr, hold, 0.35);
+  keys(x, f, sr, hold, noise, o) {
+    // An electric piano (two-operator FM): the body is the note modulating itself, harder struck, more index;
+    // on top a tine, a high partial that rings a while, and the bark of the strike.
+    const v = o.vel;
+    const w = (TAU * f) / sr;
+    const dI = dec(0.7, sr);
+    const dA = dec(1.1, sr);
+    const dT = dec(0.3, sr);
+    const dK = dec(0.012, sr);
+    const r = Math.min(14, Math.floor((sr * 0.42) / f));   // (the tine, as high a partial as the rate holds)
+    let I = 1.1 + 2.2 * v;
+    let A = 1;
+    let T = 0.25 + 0.9 * v;
+    let K = 0.9 * v;
+    let ph = o.ph;
+    for (let i = 0; i < x.length; i++) {
+      ph += w;
+      const t = i / sr;
+      let y = Math.sin(ph + (0.45 + I) * Math.sin(ph)) * A;
+      if (r >= 3) y += 0.4 * T * Math.sin(r * ph + 1.2 * Math.sin(ph));
+      y += 0.3 * K * Math.sin(3 * ph + 2 * Math.sin(ph)) + (i < sr * 0.003 ? 0.15 * v * noise() : 0);
+      x[i] = y * attack(t, 0.0015) * gateOf(t, hold, 0.5);
+      I *= dI; A *= dA; T *= dT; K *= dK;
+    }
   },
-  rhodes(x, f, sr, hold) {
-    // A tine: FM whose brightness fades, a bell-ish strike on top, a slow tremolo.
+  rhodes(x, f, sr, hold, noise, o) {
+    // A tine: FM whose brightness fades with how hard it was hit, a bell-ish strike, a slow tremolo.
+    const v = o.vel;
+    const w = (TAU * f) / sr;
+    const dI = dec(0.3, sr);
+    const dB = dec(0.25, sr);
+    const rb = Math.min(11.3, (sr * 0.42) / f);
+    const bell = rb >= 3;
+    let I = 0.8 + 2.4 * v;
+    let B = 0.12 + 0.85 * v;
+    let ph = o.ph;
+    for (let i = 0; i < x.length; i++) {
+      ph += w;
+      const t = i / sr;
+      const base = 0.5 + 0.28 * v;
+      const y = Math.sin(ph + (0.3 + I + base) * Math.sin(ph)) + (bell ? B * 1.3 * Math.sin(rb * ph) : 0) + 0.15 * Math.sin(2 * ph + I * Math.sin(2 * ph)) * (0.4 + I / 3);
+      x[i] = Math.tanh(1.1 * y) * (1 + 0.1 * Math.sin(TAU * 4.6 * t + o.ph)) * Math.exp(-t / 1.6) * attack(t, 0.002) * gateOf(t, hold, 0.4);
+      I = 0.3 + (I - 0.3) * dI; B *= dB;
+    }
+  },
+  piano(x, f, sr, hold, noise, o) {
+    // Two strings a hair apart, a dozen partials a little sharp (stiff strings), the high ones dying first;
+    // harder struck, more of the upper partials; the hammer's thud on top.
+    const v = o.vel;
+    const roll = 7 + 14 * v;
+    const list = [];
+    for (let k = 1; k <= 16; k++) {
+      const fk = f * k * Math.sqrt(1 + 0.0004 * k * k);
+      if (fk > sr * 0.42) break;
+      const a = (1.1 / k ** 0.6) * Math.exp(-(k - 1) / roll) * (k % 4 === 0 ? 0.7 : 1);
+      const d = 2.2 / (1 + 0.3 * k) / (f > 600 ? 1.5 : 1);
+      list.push([fk, a, d], [fk * 1.0009, a * 0.6, d]);
+    }
+    partials(x, sr, list);
+    const n = Math.round(sr * 0.012);
+    let lp = 0;
+    for (let i = 0; i < Math.min(n, x.length); i++) {
+      lp += 0.5 * (noise() - lp);
+      x[i] += lp * (0.35 + 0.65 * v) * 0.5 * (1 - i / n) ** 2;
+    }
+    shape(x, sr, hold, 0.35, 0.0012);
+  },
+  pad(x, f, sr, hold, noise, o) {
+    // Three pairs of saws a few cents apart, through a low-pass that opens as the note swells (600 Hz to 3.5 kHz).
+    const dets = [-7, -4.2, -1.4, 1.4, 4.2, 7].map(c => 2 ** (c / 1200));
+    const dts = dets.map(d => (f * d) / sr);
+    const ps = dets.map((_, k) => (k * 0.17 + o.ph * 0.1) % 1);
     for (let i = 0; i < x.length; i++) {
       const t = i / sr;
-      const ph = TAU * f * t;
-      const idx = 0.25 + 1.4 * Math.exp(-t / 0.18);
-      const y = Math.sin(ph + idx * Math.sin(ph)) + 0.22 * Math.sin(7.1 * ph) * Math.exp(-t / 0.03);
-      x[i] = Math.tanh(1.2 * y * Math.exp(-t / 1.6)) * (1 + 0.12 * Math.sin(TAU * 4.6 * t)) * attack(t, 0.002) * gateOf(t, hold, 0.4);
+      let y = 0;
+      for (let k = 0; k < 6; k++) {
+        ps[k] += dts[k];
+        if (ps[k] >= 1) ps[k] -= 1;
+        y += saw(ps[k], dts[k]);
+      }
+      x[i] = y * attack(t, 0.12) * gateOf(t, hold, 0.8);
+    }
+    const open = 0.75 + 0.25 * o.vel;
+    lowpass(x, sr, i => Math.min(7000, (600 + 3400 * (1 - Math.exp(-i / sr / 0.35))) * open + f * 0.5), 0.8);
+  },
+  strings(x, f, sr, hold, noise, o) {
+    // Five saws a little apart, a slow bow and a vibrato that comes in, a low-pass at 4 kHz.
+    const dets = [-8, -3.5, 0, 3.5, 8].map(c => 2 ** (c / 1200));
+    const ps = dets.map((_, k) => (k * 0.23 + o.ph * 0.1) % 1);
+    for (let i = 0; i < x.length; i++) {
+      const t = i / sr;
+      const vib = vibOf(t, 5.2, 0.0035, 0.3);
+      let y = 0;
+      for (let k = 0; k < 5; k++) {
+        const dt = (f * dets[k] * vib) / sr;
+        ps[k] += dt;
+        if (ps[k] >= 1) ps[k] -= 1;
+        y += saw(ps[k], dt);
+      }
+      x[i] = y * attack(t, 0.14 - 0.06 * o.vel) * gateOf(t, hold, 0.6);
+    }
+    lowpass(x, sr, () => 1800 + 2200 * o.vel, 0.7);
+  },
+  pluck(x, f, sr, hold, noise, o) {
+    // A saw and a sine through a low-pass that snaps shut (harder struck, wider open), dying away.
+    const v = o.vel;
+    let p = o.ph * 0.1;
+    const dt = f / sr;
+    const w = (TAU * f) / sr;
+    let ph = o.ph * 0.15;
+    for (let i = 0; i < x.length; i++) {
+      const t = i / sr;
+      p += dt;
+      if (p >= 1) p -= 1;
+      ph += w;
+      x[i] = (0.7 * saw(p, dt) + 0.5 * Math.sin(ph)) * attack(t, 0.002) * Math.exp(-t / 0.26) * gateOf(t, hold, 0.3);
+    }
+    lowpass(x, sr, i => f * (2.2 + (5 + 13 * v) * Math.exp(-i / sr / 0.09)) + 200, 1.3);
+  },
+  lead(x, f, sr, hold, noise, o) {
+    // A pulse whose width slowly moves (a chorus with no detune), a little saw, a filter that opens at the hit.
+    const v = o.vel;
+    let p = o.ph * 0.1;
+    let q = 0.5 + o.ph * 0.1;
+    const dt = f / sr;
+    for (let i = 0; i < x.length; i++) {
+      const t = i / sr;
+      p += dt; if (p >= 1) p -= 1;
+      q += dt; if (q >= 1) q -= 1;
+      const wd = 0.5 + 0.11 * Math.sin(TAU * 0.9 * t + o.ph);
+      x[i] = (pulse(p, dt, wd) * 0.7 + saw(q, dt) * 0.3) * attack(t, 0.006) * gateOf(t, hold, 0.15);
+    }
+    lowpass(x, sr, i => Math.min(9000, f * (2.5 + 3 * v + (2 + 8 * v) * Math.exp(-i / sr / 0.15)) + 600), 0.9);
+  },
+  bass(x, f, sr, hold, noise, o) {
+    // A saw through a closing low-pass, driven so its second and third harmonics carry on a phone's speaker.
+    const v = o.vel;
+    let p = o.ph * 0.1;
+    const dt = f / sr;
+    for (let i = 0; i < x.length; i++) {
+      const t = i / sr;
+      p += dt; if (p >= 1) p -= 1;
+      x[i] = saw(p, dt) * attack(t, 0.003) * gateOf(t, hold, 0.18);
+    }
+    lowpass(x, sr, i => f * (1.6 + (3 + 6 * v) * Math.exp(-i / sr / 0.07)) + 60, 1.1);
+    for (let i = 0; i < x.length; i++) x[i] = Math.tanh(2.2 * x[i]);
+  },
+  subbass(x, f, sr, hold, noise, o) {
+    // A sine with its second harmonic, driven: the 3rd and 5th come out where a small speaker can play them.
+    let ph = o.ph;
+    const w = (TAU * f) / sr;
+    for (let i = 0; i < x.length; i++) {
+      const t = i / sr;
+      ph += w;
+      x[i] = Math.tanh(2.3 * (Math.sin(ph) + 0.3 * Math.sin(2 * ph))) * attack(t, 0.004) * gateOf(t, hold, 0.12);
     }
   },
   clav(x, f, sr, hold, noise) {
@@ -371,15 +516,16 @@ export const NOTE_VOICES = {
     lowpass(x, sr, () => Math.min(9000, 1500 + f * 8), 0.8);
   },
   chip(x, f, sr, hold) {
-    // A game console's pulse: a quarter-width square, its loudness in sixteen steps, a vibrato once held.
+    // A game console's pulse (band-limited, so it does not alias): a quarter-width square, its loudness in sixteen steps, a vibrato once held.
     let p = 0;
     for (let i = 0; i < x.length; i++) {
       const t = i / sr;
-      p = (p + (f * vibOf(t, 6, 0.01, 0.2)) / sr) % 1;
+      const dt = (f * vibOf(t, 6, 0.01, 0.2)) / sr;
+      p += dt;
+      if (p >= 1) p -= 1;
       const env = Math.round(15 * attack(t, 0.002) * (0.75 + 0.25 * Math.exp(-t / 0.1)) * gateOf(t, hold, 0.1)) / 15;
-      x[i] = (p < 0.25 ? 1 : -0.6) * env;
+      x[i] = pulse(p, dt, 0.25) * env;
     }
-    onepole(x, sr, 30, true);
   },
   tri(x, f, sr, hold) {
     // The console's triangle, in sixteen steps: the 8-bit bass.
@@ -457,8 +603,8 @@ export const NOTE_VOICES = {
   }
 };
 // Each note's ring after it's let go (seconds), and how loud its loudest moment is.
-export const RELEASE = { piano: 0.6, rhodes: 0.6, clav: 0.12, vibes: 0.9, marimba: 0.35, kalimba: 0.6, musicbox: 1, glass: 1.4, steel: 0.6, harp: 1.2, nylon: 0.7, banjo: 0.4, guzheng: 0.9, sitar: 1, pizz: 0.3, erhu: 0.4, sax: 0.2, flute: 0.2, harmonica: 0.18, accordion: 0.15, choir: 0.7, supersaw: 0.45, chip: 0.12, tri: 0.08, bass808: 0.3, upright: 0.15, acid: 0.1, reese: 0.2, distgtr: 0.25, slap: 0.12 };
-export const PEAK = { piano: 0.42, rhodes: 0.4, clav: 0.36, vibes: 0.36, marimba: 0.42, kalimba: 0.38, musicbox: 0.32, glass: 0.3, steel: 0.38, harp: 0.42, nylon: 0.45, banjo: 0.38, guzheng: 0.4, sitar: 0.55, pizz: 0.42, erhu: 0.4, sax: 0.3, flute: 0.32, harmonica: 0.36, accordion: 0.3, choir: 0.45, supersaw: 0.4, chip: 0.22, tri: 0.4, bass808: 0.6, upright: 0.55, acid: 0.36, reese: 0.42, distgtr: 0.24, slap: 0.48 };
+export const RELEASE = { keys: 0.5, pluck: 0.3, bass: 0.18, lead: 0.15, pad: 0.8, strings: 0.6, subbass: 0.12, piano: 0.6, rhodes: 0.6, clav: 0.12, vibes: 0.9, marimba: 0.35, kalimba: 0.6, musicbox: 1, glass: 1.4, steel: 0.6, harp: 1.2, nylon: 0.7, banjo: 0.4, guzheng: 0.9, sitar: 1, pizz: 0.3, erhu: 0.4, sax: 0.2, flute: 0.2, harmonica: 0.18, accordion: 0.15, choir: 0.7, supersaw: 0.45, chip: 0.12, tri: 0.08, bass808: 0.3, upright: 0.15, acid: 0.1, reese: 0.2, distgtr: 0.25, slap: 0.12 };
+export const PEAK = { keys: 0.4, pluck: 0.8, bass: 0.45, lead: 0.3, pad: 0.34, strings: 0.36, subbass: 0.44, piano: 0.42, rhodes: 0.4, clav: 0.36, vibes: 0.36, marimba: 0.42, kalimba: 0.38, musicbox: 0.32, glass: 0.3, steel: 0.38, harp: 0.42, nylon: 0.45, banjo: 0.38, guzheng: 0.4, sitar: 0.55, pizz: 0.42, erhu: 0.4, sax: 0.3, flute: 0.32, harmonica: 0.36, accordion: 0.3, choir: 0.45, supersaw: 0.4, chip: 0.22, tri: 0.4, bass808: 0.6, upright: 0.55, acid: 0.36, reese: 0.42, distgtr: 0.24, slap: 0.48 };
 
 // ---- Drums ----
 const buf = (sr, s) => new Float32Array(Math.max(1, Math.round(s * sr)));
@@ -470,7 +616,87 @@ function crunch(noise, sr, rate) {
   let k = 0;
   return () => (k++ % every === 0 ? (v = noise() > 0 ? 1 : -1) : v);
 }
+// A cymbal or a hat: noise between `lo` and `hi`, and the six squares of the 808's metal (band-limited, so they do not alias),
+// high-passed at `lo`, together dying away with `d`.
+function cymbal(sr, noise, o, { secs, d, base, metal, hiss, lo, hi, amp, wash = false }) {
+  const x = buf(sr, secs);
+  const n = x.length;
+  const m = new Float32Array(n);
+  const dts = METAL.map(f => (f * base) / sr);
+  const ps = METAL.map((_, k) => (k * 0.29 + o.ph * 0.07) % 1);
+  for (let i = 0; i < n; i++) {
+    let s = 0;
+    for (let k = 0; k < 6; k++) {
+      ps[k] += dts[k];
+      if (ps[k] >= 1) ps[k] -= 1;
+      s += pulse(ps[k], dts[k]);
+    }
+    m[i] = s / 6;
+    x[i] = noise();
+  }
+  const bright = 0.85 + 0.3 * o.vel;
+  for (let i = 0; i < n; i++) x[i] = hiss * x[i] * 2.4 + metal * 2.2 * m[i];
+  onepole(onepole(x, sr, lo * bright, true), sr, lo * bright, true);
+  lowpass(x, sr, () => hi * bright, 0.8);
+  const dd = d * (o.v ? 1.06 : 0.97);
+  for (let i = 0; i < n; i++) {
+    const t = i / sr;
+    // (A crash swells for a moment before it decays.)
+    const e = (wash ? Math.min(1, t / 0.004) : Math.min(1, t / 0.0008)) * (ex(t, dd) * 0.8 + ex(t, dd * 3.2) * 0.2);
+    x[i] *= e;
+  }
+  // (Brought to a level of its own: `amp`, its RMS over the whole hit.)
+  let sq = 0;
+  for (let i = 0; i < n; i++) sq += x[i] * x[i];
+  const g = sq > 0 ? amp / Math.sqrt(sq / n) : 0;
+  for (let i = 0; i < n; i++) x[i] *= g;
+  return x;
+}
 export const DRUM_VOICES = {
+  kick(sr, noise, o) {
+    // A kick: a sine sweeping down into a driven thump, and the beater's click (a few ms near 3.5 kHz) so a small speaker has something to play.
+    const x = buf(sr, 0.5);
+    const j = o.v ? 1.03 : 1;
+    let ph = 0;
+    for (let i = 0; i < x.length; i++) {
+      const t = i / sr;
+      ph += (TAU * (47 * j + 125 * ex(t, 0.034))) / sr;
+      const click = (0.55 * Math.sin(TAU * 3400 * t) + 0.45 * noise()) * ex(t, 0.0013) * (0.3 + 0.12 * o.vel);
+      x[i] = Math.tanh(1.9 * Math.sin(ph) * ex(t, 0.16 * j)) * 0.82 + click;
+    }
+    return x;
+  },
+  hat(sr, noise, o) {
+    return cymbal(sr, noise, o, { secs: 0.09, d: 0.016, base: 1, metal: 0.8, hiss: 0.5, lo: 6200, hi: 8800, amp: 0.07 });
+  },
+  open(sr, noise, o) {
+    return cymbal(sr, noise, o, { secs: 0.45, d: 0.1, base: 1, metal: 0.8, hiss: 0.5, lo: 6200, hi: 8800, amp: 0.08 });
+  },
+  crash(sr, noise, o) {
+    return cymbal(sr, noise, o, { secs: 1.6, d: 0.42, base: 0.9, metal: 0.8, hiss: 0.55, lo: 4800, hi: 8800, amp: 0.085, wash: true });
+  },
+  ride(sr, noise, o) {
+    // A ride: the bell's ping (a few inharmonic partials) over a quieter wash.
+    const x = cymbal(sr, noise, o, { secs: 1.1, d: 0.32, base: 1.5, metal: 0.55, hiss: 0.25, lo: 5000, hi: 9000, amp: 0.045 });
+    partials(x, sr, [[523, 0.1, 0.35], [1330, 0.07, 0.25], [2340, 0.05, 0.15], [3700, 0.035, 0.1]]);
+    return x;
+  },
+  shaker(sr, noise, o) {
+    // Beads: noise between 4.5 and 11 kHz swelling in and dying away.
+    const x = buf(sr, 0.14);
+    for (let i = 0; i < x.length; i++) x[i] = noise();
+    onepole(onepole(x, sr, 4500, true), sr, 4500, true);
+    lowpass(x, sr, () => 9000, 0.8);
+    for (let i = 0; i < x.length; i++) {
+      const t = i / sr;
+      x[i] *= Math.min(1, t / 0.012) * ex(t, 0.035 * (o.v ? 1.1 : 1));
+    }
+    let sq = 0;
+    for (let i = 0; i < x.length; i++) sq += x[i] * x[i];
+    const g = sq > 0 ? 0.06 / Math.sqrt(sq / x.length) : 0;
+    for (let i = 0; i < x.length; i++) x[i] *= g;
+    return x;
+  },
   brush(sr, noise) {
     // A brush on the snare: a swish that rises and falls, the wires' hush.
     const x = buf(sr, 0.35);
