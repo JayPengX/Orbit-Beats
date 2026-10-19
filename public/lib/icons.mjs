@@ -19,6 +19,7 @@ const PATHS = {
   'heart-fill': [`${S.replace('fill="none"', 'fill="currentColor"')}`, `<path d="${HEART}"/>`],
   more: [F, '<circle cx="5.5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.5" cy="12" r="1.9"/>'],
   close: [S, '<path d="M6 6l12 12M18 6 6 18"/>'],
+  sort: [S, '<path d="M4 7h16M7 12h10M10 17h4"/>'],
   check: [S, '<path d="M5 12.5l4.5 4.5L19 7.5"/>'],
   edit: [S, '<path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14.5 7.5l3 3"/>'],
   share: [S, '<path d="M12 15V3M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/>'],
