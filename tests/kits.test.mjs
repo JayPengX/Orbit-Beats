@@ -15,7 +15,7 @@ test("a kit's fingerprint: the same sound the same print anywhere; another sound
 
 test("the Pass's payload: newer settings win, each kit the newer, the newest forty kept; a broken one is empty", () => {
   const mine = { v: 1, settings: keptSettings({ count: 5, styles: ['trap'], seed: '', humanize: NaN }, 10), kits: { ka: kitEntry(90, ['riff', 'kick'], new Set([1]), 5) } };
-  assert.deepEqual(mine.settings, { at: 10, count: 5, styles: ['trap'], seed: '' }, 'an unset number not kept');
+  assert.deepEqual(mine.settings, { at: 10, len2: true, count: 5, styles: ['trap'], seed: '' }, 'an unset number not kept');
   assert.deepEqual(mine.kits.ka, { bpm: 90, roles: { 1: 'kick' }, at: 5 }, 'only the roles set by hand');
   const theirs = { v: 1, settings: { at: 20, count: 9 }, kits: { ka: { bpm: 180, roles: {}, at: 1 }, kb: { bpm: 120, roles: {}, at: 30 } } };
   const m = merge(mine, theirs);

@@ -106,11 +106,6 @@ if (!kept.settings) {
   } catch {}
 }
 let settings = settingsOf(kept.settings, DEFAULTS);
-// (Songs were 1:00 by default; now 3:00. A 1:00 kept from then moves up once; picked again later, it stays.)
-try {
-  if (settings.length === 60 && !localStorage.getItem('orbit-beats.len180')) settings.length = 180;
-  localStorage.setItem('orbit-beats.len180', '1');
-} catch {}
 const simple = () => settings.level !== 'pro';
 // What songs are made on: Advanced's settings, or Simple's own fixed ones (lib/easy.mjs), never mixed.
 // (簡單's 情境 card, if one is picked: a mood of the grooves to make from. Kept on this phone only.)
