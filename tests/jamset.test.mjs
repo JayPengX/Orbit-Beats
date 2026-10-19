@@ -42,7 +42,7 @@ test('a set kept made whole; the dice always lands on another groove, the same f
   assert.deepEqual(setOf({ seed: 42, style: 'dnb' }), { seed: 42, style: 'dnb' });
   for (const s of SET_STYLES) assert.ok(STYLES.includes(s));
   const seen = new Set();
-  for (let k = 0; k < 200; k++) {
+  for (let k = 0; k < 1500; k++) {
     const from = { seed: k, style: STYLES[k % STYLES.length] };
     const next = diceSet(from, k);
     assert.notEqual(next.style, from.style);

@@ -468,8 +468,11 @@ export function radioKit(sp, sr = RADIO_SR) {
   const comp = COMP[band.comp];
   const rhythms = band.rhythms || RHYTHMS;
   const [ra, rb, rc] = [R.choice(rhythms), R.choice(rhythms), R.choice(rhythms)];
-  const chords = clip(chordClip(sp, sp.chords, comp[0]));
-  const chords2 = clip(chordClip(sp, sp.chords2, comp[1]));
+  // A soft held pad under every riff that does not hold its own chords (an off-beat stab, a pulse): no bar of a riff is ever empty.
+  const bed = clip(chordClip(sp, 'pad', COMP.held[0]));
+  const under = x => (band.comp === 'held' ? x : sum(x, { ...bed, g: 0.3 }));
+  const chords = under(clip(chordClip(sp, sp.chords, comp[0])));
+  const chords2 = under(clip(chordClip(sp, sp.chords2, comp[1])));
   const melody = clip(melodyClip(R, sp, sp.lead, ra, rb));
   const melody2 = clip(melodyClip(R, sp, sp.lead, rc, ra));
   const arp = clip(arpClip(R, sp, sp.lead2));
@@ -482,9 +485,8 @@ export function radioKit(sp, sr = RADIO_SR) {
   add(sum(chords2, melody), 'riff');
   add(sum(chords, { ...melody2, g: 0.9 }), 'riff');
   // The phrases (breaks, intros): a melody, the arpeggio, each over a soft held pad (so a break's rests never fall silent).
-  const pad = clip(chordClip(sp, 'pad', COMP.held[0]));
-  add(sum(melody, { ...pad, g: 0.4 }), 'phrase');
-  add(sum(arp, { ...pad, g: 0.4 }), 'phrase');
+  add(sum(melody, { ...bed, g: 0.4 }), 'phrase');
+  add(sum(arp, { ...bed, g: 0.4 }), 'phrase');
   for (const line of LINES[band.line]) add(clip(bassClip(sp, sp.bass, line)), 'bass');
   // The hats: eighths, sixteenths with accents, off-beat open hats (or the groove's own).
   for (const lanes of band.hats || HATS) add(clip(hatClip(lanes, sp)), 'hat');

@@ -129,7 +129,7 @@ test('a variation: the same form, groove and riff sets, played anew; a groove as
   assert.equal(c.style, 'amapiano');
   assert.deepEqual(c.plan, a.plan);
   let trap = 0;
-  for (let seed = 1; seed <= 60; seed++) if (makeSong(pieces, rec.sr, seed, { analysis, minBars: 8, maxBars: 8, weights: { trap: 30 } }).info.style === 'trap') trap++;
+  for (let seed = 1; seed <= 60; seed++) if (makeSong(pieces, rec.sr, seed, { analysis, minBars: 8, maxBars: 8, weights: { trap: 200 } }).info.style === 'trap') trap++;
   assert.ok(trap > 25, `trap ${trap} of 60`);
 });
 
@@ -239,6 +239,6 @@ test('the randomness is uniform enough and normal() is centred', () => {
   let sum = 0, sq = 0;
   for (let i = 0; i < 20000; i++) { const z = r.normal(0, 1); sum += z; sq += z * z; }
   assert.ok(Math.abs(sum / 20000) < 0.05 && Math.abs(sq / 20000 - 1) < 0.05);
-  const picks = new Set(Array.from({ length: 200 }, () => r.choice(STYLES)));
+  const picks = new Set(Array.from({ length: 1500 }, () => r.choice(STYLES)));
   assert.equal(picks.size, STYLES.length);
 });

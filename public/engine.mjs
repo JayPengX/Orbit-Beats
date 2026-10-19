@@ -396,7 +396,7 @@ const GROOVES = {
     if (s.r.random() < 0.25) s.hit(k.roll, t + 3.75);
   },
   gospel(s, t, k) {   // gospel's shuffle: a kick that rolls into 2, a heavy backbeat, the hat in shuffled eighths, a chop fill now and then
-    s.hit(k.heavy, t); s.hit(k.kick, t + 1.5); s.hit(k.kick, t + 2);
+    s.hit(k.heavy, t); s.hit(k.kick, t + 0.75); s.hit(k.kick, t + 1.5); s.hit(k.kick, t + 2.5);
     s.hit(k.snare, t + 1); s.hit(k.snare, t + 3);
     for (let q = 0; q < 4; q += 0.5) s.hit(k.tick, t + q);
     if (s.r.random() < 0.35) s.hit(k.roll, t + 3.5);

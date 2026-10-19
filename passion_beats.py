@@ -457,7 +457,7 @@ def _disco(s,t,k):   # disco's: four on the floor, the snare on 2 and 4, the ope
     for q in (0.25,0.5,1.25,1.5,2.25,2.5,3.25,3.5): s.hit(k['tick'],t+q)
     if s.r.random()<0.25: s.hit(k['roll'],t+3.75)
 def _gospel(s,t,k):   # gospel's shuffle: a kick that rolls into 2, a heavy backbeat, shuffled eighths
-    s.hit(k['heavy'],t); s.hit(k['kick'],t+1.5); s.hit(k['kick'],t+2)
+    s.hit(k['heavy'],t); s.hit(k['kick'],t+0.75); s.hit(k['kick'],t+1.5); s.hit(k['kick'],t+2.5)
     s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
     for q in np.arange(0,4,0.5): s.hit(k['tick'],t+q)
     if s.r.random()<0.35: s.hit(k['roll'],t+3.5)
