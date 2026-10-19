@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-Hant">
+<html lang="zh-Hant" data-app="beats">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -63,9 +63,8 @@
      and dark, its springs and corners; this page's names for them. */
   --bg: var(--q-page); --card: var(--q-surface); --fill: var(--q-fill-3); --fill-2: var(--q-fill-1); --line: var(--q-sep);
   --text: var(--q-label); --text-2: var(--q-label-2); --text-3: var(--q-label-3);
-  --accent: var(--q-pink); --accent-ink: #ffffff; --accent-soft: color-mix(in srgb, var(--q-pink) 14%, transparent); --danger: var(--q-red); --ok: var(--q-green);
+  --accent: var(--q-accent, var(--q-pink)); --accent-ink: #ffffff; --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent); --danger: var(--q-red); --ok: var(--q-green);
   --intro: var(--q-gray); --verse: var(--q-blue); --pre: var(--q-teal, #30b0c7); --hook: var(--q-pink); --break: var(--q-orange); --bridge: var(--q-purple); --outro: var(--q-gray-2);
-  --q-accent: var(--q-pink);
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
