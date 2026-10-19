@@ -15,7 +15,8 @@ export const BACK_WITHIN = 3; // seconds: back before this goes to the song befo
 export const newQueue = () => ({ history: [], now: null, upNext: [], again: [], station: null, loop: 'off' });
 
 // What is kept of an item: ids and a few words, never sound.
-export const slim = it => it && { id: it.id, kind: it.kind, title: it.title, ...(it.seed != null ? { seed: it.seed, mood: it.mood, style: it.style, bpm: it.bpm, key: it.key ?? null } : {}), ...(it.sub ? { sub: it.sub } : {}) };
+const KEEP_FIELDS = ['id', 'kind', 'title', 'seed', 'mood', 'style', 'bpm', 'key', 'seconds', 'sub'];
+export const slim = it => it && Object.fromEntries(KEEP_FIELDS.filter(k => it[k] != null).map(k => [k, it[k]]));
 
 const pushHistory = (history, it) => (it && history.at(-1)?.id !== it.id ? [...history, it].slice(-HISTORY_MAX) : history);
 

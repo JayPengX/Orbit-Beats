@@ -4,7 +4,7 @@
 // are the page's (app.js songRow), so a song plays, keeps and shares the
 // same wherever it's shown. 清單: lists of kept songs (lib/lists.mjs), each
 // opened to play in its order.
-import { h, empty, sheet, cell, list as group, menu, toast } from '#kit/ui.mjs';
+import { h, empty, sheet, cell, list as group, menu, toast } from './ui.mjs';
 import { ask } from '#kit/quadra.mjs';
 import { listSongs } from './kits.mjs';
 import { soundOf, mbText } from './pack.mjs';

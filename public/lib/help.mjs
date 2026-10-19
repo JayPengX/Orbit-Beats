@@ -6,7 +6,7 @@
 // TERMS[id][lang] = { name, hint (one short line, under a control), text (1–2 sentences) }.
 // EXAMPLES[id] = { off, on: [zh, en], play(on) → { clips, bpm } }: the same
 // few bars without the thing and with it, played on the app's instruments.
-import { h } from '#kit/ui.mjs';
+import { h } from './ui.mjs';
 import { emptyDrums, emptyNotes, melody } from './synth.mjs';
 import { lang, W } from './lang.mjs';
 

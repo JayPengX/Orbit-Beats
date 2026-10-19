@@ -13,7 +13,7 @@
 // first bar copied over the rest, a tempo tapped in, the clip as MIDI, and a
 // shelf of clips kept (收藏). What's on the grid and the shelf are kept on
 // this phone (localStorage), so they're there the next time.
-import { h, segmented, toast, menu } from '#kit/ui.mjs';
+import { h, segmented, toast, menu } from './ui.mjs';
 import { NOTE_NAMES } from '../engine.mjs';
 import { DRUM_SETS, ALL_DRUMS, DRUM_NAMES, INSTRUMENTS, INSTRUMENT_NAMES, OCTAVE, NOTE_LEN, STEPS, BAR_CHOICES, GROOVE_STYLES, LEVELS, emptyDrums, emptyNotes, drumPattern, melody, scaleRows, voice, clipEmpty, clipOf, stepHits, swingOf, copyFirstBar, resizeClip, chainClips } from './synth.mjs';
 import { midiFile, clipTracks } from './midi.mjs';

@@ -10,7 +10,7 @@
 // too, when it's on) becomes a song (api.take, mixed like any other), in
 // 做歌. A long press on a pad: its level, mute and choke (kept per kit on
 // this phone, by the kit's fingerprint; the built-in set's as one).
-import { h, segmented, sheet, toggle } from '#kit/ui.mjs';
+import { h, segmented, sheet, toggle } from './ui.mjs';
 import { STYLES, NOTE_NAMES, drumKit, grooveHits, loopBeats } from '../engine.mjs';
 import { Jam, GRIDS, PAD, padsOf, padOf, gainOf, chokeKey, withPads } from './jam.mjs';
 import { SET_STYLES, BAND_ROLES, FAMILY, bandPads, specOf, setOf, diceSet } from './jamset.mjs';

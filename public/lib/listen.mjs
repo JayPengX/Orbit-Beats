@@ -36,7 +36,7 @@ export function sleepClock(left) {
 
 // ---- Recently played ----
 export const RECENT_KEY = 'orbit-beats-recent.v1';
-export const RECENT_MAX = 10;
+export const RECENT_MAX = 20;
 
 // A played song as kept: what it takes to draw it again and keep it. -> entry
 export const recentEntry = item => ({ seed: item.spec.seed, mood: item.spec.mood, style: item.info.style, bpm: item.info.bpm, key: item.info.key ? { tonic: item.info.key.tonic, minor: Boolean(item.info.key.minor) } : null, seconds: item.seconds, at: Date.now() });

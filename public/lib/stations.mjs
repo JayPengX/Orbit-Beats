@@ -5,7 +5,8 @@
 //   'tempo:slow|mid|fast' a range of tempos
 //   'taste'              the grooves you keep (♡), most kept first
 import { MOODS, stationStyles } from './radio.mjs';
-import { STYLE_ORDER } from './names.mjs';
+import { STYLE_ORDER, STYLE_NAMES, name } from './names.mjs';
+import { W } from './lang.mjs';
 
 export const TEMPOS = {
   slow: { zh: '慢', en: 'Slow', bpm: [60, 95] },
@@ -52,3 +53,11 @@ export function homeRows(taste = {}) {
 }
 // The grooves a station plays (for a card's cover and the tests).
 export const stationGrooves = (id, taste = {}) => stationStyles(stationFilter(id, taste));
+// A station's name in the reader's language.
+export function stationName(id) {
+  const s = String(id || 'all');
+  if (MOODS[s]) return W(MOODS[s].zh, MOODS[s].en);
+  if (/^style:/.test(s)) return name(STYLE_NAMES, s.slice(6));
+  if (/^tempo:/.test(s)) return TEMPOS[s.slice(6)] ? W(TEMPOS[s.slice(6)].zh, TEMPOS[s.slice(6)].en) : s;
+  return s === 'taste' ? W('我的口味', 'Your mix') : W('隨機', 'Random');
+}
