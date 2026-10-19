@@ -1396,13 +1396,31 @@ function nextSong() {
     playSong(list[i + 1]).then(() => (playFrom = from));
   }
 }
-$('player-play').onclick = () => (audio.paused ? audio.play().catch(() => {}) : audio.pause());
+// A song the phone left stuck (the share sheet, a call: time standing still, or a play it
+// won't take): its file loaded again where it was, and on.
+async function revive() {
+  if (!nowPlaying) return;
+  const at = audio.currentTime;
+  audio.src = await urlOf(lib.get(nowPlaying.id) || nowPlaying);
+  audio.addEventListener('loadedmetadata', () => ((audio.currentTime = at), audio.play().catch(() => {})), { once: true });
+  audio.load();
+}
+let stuckAt = -1;
+let stuck = 0;
+setInterval(() => {
+  if (!nowPlaying || audio.paused || audio.ended || document.visibilityState === 'hidden') return void (stuck = 0);
+  stuck = audio.currentTime === stuckAt ? stuck + 1 : 0;
+  stuckAt = audio.currentTime;
+  if (stuck >= 3) (stuck = 0), revive();
+}, 1000);
+$('player-play').onclick = () => (audio.paused ? audio.play().catch(() => revive()) : audio.pause());
 $('player-x').onclick = closePlayer;
 // The bar: a tap or a drag along it moves the song there.
 const seek = e => {
   const r = $('player-bar').getBoundingClientRect();
-  const d = audio.duration || 0;
-  if (d) audio.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * d;
+  // (A packed song's length can read as unknown for a moment: its own length then; never the very end, which some phones won't seek to.)
+  const d = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : nowPlaying?.seconds || nowPlaying?.info?.seconds || 0;
+  if (d) audio.currentTime = Math.max(0, Math.min(d - 0.3, ((e.clientX - r.left) / r.width) * d));
   if (repeat === 'section' && nowPlaying) loopAt = sectionAt(nowPlaying, audio.currentTime);
 };
 $('player-bar').addEventListener('pointerdown', e => {
@@ -1525,7 +1543,10 @@ async function shareSong(song) {
   if (!got) return;
   // (A WAV that took a moment to make: one more tap, as Safari shares only right after one.)
   if (!ready && !(await ask({ title: W('WAV 做好了', 'The WAV is ready'), body: got.note, ok: W('分享', 'Share'), cancel: W('取消', 'Cancel'), lang }))) return;
+  const playing = nowPlaying && !audio.paused;
   const how = await shareFile(got.blob, `${fileName(song.name)}.wav`, { title: song.name, text: W(`${song.name} · 用 Orbit Beats 做的`, `${song.name} · made with Orbit Beats`) });
+  // (The share sheet can leave the song stuck: on again where it was.)
+  if (playing) setTimeout(() => (audio.paused ? audio.play().catch(() => revive()) : undefined), 300);
   if (how === 'downloaded') toast(W('這個瀏覽器不能分享檔案：已下載', "This browser can't share files: downloaded"));
 }
 // 存成檔案: the song's settings (never its sound) as a small .json through the share sheet, or saved.
