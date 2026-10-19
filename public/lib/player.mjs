@@ -86,6 +86,7 @@ export function createPlayer(d) {
         const made = await d.makeSong(track).catch(() => null);
         if (made) return (active = 'song'), (audio.loop = true), d.playSong(made, at).then(() => true);
       }
+      d.quiet?.();
       radio.playSpec(track);
       emit('state');
       return true;
@@ -240,6 +241,12 @@ export function createPlayer(d) {
       active = 'song';
       if (song && q.now?.id !== song.id) set(Q.playNow(q, songTrack(song)));
       emit('state');
+    },
+    // The list playing grew (a batch still being made): what follows is the whole list.
+    relist: list => {
+      if (q.station?.kind !== 'list' || !list.some(x => x.id === q.now?.id)) return;
+      if (!q.station.items.every(x => list.some(y => y.id === x.id))) return;
+      set(Q.setStation(q, Q.listStation(list, q.now.id)));
     },
     upNextRadio: () => (q.station?.kind === 'radio' ? radio.upcoming() : []),
     stationNext: () => Q.stationNext(q),

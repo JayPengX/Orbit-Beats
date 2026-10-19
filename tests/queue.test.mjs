@@ -137,6 +137,18 @@ test('the radio goes on as a station: radioNow keeps it', () => {
   assert.equal(listStation([s('a')], 'zz'), null);
 });
 
+test('back to the radio song, then forward: the queued songs are still there', () => {
+  let q = playNow(newQueue(), r(1), { kind: 'radio', id: 'chill' });
+  q = playLater(playLater(q, s('a')), s('b'));
+  q = next(q).q; // a
+  q = back(q, 0).q; // the radio song again; a waits for forward
+  q = radioNow(q, r(1)); // the radio says its song started
+  q = radioNow(q, r(9)); // and later its own next one
+  const n1 = next(q);
+  assert.equal(n1.item.id, 'a');
+  assert.equal(next(n1.q).item.id, 'b');
+});
+
 test('history is capped and kept as small JSON', () => {
   let q = newQueue();
   for (let i = 0; i < 80; i++) q = playNow(q, s(String(i)));
