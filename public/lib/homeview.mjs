@@ -168,11 +168,14 @@ export function mountHome(panel, api) {
     drawRows();
     return [picksSlot, nowSlot, recentSlot, slots['for-you'], mineSlot, slots.moods, slots.genres].filter(Boolean);
   };
+  // Two radios always one tap away under the hero: 隨機電台 (any groove) and 為你電台 (what you keep).
+  const radioPill = (id, ic, label) => h('button', { class: 'home-radio', type: 'button', 'data-station': id, onclick: () => P.station(id) }, [h('span', { class: 'hr-ic', html: icon(ic) }), h('span', { text: label })]);
+  const radios = h('div', { class: 'home-radios' }, [radioPill('all', 'shuffle', W('隨機電台', 'Shuffle Radio')), radioPill('taste', 'radio', W('為你電台', 'Your Radio'))]);
   const drawAll = () => {
     drawPicks();
     drawNow();
     drawRecent();
-    panel.replaceChildren(hero, ...order());
+    panel.replaceChildren(hero, radios, ...order());
     heroKey = '';
     paintHero();
     paintOn();

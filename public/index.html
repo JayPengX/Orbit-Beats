@@ -666,6 +666,10 @@ body.lv-simple #pieces .piece .more { width: 28px; height: 28px; }
 /* ---- Home, Create, Library: a big title a page, covers and cards ---- */
 .page-title { margin: 4px 0 14px; font-size: 34px; line-height: 1.1; font-weight: 800; letter-spacing: -.02em; }
 .hero { position: relative; border-radius: 22px; overflow: hidden; aspect-ratio: 16 / 10; margin-bottom: 26px; background: var(--fill); box-shadow: 0 12px 32px rgba(0,0,0,.2), 0 2px 6px rgba(0,0,0,.08); }
+.home-radios { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: -12px 0 26px; }
+.home-radio { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; border: 0; border-radius: 14px; background: var(--card); color: var(--accent); font-size: 17px; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.06); touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: transform var(--q-dur-snappy) var(--q-spring-snappy); }
+.home-radio:active { transform: scale(.97); }
+.home-radio .hr-ic svg { width: 20px; height: 20px; display: block; }
 .hero-main { position: absolute; inset: 0; display: block; width: 100%; height: 100%; padding: 0; border: 0; background: none; text-align: left; color: #fff; }
 .hero-cover { display: block; width: 100%; height: 100%; object-fit: cover; }
 .hero-shade { position: absolute; inset: auto 0 0 0; display: flex; flex-direction: column; gap: 2px; padding: 44px 84px 16px 18px; background: linear-gradient(transparent, rgba(0,0,0,.66)); }
