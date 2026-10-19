@@ -84,6 +84,7 @@ button { cursor: pointer; }
 .card { background: var(--card); border-radius: var(--q-r-card); padding: 16px; margin-bottom: 16px; }
 .card[hidden] { display: none; }
 .head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; min-height: 32px; }
+.head[hidden] { display: none; }
 .head h2 { margin: 0; font-size: 17px; font-weight: 600; white-space: nowrap; flex: 1; min-width: 0; }
 .head svg { flex: none; width: 22px; height: 22px; color: var(--accent); }
 
@@ -399,10 +400,12 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .jam-beat span i:first-child { background: var(--fill-2); }
 .jam-beat span i.past { background: color-mix(in srgb, var(--accent) 30%, var(--fill)); }
 .jam-beat span i.on { background: var(--accent); }
-.pads { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; transition: opacity .2s; }
+.pads { position: relative; z-index: 0; isolation: isolate; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; transition: opacity .2s; }
+.jam-bar { position: relative; z-index: 1; }
+.jam-bar button > *, .jam-set button > * { pointer-events: none; }
 .pads.loading { opacity: .55; }
 .pads.loading .jam-pad { animation: jam-ready 1.1s ease-in-out infinite alternate; }
-@keyframes jam-ready { to { filter: saturate(.3); } }
+@keyframes jam-ready { to { opacity: .7; } }
 .jam-pad {
   --c: var(--accent); position: relative; overflow: hidden; aspect-ratio: 1; border: 0; border-radius: 16px; padding: 4px 2px;
   background: color-mix(in srgb, var(--c) 15%, var(--card)); color: color-mix(in srgb, var(--c) 62%, var(--text));

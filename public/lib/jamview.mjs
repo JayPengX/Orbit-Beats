@@ -324,12 +324,14 @@ export function mountJam(panel, api) {
     );
     styleSel.disabled = !jam.groove;
   }
+  // (Written only when it changes: a button rewritten under a finger, as every beat did, loses that tap on iPhone.)
+  const put = (el, html) => el.dataset.html !== html && ((el.dataset.html = html), (el.innerHTML = html));
   function paintTransport() {
-    playBtn.innerHTML = waiting ? W('準備中…', 'Getting ready…') : running ? `${icon('stop')}<span>${W('停止', 'Stop')}</span>` : `${icon('play')}<span>${W('開始', 'Start')}</span>`;
+    put(playBtn, waiting ? W('準備中…', 'Getting ready…') : running ? `${icon('stop')}<span>${W('停止', 'Stop')}</span>` : `${icon('play')}<span>${W('開始', 'Start')}</span>`);
     playBtn.classList.toggle('on', running);
     const rec = jam.recording();
     recBtn.classList.toggle('on', rec);
-    recBtn.innerHTML = rec ? `${icon('stop')}<span>${W('完成', 'Done')}</span>` : `${icon('record')}<span>${W('錄一段', 'Record')}</span>`;
+    put(recBtn, rec ? `${icon('stop')}<span>${W('完成', 'Done')}</span>` : `${icon('record')}<span>${W('錄一段', 'Record')}</span>`);
   }
   // Every piece as a buffer (made once per kit, ahead of the first tap; one
   // channel when both sides are the same). A buffer needs no audio context,
