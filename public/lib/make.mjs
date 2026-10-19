@@ -10,6 +10,7 @@ import { radioSong, cutOf, segment, holdOf, radioKit, RADIO_SR } from './radio.m
 import { retime, clipSpan, partOf } from './remix.mjs';
 import { specOf, setOf } from './jamset.mjs';
 import { fromOffsets } from './jam.mjs';
+import { chartsOf } from './game.mjs';
 
 let kit = null;
 
@@ -113,6 +114,15 @@ export function radio(spec, after = null) {
 export function radioWav(spec) {
   const { audio, info } = radioSong(spec);
   return { info, wav: encodeWav(audio, 16) };
+}
+
+// ---- 節奏遊戲 (lib/game.mjs): a radio song whole, and its charts ----
+
+// -> { info, wav, charts: { easy, normal, hard, expert } }
+export function game(spec) {
+  const { audio, info, events, roles, tunes } = radioSong(spec);
+  const charts = chartsOf({ events, roles, tunes, sr: audio.sr, bpm: info.bpm, plan: info.plan, seconds: info.seconds }, spec.seed);
+  return { info, wav: encodeWav(audio, 16), charts };
 }
 
 // ---- 即興's built-in set (lib/jamset.mjs): the radio's band as pads ----
