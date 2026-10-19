@@ -65,6 +65,9 @@ export function mountHome(panel, api) {
     if (key !== picksKey) {
       picksKey = key;
       picks = dailyPicks(dayKey(), api.taste()).map(e => ({ e, t: radio.trackOf(e) }));
+      // (The hero and the next pick made ahead, just after the screen opens: a tap plays at once.)
+      const first = picks.slice(0, 2).map(p => p.e);
+      setTimeout(() => radio.prep?.(first), 300);
     }
     return picks;
   };

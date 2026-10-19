@@ -80,6 +80,8 @@ export function mountRadio(panel, api) {
   function fill() {
     // (Before play: one, so the first tap plays at once; playing: two.)
     if (q.busy || q.ready.length + (upcoming() ? 1 : 0) >= (want ? 2 : 1) || fails >= 3) return;
+    // (Before play, 今日精選's songs come first: they're what a tap on 首頁 most often wants.)
+    if (!want && (preparing || (prepWant.length && prepared.size < 3))) return;
     const s = spec();
     const after = q.ready.at(-1)?.id || upcoming()?.id || cur?.id || null;
     const gen = q.gen;
@@ -101,6 +103,7 @@ export function mountRadio(panel, api) {
         else if (tape) pump();
         paintNext();
         fill();
+        prepNext();
       })
       .catch(() => {
         q.busy = false;
@@ -109,6 +112,32 @@ export function mountRadio(panel, api) {
         if (fails < 3) setTimeout(fill, 400);
         else if (want && !cur) toast(W('音樂做不出來，再按一次播放試試', "Couldn't make the music: tap play again"), { tone: 'bad' });
       });
+  }
+  // Songs made before they're asked for (今日精選's first ones): a tap on one plays at once.
+  // Made only while nothing else is being made and the radio isn't playing; a few at most.
+  const prepared = new Map(); // `${seed}:${mood}:${style}` -> item
+  const prepKey = e => `${e.seed}:${e.mood || 'all'}:${e.style}`;
+  let preparing = false;
+  const prepWant = [];
+  function prep(list) {
+    for (const e of list) if (!prepared.has(prepKey(e)) && !prepWant.some(x => prepKey(x) === prepKey(e))) prepWant.push({ seed: e.seed, mood: e.mood || 'all', style: e.style });
+    prepWant.splice(3);
+    prepNext();
+  }
+  function prepNext() {
+    if (preparing || q.busy || want || !prepWant.length || prepared.size >= 3) return;
+    const e = prepWant.shift();
+    preparing = true;
+    api.make
+      .radio(e, null)
+      .then(v => {
+        const item = dress({ ...v, spec: e, title: api.title(e.seed), url: null });
+        if (taped) item.pcm = wavPcm(v.wav);
+        else (item.url = URL.createObjectURL(new Blob([v.wav], { type: 'audio/wav' }))), delete item.wav;
+        prepared.set(prepKey(e), item);
+      })
+      .catch(() => {})
+      .finally(() => ((preparing = false), setTimeout(() => (prepWant.length ? prepNext() : fill()), 300)));
   }
   const urlOf = it => (it.url ||= URL.createObjectURL(new Blob([it.wav], { type: 'audio/wav' })));
   const drop = it => it && it !== cur && !tape?.marks.some(m => m.item === it) && !q.ready.includes(it) && (it.url && URL.revokeObjectURL(it.url), (it.url = null), (it.pcm = null), (it.wav = null));
@@ -468,13 +497,16 @@ export function mountRadio(panel, api) {
   // One exact song again ({ seed, mood, style }): made from its spec like any other, then played from the next cut.
   function playSpec(e) {
     exact.length = 0;
-    exact.push({ seed: e.seed, mood: e.mood, style: e.style });
+    const ready = prepared.get(prepKey(e));
+    prepared.delete(prepKey(e));
+    if (!ready) exact.push({ seed: e.seed, mood: e.mood, style: e.style });
     const old = q.ready;
-    q.ready = [];
+    q.ready = ready ? [ready] : [];
     for (const it of old) drop(it), unart(it);
     q.gen++;
     q.skip = Boolean(cur);
     if (!want) start();
+    else if (ready) advance();
     else fill();
     paintNext();
   }
@@ -705,7 +737,10 @@ export function mountRadio(panel, api) {
   const upList = () => [upcoming(), ...q.ready].filter((x, i, a) => x && a.indexOf(x) === i);
   return {
     // The first song made while the screen opens, so the first tap plays at once.
-    warm: () => fill(),
+    // (A moment later, so 今日精選 asks for its songs first.)
+    warm: () => setTimeout(fill, 1500),
+    // Songs to have ready before they're tapped ([{ seed, mood, style }]).
+    prep,
     stop: () => want && pause(),
     playing: () => want && !audio.paused,
     refresh: () => emit('state'),
