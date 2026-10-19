@@ -6,13 +6,17 @@ import { icon } from './icons.mjs';
 import { STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
 import { coverOfTrack } from './player.mjs';
+import { speedKey } from './length.mjs';
+import { TEMPOS } from './stations.mjs';
 
 const clock = s => {
   s = Math.max(0, Math.floor(s || 0));
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
+// 慢 / 中 / 快 (or Slow / Medium / Fast) for a tempo.
+export const speedText = bpm => W(TEMPOS[speedKey(bpm)].zh, TEMPOS[speedKey(bpm)].en);
 // A track's second line: its groove and tempo.
-export const subOf = t => (t ? [t.style ? name(STYLE_NAMES, t.style) : W('即興', 'Jam'), t.bpm ? `${Math.round(t.bpm)} BPM` : ''].filter(Boolean).join(' · ') : '');
+export const subOf = t => (t ? [t.style ? name(STYLE_NAMES, t.style) : W('即興', 'Jam'), t.bpm ? speedText(t.bpm) : ''].filter(Boolean).join(' · ') : '');
 
 // A long press (0.5 s) on el runs fn; the click that follows it is dropped.
 export function onLong(el, fn) {

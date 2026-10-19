@@ -178,7 +178,7 @@ export function mountStudio(panel, api) {
   const clearBtn = stIcon('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>', W('清除格子', 'Clear the grid'));
   const saveBtn = stIcon('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>', W('收藏到收藏架', 'Keep on the shelf'));
   const addBtn = h('button', { class: 'st-add', type: 'button', text: W('存成片段', 'Save as piece') });
-  const copyBtn = h('button', { class: 'mini', type: 'button', 'data-ctl': 'studio-copy', text: W('⧉ 複製', '⧉ Copy'), 'aria-label': W('第一小節複製到每一小節', 'Bar 1 over every bar') });
+  const copyBtn = h('button', { class: 'mini', type: 'button', 'data-ctl': 'studio-copy', html: `${icon('copy')}<span>${W('複製', 'Copy')}</span>`, 'aria-label': W('第一小節複製到每一小節', 'Bar 1 over every bar') });
   const chordBtn = h('button', { class: 'mini', type: 'button', 'data-ctl': 'studio-chord', text: W('和弦', 'Chords'), 'aria-pressed': String(st.chord) });
   const midiBtn = h('button', { class: 'mini', type: 'button', 'data-ctl': 'studio-midi', text: 'MIDI' });
   const patSeg = h('div', { class: 'seg pats' });

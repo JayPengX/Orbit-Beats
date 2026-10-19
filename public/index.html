@@ -597,6 +597,16 @@ footer { text-align: center; color: var(--text-3); font-size: 12px; margin-top: 
 #badge, #pieces-hint, #easy-hint, #mood-hint, .drop span { display: none; }
 .q-btn svg, .primary svg { width: 18px; height: 18px; flex: none; }
 .jam-bar .q-btn, .way, .primary { gap: 6px; }
+/* 做歌: the button that makes songs first, then the songs, then the pieces */
+#panel-make:not([hidden]) { display: flex; flex-direction: column; }
+#panel-make > .pieces-card { order: 2; }
+#panel-make > footer { order: 3; }
+/* 長度: presets and a slider */
+.len-row .sheet-line { min-height: 32px; }
+.len-val { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.len-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
+.len-chips .chip { flex: 1 0 auto; }
+.len-row input[type="range"] { width: 100%; }
 </style>
 </head>
 <body>

@@ -17,6 +17,7 @@ import { SET_STYLES, BAND_ROLES, FAMILY, bandPads, specOf, setOf, diceSet } from
 import { ROLE_NAMES, STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
 import { icon } from './icons.mjs';
+import { speedText } from './playerview.mjs';
 import { info, hintOf } from './help.mjs';
 
 const AHEAD = 0.12; // seconds scheduled ahead of the clock
@@ -185,7 +186,7 @@ export function mountJam(panel, api) {
     }
     setBacking();
     paintGroove();
-    note.replaceChildren(h('span', { text: `${bpm} BPM` }));
+    note.replaceChildren(h('span', { text: speedText(bpm) }));
   }
   // The set's chips (its groove lit; one the dice found that isn't offered, first) and what it is.
   function paintSet() {
@@ -203,7 +204,7 @@ export function mountJam(panel, api) {
       )
     );
     const key = `${NOTE_NAMES[sp.key.tonic]} ${sp.key.minor ? W('小調', 'minor') : W('大調', 'major')}`;
-    meta.textContent = `${name(STYLE_NAMES, sp.style)} · ${sp.bpm} BPM · ${key}`;
+    meta.textContent = `${name(STYLE_NAMES, sp.style)} · ${speedText(sp.bpm)}`;
   }
   // Another built-in set: what was playing goes on with it (the same pads'
   // loops, from its first bar), once it's made. (Changed during a take, the

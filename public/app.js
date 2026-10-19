@@ -11,7 +11,7 @@
 import { quadraSession, topActions, installGate, watchUpdates, keepOffline, tabBar, ask } from '#kit/quadra.mjs';
 import { h, sheet, menu, toast, toggle, empty } from './lib/ui.mjs';
 import { sectionTimes, sectionIndex, labelFits } from './lib/sections.mjs';
-import { STYLES, SECTIONS, ROLES, MIN_BARS, NOTE_NAMES, keyOf, pieceChroma, parseWav, analyzeRecording, guessRole, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
+import { STYLES, SECTIONS, ROLES, MIN_BARS, makeRng, NOTE_NAMES, keyOf, pieceChroma, parseWav, analyzeRecording, guessRole, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
 import { atRate, splitAll, baseName } from './lib/sources.mjs';
 import { fingerprint, decode, encode, merge, keptSettings, settingsOf, DEFAULTS, kitEntry, saveLast, loadLast, liked, saveSong, deleteSong, getSong, swapSong, dropTemps, tempId, renameSong, forgetLast, saveNamed, deleteNamed, listNamed, renameNamed } from './lib/kits.mjs';
 import { dropPieces, snapOf, rolesBack, undoStack, namedKit, kitFrom, freeName } from './lib/kitops.mjs';
@@ -28,16 +28,17 @@ import { mountStudio } from './lib/studio.mjs';
 import { mountJam } from './lib/jamview.mjs';
 import { W, en, lang } from './lib/lang.mjs';
 import { shows, levelCss, makeSettings } from './lib/easy.mjs';
-import { MOODS, radioPick } from './lib/radio.mjs';
+import { MOODS, radioPick, radioPlan } from './lib/radio.mjs';
 import { mountRadio } from './lib/radioview.mjs';
 import { TERM_ORDER, EXAMPLES, term, info } from './lib/help.mjs';
 import * as kitQ from '#kit/quadra.mjs';
 import { icon, inner } from './lib/icons.mjs';
 import { createPlayer, coverOfTrack } from './lib/player.mjs';
-import { mountPlayerView, subOf, onLong } from './lib/playerview.mjs';
+import { mountPlayerView, subOf, onLong, speedText } from './lib/playerview.mjs';
 import { mountHome } from './lib/homeview.mjs';
 import { stationId } from './lib/stations.mjs';
 import * as Q from './lib/queue.mjs';
+import { LENGTH_MIN, LENGTH_MAX, LENGTH_STEP, LENGTH_PRESETS, clampLength, clock, kitLength } from './lib/length.mjs';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -158,6 +159,7 @@ const tabs = tabBar({
   label: W('分頁', 'Tabs')
 });
 let tabNow = 'home';
+let lengthPaint = () => {};
 function showTab(id) {
   id = SCREEN_TAB[id] ? (id === 'listen' ? 'home' : id) : 'home';
   const tab = SCREEN_TAB[id];
@@ -209,6 +211,7 @@ $('smart-slot').replaceWith(smartSwitch);
 const moodFor = styles => Object.entries(MOODS).find(([, m]) => m.styles.length === styles.length && m.styles.every(s => styles.includes(s)))?.[0] || '';
 const moodOf = () => moodFor(settings.styles);
 function showSettings() {
+  lengthPaint();
   $('count').value = settings.count;
   $('silence').value = settings.silenceDb;
   $('gap').value = settings.minGap;
@@ -232,14 +235,33 @@ function tasteHint() {
 }
 const weights = () => (cfg().smart && Object.keys(kept.taste || {}).length ? kept.taste : null);
 
+// 長度: presets and a slider, in minutes and seconds.
+{
+  const out = h('b', { class: 'len-val' });
+  const slider = h('input', { type: 'range', min: LENGTH_MIN, max: LENGTH_MAX, step: LENGTH_STEP, 'aria-label': W('長度', 'Length') });
+  const chips = h('div', { class: 'len-chips' }, LENGTH_PRESETS.map(v => h('button', { class: 'chip', type: 'button', 'data-len': String(v), text: clock(v), onclick: () => set(v) })));
+  const set = v => {
+    settings.length = clampLength(v);
+    paint();
+    save();
+    update();
+  };
+  const paint = () => {
+    out.textContent = clock(settings.length);
+    slider.value = settings.length;
+    for (const b of chips.children) b.setAttribute('aria-pressed', String(+b.dataset.len === settings.length));
+  };
+  slider.addEventListener('input', () => set(slider.value));
+  paint();
+  lengthPaint = paint;
+  document.querySelector('[data-ctl="make-count"]').before(h('div', { class: 'stack len-row' }, [h('div', { class: 'sheet-line' }, [h('span', { class: 'label', text: W('長度', 'Length') }), out]), chips, slider]));
+}
 // What's wrong with the settings, if anything.
 function problem() {
-  const { count, minBars, maxBars, styles, seed } = cfg();
+  const { count, styles, seed } = cfg();
   // (Simple with no tune in the pieces, or none: the app's own band plays.)
   if (simple()) return '';
   if (!(count >= 1 && count <= MAX_SONGS)) return W(`首數要 1 到 ${MAX_SONGS}`, `Songs must be 1 to ${MAX_SONGS}`);
-  if (!(minBars >= MIN_BARS && maxBars <= MAX_BARS)) return W(`長度要 ${MIN_BARS} 到 ${MAX_BARS} 小節`, `Length must be ${MIN_BARS} to ${MAX_BARS} bars`);
-  if (minBars > maxBars) return W('最短比最長還長', 'Shortest length is over the longest');
   if (!styles.length) return W('至少選一種鼓的風格', 'Pick at least one drum style');
   if (seed && !(/^\d+$/.test(seed) && +seed <= 4294967295)) return W('種子要是整數', 'Seed must be a whole number');
   if (pieces.length && !roles.some(x => x === 'riff' || x === 'phrase')) return simple() ? W('聽不出旋律：到「樂器」做一段旋律', 'No tune heard: make a melody in Studio') : W('需要一段 Riff 或樂句：設一段，或到「樂器」做一段', 'Needs a riff or a phrase: set one, or make one in Studio');
@@ -248,12 +270,7 @@ function problem() {
 }
 // Songs are an even number of bars when the range has one, plus ~1.5 s for the last hit to ring.
 function lengthText() {
-  const { minBars, maxBars } = cfg();
-  const secs = bars => Math.round((bars * 4 * 60) / bpm + 1.5);
-  const lo = minBars % 2 && minBars < maxBars ? minBars + 1 : minBars;
-  const hi = maxBars % 2 && maxBars > minBars ? maxBars - 1 : maxBars;
-  if (!(minBars <= maxBars && minBars > 0)) return W('先填最短', 'Shortest first');
-  return lo >= hi ? W(`每首約 ${secs(lo)} 秒`, `About ${secs(lo)} sec each`) : W(`每首約 ${secs(lo)}–${secs(hi)} 秒`, `About ${secs(lo)}–${secs(hi)} sec each`);
+  return W(`每首約 ${clock(settings.length)}`, `About ${clock(settings.length)} each`);
 }
 // The mixer in a few words: 混音 · 殘響 25%, or 原音.
 function mixText() {
@@ -377,19 +394,6 @@ function seg(items, value, onPick) {
 
 // 更多設定: length, humanize, seed and format, in a sheet.
 $('more-settings').onclick = () => {
-  const numIn = (key, attrs) => {
-    const i = h('input', { class: 'num short', type: 'number', inputmode: 'numeric', ...attrs });
-    i.value = settings[key];
-    i.addEventListener('input', () => {
-      const v = i.value.trim();
-      settings[key] = v === '' ? NaN : Math.round(+v);
-      hint.textContent = lengthText();
-      save();
-      update();
-    });
-    return i;
-  };
-  const hint = h('small', { text: lengthText() });
   const seed = h('input', { class: 'num wide', type: 'text', inputmode: 'numeric', placeholder: W('隨機', 'Random'), autocomplete: 'off', 'aria-label': W('種子', 'Seed') });
   seed.value = settings.seed;
   seed.addEventListener('input', () => {
@@ -403,7 +407,6 @@ $('more-settings').onclick = () => {
     closeLabel: W('關閉', 'Close'),
     body: h('div', { class: 'card sheet-card' }, [
       levelRow(),
-      sheetRow(W('長度', 'Length'), hint, h('div', { class: 'ctl' }, [numIn('minBars', { min: 8, max: 64, 'aria-label': W('最短（小節）', 'Shortest, in bars') }), h('span', { class: 'unit', text: '–' }), numIn('maxBars', { min: 8, max: 64, 'aria-label': W('最長（小節）', 'Longest, in bars') }), h('span', { class: 'unit', text: W('小節', 'bars') })])),
       pro('make-humanize', sheetRow(termLabel('humanize'), h('small', { text: term('humanize').hint }), slider({ min: 0, max: 200, step: 10, value: settings.humanize, text: v => `${v}%`, label: W('人味', 'Humanize'), onInput: v => ((settings.humanize = v), save(), update()) }))),
       pro('make-seed', sheetRow(termLabel('seed'), h('small', { text: term('seed').hint }), seed)),
       pro('make-format', sheetRow(
@@ -999,8 +1002,8 @@ const lib = libraryView({
 function songRow(song, { lib: inLib = false, list = null } = {}) {
   const li = h('li', { class: 'song', 'data-id': song.id });
   const info = song.info;
-  const what = [timeText(info.seconds), info.style ? name(STYLE_NAMES, info.style) : W('即興', 'Jam'), keyName(info.key)].filter(Boolean);
-  const plan = info.plan.map(([t, n]) => `${name(SECTION_NAMES, t)} ${n} ${W('小節', 'bars')}`).join(', ');
+  const what = [timeText(info.seconds), info.style ? name(STYLE_NAMES, info.style) : W('即興', 'Jam'), info.bpm ? speedText(info.bpm) : '', simple() ? '' : keyName(info.key)].filter(Boolean);
+  const plan = info.plan.map(([t]) => name(SECTION_NAMES, t)).join(', ');
   const play = h('button', { class: 'play', type: 'button', 'aria-label': W(`播放 ${song.name}`, `Play ${song.name}`), onclick: () => toggleSong(song) }, [h('img', { class: 'sc', alt: '', src: coverOfTrack(P.track(song)), width: 52, height: 52, loading: 'lazy' }), h('span', { class: 'si', html: ICON.play })]);
   const heart = h('button', { class: `act heart${lib.has(song.id) ? ' kept' : ''}`, type: 'button', 'aria-label': W('收藏', 'Keep'), 'aria-pressed': String(lib.has(song.id)), html: lib.has(song.id) ? ICON.hearted : ICON.heart, onclick: () => keepSong(song) });
   const more = h('button', { class: 'act', type: 'button', 'aria-label': W('更多', 'More'), html: ICON.more, onclick: e => songMenu(song, e.currentTarget, inLib, list) });
@@ -1010,7 +1013,7 @@ function songRow(song, { lib: inLib = false, list = null } = {}) {
   sectionTimes(info.plan, info.bpm || bpm).forEach((s, k) => {
     const label = name(SECTION_NAMES, s.type);
     const em = en ? label.length * 0.66 : label.length;
-    bar.append(h('button', { type: 'button', class: 'sec', 'data-k': String(k), style: { flex: String(s.bars), background: `var(--${s.type})`, '--k': String(k) }, 'aria-label': `${label} ${s.bars} ${W('小節', 'bars')}`, text: labelFits(s.bars, total, width, em) ? label : '' }));
+    bar.append(h('button', { type: 'button', class: 'sec', 'data-k': String(k), style: { flex: String(s.bars), background: `var(--${s.type})`, '--k': String(k) }, 'aria-label': label, text: labelFits(s.bars, total, width, em) ? label : '' }));
     holdable(bar.lastChild, () => seekBar(song, s.bar), () => loopSection(song, s.bar));
   });
   li.append(h('div', { class: 'line' }, [play, h('div', { class: 'what' }, [h('span', { class: 'name', text: song.name }), h('span', { class: 'info' }, what.flatMap((w, i) => [...(i ? [' · '] : []), h('span', { text: w })]))]), heart, more]), bar);
@@ -1047,7 +1050,8 @@ async function kitToMaker() {
 // A recipe as this batch's settings make it (a song made from another keeps that one's).
 const recipeOf = (over = {}) => {
   const c = cfg();
-  return { print, minBars: c.minBars, maxBars: c.maxBars, styles: [...c.styles], humanize: c.humanize, mix: { ...c.mix }, weights: weights(), detail: null, style: null, plan: null, ...over };
+  const len = kitLength(settings.length, bpm);
+  return { print, minBars: len.minBars, maxBars: len.maxBars, styles: [...c.styles], humanize: c.humanize, mix: { ...c.mix }, weights: weights(), detail: null, style: null, plan: len.plan ? radioPlan(makeRng(Math.floor(Math.random() * 1e9)), bpm, settings.length, true) : null, ...over };
 };
 // One song made from a recipe: { id, name, info, data, url, bits, recipe }.
 async function makeOne(recipe, title) {
@@ -1124,7 +1128,7 @@ async function bandBatch(count) {
       if (k === 0) $('out').scrollIntoView({ behavior: 'smooth', block: 'start' });
       const spec = radioPick('all', recent);
       recent.push(spec.style);
-      const song = await bandSong(spec);
+      const song = await bandSong({ ...spec, seconds: settings.length });
       songs.push(song);
       $('songs').append(songRow(song));
     }
@@ -1234,7 +1238,7 @@ function arrange(song) {
   const total = h('small');
   const draw = () => {
     const bars = plan.reduce((s, [, n]) => s + n, 0);
-    total.textContent = W(`${plan.length} 段 · ${bars} 小節 · 約 ${Math.round((bars * 4 * 60) / bpm)} 秒`, `${plan.length} section${plan.length === 1 ? '' : 's'} · ${bars} bars · about ${Math.round((bars * 4 * 60) / bpm)} sec`);
+    total.textContent = W(`${plan.length} 段 · 約 ${clock((bars * 4 * 60) / bpm)}`, `${plan.length} section${plan.length === 1 ? '' : 's'} · about ${clock((bars * 4 * 60) / bpm)}`);
     list.replaceChildren(
       ...plan.map(([t, n], k) => {
         const typeSel = h('select', { class: 'num wide', 'aria-label': W('段落', 'Section') }, SECTIONS.map(x => h('option', { value: x, text: name(SECTION_NAMES, x) })));
@@ -1761,7 +1765,7 @@ async function jamSong(hits, beats, band) {
     $('out').hidden = false;
     $('songs').prepend(songRow(song));
     $('zip').disabled = false;
-    toast(W(`已做好 ${Math.round(beats / 4)} 小節（在「做歌」）`, `Made ${Math.round(beats / 4)} bars (in Make)`));
+    toast(W(`已做好 ${clock((beats * 60) / bpm)}（在「做歌」）`, `Made ${clock((beats * 60) / bpm)} (in Create)`));
     playRow(song);
   } catch (e) {
     toast(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`), { tone: 'bad' });

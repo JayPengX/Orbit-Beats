@@ -40,5 +40,5 @@ export const levelCss = () =>
 export const SIMPLE_MAKE = Object.freeze({ count: 6, minBars: 25, maxBars: 29, humanize: 100, seed: '', bits: 16, smart: false, mood: 'all', silenceDb: -90, minGap: 0.2 });
 export function makeSettings(level, settings) {
   if (level === 'pro') return settings;
-  return { ...settings, ...SIMPLE_MAKE, styles: [...STYLES], mix: mixOf(MIX) };
+  return { ...settings, ...SIMPLE_MAKE, length: settings.length, styles: [...STYLES], mix: mixOf(MIX) };
 }
