@@ -261,12 +261,12 @@ const BAND = {
   },
   hardstyle: {
     bpm: [148, 156], chords: ['supersaw', 'pad', 'choir'], leads: ['supersaw', 'lead'], arps: ['supersaw', 'pluck'], bass: ['subbass'], comp: 'stab8', line: 'off8',
-    minor: 0.9, modes: { minor: ['harm', 'minor'] }, ext: 0,
+    minor: 0.9, modes: { minor: ['harm', 'minor'] }, ext: 0, mix: { drums: -10, hats: -5, bass: -4, pump: 0.2 },
     kit: { kick: 'hardkick', boom: 'hardkick', sub: ['sub'], snare: ['clap'], tick: ['hat'] }, hats: [[['open', OFF8]], [['hat', ALL16, 3]], [['crash', [0], 3], ['open', OFF8, 3]]]
   },
   chinese: {
     bpm: [70, 92], chords: ['piano', 'strings', 'guzheng', 'pad'], leads: ['erhu', 'flute', 'guzheng', 'piano'], arps: ['guzheng', 'harp', 'piano'], bass: ['bass', 'subbass'], comp: 'pulse', line: 'long',
-    minor: 0.3, tune: 'penta', progs: { major: [[3, 4, 2, 5], [0, 4, 5, 2], [5, 3, 4, 0], [0, 4, 5, 3]], minor: [[0, 5, 6, 2], [0, 5, 3, 4]] }, ext: 0.2,
+    minor: 0.3, tune: 'penta', mix: { keys: 5, bass: 3, drums: -3 }, progs: { major: [[3, 4, 2, 5], [0, 4, 5, 2], [5, 3, 4, 0], [0, 4, 5, 3]], minor: [[0, 5, 6, 2], [0, 5, 3, 4]] }, ext: 0.2,
     kit: { kick: 'kick', boom: 'tom', sub: ['kick', 'gong'], snare: ['snare', 'rim'], tick: ['perc', 'hat'] }, hats: [[['hat', [0, 4, 8, 12]], ['perc', [14], 3]], [['hat', E8, 3]], [['shaker', E8, 3], ['perc', [6], 3]]]
   },
   blues: {
@@ -555,7 +555,7 @@ export function radioSong({ seed, mood = 'all', style = null }, sr = RADIO_SR) {
   const plan = radioPlan(R, sp.bpm, sp.seconds);
   const song = makeSong(pieces, sr, seed, {
     analysis, roles, bpm: sp.bpm, styles: moodStyles(mood), style: sp.style,
-    humanize: (MOODS[mood]?.humanize ?? 100) / 100, plan, mix: mixOf({ ...MIXES[mood] })
+    humanize: (MOODS[mood]?.humanize ?? 100) / 100, plan, mix: mixOf({ ...MIXES[mood], ...BAND[sp.style].mix })
   });
   return { audio: song.audio, info: { ...song.info, key: sp.key, mood, radio: { seed, mood, style: sp.style } } };
 }

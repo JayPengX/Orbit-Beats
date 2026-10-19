@@ -147,6 +147,15 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 - The guided first song is retired (聽 is the way in now).
 - `engine.mjs` and `passion_beats.py` stay in step.
 
+## Sounds added for variety
+
+- **Grooves (49 in all; 29 new):** jazz swing, bossa nova, samba, salsa, rock, pop-punk, metal, city pop, K-pop, synthwave, disco, gospel, neo-soul, ballad, ambient, cinematic, chiptune, kizomba, highlife, cumbia, bhangra, dubstep, footwork, jungle, trance, hardstyle, Chinese, blues, country. Each is in `engine.mjs` and mirrored in `passion_beats.py`, with a Chinese and an English name (`lib/names.mjs`) and a cover.
+- **Instruments (42 in all; 30 new, `lib/voices.mjs`):** piano, Rhodes, clavinet, vibes, marimba, kalimba, music box, glass bell, steel drum, harp, nylon guitar, banjo, guzheng, sitar, pizzicato, erhu, sax, flute, harmonica, accordion, choir, supersaw, chip, chip bass, 808 glide, upright bass, acid bass, Reese bass, distorted guitar, slap bass.
+- **Drums (32 in all; 16 new lanes):** timbale, cajon, tabla, clave, tambourine, guiro, agogo, dhol; brush, rock kick and snare, hard kick, 8-bit kick, snare and hat, gong. Each has its own General MIDI note.
+- **聽 moods:** Pop, Jazz and World join the four.
+- **Next-song rule (`radioPick`):** no groove repeated within the last six (the mood's size less five in a small mood), a different family, a tempo jump of 15 BPM or a half/double feel, and a new key or mode, then new chords, lead and form. `tests/variety.test.mjs` checks 30 songs per mood.
+- **Loudness:** `node scripts/loudness.mjs [seed] [style,...]` renders 8 s of each groove's radio song and prints RMS and peak (nothing is written); a per-groove `mix` in `lib/radio.mjs` evens out the outliers.
+
 ## Files (`public/`)
 
 | File | What |
