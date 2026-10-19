@@ -63,50 +63,55 @@ export function flacFrame(pcm, at, number, sr) {
   return out;
 }
 
-// ---- MP4 boxes ----
-const enc = s => [...s].map(c => c.charCodeAt(0));
-const u32 = n => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
-const u16 = n => [(n >> 8) & 255, n & 255];
+// ---- MP4 boxes (also 歌單's kept songs, lib/pack.mjs) ----
+export const enc = s => [...s].map(c => c.charCodeAt(0));
+export const u32 = n => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
+export const u16 = n => [(n >> 8) & 255, n & 255];
 const u64 = n => [...u32(Math.floor(n / 2 ** 32)), ...u32(n >>> 0)];
-function box(type, ...parts) {
+export function box(type, ...parts) {
   const body = parts.flatMap(p => (p instanceof Uint8Array ? [...p] : p));
   return [...u32(8 + body.length), ...enc(type), ...body];
 }
-const full = (type, version, flags, ...parts) => box(type, [version, (flags >> 16) & 255, (flags >> 8) & 255, flags & 255], ...parts);
-const ZERO = n => new Array(n).fill(0);
+export const full = (type, version, flags, ...parts) => box(type, [version, (flags >> 16) & 255, (flags >> 8) & 255, flags & 255], ...parts);
+export const ZERO = n => new Array(n).fill(0);
+export const MATRIX = [...u32(0x10000), ...u32(0), ...u32(0), ...u32(0), ...u32(0x10000), ...u32(0), ...u32(0), ...u32(0), ...u32(0x40000000)];
 
 // The start of the stream: what it is. codec 'flac' (stereo 16-bit at
 // `sr`), 'aac' or 'opus' (as the phone's AudioEncoder packs it: its
 // decoderConfig description). -> Uint8Array
 export function tapeInit(sr, { codec = 'flac', description = null } = {}) {
-  const matrix = [...u32(0x10000), ...u32(0), ...u32(0), ...u32(0), ...u32(0x10000), ...u32(0), ...u32(0), ...u32(0), ...u32(0x40000000)];
   const ts = timescaleOf(codec, sr);
-  const audioEntry = (type, rate, ...inner) => box(type, ZERO(6), u16(1), ZERO(8), u16(2), u16(16), u16(0), u16(0), u32((rate * 65536) >>> 0), ...inner);
-  let entry;
-  if (codec === 'flac') {
-    // STREAMINFO: the last metadata block (type 0, 34 bytes); sizes and length unknown (0).
-    // (20 bits rate, 3 bits channels-1, 5 bits bits-1, 36 bits total samples (0), MD5 (0).)
-    const info = [0x80, 0, 0, 34, ...u16(FRAME), ...u16(FRAME), 0, 0, 0, 0, 0, 0, (sr >> 12) & 255, (sr >> 4) & 255, ((sr & 15) << 4) | (1 << 1), 15 << 4, 0, 0, 0, 0, ...ZERO(16)];
-    entry = audioEntry('fLaC', sr, full('dfLa', 0, 0, info));
-  } else if (codec === 'aac') {
-    entry = audioEntry('mp4a', sr, esds(aacConfig(description, sr)));
-  } else if (codec === 'opus') {
-    // (dOps from the encoder's OpusHead: its pre-skip; else libopus's usual 312.)
-    const head = bytesOf(description);
-    const isHead = head && head.length >= 19 && String.fromCharCode(...head.subarray(0, 8)) === 'OpusHead';
-    const preskip = isHead ? head[10] | (head[11] << 8) : 312;
-    entry = audioEntry('Opus', 48000, box('dOps', [0, 2], u16(preskip), u32(sr), u16(0), [0]));
-  } else throw new Error(`no tape codec ${codec}`);
+  const entry = sampleEntry(codec, sr, description);
   const stbl = box('stbl', full('stsd', 0, 0, u32(1), entry), full('stts', 0, 0, u32(0)), full('stsc', 0, 0, u32(0)), full('stsz', 0, 0, u32(0), u32(0)), full('stco', 0, 0, u32(0)));
   const minf = box('minf', full('smhd', 0, 0, u16(0), u16(0)), box('dinf', full('dref', 0, 0, u32(1), full('url ', 0, 1))), stbl);
   const mdia = box('mdia', full('mdhd', 0, 0, u32(0), u32(0), u32(ts), u32(0), u16(0x55c4), u16(0)), full('hdlr', 0, 0, u32(0), enc('soun'), ZERO(12), enc('Sound'), [0]), minf);
-  const trak = box('trak', full('tkhd', 0, 3, u32(0), u32(0), u32(1), u32(0), u32(0), ZERO(8), u16(0), u16(1), u16(0x0100), u16(0), matrix, u32(0), u32(0)), mdia);
+  const trak = box('trak', full('tkhd', 0, 3, u32(0), u32(0), u32(1), u32(0), u32(0), ZERO(8), u16(0), u16(1), u16(0x0100), u16(0), MATRIX, u32(0), u32(0)), mdia);
   const mvex = box('mvex', full('trex', 0, 0, u32(1), u32(1), u32(0), u32(0), u32(0)));
-  const moov = box('moov', full('mvhd', 0, 0, u32(0), u32(0), u32(ts), u32(0), u32(0x10000), u16(0x0100), ZERO(10), matrix, ZERO(24), u32(2)), trak, mvex);
+  const moov = box('moov', full('mvhd', 0, 0, u32(0), u32(0), u32(ts), u32(0), u32(0x10000), u16(0x0100), ZERO(10), MATRIX, ZERO(24), u32(2)), trak, mvex);
   return new Uint8Array([...box('ftyp', enc('iso5'), u32(512), enc('iso5'), enc('iso6'), enc('mp41')), ...moov]);
 }
 // The stream's clock: Opus counts at 48 kHz whatever it was made at.
 export const timescaleOf = (codec, sr) => (codec === 'opus' ? 48000 : sr);
+// The sound's description in the MP4 (stsd's one entry): FLAC's STREAMINFO,
+// AAC's config in its descriptors, Opus's dOps. -> [bytes]
+export function sampleEntry(codec, sr, description = null, bitrate = 192000) {
+  const audioEntry = (type, rate, ...inner) => box(type, ZERO(6), u16(1), ZERO(8), u16(2), u16(16), u16(0), u16(0), u32((rate * 65536) >>> 0), ...inner);
+  if (codec === 'flac') {
+    // STREAMINFO: the last metadata block (type 0, 34 bytes); sizes and length unknown (0).
+    // (20 bits rate, 3 bits channels-1, 5 bits bits-1, 36 bits total samples (0), MD5 (0).)
+    const info = [0x80, 0, 0, 34, ...u16(FRAME), ...u16(FRAME), 0, 0, 0, 0, 0, 0, (sr >> 12) & 255, (sr >> 4) & 255, ((sr & 15) << 4) | (1 << 1), 15 << 4, 0, 0, 0, 0, ...ZERO(16)];
+    return audioEntry('fLaC', sr, full('dfLa', 0, 0, info));
+  }
+  if (codec === 'aac') return audioEntry('mp4a', sr, esds(aacConfig(description, sr), bitrate));
+  if (codec === 'opus') {
+    // (dOps from the encoder's OpusHead: its pre-skip; else libopus's usual 312.)
+    const head = bytesOf(description);
+    const isHead = head && head.length >= 19 && String.fromCharCode(...head.subarray(0, 8)) === 'OpusHead';
+    const preskip = isHead ? head[10] | (head[11] << 8) : 312;
+    return audioEntry('Opus', 48000, box('dOps', [0, 2], u16(preskip), u32(sr), u16(0), [0]));
+  }
+  throw new Error(`no tape codec ${codec}`);
+}
 // Bytes of a decoderConfig description (ArrayBuffer, a typed array or a DataView). -> Uint8Array | null
 export const bytesOf = d => (!d ? null : d instanceof ArrayBuffer ? new Uint8Array(d) : ArrayBuffer.isView(d) ? new Uint8Array(d.buffer, d.byteOffset, d.byteLength) : null);
 // AAC's AudioSpecificConfig: the encoder's (as it is, or out of the MPEG-4
