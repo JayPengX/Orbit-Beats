@@ -1104,7 +1104,13 @@ const lib = libraryView({
   row: (song, list) => songRow(song, { lib: true, list }),
   play: song => playRow(song),
   goMake: () => showTab('make'),
-  zip: list => zipOf(list, 'Orbit Beats · Library.zip')
+  zip: list => zipOf(list, 'Orbit Beats · Library.zip'),
+  cover: song => coverOfTrack(P.track(song)),
+  songMenu: (song, anchor) => songMenu(song, anchor, true, null),
+  recent: () => (radio?.recent() || []).map(t => ({ track: t, cover: radio.coverOf(t), sub: subOf(t) })),
+  keepTrack: t => keepRadio({ id: t.id, title: t.title, spec: { seed: t.seed, mood: t.mood }, info: { style: t.style, bpm: t.bpm, key: t.key } }),
+  playTrack: t => P.play(t),
+  goListen: () => (showTab('home'), P.station('all'))
 });
 
 // One row: the whole of it plays (a tap on its cover or name), ♡ and ⋯ beside it. On 做歌, the song playing shows its sections under it (tap one to go there).

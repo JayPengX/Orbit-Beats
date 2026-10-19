@@ -40,3 +40,18 @@ test('a song out of 歌單 leaves every list; a list plays what it still has, in
   assert.deepEqual(songsOf({ songs: ['s3', 'gone', 's1'] }, songs).map(s => s.id), ['s3', 's1']);
   assert.deepEqual(songsOf(null, songs), []);
 });
+
+test('library helpers: recent kept songs, list cover, shuffle', async () => {
+  const { recentOf, mosaicOf, shuffled } = await import('../public/lib/library.mjs');
+  const songs = Array.from({ length: 15 }, (_, i) => ({ id: `s${i}`, name: `n${i}`, at: i }));
+  assert.deepEqual(recentOf(songs).map(s => s.id), ['s14', 's13', 's12', 's11', 's10', 's9', 's8', 's7', 's6', 's5', 's4', 's3'], 'newest first, twelve');
+  assert.equal(recentOf(songs, 2).length, 2);
+  assert.equal(mosaicOf(songs).length, 4, 'four songs make the mosaic');
+  assert.equal(mosaicOf(songs.slice(0, 3)).length, 1, 'fewer show the first alone');
+  assert.equal(mosaicOf([]).length, 0);
+  const seq = [0.1, 0.9, 0.5];
+  let k = 0;
+  const mix = shuffled(['a', 'b', 'c', 'd'], () => seq[k++ % 3]);
+  assert.deepEqual([...mix].sort(), ['a', 'b', 'c', 'd'], 'nothing lost or doubled');
+  assert.deepEqual(shuffled(['a']), ['a']);
+});

@@ -1,10 +1,10 @@
-// 歌單: the songs kept on this phone (lib/kits.mjs's store), newest first,
+// 資料庫: the songs kept on this phone (lib/kits.mjs's store), newest first,
 // found by a word of their name, groove or key and put in another order
 // (newest, name, longest, groove), all of what's shown in a zip. The rows
 // are the page's (app.js songRow), so a song plays, keeps and shares the
 // same wherever it's shown. 清單: lists of kept songs (lib/lists.mjs), each
 // opened to play in its order.
-import { h, empty, sheet, cell, list as group, menu, toast } from './ui.mjs';
+import { h, sheet, cell, list as group, menu, toast } from './ui.mjs';
 import { ask } from '#kit/quadra.mjs';
 import { listSongs } from './kits.mjs';
 import { soundOf, mbText } from './pack.mjs';
@@ -61,16 +61,46 @@ export function nameSheet(title, value, done, { keep = false } = {}) {
   setTimeout(() => input.focus(), 60);
 }
 
-export function libraryView({ panel, row, goMake, zip, play }) {
+// The newest kept songs first, as many as a shelf shows (pure: the tests call it).
+// A list in a random order (pure given `rand`: the tests pass their own).
+export function shuffled(items, rand = Math.random) {
+  const a = [...items];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+export const recentOf = (songs, n = 12) => shownOf(songs, { order: 'new' }).slice(0, n);
+// The songs a list's cover is made of: four make a 2x2 mosaic, fewer show the first alone, none a blank.
+export function mosaicOf(songs) {
+  const s = songs.slice(0, 4);
+  return s.length >= 4 ? s : s.slice(0, 1);
+}
+const timeText = s => `${Math.floor(s / 60)}:${String(Math.floor(s) % 60).padStart(2, '0')}`;
+const subText = song => [song.info?.style ? name(STYLE_NAMES, song.info.style) : W('即興', 'Jam'), song.info?.seconds ? timeText(song.info.seconds) : ''].filter(Boolean).join(' · ');
+
+// d: { panel, row(song, listId), play(song), goMake(), zip(list), cover(song) -> url, songMenu(song, anchor),
+//      recent() -> [{ track, cover, sub }] (the radio's, to keep), keepTrack(track), playTrack(track), goListen() }
+export function libraryView({ panel, row, goMake, zip, play, cover = () => '', songMenu = () => {}, recent = () => [], keepTrack = () => {}, playTrack = () => {}, goListen = () => {} }) {
   let songs = [];
   let read = null;
   let query = '';
   let order = 'new';
   let list = [];
   let { lists, ok: listsOk } = readLists();
-  let open = null; // the list shown, by id (null: every kept song)
+  let page = 'root'; // root | songs | lists | list
+  let open = null; // the list shown, by id (page 'list')
+  let mixed = null; // a shuffled copy of the open list, while 隨機播放 plays it
   const readAll = () => (read ||= listSongs().catch(() => []).then(all => (songs = all)));
-  const openList = () => lists.find(l => l.id === open) || null;
+  const openList = () => (page === 'list' ? lists.find(l => l.id === open) || null : null);
+  function go(next, id = null) {
+    page = next;
+    open = id;
+    mixed = null;
+    draw();
+    panel.scrollIntoView?.({ block: 'start' });
+  }
   function saveLists(next) {
     if (!listsOk) return toast(W('讀不到清單，先不存', "Couldn't read the lists: not saved"), { tone: 'bad' });
     try {
@@ -88,59 +118,112 @@ export function libraryView({ panel, row, goMake, zip, play }) {
     then?.(id);
   });
   const countText = n => W(`${n} 首`, `${n} song${n === 1 ? '' : 's'}`);
+  const img = (src, cls = '') => h('img', { class: cls, alt: '', src, loading: 'lazy', decoding: 'async', draggable: 'false' });
+  // A list's (or any set of songs') cover.
+  function mosaic(of, cls = '') {
+    const m = mosaicOf(of);
+    if (!m.length) return h('span', { class: `lib-mosaic blank ${cls}`, 'aria-hidden': 'true', html: icon('queue') });
+    return h('span', { class: `lib-mosaic ${m.length > 1 ? 'four' : ''} ${cls}`, 'aria-hidden': 'true' }, m.map(s => img(cover(s))));
+  }
+  const back = to => h('button', { class: 'lib-back', type: 'button', 'aria-label': W('返回', 'Back'), html: icon('back-chevron'), onclick: () => go(to) });
+  const iconBtn = (name, label, onclick) => h('button', { class: 'lib-btn', type: 'button', 'aria-label': label, html: icon(name), onclick });
+  const bar = (left, mid, right) => h('div', { class: 'lib-nav' }, [left, mid, right]);
+  const navTitle = text => h('h2', { class: 'lib-nav-title', text });
 
-  async function draw() {
-    await readAll();
-    const mb = mbText(songs.reduce((s, x) => s + (soundOf(x)?.size || 0), 0));
-    const head = h('div', { class: 'lib-head' }, [h('h1', { class: 'page-title', text: W('資料庫', 'Library') }), songs.length ? h('small', { text: W(`${songs.length} 首 · ${mb}`, `${songs.length} song${songs.length === 1 ? '' : 's'} · ${mb}`) }) : null]);
+  function draw() {
+    return readAll().then(paint);
+  }
+  function paint() {
     if (!songs.length) {
+      page = 'root';
       open = null;
-      panel.replaceChildren(
-        head,
-        h('section', { class: 'card' }, [
-          empty({
-            icon: icon('heart'),
-            title: W('還沒有收藏的歌', 'Nothing kept yet'),
-            action: h('button', { class: 'secondary', type: 'button', text: W('去做歌', 'Make songs'), onclick: goMake })
-          })
-        ])
-      );
+    }
+    if (page === 'list' && !openList()) page = 'root';
+    if (page === 'list') return drawList(openList());
+    if (page === 'songs') return drawSongs();
+    if (page === 'lists') return drawLists();
+    return drawRoot();
+  }
+
+  // 資料庫: 清單 and 歌曲, then the newest kept songs as covers. With nothing kept the same
+  // rows wait, greyed, and the radio's recent songs (with ♡) are how it fills.
+  function drawRoot() {
+    const has = songs.length > 0;
+    const rows = group([
+      cell({ icon: icon('queue'), title: W('清單', 'Playlists'), value: has && lists.length ? lists.length : '', chevron: has, onClick: has ? () => go('lists') : null }),
+      cell({ icon: icon('note'), title: W('歌曲', 'Songs'), value: has ? songs.length : '', chevron: has, onClick: has ? () => go('songs') : null })
+    ]);
+    rows.classList.toggle('lib-dim', !has);
+    const top = h('h1', { class: 'sr-only', text: W('資料庫', 'Library') });
+    if (has) {
+      const grid = h('div', { class: 'lib-grid' }, recentOf(songs).map(s => {
+        const more = h('button', { class: 'lib-card-more', type: 'button', 'aria-label': W('更多', 'More'), html: icon('more'), onclick: e => (e.stopPropagation(), songMenu(s, e.currentTarget)) });
+        return h('div', { class: 'lib-card' }, [
+          h('button', { class: 'lib-cover', type: 'button', 'aria-label': W(`播放 ${s.name}`, `Play ${s.name}`), onclick: () => ((list = recentOf(songs)), play(s)) }, [img(cover(s))]),
+          more,
+          h('b', { text: s.name }),
+          h('small', { text: subText(s) })
+        ]);
+      }));
+      list = recentOf(songs);
+      panel.replaceChildren(top, rows, h('section', { class: 'lib-shelf' }, [h('h2', { text: W('最近收藏', 'Recently kept') }), grid]));
       return;
     }
-    const l = openList();
-    if (l) return drawList(l);
-    open = null;
+    const heard = recent();
+    const nodes = heard.map(({ track, cover: c, sub }) => {
+      const heart = h('button', { class: 'act', type: 'button', 'aria-label': W('收藏', 'Keep'), html: icon('heart'), onclick: () => keepTrack(track) });
+      return h('li', { class: 'lib-rec' }, [
+        h('button', { class: 'lib-rec-main', type: 'button', 'aria-label': W(`播放 ${track.title}`, `Play ${track.title}`), onclick: () => playTrack(track) }, [img(c, 'lib-rec-cover'), h('span', { class: 'lib-rec-text' }, [h('b', { text: track.title }), h('small', { text: sub })])]),
+        heart
+      ]);
+    });
+    panel.replaceChildren(
+      ...[top,
+      rows,
+      nodes.length ? h('section', { class: 'lib-shelf' }, [h('h2', { text: W('最近播放', 'Recently played') }), h('ol', { class: 'lib-recs' }, nodes)]) : null,
+      h('div', { class: 'lib-actions' }, [
+        h('button', { class: 'primary', type: 'button', html: `${icon('radio')}<span>${W('聽電台', 'Listen to Radio')}</span>`, onclick: goListen }),
+        h('button', { class: 'secondary', type: 'button', html: `${icon('create')}<span>${W('去做歌', 'Make songs')}</span>`, onclick: goMake })
+      ])].filter(Boolean)
+    );
+  }
+
+  // 清單: every list, a cover each.
+  function drawLists() {
+    const rows = lists.map(x => {
+      const of = songsOf(x, songs);
+      return h('button', { class: 'lib-lrow', type: 'button', onclick: () => go('list', x.id) }, [mosaic(of, 'sm'), h('span', { class: 'lib-ltext' }, [h('b', { text: x.name }), h('small', { text: countText(of.length) })]), h('span', { class: 'lib-chev', html: icon('chevron') })]);
+    });
+    panel.replaceChildren(
+      bar(back('root'), navTitle(W('清單', 'Playlists')), iconBtn('plus', W('新清單', 'New playlist'), () => newList())),
+      rows.length ? h('div', { class: 'lib-lrows' }, rows) : h('button', { class: 'add-row', type: 'button', html: `${icon('plus')}<span>${W('新清單', 'New playlist')}</span>`, onclick: () => newList() })
+    );
+  }
+
+  // 歌曲: every kept song, found by a word and put in an order.
+  function drawSongs() {
     const search = h('input', { type: 'search', placeholder: W('找歌名、節奏、調', 'Find a name, groove, key'), 'aria-label': W('找歌', 'Find a song'), autocomplete: 'off' });
     search.value = query;
-    const sort = h('select', { 'aria-label': W('排序', 'Order') }, ORDERS.map(o => h('option', { value: o, text: name(ORDER_NAMES, o) })));
-    sort.value = order;
+    const sort = iconBtn('sort', W('排序', 'Order'), () => menu(sort, ORDERS.map(o => ({ label: name(ORDER_NAMES, o), icon: o === order ? 'check' : undefined, onClick: () => ((order = o), fill()) }))));
+    const more = iconBtn('more', W('更多', 'More'), () =>
+      menu(more, [{ label: query ? W(`下載這 ${list.length} 首`, `Download these ${list.length}`) : W('全部下載', 'Download all'), icon: 'download', onClick: () => list.length && zip(list) }])
+    );
     const ol = h('ol', { class: 'songs' });
-    const zipBtn = h('button', { class: 'secondary', type: 'button', text: W('全部下載', 'Download all'), onclick: () => list.length && zip(list) });
-    const none = h('p', { class: 'hint', text: W('沒有符合的歌', 'No song matches') });
+    const none = h('p', { class: 'lib-none', text: W('沒有符合的歌', 'No song matches') });
     const fill = () => {
       list = shownOf(songs, { query, order });
       ol.replaceChildren(...list.map(s => row(s, null)));
       none.hidden = list.length > 0;
-      zipBtn.disabled = !list.length;
-      zipBtn.textContent = query ? W(`下載這 ${list.length} 首`, `Download these ${list.length}`) : W('全部下載', 'Download all');
     };
     search.addEventListener('input', () => ((query = search.value.trim()), fill()));
-    sort.addEventListener('change', () => ((order = sort.value), fill()));
     fill();
-    const playlists = h('section', { class: 'card lib-lists' }, [
-      h('div', { class: 'head' }, [h('h2', { text: W('清單', 'Playlists') }), h('button', { class: 'secondary', type: 'button', html: `${icon('plus')}<span>${W('新清單', 'New')}</span>`, onclick: () => newList() })]),
-      lists.length
-        ? h('div', { class: 'q-list' }, lists.map(x => cell({ title: x.name, value: countText(songsOf(x, songs).length), chevron: true, onClick: () => ((open = x.id), draw(), panel.scrollIntoView?.({ block: 'start' })) })))
-        : null
-    ]);
-    panel.replaceChildren(head, h('div', { class: 'lib-tools' }, [search, sort]), playlists, h('section', { class: 'card' }, [h('div', { class: 'head' }, [h('h2', { text: W('收藏的歌', 'Kept songs') }), zipBtn]), none, ol]), h('footer', { text: W('存在這支手機上 · 不上傳', 'Kept on this phone · never uploaded') }));
+    panel.replaceChildren(bar(back('root'), navTitle(W('歌曲', 'Songs')), h('span', { class: 'lib-btns' }, [sort, more])), h('div', { class: 'lib-tools' }, [search]), h('section', { class: 'card' }, [none, ol]));
   }
-  // One list: its songs in order, ▶ plays them from the first.
+
+  // One list: its cover and name, 播放 and 隨機播放, then its songs in order.
   function drawList(l) {
     list = songsOf(l, songs);
-    const back = h('button', { class: 'lib-back', type: 'button', text: W('‹ 歌單', '‹ Library'), onclick: () => ((open = null), draw()) });
-    const more = h('button', { class: 'lib-more', type: 'button', 'aria-label': W('更多', 'More'), html: icon('more') });
-    more.onclick = () =>
+    const more = iconBtn('more', W('更多', 'More'), () =>
       menu(more, [
         { label: W('重新命名', 'Rename'), icon: 'edit', onClick: () => nameSheet(W('重新命名', 'Rename'), l.name, v => saveLists(renameList(lists, l.id, v))) },
         { label: W('下載這些歌', 'Download these'), icon: 'download', onClick: () => list.length && zip(list) },
@@ -150,17 +233,20 @@ export function libraryView({ panel, row, goMake, zip, play }) {
           icon: 'trash',
           danger: true,
           onClick: async () => {
-            const yes = await ask({ title: W(`刪除「${l.name}」？`, `Delete “${l.name}”?`), body: W('歌還會留在歌單裡。', 'The songs stay in your Library.'), ok: W('刪除', 'Delete'), cancel: W('取消', 'Cancel'), danger: true, lang });
-            if (yes) ((open = null), saveLists(deleteList(lists, l.id)));
+            const yes = await ask({ title: W(`刪除「${l.name}」？`, `Delete “${l.name}”?`), body: W('歌還會留在資料庫裡。', 'The songs stay in your Library.'), ok: W('刪除', 'Delete'), cancel: W('取消', 'Cancel'), danger: true, lang });
+            if (yes) (go('lists'), saveLists(deleteList(lists, l.id)));
           }
         }
-      ]);
-    const playBtn = h('button', { class: 'primary', type: 'button', html: `${icon('play')}<span>${W('依序播放', 'Play in order')}</span>`, disabled: !list.length, onclick: () => list.length && play(list[0]) });
+      ])
+    );
+    const playBtn = h('button', { class: 'lib-pill', type: 'button', disabled: !list.length, html: `${icon('play')}<span>${W('播放', 'Play')}</span>`, onclick: () => list.length && ((mixed = null), play(list[0])) });
+    const shuffleBtn = h('button', { class: 'lib-pill', type: 'button', disabled: list.length < 2, html: `${icon('shuffle')}<span>${W('隨機播放', 'Shuffle')}</span>`, onclick: () => list.length && ((mixed = shuffled(list)), play(mixed[0])) });
     const ol = h('ol', { class: 'songs' }, list.map(s => row(s, l.id)));
     panel.replaceChildren(
-      h('div', { class: 'lib-nav' }, [back, more]),
-      h('div', { class: 'lib-head' }, [h('h2', { text: l.name }), h('small', { text: countText(list.length) })]),
-      h('section', { class: 'card' }, [playBtn, list.length ? ol : null])
+      bar(back('lists'), h('span'), more),
+      h('div', { class: 'lib-hero' }, [mosaic(list, 'lg'), h('h2', { text: l.name })]),
+      h('div', { class: 'lib-pills' }, [playBtn, shuffleBtn]),
+      ...(list.length ? [h('section', { class: 'card' }, [ol])] : [])
     );
   }
   // ⋯ 加到清單: each list, ✓ on those the song is in; a tap puts it in or takes it out.
@@ -171,7 +257,7 @@ export function libraryView({ panel, row, goMake, zip, play }) {
         group([
           ...lists.map(x => {
             const has = x.songs.includes(song.id);
-            return cell({ title: x.name, sub: countText(songsOf(x, songs).length), value: has ? '•' : '', onClick: () => (saveLists(has ? removeFrom(lists, x.id, song.id) : addTo(lists, x.id, song.id)), fill(), toast(has ? W(`已從「${x.name}」移除`, `Removed from “${x.name}”`) : W(`已加到「${x.name}」`, `Added to “${x.name}”`), { ms: 1400 })) });
+            return cell({ title: x.name, sub: countText(songsOf(x, songs).length), trailing: has ? h('span', { class: 'lib-check', html: icon('check') }) : null, onClick: () => (saveLists(has ? removeFrom(lists, x.id, song.id) : addTo(lists, x.id, song.id)), fill(), toast(has ? W(`已從「${x.name}」移除`, `Removed from “${x.name}”`) : W(`已加到「${x.name}」`, `Added to “${x.name}”`), { ms: 1400 })) });
           }),
           cell({ title: W('新清單…', 'New playlist…'), onClick: () => (s.close(), newList(id => (saveLists(addTo(lists, id, song.id)), toast(W('已加到新清單', 'Added to the new playlist'), { ms: 1400 })))) })
         ])
@@ -193,7 +279,7 @@ export function libraryView({ panel, row, goMake, zip, play }) {
       const next = dropSong(lists, id);
       if (!(next !== lists && saveLists(next)) && shownNow()) draw();
     },
-    // Every kept song, and one with its sound made small (歌單瘦身).
+    // Every kept song, and one with its sound made small (資料庫瘦身).
     all: () => songs,
     get: id => songs.find(s => s.id === id) || null,
     replace(rec) {
@@ -211,7 +297,7 @@ export function libraryView({ panel, row, goMake, zip, play }) {
     // The songs as shown (the player goes on to the next of these): the open list's, in its order.
     shown: () => {
       const l = openList();
-      return l ? songsOf(l, songs) : list.length ? list : shownOf(songs, { query, order });
+      return l ? mixed || songsOf(l, songs) : list.length ? list : shownOf(songs, { query, order });
     }
   };
 }
