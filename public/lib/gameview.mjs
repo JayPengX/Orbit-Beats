@@ -78,6 +78,7 @@ body.gm-open:has(.gm.in) > :not(.gm) { visibility: hidden; }
 .gm-row-go { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); }
 .gm-row-go svg { width: 16px; height: 16px; margin-left: 2px; }
 .gm-stage { touch-action: none; }
+.gm-buzz { position: absolute; width: 1px; height: 1px; overflow: hidden; contain: strict; opacity: 0; pointer-events: none; }
 .gm-stage canvas, .gm-glow { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .gm-glow { opacity: .35; pointer-events: none; will-change: opacity; }
 .gm:has(.gm-stage:not([hidden])) > .gm-bg, .gm:has(.gm-stage:not([hidden])) > .gm-shade { display: none; }
@@ -286,7 +287,17 @@ export function mountGame(host, api) {
       ])
     ])
   ]);
-  stage.append(back, glowEl, canvas, h('div', { class: 'gm-hud' }, [pauseBtn, h('div', { class: 'gm-meter' }, [h('div', { class: 'gm-meter-t' }, [titleEl, scoreEl]), h('div', { class: 'gm-prog' }, [progEl])])]), load, menuEl);
+  // A tick in the hand on a hit (iOS: a switch flipped). One, made once and walled off, so a hit
+  // touches nothing else on the page.
+  const buzzEl = h('input', { type: 'checkbox', switch: '', tabindex: '-1' });
+  const buzzBox = h('label', { class: 'gm-buzz', 'aria-hidden': 'true' }, [buzzEl]);
+  const buzz = () => {
+    try {
+      buzzBox.click();
+      navigator.vibrate?.(8);
+    } catch {}
+  };
+  stage.append(buzzBox, back, glowEl, canvas, h('div', { class: 'gm-hud' }, [pauseBtn, h('div', { class: 'gm-meter' }, [h('div', { class: 'gm-meter-t' }, [titleEl, scoreEl]), h('div', { class: 'gm-prog' }, [progEl])])]), load, menuEl);
 
   // Geometry: the highway's lanes at the hit line, and how far up it runs.
   let Wd = 0;
@@ -524,7 +535,7 @@ export function mountGame(host, api) {
       units: unitsOf(chart), tally: { perfect: 0, great: 0, good: 0, miss: 0 }, combo: 0, best: 0, shown: 0, fever: false,
       end: Math.min(buffer.duration, last + 1.6), pressed: new Array(LANES).fill(false), held: new Array(LANES).fill(null),
       sparks: [], rings: [], beams: new Array(LANES).fill(0), flash: new Array(LANES).fill(0), miss: new Array(LANES).fill(0),
-      pop: null, bump: 0, shake: 0, banner: null, stars: starsOf(), lastC: ctx.currentTime, lastP: performance.now(), paused: false, over: false
+      pop: null, bump: 0, shake: 0, banner: null, stars: starsOf(), lastC: ctx.currentTime, lastP: performance.now(), paused: false, over: false, buzz: 0
     };
     load.hidden = true;
     pauseBtn.hidden = false;
@@ -637,6 +648,8 @@ export function mountGame(host, api) {
     if (R.combo === FEVER && !R.fever) (R.fever = true), (R.banner = { text: W('火力全開', 'FEVER'), t: performance.now(), big: true });
     R.beams[lane] = 1;
     R.rings.push({ lane, t: performance.now(), g });
+    // (Never more than one tick in 70 ms.)
+    if (!tail && performance.now() - R.buzz > 70) (R.buzz = performance.now()), buzz();
     // (Sparks from a pool of 96: the oldest give way.)
     const n = reduced() ? 4 : g === 'perfect' ? 14 : 9;
     const x = laneX(lane, 1);
@@ -685,12 +698,20 @@ export function mountGame(host, api) {
   // (For screenshots and the Mac's walkthrough: localStorage['orbit-beats-game-auto'] = '1' plays every note itself.)
   const auto = (() => {
     try {
+      // (Or ?gameauto in the address, for a phone's Safari.)
+      if (/[?&]gameauto\b/.test(location.search)) localStorage.setItem('orbit-beats-game-auto', '1');
       return localStorage.getItem('orbit-beats-game-auto') === '1';
     } catch {
       return false;
     }
   })();
-  if (auto) globalThis.__game = () => R && { tally: R.tally, combo: R.combo, units: R.units, n: R.notes.length };
+  // (It also counts the frames: the last 120's gaps, and how many ran long.)
+  const gaps = [];
+  if (auto) globalThis.__game = () => R?.notes && { tally: R.tally, combo: R.combo, units: R.units, n: R.notes.length, ...frames() };
+  const frames = () => {
+    const d = [...gaps].sort((a, b) => a - b);
+    return { fps: d.length ? Math.round(1000 / d[d.length >> 1]) : 0, slow: d.filter(x => x > 20).length, worst: Math.round(d.at(-1) || 0) };
+  };
   function autoplay(t) {
     for (let k = 0; k < LANES; k++) {
       const n = R.byLane[k][R.next[k]];
@@ -705,11 +726,17 @@ export function mountGame(host, api) {
     raf = requestAnimationFrame(frame);
     if (!R || R.paused) return;
     const dt = Math.min(0.05, (now - (lastFrame || now)) / 1000);
+    if (auto && lastFrame) gaps.push(now - lastFrame) > 120 && gaps.shift();
     lastFrame = now;
     const t = clockAt(performance.now());
     if (auto) autoplay(t);
     judgeMisses(t);
     draw(t, dt, performance.now());
+    if (auto) {
+      const f = frames();
+      cx2.textAlign = 'left';
+      text(cx2, `${f.fps} fps · ${f.slow} slow · ${f.worst} ms`, 14, Ht - 24, 13, '#9ef0a8', 700);
+    }
     if (t > R.end && !R.over) finish();
   }
   // A frame: only what moves. No blur, no shadows, no new gradients; the score and the bar
