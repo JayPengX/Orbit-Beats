@@ -655,7 +655,8 @@ export function mountJam(panel, api) {
     for (const t of jam.done.splice(0)) {
       if (!t.hits.length) continue;
       const { hits: took, beats } = trimTake(t.hits, t.beats, t.from);
-      Promise.resolve(api.take(took, beats, from, { keep: true })).then(paintTakes, () => {});
+      // (Kept: its cover arrives first in 你的即興 with a little pop.)
+      Promise.resolve(api.take(took, beats, from, { keep: true })).then(() => (paintTakes(), takesRow.firstElementChild?.classList.add('fresh')), () => {});
     }
   }
   // The beat: which of the four beats of the bar, and the loops' tiles (on, waiting for the bar, leaving).
@@ -784,8 +785,8 @@ export function mountJam(panel, api) {
   keepBtn.onclick = () => {
     if (!running || !jam.keepable(beatNow())) return;
     jam.rotate(beatNow());
-    keptUntil = Date.now() + 1500;
-    setTimeout(paintTransport, 1600);
+    keptUntil = Date.now() + 2600;
+    setTimeout(paintTransport, 2700);
     paintTransport();
   };
   recBtn.onclick = () => {
