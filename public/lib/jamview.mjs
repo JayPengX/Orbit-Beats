@@ -22,7 +22,7 @@ import { info, hintOf } from './help.mjs';
 
 const AHEAD = 0.12; // seconds scheduled ahead of the clock
 const LATE = 0.03; // a tap this late (s) still counts as the step it missed
-const HOLD = 450; // ms a pad is held to open its level
+const HOLD = 700; // ms a pad is held still to open its level (a drummer's held hit is shorter)
 const PADS = 'orbit-beats.pads.v1'; // { <print>: { at, pads: { <piece>: { level, mute, choke } } } }
 const SET = 'orbit-beats.jam-set'; // the built-in set last played: { seed, style }
 const BUILT_IN = 'builtin'; // the built-in set's pads, kept as one kit's
@@ -134,6 +134,8 @@ export function mountJam(panel, api) {
   function draw() {
     const mine = !usingBand();
     srcSeg.hidden = !hasClips();
+    // (Nothing in the head but the switch: no empty band over the set when there are no clips.)
+    srcSeg.parentElement && (srcSeg.parentElement.hidden = srcSeg.hidden);
     srcSeg.set?.(mine ? 'mine' : 'band');
     setRow.hidden = mine;
     styleSel.hidden = !mine;
@@ -511,15 +513,21 @@ export function mountJam(panel, api) {
   // (pointerdown, not click: a one-shot is played the moment it's touched. A
   // loop waits for the finger to lift, at the beat it was touched: held, it
   // opens the pad's sheet instead. It only starts on a bar line anyway.)
-  let press = null;
+  // (One press per finger: two fingers drumming at once each lift their own pad.)
+  const presses = new Map();
   padGrid.addEventListener('pointerdown', e => {
     const b = e.target.closest('.jam-pad');
     if (!b) return;
     e.preventDefault();
     const p = pads.find(x => x.i === +b.dataset.i);
     if (!p) return;
-    clearTimeout(press?.timer);
-    press = { p, beat: running ? Math.max(0, beatNow()) : null, timer: setTimeout(() => ((press = null), padSheet(p)), HOLD) };
+    clearTimeout(presses.get(e.pointerId)?.timer);
+    const press = { p, x: e.clientX, y: e.clientY, beat: running ? Math.max(0, beatNow()) : null };
+    press.timer = setTimeout(() => {
+      // (Only one finger down: a held pad among others is drumming, not asking for its level.)
+      if (presses.size === 1) (press.sheet = true), padSheet(p);
+    }, HOLD);
+    presses.set(e.pointerId, press);
     if (p.loop) return;
     // (Stopped: just that sound, now. The groove starts with ▶ or a loop.)
     if (!running) {
@@ -532,12 +540,18 @@ export function mountJam(panel, api) {
     if (at < upTo) play(p.i, timeOf(at));
     shown = -1;
   });
-  const lift = tapped => () => {
+  // (A finger that slides off is no hold.)
+  padGrid.addEventListener('pointermove', e => {
+    const press = presses.get(e.pointerId);
+    if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 12) clearTimeout(press.timer);
+  });
+  const lift = tapped => e => {
+    const press = presses.get(e.pointerId);
     if (!press) return;
     clearTimeout(press.timer);
-    const { p, beat } = press;
-    press = null;
-    if (!tapped || !p.loop) return;
+    presses.delete(e.pointerId);
+    const { p, beat, sheet } = press;
+    if (!tapped || sheet || !p.loop) return;
     if (!running) start();
     const r = jam.toggle(p.i, beat ?? Math.max(0, running ? beatNow() : 0), p.beats, { group: p.group, phase: p.phase });
     if (running) cutLoops(r.off, r.at);
