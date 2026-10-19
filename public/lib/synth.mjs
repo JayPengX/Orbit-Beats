@@ -367,6 +367,18 @@ export const stepHits = (clip, s) => hitList(clip, s).map(({ vel, ...h }) => h);
 // (A swung clip, `shuffle`: its off-beat eighths late too, by that share of a 16th, as engine.mjs's SHUFFLE.)
 export const swingOf = (clip, s) => (s % 2 ? clip.swing || 0 : 0) + (s % 4 === 2 ? clip.shuffle || 0 : 0);
 
+// A clip's own chance for its step, note and part: the same each time it's rendered. -> [0, 1)
+const rand01 = (s, midi, k, salt) => {
+  let x = Math.imul(s + 1, 0x9e3779b1) ^ Math.imul(midi + 7, 0x85ebca6b) ^ Math.imul(k + 3, 0xc2b2ae35) ^ Math.imul(salt, 0x27d4eb2f);
+  x ^= x >>> 15;
+  x = Math.imul(x, 0x2c1b3c6d);
+  x ^= x >>> 12;
+  return (x >>> 0) / 4294967296;
+};
+// How hard each 16th of a beat is played: the beat, the 16th after, the off-beat, the 16th before the next.
+const ACCENT = [1.05, 0.86, 0.95, 0.84];
+// How far apart a chord's notes come in (seconds each), lowest first: a strum, a roll, the rest a breath apart.
+const STRUM = { guitar: 0.016, nylon: 0.02, distgtr: 0.008, banjo: 0.014, harp: 0.03, guzheng: 0.024, steel: 0.012, sitar: 0.02, piano: 0.008, keys: 0.007, rhodes: 0.009, vibes: 0.01, marimba: 0.012, kalimba: 0.012, clav: 0.004, organ: 0.002, strings: 0.012, choir: 0.012, brass: 0.006, pad: 0.004, supersaw: 0.002 };
 // The notes rendered lately (a note is the same each time it is asked for the same way: its pitch, length,
 // how hard and which take).
 const VOICES = new Map();
@@ -385,10 +397,20 @@ export function renderClip(clip, sr = 48000, bpm = 120) {
     voiceSamples = 0;
   }
   const seen = new Map();
+  const drums = clip.kind === 'drums';
   for (let s = 0; s < STEPS * clip.bars; s++) {
     const a = Math.round(((s + swingOf(clip, s)) / 4) * B);
-    for (const { inst, midi, len, gain, vel, dt } of hitList(clip, s)) {
-      const hold = clip.kind === 'drums' ? 0.25 : (len / 4) * (60 / bpm);
+    const hits = hitList(clip, s);
+    hits.forEach(({ inst, midi, len, gain, vel: v0, dt }, k) => {
+      const hold = drums ? 0.25 : (len / 4) * (60 / bpm);
+      // (Played, not programmed: each note a few ms off the grid and a little harder or softer, the beat leaned on and
+      // the 16ths between let go, a chord's notes strummed or rolled from the lowest. The same clip always plays the same.)
+      // (`feel`: the band's clips (lib/radio.mjs); one programmed in 樂器 plays exactly as it was set.)
+      const feel = clip.feel === true;
+      const r1 = feel ? rand01(s, midi, k, 1) : 0.5, r2 = feel ? rand01(s, midi, k, 2) : 0.5;
+      const lean = feel ? ACCENT[s % 4] * (s % STEPS === 0 ? 1.06 : 1) : 1;
+      const vel = feel ? Math.round(Math.min(1, v0 * lean * (0.9 + 0.2 * r2)) * 20) / 20 : v0;
+      const late = feel ? ((r1 - 0.5) * 2 * (drums ? 0.003 : BASSES.has(inst) ? 0.004 : 0.007) + (hits.length > 1 && !drums ? k * (STRUM[inst] ?? 0.006) : 0)) * sr : 0;
       const again = `${inst}|${midi}|${hold}|${vel}`;
       const take = (seen.get(again) || 0) % 2;
       seen.set(again, take + 1);
@@ -399,8 +421,15 @@ export function renderClip(clip, sr = 48000, bpm = 120) {
         voiceSamples += v.length;
       }
       const x = cache.get(key);
-      for (let k = 0, j = dt ? Math.max(0, a + Math.round(dt * sr)) : a; k < x.length && j < n; k++, j++) L[j] += x[k] * gain;
-    }
+      const g = feel ? gain * lean * (0.92 + 0.16 * r2) : gain;
+      // (A note still ringing at the loop's end goes on from its start, as it would into the next time round: never cut off.)
+      const ring = drums ? 0 : Math.min(x.length, Math.round(1.5 * sr));
+      for (let i = 0, j = Math.max(0, a + Math.round((dt || 0) * sr + late)); i < x.length; i++, j++) {
+        if (j < n) L[j] += x[i] * g;
+        else if (i < ring && j - n < n) L[j - n] += x[i] * g * (1 - i / ring);
+        else if (j >= n) break;
+      }
+    });
   }
   const floor = noiseOf(n);
   for (let i = 0; i < n; i++) L[i] += 2.5e-4 * floor();

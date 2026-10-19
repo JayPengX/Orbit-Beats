@@ -719,7 +719,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   // a build into a hook, something light into a verse, next to nothing into
   // a quiet section; a pre-hook's riser is its own.
   const CRASH_AT = new Set(['verse', 'hook', 'bridge', 'outro']);
-  const INTO = { hook: ['roll', 'roll2', 'stutter', 'fill'], verse: ['roll', 'roll2', 'tick', 'drop'], pre: ['tick', 'drop'], break: ['drop', 'tick'], bridge: ['drop', 'tick'], outro: ['roll', 'roll2', 'stutter'], intro: ['drop', 'tick'] };
+  const INTO = { hook: ['roll2', 'stutter', 'fill', 'fill'], verse: ['roll', 'roll2', 'tick', 'drop'], pre: ['tick', 'drop'], break: ['drop', 'tick'], bridge: ['drop', 'tick'], outro: ['roll', 'roll2', 'stutter'], intro: ['drop', 'tick'] };
   const into = plan.map(([t, b, L], idx) => {
     const nb = b + L - 1, next = plan[idx + 1]?.[0];
     if (!next) return [nb, ['roll', 'roll2', 'stutter']];   // the ending

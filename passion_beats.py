@@ -278,7 +278,7 @@ def dress_of(V):
     return dict(verse=(order[:1], V.choice(TURNS)), hook=(hook, V.choice(TURNS)), last=(hook + order[3:4], V.choice(TURNS)), bridge=(order[4:5], 'none'))
 # fills fit where they lead: a build into a hook, something light into a
 # verse, next to nothing into a quiet section (a pre-hook's riser is its own)
-INTO = {'hook':['roll','roll2','stutter','fill'],'verse':['roll','roll2','tick','drop'],'pre':['tick','drop'],'break':['drop','tick'],
+INTO = {'hook':['roll2','stutter','fill','fill'],'verse':['roll','roll2','tick','drop'],'pre':['tick','drop'],'break':['drop','tick'],
         'bridge':['drop','tick'],'outro':['roll','roll2','stutter'],'intro':['drop','tick']}
 MAX_PLAN_BARS = 400
 

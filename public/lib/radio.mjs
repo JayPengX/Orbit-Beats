@@ -12,7 +12,7 @@
 // kind of groove, another tempo, key and mode, other instruments, another
 // form. No DOM: the worker makes them (lib/make.mjs), the tests listen to them.
 
-import { withKit, STYLE_KIT } from './samples.mjs';
+import { withKit, STYLE_KIT, SAMPLED } from './samples.mjs';
 import { makeSong, makeRng, analyzeRecording, dressOf, STYLES, FAMILY, SHUFFLE } from '../engine.mjs';
 import { voice, renderClip, emptyDrums } from './synth.mjs';
 import { noted } from './game.mjs';
@@ -480,6 +480,20 @@ export function radioSpec(seed, mood = 'all', style = null) {
     const fits = [...new Set([...band.chords, ...band.leads, 'pluck', 'bell', 'keys', 'guitar'])].filter(x => ARPY.has(x) && x !== sp.chords && x !== sp.chords2 && x !== sp.lead);
     if (fits.length) sp.lead2 = A.choice(fits);
   }
+  // A band groove (rock, jazz, funk, city pop, lo-fi …) played by recorded instruments only: a synth voice drawn for it
+  // gives way to one of the band's recorded ones (the same part's first, else any), from a stream of its own.
+  if (bedFor(st) === 'strings') {
+    const S = makeRng(seed ^ 0x1f83d9ab);
+    const real = xs => xs.filter(x => SAMPLED[x]);
+    const leads = real(band.leads), chords = real(band.chords), any = [...new Set([...leads, ...chords, ...real(band.arps || [])])];
+    for (const [k, pool] of [['lead', leads], ['leadB', leads], ['leadC', leads], ['lead2', [...real(band.arps || []), ...chords.filter(x => ARPY.has(x))]], ['chords', chords], ['chords2', chords], ['chordsC', chords]])
+      if (sp[k] && !SAMPLED[sp[k]]) {
+        // (The chords' three apart, as they were drawn.)
+        const taken = k.startsWith('chords') ? ['chords', 'chords2', 'chordsC'].filter(x => x !== k).map(x => sp[x]) : [];
+        const fresh = pool.filter(x => !taken.includes(x)), rest = any.filter(x => !taken.includes(x));
+        sp[k] = fresh.length ? S.choice(fresh) : rest.length ? S.choice(rest) : pool.length ? S.choice(pool) : sp[k];
+      }
+  }
   return sp;
 }
 // The soft held chords under a riff: a synth pad for the electronic grooves, recorded strings for a band's.
@@ -500,7 +514,7 @@ function tuned(sp, m) {
   for (const d of [0, -1, 1, -2, 2]) if (set.includes((((m + d - sp.key.tonic) % 12) + 12) % 12)) return m + d;
   return m;
 }
-const notesClip = (inst, sp, notes, bars = 4) => ({ kind: 'notes', inst, bars, swing: sp.swing || 0, ...(sp.shuffle ? { shuffle: sp.shuffle } : {}), key: sp.key, notes });
+const notesClip = (inst, sp, notes, bars = 4) => ({ kind: 'notes', inst, bars, swing: sp.swing || 0, ...(sp.shuffle ? { shuffle: sp.shuffle } : {}), key: sp.key, notes, feel: true });
 // The chords, one a bar, in close position (each tone the nearest above the
 // instrument's low C: they lead into each other); a distorted guitar plays
 // power chords (the root, fifth and octave).
@@ -562,16 +576,24 @@ function bassClip(sp, inst, line) {
 }
 // A bar of hats (or a shaker, a ride, a bell), swung as the song is.
 function hatClip(lanes, sp = {}) {
-  const c = emptyDrums(1);
+  const c = { ...emptyDrums(1), feel: true };
   if (sp.shuffle) c.shuffle = sp.shuffle;
   for (const [d, steps, lv = 1] of lanes) for (const s of steps) c.steps[d][s] = lv;
   return c;
 }
+// Parts summed, each at its level `g` and, when it has one, its place `pan` (-1 left to 1 right; the middle as it was).
 const sum = (...xs) => {
   const n = Math.max(...xs.map(x => x.L.length));
   const L = new Float32Array(n);
-  for (const x of xs) for (let i = 0; i < x.L.length; i++) L[i] += x.L[i] * (x.g ?? 1);
-  return noted({ L, R: L }, { parts: xs });   // (its notes ride along for the game, lib/game.mjs)
+  const wide = xs.some(x => x.pan || x.R !== x.L);
+  const R = wide ? new Float32Array(n) : L;
+  for (const x of xs) {
+    const g = x.g ?? 1, a = ((x.pan || 0) + 1) * (Math.PI / 4);
+    const gl = wide ? g * Math.cos(a) * Math.SQRT2 : g, gr = g * Math.sin(a) * Math.SQRT2;
+    for (let i = 0; i < x.L.length; i++) L[i] += x.L[i] * gl;
+    if (wide) for (let i = 0; i < x.R.length; i++) R[i] += x.R[i] * gr;
+  }
+  return noted({ L, R }, { parts: xs });   // (its notes ride along for the game, lib/game.mjs)
 };
 const shot = (inst, sr, midi) => {
   const x = voice(inst, midi, sr);
@@ -752,7 +774,7 @@ const tuneClip = (sp, inst, t, half) =>
 
 // A bar of a drum lane's hits, four bars of it, played with levels: the beat louder, the off-beats softer and now and then a hit left out; the last bar turns (an open hat or a roll).
 function hatPiece(lanes, sp, H, clip) {
-  const c = emptyDrums(4);
+  const c = { ...emptyDrums(4), feel: true };
   if (sp.shuffle) c.shuffle = sp.shuffle;
   for (const [d, steps, lv = 1] of lanes)
     for (let bar = 0; bar < 4; bar++)
@@ -798,7 +820,7 @@ function songKit(sp, sr, { lift = true } = {}) {
       once(`c${inst}${primary}${half}`, () => {
         const pats = [0, 1, 2, 3].map(b => varied(pat[(primary + [[0, 0, 0, 1], [1, 0, 1, 0]][half][b]) % 2], b, half, D));
         const kinds = [0, 1, 2, 3].map(() => (D.random() < 0.5 ? 0 : D.random() < 0.75 ? 1 : 2));
-        return under(clip(notesClip(inst, spX, chordNotes(spX, inst, slots, half * 4, pats, kinds, D, oct))), inst, half);
+        return { ...under(clip(notesClip(inst, spX, chordNotes(spX, inst, slots, half * 4, pats, kinds, D, oct))), inst, half), pan: -0.25 };
       });
     const shapes = K.sample(4, 2).map(i => [[0, 2, 4, 2], [0, 2, 4, 7], [0, 4, 2, 4], [7, 4, 2, 0]][i]);
     const arp = (inst, half) => once(`a${inst}${half}`, () => clip(notesClip(inst, spX, arpNotes(spX, inst, slots, half * 4, shapes[half], D))));
@@ -811,14 +833,16 @@ function songKit(sp, sr, { lift = true } = {}) {
     return { beds, chords, arp, make, mel, bass: lowBass };
   };
   const ratio = (x, g) => ({ ...x, g });
+  // (Where each sits: the chords a little left, the arpeggio right, the tune in the middle.)
+  const arpAt = (x, g) => ({ ...x, g, pan: 0.4 });
 
   // ---- base: the pieces the engine hears first, one of each role (the rest are cousins of these) ----
   // The verse: chords with the lead, then the second time through its own variant of the tune.
   const V = block(sp, rngOf(sp, 2), { maxNotes: 5, leadX: sp.lead });
   const tV1 = V.make({}), tV2 = V.make({ motif: tV1.motif, displace: true });
   tunes.verse1 = tV1.notes; tunes.verse2 = tV2.notes;
-  const verse1 = [sum(V.chords(sp.chords, 0, 0), ratio(V.mel(tV1, 0), 0.9)), sum(V.chords(sp.chords2, 1, 1), ratio(V.mel(tV1, 1), 0.9), ratio(V.arp(sp.lead2, 1), 0.5))];
-  const verse2 = [sum(V.chords(sp.chords2, 1, 0), ratio(V.mel(tV2, 0), 0.9), ratio(V.arp(sp.lead2, 0), 0.5)), sum(V.chords(sp.chords, 0, 1), ratio(V.mel(tV2, 1), 0.9))];
+  const verse1 = [sum(V.chords(sp.chords, 0, 0), ratio(V.mel(tV1, 0), 0.9)), sum(V.chords(sp.chords2, 1, 1), ratio(V.mel(tV1, 1), 0.9), arpAt(V.arp(sp.lead2, 1), 0.5))];
+  const verse2 = [sum(V.chords(sp.chords2, 1, 0), ratio(V.mel(tV2, 0), 0.9), arpAt(V.arp(sp.lead2, 0), 0.5)), sum(V.chords(sp.chords, 0, 1), ratio(V.mel(tV2, 1), 0.9))];
   const i0 = add(verse1[0], 'riff');
   const phrase1 = add(sum(V.mel(tV2, 0), ratio(V.beds[0], 1.1)), 'phrase');
   const vBass = [V.bass(0), V.bass(1)];
@@ -875,13 +899,13 @@ function songKit(sp, sr, { lift = true } = {}) {
   tunes.hook1 = tH1.notes; tunes.hook2 = tH2.notes;
   parts.hook = [
     at(sum(HX.chords(sp.chords2, 0, 0), HX.mel(tH1, 0)), 'riff'),
-    at(sum(HX.chords(sp.chords, 1, 1), ratio(HX.mel(tH1, 1), 0.85), ratio(HX.arp(sp.lead2, 1), 0.6)), 'riff')
+    at(sum(HX.chords(sp.chords, 1, 1), ratio(HX.mel(tH1, 1), 0.85), arpAt(HX.arp(sp.lead2, 1), 0.6)), 'riff')
   ];
   parts.hook2 = [
-    at(sum(HX.chords(sp.chords, 1, 0), ratio(HX.mel(tH2, 0), 0.9), ratio(HX.arp(sp.lead2, 0), 0.6)), 'riff'),
-    at(sum(HX.chords(sp.chordsC, 0, 1), ratio(HX.mel(tH2, 1), 0.9), ratio(HX.arp(sp.lead2, 1), 0.7)), 'riff')
+    at(sum(HX.chords(sp.chords, 1, 0), ratio(HX.mel(tH2, 0), 0.9), arpAt(HX.arp(sp.lead2, 0), 0.6)), 'riff'),
+    at(sum(HX.chords(sp.chordsC, 0, 1), ratio(HX.mel(tH2, 1), 0.9), arpAt(HX.arp(sp.lead2, 1), 0.7)), 'riff')
   ];
-  parts.layer = at(sum(ratio(HX.arp(sp.lead2, 0), 0.8), ratio(HX.beds[0], 0.2)), 'riff');
+  parts.layer = at(sum(arpAt(HX.arp(sp.lead2, 0), 0.8), ratio(HX.beds[0], 0.2)), 'riff');
   // (Its bass follows the hook's chords only when they are not the verse's.)
   if (sp.progB) parts.hookBass = [0, 1].map(h => at(HX.bass(h), 'bass'));
 
@@ -892,7 +916,7 @@ function songKit(sp, sr, { lift = true } = {}) {
   tunes.bridge = tC.notes;
   parts.bridge = [
     at(sum(C.chords(sp.chordsC, 0, 0), ratio(C.mel(tC, 0), 0.95)), 'riff'),
-    at(sum(C.chords(sp.chordsC, 1, 1), ratio(C.mel(tC, 1), 0.95), ratio(C.arp(sp.lead2, 1), 0.5)), 'riff')
+    at(sum(C.chords(sp.chordsC, 1, 1), ratio(C.mel(tC, 1), 0.95), arpAt(C.arp(sp.lead2, 1), 0.5)), 'riff')
   ];
   parts.bridgeBass = [0, 1].map(h => at(C.bass(h), 'bass'));
 
@@ -904,8 +928,8 @@ function songKit(sp, sr, { lift = true } = {}) {
     const t3 = L.make({ motif: tH1.motif, up: [4, 5, 6, 7] });
     tunes.lift = t3.notes;
     parts.lift = [
-      at(sum(L.chords(sp.chords2, 0, 0), L.mel(t3, 0), ratio(L.arp(sp.lead2, 0), 0.5)), 'riff'),
-      at(sum(L.chords(sp.chordsC, 1, 1), ratio(L.mel(t3, 1), 0.9), ratio(L.arp(sp.lead2, 1), 0.7)), 'riff')
+      at(sum(L.chords(sp.chords2, 0, 0), L.mel(t3, 0), arpAt(L.arp(sp.lead2, 0), 0.5)), 'riff'),
+      at(sum(L.chords(sp.chordsC, 1, 1), ratio(L.mel(t3, 1), 0.9), arpAt(L.arp(sp.lead2, 1), 0.7)), 'riff')
     ];
     parts.liftBass = [0, 1].map(h => at(L.bass(h), 'bass'));
     parts.liftSub = at(subOf(tonicL), 'sub');
@@ -1058,11 +1082,36 @@ const MIXES = {
 export const REMIX_KEYS = ['bpm', 'lead', 'chords', 'chords2'];
 // The instruments a groove's band may play: { leads, chords }.
 export const bandSounds = style => ({ leads: [...(BAND[style]?.leads || [])], chords: [...(BAND[style]?.chords || [])] });
+// The song's level by section, as a band plays it: the verses held back, the pre-hook rising into the hook, the hooks
+// full, the bridge between (a beat's glide at each change). On the mix and its stems alike.
+const LEVEL = { verse: 0.78, bridge: 0.86 };
+function shape(song, bpm) {
+  const { audio, stems, info } = song;
+  const sr = audio.sr, bar = (240 / bpm) * sr, glide = Math.round(bar / 4);
+  const at = [];
+  let b = 0;
+  for (const [t, L] of info.plan) at.push({ t, from: Math.round(b * bar), to: Math.round((b += L) * bar) });
+  const levelOf = k => LEVEL[at[k]?.t] ?? 1;
+  const tracks = [audio, ...Object.values(stems || {})];
+  at.forEach(({ t, from, to }, k) => {
+    const g0 = levelOf(k), prev = k ? levelOf(k - 1) : g0;
+    for (let i = from; i < to; i++) {
+      // (The pre-hook climbs from the verse's level to the hook's; elsewhere the last level glides into this one.)
+      const g = t === 'pre' ? prev + (1 - prev) * ((i - from) / (to - from)) : i - from < glide && prev !== g0 && at[k - 1]?.t !== 'pre' ? prev + (g0 - prev) * ((i - from) / glide) : g0;
+      if (g === 1) continue;
+      for (const x of tracks) {
+        if (i < x.L.length) x.L[i] *= g;
+        if (x.R !== x.L && i < x.R.length) x.R[i] *= g;
+      }
+    }
+  });
+}
+
 // The parts a remix may leave out, and the pieces each is.
 export const PART_LIST = ['drums', 'bass', 'melody'];
 const PART_ROLES = { drums: ['hat', 'fill', 'kick', 'snare', 'tick', 'roll'], bass: ['bass', 'sub'], melody: ['riff', 'phrase'] };
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
-export const RADIO_V = 6;
+export const RADIO_V = 7;
 export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
   const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);
@@ -1087,6 +1136,7 @@ export function radioSong(spec, sr = RADIO_SR, stems = false) {
     analysis, roles, bpm: sp.bpm, styles: moodStyles(mood), style: sp.style,
     humanize: (MOODS[mood]?.humanize ?? 100) / 100, plan, mix: mixOf({ ...MIXES[mood], ...BAND[sp.style].mix, ...(mute.includes('drums') ? { pump: 0 } : {}), ...(fade ? { fade: true } : {}) }), stems, arrange, varied: sp.dress, key: sp.key
   });
+  shape(song, sp.bpm);
   // (A remix's own choices ride along in `radio`, so the song is made again as it was. `v`: the
   // engine that made it; a song kept from before RADIO_V is cut from its own sound, not made again.)
   // (`events`, `roles` and each piece's `tune`: what plays when, for the game's charts.)
