@@ -182,11 +182,16 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
     // Swiping down closes it.
     let y0 = null;
     np.addEventListener('touchstart', e => (y0 = np.scrollTop <= 0 && !e.target.closest('.np-bar') ? e.touches[0].clientY : null), { passive: true });
+    // (The drag is the view's own: the page behind it never scrolls with it.)
     np.addEventListener('touchmove', e => {
       if (y0 == null) return;
       const dy = e.touches[0].clientY - y0;
-      if (dy > 0) (np.style.transition = 'none'), (np.style.transform = `translateY(${dy}px)`);
-    }, { passive: true });
+      if (dy > 0) {
+        if (e.cancelable) e.preventDefault();
+        np.style.transition = 'none';
+        np.style.transform = `translateY(${dy}px)`;
+      }
+    }, { passive: false });
     np.addEventListener('touchend', e => {
       if (y0 == null) return;
       const dy = (e.changedTouches[0]?.clientY ?? y0) - y0;

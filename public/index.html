@@ -760,7 +760,7 @@ body.lv-simple #pieces .piece .more { width: 28px; height: 28px; }
 .mp-btn:active { opacity: .5; }
 .mp-at { position: absolute; left: 14px; bottom: 0; height: 2px; width: 0; max-width: calc(100% - 28px); border-radius: 1px; background: var(--accent); }
 /* (Only while it is up: a class left behind can never lock the page.) */
-body.np-open:has(.np.in) { overflow: hidden; }
+html:has(body.np-open .np.in), body.np-open:has(.np.in) { overflow: hidden; overscroll-behavior: none; }
 body.np-open .q-toast { bottom: auto; top: calc(max(10px, env(safe-area-inset-top)) + 52px); }
 .np { position: fixed; inset: 0; z-index: 80; display: flex; flex-direction: column; align-items: center; padding: max(10px, env(safe-area-inset-top)) 24px calc(16px + env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; background: #1c1c1e; color: #fff; --text: #fff; --text-2: rgba(255,255,255,.72); --text-3: rgba(255,255,255,.5); --fill: rgba(255,255,255,.18); --fill-2: rgba(255,255,255,.32); transform: translateY(100%); transition: transform .34s cubic-bezier(.2, .8, .2, 1); }
 .np.in { transform: none; }
