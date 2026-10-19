@@ -28,8 +28,9 @@ test('the built-in set: sixteen pads on the band radioKit makes, each loop its p
     }
     // One chord part, one bass line, one closed hat at a time.
     const groups = Object.groupBy(pads.filter(p => p.group), p => p.group);
-    assert.deepEqual(Object.keys(groups).sort(), ['bass', 'hat', 'music']);
-    assert.equal(groups.music.length, 4);
+    assert.deepEqual(Object.keys(groups).sort(), ['bass', 'chords', 'hat', 'melody']);
+    assert.equal(groups.chords.length, 2);
+    assert.equal(groups.melody.length, 2);
     for (const p of pads.filter(p => p.fam === 'chords' || p.fam === 'melody')) assert.ok(p.sub, 'its instrument named');
     assert.equal(new Set(pads.map(p => p.name[0])).size, 16, 'no two pads named alike');
   }
@@ -57,26 +58,26 @@ test('a set kept made whole; the dice always lands on another groove, the same f
 test('loops in a group: one at a time, switched on the bar; a four-bar part joined late plays from that bar of itself', () => {
   const j = new Jam();
   j.record(0);
-  const A = { group: 'music', phase: true };
-  for (const [i, group] of [[0, 'music'], [6, 'bass']]) {
+  const A = { group: 'melody', phase: true };
+  for (const [i, group] of [[0, 'chords'], [6, 'bass']]) {
     const r = j.toggle(i, 0, 16, { group, phase: true });
     assert.ok(r.on && r.at === 0 && !r.off.length);
   }
   assert.deepEqual(j.due(0, 4), [{ i: 0, beat: 0, lp: true }, { i: 6, beat: 0, lp: true }]);
-  // Melody at beat 5: from bar 3 (beat 8), its bar 3 (8 beats in); the chords stop there.
-  assert.deepEqual(j.toggle(2, 5, 16, A), { on: true, at: 8, off: [0] });
-  assert.deepEqual(j.due(4, 20), [{ i: 2, beat: 8, off: 8, lp: true }, { i: 6, beat: 16, lp: true }, { i: 2, beat: 16, lp: true }]);
-  assert.ok(!j.loops.has(0), 'the chords are over');
+  // Melody at beat 5: from bar 3 (beat 8), its bar 3 (8 beats in); the chords play on under it.
+  assert.deepEqual(j.toggle(2, 5, 16, A), { on: true, at: 8, off: [] });
+  assert.deepEqual(j.due(4, 20), [{ i: 2, beat: 8, off: 8, lp: true }, { i: 0, beat: 16, lp: true }, { i: 6, beat: 16, lp: true }, { i: 2, beat: 16, lp: true }]);
+  assert.ok(j.loops.has(0), 'the chords go on with the melody');
   // A one-bar hat loop is never joined partway.
   j.toggle(8, 21, 4, { group: 'hat', phase: true });
   assert.deepEqual(j.due(20, 28).filter(h => h.i === 8), [{ i: 8, beat: 24, lp: true }]);
   // Stopped (all off at 28), then the take ends at 32.
-  assert.deepEqual(j.stopAll(26).off.sort(), [2, 6, 8]);
+  assert.deepEqual(j.stopAll(26).off.sort(), [0, 2, 6, 8]);
   j.record(29);
   j.due(28, 40);
   const [take] = j.done;
   const of = i => take.hits.filter(h => h.i === i);
-  assert.deepEqual(of(0), [{ i: 0, beat: 0, len: 8 }], 'the chords cut where the melody came in');
+  assert.deepEqual(of(0), [{ i: 0, beat: 0, len: 16 }, { i: 0, beat: 16, len: 12 }], 'the chords play through the melody');
   assert.deepEqual(of(2), [{ i: 2, beat: 8, off: 8, len: 8 }, { i: 2, beat: 16, len: 12 }]);
   assert.deepEqual(of(6), [{ i: 6, beat: 0, len: 16 }, { i: 6, beat: 16, len: 12 }]);
   assert.deepEqual(of(8), [{ i: 8, beat: 24, len: 4 }]);
@@ -117,4 +118,12 @@ test('a take on the built-in set is a song made from its seed and groove, each l
   const from = Math.round(4 * B);
   for (const k of [100, 5000, Math.round(2 * B)]) assert.ok(Math.abs(L[k] - b.pieces[2].L[from + k]) < 1e-6, `sample ${k}`);
   assert.ok(Math.abs(L[Math.round(4 * B) + 200]) < 1e-6, 'and cut where it stopped');
+});
+
+test('the chords and the melodies are groups of their own: one of each plays together, two of a kind still take turns', () => {
+  const j = new Jam();
+  j.toggle(0, 0, 16, { group: 'chords', phase: true });
+  assert.deepEqual(j.toggle(2, 0, 16, { group: 'melody', phase: true }).off, [], 'a melody leaves the chords alone');
+  assert.deepEqual(j.toggle(1, 4, 16, { group: 'chords', phase: true }).off, [0], 'chords 2 replaces chords 1');
+  assert.deepEqual(j.toggle(3, 4, 16, { group: 'melody', phase: true }).off, [2]);
 });

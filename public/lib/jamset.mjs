@@ -5,7 +5,7 @@
 // tempo, the key, the chords and the instruments all follow from it, so a
 // take's song is made again from those two numbers (lib/make.mjs).
 // The four-bar parts are all on the same four chords, so any of them sound
-// right together; one of a group plays at a time (the chord parts, the bass
+// right together; one of a group plays at a time (the chord parts, the melodies, the bass
 // lines, the closed hats). No DOM, no sound: the tests run it.
 
 import { STYLES, STYLE_ORDER, makeRng } from '../engine.mjs';
@@ -34,10 +34,10 @@ const LAYOUT = [
   { i: 9, fam: 'hat', loop: 4, group: 'hat', name: () => ['快鈸', 'Fast hats'] },
   { i: 6, fam: 'bass', loop: 16, group: 'bass', name: () => ['貝斯 1', 'Bass 1'], inst: 'bass' },
   { i: 7, fam: 'bass', loop: 16, group: 'bass', name: () => ['貝斯 2', 'Bass 2'], inst: 'bass' },
-  { i: 0, fam: 'chords', loop: 16, group: 'music', name: () => ['和弦 1', 'Chords 1'], inst: 'chords' },
-  { i: 1, fam: 'chords', loop: 16, group: 'music', name: () => ['和弦 2', 'Chords 2'], inst: 'chords2' },
-  { i: 2, fam: 'melody', loop: 16, group: 'music', name: () => ['旋律 1', 'Melody 1'], inst: 'lead' },
-  { i: 3, fam: 'melody', loop: 16, group: 'music', name: () => ['旋律 2', 'Melody 2'], inst: 'lead' }
+  { i: 0, fam: 'chords', loop: 16, group: 'chords', name: () => ['和弦 1', 'Chords 1'], inst: 'chords' },
+  { i: 1, fam: 'chords', loop: 16, group: 'chords', name: () => ['和弦 2', 'Chords 2'], inst: 'chords2' },
+  { i: 2, fam: 'melody', loop: 16, group: 'melody', name: () => ['旋律 1', 'Melody 1'], inst: 'lead' },
+  { i: 3, fam: 'melody', loop: 16, group: 'melody', name: () => ['旋律 2', 'Melody 2'], inst: 'lead' }
 ];
 
 // A set's whole spec (radioSpec's: tempo, key, chords, instruments).

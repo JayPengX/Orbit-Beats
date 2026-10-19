@@ -233,3 +233,42 @@ test('Stop: an open take is closed at its bar and a finishing one is kept; nothi
   assert.equal(k.shots.length, 1);
   assert.deepEqual(k.due(0, 2).map(h => h.i), [0, 1]);
 });
+
+import { trimTake } from '../public/lib/jam.mjs';
+
+test('always recording: 存下来 ends the take on its bar and the next begins there; a bar and a sound first; loops carry into the next', () => {
+  const j = new Jam();
+  j.record(0);
+  j.toggle(0, 0, 16, { group: 'chords', phase: true });
+  assert.ok(!j.keepable(2), 'not a bar yet');
+  j.due(0, 6);
+  assert.ok(j.keepable(5) && !j.keepable(3.9));
+  assert.equal(j.rotate(5.2), 8, 'ends on the next bar line');
+  assert.equal(j.openTake().from, 8, 'the next begins where it ended');
+  const into = j.openTake().hits.map(h => ({ ...h }));
+  assert.deepEqual(into, [{ i: 0, beat: 0, off: 8, lp: true }], 'the chords already going join the second take partway');
+  j.due(6, 40);
+  assert.equal(j.done.length, 1, 'the first is done');
+  assert.equal(j.done[0].beats, 8);
+  assert.deepEqual(j.done[0].hits.filter(h => h.i === 0).map(h => h.beat), [0]);
+  // Nothing open: cut begins one.
+  const k = new Jam();
+  assert.equal(k.rotate(1), undefined);
+  assert.ok(k.recording());
+  // Short: never less than a bar.
+  assert.equal(k.rotate(0.5), 8);
+});
+
+test('a take is kept at its last 32 bars, cut where a 16-beat cycle begins, the rest shifted', () => {
+  const hits = Array.from({ length: 200 }, (_, k) => ({ i: 1, beat: k * 2 }));
+  assert.deepEqual(trimTake(hits.slice(0, 10), 20), { hits: hits.slice(0, 10), beats: 20 }, 'short ones as they are');
+  const t = trimTake(hits, 400);
+  assert.ok(t.beats <= 128 && t.beats > 112);
+  assert.equal(400 - t.beats, 272);
+  assert.equal(t.hits[0].beat, 0);
+  assert.equal(t.hits.length, (400 - 272) / 2);
+  // Counted from where the take began on the cycle.
+  const u = trimTake(hits, 400, 8);
+  assert.equal((400 - u.beats + 8) % 16, 0);
+  assert.ok(u.beats <= 128);
+});

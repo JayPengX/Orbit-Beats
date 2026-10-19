@@ -50,6 +50,7 @@ const PATHS = {
   radio: [S, '<circle cx="12" cy="12" r="2"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2"/>'],
   mic: [S, '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>'],
   copy: [S, '<rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V6A2.5 2.5 0 0 0 13 3.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5"/>'],
+  wave: [S, '<path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10"/>'],
   grip: [S, '<path d="M5 8h14M5 12h14M5 16h14"/>'],
   play_next: [S, '<path d="M4 6h10M4 12h7M4 18h7"/><path d="M15 12v8l6-4z" fill="currentColor"/>']
 };
