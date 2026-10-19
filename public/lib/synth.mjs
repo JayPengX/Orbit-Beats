@@ -12,7 +12,7 @@
 
 import { makeRng, SHUFFLE } from '../engine.mjs';
 import { NOTE_VOICES, DRUM_VOICES, RELEASE, PEAK, noiseOf, bandpass } from './voices.mjs';
-import { bankOf, bankGen, playSample, SAMPLED } from './samples.mjs';
+import { bankOf, bankGen, playSample, SAMPLED, drumBank, playDrum, kitPlaying } from './samples.mjs';
 
 // The drums, left to right as the grid shows them: the kit, the
 // percussion beside it, the world's hand drums and bells, and the other
@@ -76,7 +76,36 @@ export function voice(inst, midi = 36, sr = 48000, hold = 0.25, vel = 0.7, varia
     const x = playSample(bank, midi, sr, hold, vel, variant, RELEASE[inst] ?? 0.3);
     if (x) return asLoud(x, inst, sr);
   }
+  // (A drum of the kit the song plays, recorded: lib/samples.mjs DRUM_KITS.)
+  const kit = drumBank(inst);
+  if (kit) {
+    const x = playDrum(kit, sr, vel, variant);
+    if (x) return asLoudDrum(x, kit, inst, sr);
+  }
   return made(inst, midi, sr, hold, vel, variant);
+}
+// A recorded kit's hits brought to the made drum's loudness, all by one gain
+// (its normal hit's first 0.12 s against the made one's), so soft stays softer than hard.
+const DRUM_GAIN = new Map();
+function asLoudDrum(x, bank, inst, sr) {
+  const k = `${bank.inst}|${sr}`;
+  if (!DRUM_GAIN.has(k)) {
+    const rms = y => {
+      const n = Math.min(y.length, Math.round(0.12 * sr));
+      let e = 0;
+      for (let i = 0; i < n; i++) e += y[i] * y[i];
+      return Math.sqrt(e / Math.max(1, n));
+    };
+    const normal = playDrum(bank, sr, 0.7, 0);
+    const r = normal ? rms(normal) : 0;
+    DRUM_GAIN.set(k, r > 1e-6 ? rms(made(inst, 36, sr, 0.25, 0.7, 0)) / r : 0);
+  }
+  const g = DRUM_GAIN.get(k);
+  let top = 0;
+  for (let i = 0; i < x.length; i++) top = Math.max(top, Math.abs(x[i] * g));
+  const h = top > 0.95 ? (0.95 / top) * g : g;
+  for (let i = 0; i < x.length; i++) x[i] *= h;
+  return x;
 }
 // A recorded note brought to the made voice's loudness (its first 0.4 s, as the made one's middle C),
 // so the mix and every level set for the made one hold; never over full scale.
@@ -363,7 +392,7 @@ export function renderClip(clip, sr = 48000, bpm = 120) {
       const again = `${inst}|${midi}|${hold}|${vel}`;
       const take = (seen.get(again) || 0) % 2;
       seen.set(again, take + 1);
-      const key = `${sr}|${bankGen()}|${again}|${take}`;
+      const key = `${sr}|${bankGen()}|${kitPlaying()}|${again}|${take}`;
       if (!cache.has(key)) {
         const v = voice(inst, midi, sr, hold, vel, take);
         cache.set(key, v);

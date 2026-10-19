@@ -12,6 +12,7 @@
 // kind of groove, another tempo, key and mode, other instruments, another
 // form. No DOM: the worker makes them (lib/make.mjs), the tests listen to them.
 
+import { withKit } from './samples.mjs';
 import { makeSong, makeRng, analyzeRecording, dressOf, STYLES, FAMILY, SHUFFLE } from '../engine.mjs';
 import { voice, renderClip, emptyDrums } from './synth.mjs';
 import { noted } from './game.mjs';
@@ -906,7 +907,11 @@ function songKit(sp, sr, { lift = true } = {}) {
 // pieces each section plays: a second verse, a hook of its own (another loop of chords,
 // another lead, a bass to suit), the last hook lifted a step or two with its own bass and
 // 808 (`lift`: false when the plan has one hook), a layer of its arpeggio.
-export function radioKit(sp, sr = RADIO_SR, { song = false, lift = true } = {}) {
+export function radioKit(sp, sr = RADIO_SR, opts = {}) {
+  // (Its drums from the groove's recorded kit, when its hits are here: lib/samples.mjs.)
+  return withKit(sp.style, () => kitOf(sp, sr, opts));
+}
+function kitOf(sp, sr, { song = false, lift = true } = {}) {
   if (song) return songKit(sp, sr, { lift });
   const R = makeRng(sp.seed ^ 0x68e31da4);
   const band = BAND[sp.style];

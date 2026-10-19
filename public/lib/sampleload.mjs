@@ -3,7 +3,7 @@
 // time) and decoded once at 32 kHz, mono; then handed to each worker that
 // makes a song with it, once. A note that can't be fetched or read leaves
 // the instrument on its made voice.
-import { SAMPLED, sampleNotes, sampleUrl, specInsts, useBanks } from './samples.mjs';
+import { SAMPLED, sampleNotes, sampleUrl, specInsts, useBanks, DRUM_KITS, drumUrl, kitBanks } from './samples.mjs';
 import { radioSpec, REMIX_KEYS } from './radio.mjs';
 import { specOf, setOf } from './jamset.mjs';
 
@@ -30,8 +30,26 @@ async function decode(buf) {
   } else x.set(L.subarray(0, n));
   return { x, sr: a.sampleRate };
 }
+const fetchDecode = url => fetch(url).then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status))))).then(decode);
+// One drum of a kit ('drum:<kit>:<drum>'): its takes. -> { inst, sr, takes: [[x, x], …] } | null
+function loadDrum(name) {
+  const [, kit, drum] = name.split(':');
+  const layers = DRUM_KITS[kit]?.[drum];
+  if (!layers) return Promise.resolve(null);
+  const files = [...new Set(layers.flat())];
+  return Promise.all(files.map(f => fetchDecode(drumUrl(BASE, kit, f)))).then(got => {
+    const by = Object.fromEntries(files.map((f, k) => [f, got[k]]));
+    const bank = { inst: name, sr: got[0].sr, takes: layers.map(pair => pair.map(f => by[f].x)) };
+    useBanks({ [name]: bank });
+    return bank;
+  });
+}
 // One instrument's notes. -> { inst, sr, notes: [{ midi, x }] } | null
 export function loadBank(inst) {
+  if (inst.startsWith('drum:')) {
+    if (!loading.has(inst)) loading.set(inst, loadDrum(inst).catch(() => (loading.delete(inst), null)));
+    return loading.get(inst);
+  }
   if (!SAMPLED[inst]) return Promise.resolve(null);
   if (!loading.has(inst))
     loading.set(
@@ -59,16 +77,20 @@ function radioInsts(spec) {
   if (!spec || !Number.isFinite(spec.seed)) return [];
   const sp = radioSpec(spec.seed, spec.mood || 'all', spec.style || null);
   for (const k of REMIX_KEYS) if (spec[k] != null) sp[k] = spec[k];
-  return specInsts(sp);
+  return [...specInsts(sp), ...kitBanks(sp.style)];
 }
+const setInsts = set => {
+  const sp = specOf(setOf(set));
+  return [...specInsts(sp), ...kitBanks(sp.style)];
+};
 export function instsOf(fn, args) {
   try {
     if (fn === 'radio' || fn === 'radioWav' || fn === 'game') return radioInsts(args[0]);
-    if (fn === 'jamBand') return specInsts(specOf(setOf(args[0])));
+    if (fn === 'jamBand') return setInsts(args[0]);
     if (fn === 'song' || fn === 'stems' || fn === 'clip' || fn === 'midi') {
       const r = args[0];
       if (r?.print === 'radio' && r.radio) return radioInsts(r.radio);
-      if (r?.band) return specInsts(specOf(setOf(r.band)));
+      if (r?.band) return setInsts(r.band);
     }
   } catch {}
   return [];

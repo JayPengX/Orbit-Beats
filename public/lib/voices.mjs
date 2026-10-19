@@ -2,7 +2,8 @@
 // beside its first ones): keys, mallets, plucked and bowed strings, reeds
 // and winds, voices, synths and 8-bit, basses, and drums from a brush kit,
 // a rock kit, an 8-bit kit and the world's hand drums and bells. All made
-// here from oscillators, noise and filters, no samples; each note or hit
+// here from oscillators, noise and filters (the recorded ones, when they are
+// in, play in their place: lib/samples.mjs); each note or hit
 // made once and kept (the page caches them), so the cost is at the first
 // hit. No DOM.
 //

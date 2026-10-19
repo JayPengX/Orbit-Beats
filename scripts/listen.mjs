@@ -1,17 +1,19 @@
 // Radio songs as WAVs to listen to, on the recorded instruments (macOS:
 // afconvert decodes the samples): `node scripts/listen.mjs [count] [out dir] [--made]`.
+// --style=rock,jazz: those grooves, one song each.
 // --made: on the made voices instead (the way the tests and a first offline
 // play hear it), to set the two side by side.
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { SAMPLED, sampleNotes, specInsts, useBanks } from '../public/lib/samples.mjs';
+import { SAMPLED, sampleNotes, specInsts, useBanks, DRUM_KITS, kitBanks } from '../public/lib/samples.mjs';
 import { radioSong, radioSpec, radioPick } from '../public/lib/radio.mjs';
 import { encodeWav } from '../public/engine.mjs';
 
 const args = process.argv.slice(2);
 const made = args.includes('--made');
+const styles = (args.find(a => a.startsWith('--style=')) || '').slice(8).split(',').filter(Boolean);
 const [count = 4, out = join(tmpdir(), 'beats-listen')] = args.filter(a => !a.startsWith('--'));
 mkdirSync(out, { recursive: true });
 const tmp = mkdtempSync(join(tmpdir(), 'beats-samples-'));
@@ -38,13 +40,26 @@ function bank(inst) {
   });
   return { inst, sr: notes[0].sr, notes: notes.map(({ midi, x }) => ({ midi, x })) };
 }
+function drum(name) {
+  const [, kit, d] = name.split(':');
+  const layers = DRUM_KITS[kit][d];
+  const read = f => {
+    const out = join(tmp, `${kit}-${f}.wav`);
+    execFileSync('afconvert', ['-f', 'WAVE', '-d', 'LEF32@32000', '-c', '1', new URL(`../public/samples/drums/${kit}/${f}.m4a`, import.meta.url).pathname, out]);
+    return readF32(out).x;
+  };
+  return { inst: name, sr: 32000, takes: layers.map(pair => pair.map(read)) };
+}
 const recent = [];
-for (let k = 0; k < +count; k++) {
-  const spec = radioPick('all', recent, 1000 + k * 7919);
+for (let k = 0; k < (styles.length || +count); k++) {
+  const spec = styles.length ? { seed: 1000 + k * 7919, mood: 'all', style: styles[k] } : radioPick('all', recent, 1000 + k * 7919);
   recent.push(spec);
   const sp = radioSpec(spec.seed, spec.mood, spec.style);
   const insts = specInsts(sp);
-  if (!made) for (const i of insts) useBanks({ [i]: bank(i) });
+  if (!made) {
+    for (const i of insts) useBanks({ [i]: bank(i) });
+    for (const d of kitBanks(sp.style)) useBanks({ [d]: drum(d) });
+  }
   const t = Date.now();
   const { audio, info } = radioSong(spec);
   const file = join(out, `${k + 1}-${info.style}-${made ? 'made' : 'recorded'}.wav`);

@@ -115,6 +115,88 @@ export function playSample(bank, midi, sr, hold, vel = 0.7, variant = 0, release
 // The recorded instruments a song of the radio's band plays (its spec, lib/radio.mjs radioSpec).
 export const specInsts = sp => [...new Set([sp.chords, sp.chords2, sp.chordsC, sp.lead, sp.lead2, sp.leadB, sp.leadC, sp.bass, 'pad', 'strings'])].filter(i => i && SAMPLED[i]);
 
+// ---- Recorded drums ----
+// Three kits and the hand percussion: a real acoustic kit (Virtuosity Drums,
+// Versilian Studios and Karoryfer Samples, its middle mic; its lo-fi mic for
+// lo-fi and boom bap), a real TR-808 (Michael Fischer's recordings) and an
+// electronic kit (Sonic Pi's), all CC0. Each drum as takes: soft, normal and
+// hard, two of each (a drum hit twice in a row is never the same hit).
+//   DRUM_KITS[kit][drum] = [[soft a, soft b], [normal a, b], [hard a, b]] (file names)
+const VD = (art, layers) => layers.map(pair => pair.map(v => `${art}_vl${v}`));
+const acoustic = {
+  kick: VD('kick_snoff', [['2_rr1', '2_rr2'], ['3_rr1', '3_rr2'], ['4_rr1', '4_rr2']]),
+  snare: VD('snare_center', [[14, 16], [24, 26], [32, 34]]),
+  rim: VD('snare_crossstick', [[6, 8], [10, 12], [14, 16]]),
+  hat: VD('hh_closed', [['2_rr1', '2_rr2'], ['3_rr1', '3_rr2'], ['4_rr1', '4_rr2']]),
+  open: VD('hh_open', [['2_rr1', '2_rr2'], ['3_rr1', '3_rr2'], ['4_rr1', '4_rr2']]),
+  ride: VD('ride_ride', [['1_rr1', '1_rr2'], ['2_rr1', '2_rr2'], ['3_rr1', '3_rr2']]),
+  crash: VD('crash_crash', [['1_rr1', '1_rr2'], ['2_rr1', '2_rr2'], ['3_rr1', '3_rr2']]),
+  tom: VD('htom_center', [[6, 8], [10, 12], [14, 16]])
+};
+const one = (...names) => [names, names, names];
+export const DRUM_KITS = {
+  acoustic: { ...acoustic, rkick: acoustic.kick, rsnare: acoustic.snare },
+  lofi: { ...acoustic, rkick: acoustic.kick, rsnare: acoustic.snare },
+  tr808: { kick: one('bd'), snare: one('sd'), clap: one('cp'), hat: one('hh'), open: one('oh'), rim: one('rim'), tom: one('mt', 'lt'), crash: one('cr'), cowbell: one('cb') },
+  electro: { kick: one('bd'), snare: one('sd'), clap: one('cp'), hat: one('hh'), open: one('oh'), rim: one('rim'), tom: one('lt'), crash: one('cr'), cowbell: one('cb') },
+  // (In every kit: the hand percussion, recorded close.)
+  perc: {
+    shaker: one('shaker1', 'shaker2'), cowbell: one('cowbell1', 'cowbell2'), conga: one('conga1', 'conga2'), bongo: one('bongo1', 'bongo2'),
+    clave: one('claves1', 'claves2'), agogo: one('agogo1', 'agogo2'), guiro: one('guiro1', 'guiro2'), tamb: one('tamb1', 'tamb2')
+  }
+};
+// Which kit each groove plays (none: the made drums, as chiptune's 8-bit).
+const KIT_OF = {
+  acoustic: 'funk reggae jazz bossa samba salsa rock punk metal citypop disco gospel neosoul ballad ambient cinematic kizomba highlife cumbia chinese blues country',
+  lofi: 'lofi boombap',
+  tr808: 'hiphop trap half dembow afro drill jersey amapiano phonk baile kpop bhangra footwork',
+  electro: 'four broken house garage dnb techno synthwave dubstep jungle trance hardstyle'
+};
+export const STYLE_KIT = Object.fromEntries(Object.entries(KIT_OF).flatMap(([k, list]) => list.split(' ').map(st => [st, k])));
+// How long each drum is kept (s): its ring, no more.
+export const DRUM_SECONDS = { kick: 0.7, rkick: 0.7, snare: 0.9, rsnare: 0.9, rim: 0.4, hat: 0.4, open: 1.4, ride: 2, crash: 2.8, tom: 1.2, clap: 0.7, cowbell: 0.6, shaker: 0.5, conga: 0.8, bongo: 0.6, clave: 0.4, agogo: 0.7, guiro: 0.6, tamb: 0.7 };
+export const drumUrl = (base, kit, file) => `${base}samples/drums/${kit}/${file}.m4a`;
+// The kit playing now (radioSong sets it for its song: lib/radio.mjs), and the bank of a drum in it.
+let kitNow = null;
+export const kitPlaying = () => kitNow;
+export function withKit(style, fn) {
+  const was = kitNow;
+  kitNow = STYLE_KIT[style] || null;
+  try {
+    return fn();
+  } finally {
+    kitNow = was;
+  }
+}
+// -> { inst, sr, takes: [[x, x], [x, x], [x, x]] } | null
+export function drumBank(drum) {
+  if (!kitNow) return null;
+  return BANKS.get(`drum:${kitNow}:${drum}`) || BANKS.get(`drum:perc:${drum}`) || null;
+}
+// The drums a kit's banks hold: [`drum:<kit>:<drum>`].
+export const kitBanks = style => {
+  const k = STYLE_KIT[style];
+  return k ? [...Object.keys(DRUM_KITS[k]).map(d => `drum:${k}:${d}`), ...Object.keys(DRUM_KITS.perc).map(d => `drum:perc:${d}`)] : [];
+};
+// One hit: the take for how hard (`vel`) and which round (`variant`), its end eased.
+export function playDrum(bank, sr, vel = 0.7, variant = 0) {
+  const layer = bank.takes[vel < 0.5 ? 0 : vel < 0.85 ? 1 : 2] || bank.takes[0];
+  const x0 = layer[variant % layer.length] || layer[0];
+  if (!x0?.length) return null;
+  const rate = bank.sr / sr;
+  const n = Math.max(1, Math.floor((x0.length - 2) / rate));
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const p = i * rate;
+    const j = Math.floor(p);
+    const t = p - j;
+    out[i] = x0[j] + t * ((x0[j + 1] ?? x0[j]) - x0[j]);
+  }
+  const ease = Math.min(n, Math.round(0.02 * sr));
+  for (let i = 0; i < ease; i++) out[n - 1 - i] *= i / ease;
+  return out;
+}
+
 // ---- The banks: { inst: { inst, sr, notes: [{ midi, x }] } } ----
 const BANKS = new Map();
 let gen = 0;
@@ -125,7 +207,7 @@ export const bankGen = () => gen;
 export function useBanks(list) {
   let n = 0;
   for (const b of Object.values(list || {}))
-    if (b?.inst && b.notes?.length && !BANKS.has(b.inst)) {
+    if (b?.inst && (b.notes?.length || b.takes?.length) && !BANKS.has(b.inst)) {
       BANKS.set(b.inst, b);
       n++;
     }
