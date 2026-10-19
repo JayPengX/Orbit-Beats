@@ -596,12 +596,21 @@ export function mountRadio(panel, api) {
   for (const ev of ['play', 'pause']) audio.addEventListener(ev, paint);
   // (The phone stopped it, not you: another app's sound, a call, Siri. Tried again in a
   // moment, a few times; and whenever the page is back, or ▶ is tapped anywhere.)
+  // (iOS says nothing when the other sound ends: another home-screen app closed, a call over. So while
+  // the music is still wanted it's tried again every few seconds out of sight, for up to 30 minutes.)
+  let held = 0;
   audio.addEventListener('pause', () => {
     if (!want) return;
+    held = Date.now();
     for (const ms of [1000, 3000, 8000, 20000]) setTimeout(() => resume('paused by the phone'), ms);
   });
+  setInterval(() => {
+    if (!held || !want || !audio.paused) return void (held = want && audio.paused ? held : 0);
+    if (Date.now() - held > 30 * 60e3) return void (held = 0);
+    if (document.visibilityState === 'hidden') resume('still stopped by the phone');
+  }, 5000);
   for (const ev of ['pageshow', 'focus']) addEventListener(ev, () => resume(ev));
-  audio.addEventListener('playing', () => (retried = 0));
+  audio.addEventListener('playing', () => ((retried = 0), (held = 0)));
   // (Every few seconds: the stream topped up, and a stall, time not moving with music ahead, caught.)
   setInterval(() => {
     if (!tape || !want) return;

@@ -1750,6 +1750,24 @@ audio.addEventListener('ended', () => {
   if (repeat === 'section' && loopAt) return void ((audio.currentTime = loopAt.from), audio.play().catch(() => {}));
   P.ended();
 });
+// A song the phone stopped (another app's sound, a call), not you: tried again every few seconds
+// out of sight for up to 30 minutes, as the radio does (iOS says nothing when the other sound ends).
+// (Every pause the app makes is its own; any other is the phone's.)
+let ownPause = false;
+let heldAt = 0;
+{
+  const pauseOf = audio.pause.bind(audio);
+  audio.pause = () => ((ownPause = true), pauseOf());
+}
+audio.addEventListener('pause', () => {
+  heldAt = ownPause || audio.ended || !nowPlaying ? 0 : Date.now();
+  ownPause = false;
+});
+audio.addEventListener('playing', () => (heldAt = 0));
+setInterval(() => {
+  if (!heldAt || !audio.paused || !nowPlaying || Date.now() - heldAt > 30 * 60e3) return void (heldAt = audio.paused && nowPlaying && Date.now() - heldAt <= 30 * 60e3 ? heldAt : 0);
+  if (document.visibilityState === 'hidden') audio.play().catch(() => {});
+}, 5000);
 // A song the phone left stuck (the share sheet, a call: time standing still, or a play it
 // won't take): its file loaded again where it was, and on.
 async function revive() {
