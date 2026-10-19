@@ -12,7 +12,12 @@ import { specOf, setOf } from './jamset.mjs';
 import { fromOffsets } from './jam.mjs';
 import { chartsOf } from './game.mjs';
 
+import { useBanks } from './samples.mjs';
+
 let kit = null;
+
+// The recorded instruments the page decoded (lib/samples.mjs), for every song made after.
+export const setSamples = list => useBanks(list);
 
 // The kit: its pieces, their rate, the analysis, and the tempo and roles in use.
 export function setKit({ pieces, sr, heard, bpm, roles }) {

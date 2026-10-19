@@ -47,5 +47,7 @@ self.addEventListener('fetch', e => {
   const url = new URL(r.url);
   if (r.method !== 'GET' || url.origin !== location.origin || url.pathname.endsWith('/version.json')) return;
   if (r.mode === 'navigate') return e.respondWith(url.searchParams.has('v') ? fromNet(r).catch(async error => (await caches.match(r, { ignoreSearch: true })) || Promise.reject(error)) : pageFirst(e));
+  // (The recorded instruments never change: kept the first time, from the phone after.)
+  if (url.pathname.includes('/samples/')) return e.respondWith(cacheFirst(r));
   e.respondWith(url.searchParams.has('v') ? cacheFirst(r) : networkFirst(r));
 });

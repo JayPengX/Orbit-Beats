@@ -12,6 +12,7 @@
 
 import { makeRng, SHUFFLE } from '../engine.mjs';
 import { NOTE_VOICES, DRUM_VOICES, RELEASE, PEAK, noiseOf, bandpass } from './voices.mjs';
+import { bankOf, bankGen, playSample, SAMPLED } from './samples.mjs';
 
 // The drums, left to right as the grid shows them: the kit, the
 // percussion beside it, the world's hand drums and bells, and the other
@@ -69,6 +70,35 @@ const TAU = 2 * Math.PI;
 // its own noise, phase and a few cents' pitch, so a repeated note is never
 // bit for bit the last one.
 export function voice(inst, midi = 36, sr = 48000, hold = 0.25, vel = 0.7, variant = 0) {
+  // (A recorded instrument, when its notes are here: lib/samples.mjs.)
+  const bank = SAMPLED[inst] && bankOf(inst);
+  if (bank) {
+    const x = playSample(bank, midi, sr, hold, vel, variant, RELEASE[inst] ?? 0.3);
+    if (x) return asLoud(x, inst, sr);
+  }
+  return made(inst, midi, sr, hold, vel, variant);
+}
+// A recorded note brought to the made voice's loudness (its first 0.4 s, as the made one's middle C),
+// so the mix and every level set for the made one hold; never over full scale.
+const LOUD = new Map();
+const rmsOf = (x, sr) => {
+  const n = Math.min(x.length, Math.round(0.4 * sr));
+  let e = 0;
+  for (let i = 0; i < n; i++) e += x[i] * x[i];
+  return Math.sqrt(e / Math.max(1, n));
+};
+function asLoud(x, inst, sr) {
+  const k = `${inst}|${sr}`;
+  if (!LOUD.has(k)) LOUD.set(k, rmsOf(made(inst, 60, sr, 0.4, 0.7, 0), sr));
+  const r = rmsOf(x, sr);
+  let g = r > 1e-6 ? LOUD.get(k) / r : 0;
+  let top = 0;
+  for (let i = 0; i < x.length; i++) top = Math.max(top, Math.abs(x[i]));
+  if (top * g > 0.95) g = 0.95 / top;
+  for (let i = 0; i < x.length; i++) x[i] *= g;
+  return x;
+}
+function made(inst, midi, sr, hold, vel, variant) {
   const len = s => new Float32Array(Math.max(1, Math.round(s * sr)));
   const env = (t, d) => Math.exp(-t / d);
   const v = variant ? 1 : 0;
@@ -333,7 +363,7 @@ export function renderClip(clip, sr = 48000, bpm = 120) {
       const again = `${inst}|${midi}|${hold}|${vel}`;
       const take = (seen.get(again) || 0) % 2;
       seen.set(again, take + 1);
-      const key = `${sr}|${again}|${take}`;
+      const key = `${sr}|${bankGen()}|${again}|${take}`;
       if (!cache.has(key)) {
         const v = voice(inst, midi, sr, hold, vel, take);
         cache.set(key, v);

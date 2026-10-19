@@ -2,7 +2,10 @@
 // when the browser runs module workers, else on the page. Every call is a
 // promise either way, answered in order.
 // `limit`: no answer in this long (ms), and the worker is taken as gone.
-export function maker(url, { limit = 90000 } = {}) {
+// `prep(fn, args, sent)`: what the worker needs first (the recorded
+// instruments a song plays, lib/sampleload.mjs), handed over before the call;
+// calls go out in the order asked either way.
+export function maker(url, { limit = 90000, prep = null } = {}) {
   let worker = null;
   let local = null;
   try {
@@ -48,15 +51,29 @@ export function maker(url, { limit = 90000 } = {}) {
       worker.postMessage({ id, fn, args });
     });
   let last = null;
+  const sent = new Set();
+  let line = Promise.resolve();
+  const ask = (fn, ...args) => {
+    if (!prep) return call(fn, ...args);
+    const posted = line
+      .then(() => prep(fn, args, sent))
+      .catch(() => null)
+      .then(b => {
+        if (b) call('setSamples', b).catch(() => {});
+        return { p: call(fn, ...args) };
+      });
+    line = posted.then(() => {}, () => {});
+    return posted.then(o => o.p);
+  };
   return {
-    setKit: k => ((last = k), call('setKit', k)),
-    song: (recipe, bits) => call('song', recipe, bits),
-    stems: (recipe, bits, opts) => call('stems', recipe, bits, opts),
-    midi: (recipe, opts) => call('midi', recipe, opts),
-    radio: (spec, after) => call('radio', spec, after),
-    radioWav: spec => call('radioWav', spec),
-    game: spec => call('game', spec),
-    clip: (recipe, k, part) => call('clip', recipe, k, part),
-    jamBand: set => call('jamBand', set)
+    setKit: k => ((last = k), ask('setKit', k)),
+    song: (recipe, bits) => ask('song', recipe, bits),
+    stems: (recipe, bits, opts) => ask('stems', recipe, bits, opts),
+    midi: (recipe, opts) => ask('midi', recipe, opts),
+    radio: (spec, after) => ask('radio', spec, after),
+    radioWav: spec => ask('radioWav', spec),
+    game: spec => ask('game', spec),
+    clip: (recipe, k, part) => ask('clip', recipe, k, part),
+    jamBand: set => ask('jamBand', set)
   };
 }
