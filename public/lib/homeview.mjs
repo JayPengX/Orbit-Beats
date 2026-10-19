@@ -27,18 +27,33 @@ export function stationCover(id, taste = {}) {
   return covers.get(k);
 }
 
-const ROW_NAMES = { 'for-you': ['為你推薦', 'For you'], moods: ['心情', 'Moods'], genres: ['類型', 'Genres'], tempo: ['節奏', 'Tempo'] };
+const ROW_NAMES = { 'for-you': ['為你推薦', 'For you'], liked: ['喜歡的', 'Liked'], moods: ['心情', 'Moods'], genres: ['類型', 'Genres'], tempo: ['節奏', 'Tempo'] };
+
+export const sqCard = (cover, title, sub, props = {}, cls = 'sq') =>
+  h('button', { class: cls, type: 'button', ...props }, [h('span', { class: 'sq-cover' }, [h('img', { alt: '', src: cover, loading: 'lazy', decoding: 'async', draggable: 'false' })]), h('b', { text: title }), sub ? h('small', { text: sub }) : null]);
+export const shelfOf = (key, title, nodes) => h('section', { class: 'shelf', 'data-row': key }, [h('h2', { text: title }), h('div', { class: 'rail' }, nodes)]);
+// Kept songs as covers in a shelf (empty: nothing). api: { P, trackMenu }
+export function songShelf(api, key, title, songs) {
+  if (!songs.length) return null;
+  const { P } = api;
+  return shelfOf(key, title, songs.map(song => {
+    const t = P.track(song);
+    const c = sqCard(coverOfTrack(t), t.title, subOf(t), { 'data-id': t.id, onclick: () => P.play(t) });
+    c.querySelector('.sq-cover').append(h('span', { class: 'sq-more', role: 'button', tabindex: '0', 'aria-label': W('更多', 'More'), html: icon('more'), onclick: e => (e.stopPropagation(), api.trackMenu(t, e.currentTarget)) }));
+    onLong(c, () => api.trackMenu(t, c.querySelector('.sq-cover')));
+    return c;
+  }));
+}
 
 // api: { P, radio, taste() -> { style: n }, trackMenu(track, anchor), openNow(), kept(track) }
 export function mountHome(panel, api) {
   const { P, radio } = api;
-  const card = (cover, title, sub, props = {}) =>
-    h('button', { class: 'sq', type: 'button', ...props }, [h('span', { class: 'sq-cover' }, [h('img', { alt: '', src: cover, loading: 'lazy', decoding: 'async', draggable: 'false' })]), h('b', { text: title }), sub ? h('small', { text: sub }) : null]);
+  const card = sqCard;
   const station = id => {
     const sub = /^tempo:/.test(id) ? `${TEMPOS[id.slice(6)].bpm[0]}–${TEMPOS[id.slice(6)].bpm[1]} BPM` : '';
     return card(stationCover(id, api.taste()), stationName(id), sub, { 'data-station': id, onclick: () => P.station(id) });
   };
-  const shelf = (key, title, nodes) => h('section', { class: 'shelf', 'data-row': key }, [h('h2', { text: title }), h('div', { class: 'rail' }, nodes)]);
+  const shelf = shelfOf;
 
   // The hero.
   const heroImg = h('img', { class: 'hero-cover', alt: '', draggable: 'false' });
@@ -72,33 +87,53 @@ export function mountHome(panel, api) {
 
   // The rows.
   const slots = {};
-  const recentRow = h('div', { class: 'recent-slot' });
+  const recentSlot = h('div', { class: 'recent-slot' });
+  const mineSlot = h('div', { class: 'recent-slot' });
+  const tile = (ic, title, go) => h('button', { class: 'sq', type: 'button', onclick: go }, [h('span', { class: 'sq-cover tile', html: icon(ic) }), h('b', { text: title })]);
+  const quick = shelfOf('quick', W('快速做歌', 'Make'), [
+    tile('mic', W('即興', 'Jam'), () => api.go('jam', true)),
+    tile('dice', W('做一批歌', 'Make songs'), () => api.go('make', true)),
+    tile('grid', W('樂器', 'Studio'), () => api.go('studio'))
+  ]);
+  const keep = new Set(['moods', 'genres', 'tempo']);
   function drawRows() {
     const rows = homeRows(api.taste());
-    const keep = new Set(['moods', 'genres', 'tempo']);
     for (const r of rows) {
-      const nodes = r.ids.map(station);
+      if (!r.ids.length) {
+        slots[r.key]?.remove();
+        slots[r.key] = null;
+        continue;
+      }
       if (slots[r.key] && keep.has(r.key)) continue;
-      const el = shelf(r.key, W(...ROW_NAMES[r.key]), nodes);
-      if (slots[r.key]) slots[r.key].replaceWith(el);
+      const el = shelf(r.key, W(...ROW_NAMES[r.key]), r.ids.map(station));
+      if (r.key === 'for-you') for (const c of el.querySelectorAll('.sq')) c.classList.add('big');
       slots[r.key] = el;
     }
-    return rows.map(r => slots[r.key]);
+    return rows.map(r => slots[r.key]).filter(Boolean);
   }
   function drawRecent() {
     const list = radio.recent();
-    if (!list.length) return recentRow.replaceChildren();
-    const nodes = list.map(t => {
-      const c = card(radio.coverOf(t), t.title, subOf(t), { 'data-id': t.id, onclick: () => P.play(t) });
-      const more = h('span', { class: 'sq-more', role: 'button', tabindex: '0', 'aria-label': W('更多', 'More'), html: icon('more'), onclick: e => (e.stopPropagation(), api.trackMenu(t, e.currentTarget)) });
-      c.querySelector('.sq-cover').append(more);
-      onLong(c, () => api.trackMenu(t, c.querySelector('.sq-cover')));
-      return c;
-    });
-    recentRow.replaceChildren(shelf('recent', W('最近播放', 'Recently played'), nodes));
+    recentSlot.replaceChildren();
+    if (list.length) {
+      const nodes = list.map(t => {
+        const c = card(radio.coverOf(t), t.title, subOf(t), { 'data-id': t.id, onclick: () => P.play(t) });
+        const more = h('span', { class: 'sq-more', role: 'button', tabindex: '0', 'aria-label': W('更多', 'More'), html: icon('more'), onclick: e => (e.stopPropagation(), api.trackMenu(t, e.currentTarget)) });
+        c.querySelector('.sq-cover').append(more);
+        onLong(c, () => api.trackMenu(t, c.querySelector('.sq-cover')));
+        return c;
+      });
+      recentSlot.append(shelf('recent', W('最近播放', 'Recently played'), nodes));
+    }
+    const mine = songShelf(api, 'mine', W('你的歌', 'Your songs'), [...api.songs()].sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 12));
+    mineSlot.replaceChildren(...(mine ? [mine] : []));
   }
-  panel.append(hero, ...drawRows(), recentRow);
+  const order = () => {
+    const r = drawRows();
+    const by = k => r.find(x => x.dataset.row === k);
+    return [by('for-you'), recentSlot, mineSlot, by('moods'), by('genres'), by('tempo'), quick, by('liked')].filter(Boolean);
+  };
   drawRecent();
+  panel.append(hero, ...order());
   paintHero();
   // The station playing is marked.
   function paintOn() {
@@ -116,9 +151,10 @@ export function mountHome(panel, api) {
   return {
     // The taste row again (a song kept or let go), and the recent ones.
     refresh() {
-      drawRows();
-      paintHero();
       drawRecent();
+      panel.replaceChildren(hero, ...order());
+      paintHero();
+      paintOn();
     }
   };
 }

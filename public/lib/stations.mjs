@@ -42,13 +42,14 @@ export const stationId = id => (id === 'taste' || MOODS[id] || /^style:[a-z]+$/.
 
 // The rows of 首頁: [{ key, ids: [station id] }].
 export function homeRows(taste = {}) {
-  const liked = tasteList(taste, 3);
-  const mine = liked.length ? ['taste', ...liked.map(([s]) => `style:${s}`)] : POPULAR.slice(0, 5).map(s => `style:${s}`);
+  const liked = tasteList(taste, 6);
+  const pop = POPULAR.slice(0, 5).map(s => `style:${s}`);
   return [
-    { key: 'for-you', ids: mine },
+    { key: 'for-you', ids: liked.length ? ['taste', ...pop.slice(0, 4)] : pop },
     { key: 'moods', ids: Object.keys(MOODS) },
     { key: 'genres', ids: STYLE_ORDER.map(s => `style:${s}`) },
-    { key: 'tempo', ids: Object.keys(TEMPOS).map(t => `tempo:${t}`) }
+    { key: 'tempo', ids: Object.keys(TEMPOS).map(t => `tempo:${t}`) },
+    { key: 'liked', ids: liked.map(([s]) => `style:${s}`) }
   ];
 }
 // The grooves a station plays (for a card's cover and the tests).

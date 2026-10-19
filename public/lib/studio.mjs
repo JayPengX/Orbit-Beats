@@ -346,7 +346,7 @@ export function mountStudio(panel, api) {
     grid.replaceChildren(head, ...lanesEls);
     const hidden = drums ? lanes().length - shown.length : 0;
     moreBtn.hidden = !drums || (!more && !hidden);
-    moreBtn.textContent = more ? W('－ 收起', '－ Fewer drums') : W(`＋ 更多鼓（${hidden}）`, `＋ More drums (${hidden})`);
+    moreBtn.innerHTML = `${icon(more ? 'up' : 'plus')}<span>${more ? W('收起', 'Fewer drums') : W(`更多鼓 ${hidden}`, `More drums ${hidden}`)}</span>`;
     paintCells();
   }
   moreBtn.onclick = () => ((more = !more), drawGrid());

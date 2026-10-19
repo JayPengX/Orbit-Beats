@@ -36,7 +36,7 @@ import * as kitQ from '#kit/quadra.mjs';
 import { icon, inner } from './lib/icons.mjs';
 import { createPlayer, coverOfTrack } from './lib/player.mjs';
 import { mountPlayerView, subOf, onLong, speedText } from './lib/playerview.mjs';
-import { mountHome } from './lib/homeview.mjs';
+import { mountHome, songShelf } from './lib/homeview.mjs';
 import { remix, surprise, remixId, remixTitle, kindOfRecipe, baseOf, radioBase, bandBase, lengthStep, retime, clipSpan, partOf } from './lib/remix.mjs';
 import { remixSheet, clipSheet, PART_NAMES } from './lib/remixview.mjs';
 import { stationId } from './lib/stations.mjs';
@@ -206,8 +206,11 @@ let hubDraw = () => {};
     cover.src = setCover(set, specOf(set).bpm);
     badge.textContent = String(pieces.length);
     badge.hidden = !pieces.length;
+    const mine = songShelf({ P, trackMenu: (t, a) => trackMenuOf(t, a) }, 'mine', W('你的歌', 'Your songs'), [...lib.all()].sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 12));
+    shelf.replaceChildren(...(mine ? [mine] : []));
   };
-  $('panel-create').append(h('h1', { class: 'page-title', text: W('創作', 'Create') }), hero, h('div', { class: 'hub-pair' }, [half('studio', 'grid', W('樂器', 'Studio')), half('make', 'note', W('做歌', 'Songs'), badge)]));
+  const shelf = h('div', { class: 'hub-shelf' });
+  $('panel-create').append(h('h1', { class: 'page-title', text: W('創作', 'Create') }), hero, h('div', { class: 'hub-pair' }, [half('studio', 'grid', W('樂器', 'Studio')), half('make', 'note', W('做歌', 'Songs'), badge)]), shelf);
 }
 
 // ---- Settings (做歌) ----
@@ -1458,6 +1461,7 @@ let loopAt = null; // { from, to } in seconds: the section looped
 let wantLoop = null; // a section to loop in the song about to play (held from its row)
 let P = null; // lib/player.mjs, made in boot
 let home = null;
+let trackMenuOf = () => {};
 async function urlOf(song) {
   if (song.url) return song.url;
   // (The kept record as it is now: 歌單瘦身 may have packed it since its row was drawn.)
@@ -2126,7 +2130,21 @@ async function boot() {
     sleeping: () => radio.sleeping()
   };
   const view = mountPlayerView(P, core, { mini: $('player') });
-  home = mountHome($('panel-home'), { P, radio, taste: () => kept.taste, trackMenu: view.trackMenu, openNow: view.openNow });
+  trackMenuOf = view.trackMenu;
+  home = mountHome($('panel-home'), {
+    P,
+    radio,
+    taste: () => kept.taste,
+    trackMenu: view.trackMenu,
+    openNow: view.openNow,
+    songs: () => lib.all(),
+    go: (id, run) => {
+      showTab(id);
+      if (!run) return;
+      if (id === 'jam') jam?.start();
+      else $('go').click();
+    }
+  });
   // (The loop button leaves a section on repeat.)
   let loopWas = P.q.loop;
   P.on(w => {
@@ -2174,6 +2192,7 @@ async function boot() {
   kitShown();
   showTab(firstTab());
   await lib.read();
+  home?.refresh();
   $('loading').hidden = true;
   setTimeout(() => slimLibrary().catch(() => {}), 4000);
   const first = await q.start().catch(() => null);
