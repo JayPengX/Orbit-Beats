@@ -54,8 +54,14 @@ test('settingsOf: a wrong kind or out of range is left as it was; the mixer clam
 test('keptSettings: only the known keys, an unset number not kept; taste counts', () => {
   const k = keptSettings({ ...DEFAULTS, studioBpm: NaN, junk: 1 }, 1);
   assert.ok(!('studioBpm' in k) && !('junk' in k));
-  assert.deepEqual(Object.keys(k).sort(), ['at', ...SETTING_KEYS.filter(x => x !== 'studioBpm')].sort());
+  assert.deepEqual(Object.keys(k).sort(), ['at', 'len2', ...SETTING_KEYS.filter(x => x !== 'studioBpm')].sort());
   assert.deepEqual(liked({}, 'trap'), { trap: 1 });
   assert.deepEqual(liked({ trap: 1 }, 'trap', -1), {});
   assert.deepEqual(liked({ trap: 0 }, 'trap', -1), {});
+});
+
+test('a 1:00 kept from before 3:00 was the default moves up; one picked since stays', () => {
+  assert.equal(settingsOf({ at: 1, length: 60 }).length, 180);
+  assert.equal(settingsOf(keptSettings({ ...DEFAULTS, length: 60 }, 2)).length, 60);
+  assert.equal(settingsOf({ at: 1, length: 120 }).length, 120);
 });

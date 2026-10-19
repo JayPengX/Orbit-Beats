@@ -43,6 +43,8 @@ export function settingsOf(kept, base = DEFAULTS) {
     else if (CHECK[k]?.(v)) out[k] = v;
   }
   if (out.minBars > out.maxBars) [out.minBars, out.maxBars] = [base.minBars, base.maxBars];
+  // (Songs were 1:00 by default, now 3:00: a 1:00 kept before that (no len2 mark) moves up; one picked since stays.)
+  if (kept && typeof kept === 'object' && !kept.len2 && out.length === 60) out.length = 180;
   return out;
 }
 // (The newest this many kits; an old one's tempo is heard again if it comes back.)
@@ -89,7 +91,7 @@ export function liked(taste, style, d = 1) {
 
 // The settings as kept: only the known keys, with when they were set.
 export function keptSettings(settings, at = Date.now()) {
-  const out = { at };
+  const out = { at, len2: true };
   for (const k of SETTING_KEYS) if (settings[k] !== undefined && !(typeof settings[k] === 'number' && Number.isNaN(settings[k]))) out[k] = settings[k];
   return out;
 }
