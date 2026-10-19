@@ -1011,7 +1011,7 @@ function songRow(song, { lib: inLib = false, list = null } = {}) {
   const what = [timeText(info.seconds), info.style ? name(STYLE_NAMES, info.style) : W('即興', 'Jam'), info.bpm ? speedText(info.bpm) : '', simple() ? '' : keyName(info.key)].filter(Boolean);
   const plan = info.plan.map(([t]) => name(SECTION_NAMES, t)).join(', ');
   const play = h('button', { class: 'play', type: 'button', 'aria-label': W(`播放 ${song.name}`, `Play ${song.name}`), onclick: () => toggleSong(song) }, [h('img', { class: 'sc', alt: '', src: coverOfTrack(P.track(song)), width: 52, height: 52, loading: 'lazy' }), h('span', { class: 'si', html: ICON.play })]);
-  const heart = h('button', { class: `act heart${lib.has(song.id) ? ' kept' : ''}`, type: 'button', 'aria-label': W('收藏', 'Keep'), 'aria-pressed': String(lib.has(song.id)), html: lib.has(song.id) ? ICON.hearted : ICON.heart, onclick: () => keepSong(song) });
+  const heart = h('button', { class: `act heart${lib.has(song.id) ? ' kept' : ''}`, type: 'button', 'aria-label': lib.has(song.id) ? W('取消收藏', 'Remove from Library') : W('收藏', 'Keep'), 'aria-pressed': String(lib.has(song.id)), html: lib.has(song.id) ? ICON.hearted : ICON.heart, onclick: () => keepSong(song) });
   const more = h('button', { class: 'act', type: 'button', 'aria-label': W('更多', 'More'), html: ICON.more, onclick: e => songMenu(song, e.currentTarget, inLib, list) });
   const bar = h('div', { class: 'plan', role: 'group', 'aria-label': plan });
   const total = info.plan.reduce((a, [, n]) => a + n, 0);
@@ -1104,6 +1104,9 @@ async function makeBatch(count = cfg().count) {
       const song = await makeOne(recipeOf({ seed: list[k].seed }), songTitle(list[k].seed));
       songs.push(song);
       $('songs').append(songRow(song));
+      // (The first one plays as soon as it's made, unless something else already is; the rest follow it.)
+      if (k === 0 && !P.state()?.playing) playRow(song);
+      else P.relist(songs.map(x => P.track(x)));
     }
   } catch (e) {
     toast(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`), { tone: 'bad' });
@@ -1137,6 +1140,9 @@ async function bandBatch(count) {
       const song = await bandSong({ ...spec, seconds: settings.length });
       songs.push(song);
       $('songs').append(songRow(song));
+      // (The first one plays as soon as it's made, unless something else already is; the rest follow it.)
+      if (k === 0 && !P.state()?.playing) playRow(song);
+      else P.relist(songs.map(x => P.track(x)));
     }
   } catch (e) {
     toast(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`), { tone: 'bad' });
@@ -1428,6 +1434,7 @@ async function urlOf(song) {
 // A song to its sound, now (the queue's start() comes here).
 async function playSong(song, at = 0) {
   quiet({ keep: 'song' });
+  const turn = ++songTurn;
   if (nowPlaying) for (const li of rowsOf(nowPlaying.id)) markRow(li, false);
   if (nowPlaying?.id !== song.id) {
     loopAt = wantLoop;
@@ -1436,7 +1443,9 @@ async function playSong(song, at = 0) {
   wantLoop = null;
   nowPlaying = song;
   audio.loop = P.q.loop === 'one' && !loopAt;
-  audio.src = await urlOf(song);
+  const url = await urlOf(song);
+  if (turn !== songTurn) return;
+  audio.src = url;
   audio.currentTime = at;
   // (A play refused, iOS between songs with the screen locked: once more a moment later.)
   await audio.play().catch(() => new Promise(r => setTimeout(r, 300)).then(() => audio.play()).catch(() => {}));
@@ -1474,7 +1483,10 @@ function toggleSong(song) {
   }
   playRow(song);
 }
+// (Bumped by every stop: a song still loading when something else starts doesn't start after it.)
+let songTurn = 0;
 function stopSong() {
+  songTurn++;
   if (!audio.paused) audio.pause();
 }
 function closePlayer() {

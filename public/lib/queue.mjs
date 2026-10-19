@@ -28,7 +28,11 @@ export function playNow(q, item, station) {
   return { ...q, history: same ? q.history : pushHistory(q.history, q.now), now: item, again: [], station: station === undefined ? q.station : station };
 }
 // The radio's next song became the one playing: it is `now`, the station stays the radio.
-export const radioNow = (q, item) => playNow(q, item, q.station?.kind === 'radio' ? q.station : undefined);
+// (Not a pick by hand: what "back" went past stays for forward.)
+export function radioNow(q, item) {
+  if (!item || q.now?.id === item.id) return q;
+  return { ...playNow(q, item, q.station?.kind === 'radio' ? q.station : undefined), again: q.again };
+}
 
 // 插播: next after the one playing (before the rest of the queue).
 export const playNext = (q, item) => (item ? { ...q, upNext: [item, ...q.upNext].slice(0, QUEUE_MAX) } : q);
