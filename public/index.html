@@ -68,8 +68,7 @@
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-/* (The page doesn't rubber-band or drag as a whole: a pull at the top or bottom stays put; lists inside still scroll.) */
-html, body { overscroll-behavior: none; }
+/* (No overscroll-behavior on html or body: in the home-screen app on iPhone it stops the page scrolling at all.) */
 body {
   margin: 0; background: var(--bg); color: var(--text);
   font: 15px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
