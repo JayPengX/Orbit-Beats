@@ -310,7 +310,7 @@ const weights = () => (cfg().smart && Object.keys(kept.taste || {}).length ? kep
 {
   const out = h('b', { class: 'len-val', 'data-ctl': 'make-length-slider' });
   const slider = h('input', { 'data-ctl': 'make-length-slider', type: 'range', min: LENGTH_MIN, max: LENGTH_MAX, step: LENGTH_STEP, 'aria-label': W('長度', 'Length') });
-  const chips = h('div', { class: 'len-chips' }, LENGTH_PRESETS.map(v => h('button', { class: 'chip', type: 'button', 'data-len': String(v), text: clock(v), 'data-ctl': [30, 60, 120, 180].includes(v) ? null : 'make-length-slider', onclick: () => set(v) })));
+  const chips = h('div', { class: 'len-chips' }, LENGTH_PRESETS.map(v => h('button', { class: 'chip', type: 'button', 'data-len': String(v), text: clock(v), 'data-ctl': [60, 120, 180, 240].includes(v) ? null : 'make-length-slider', onclick: () => set(v) })));
   const set = v => {
     settings.length = clampLength(v);
     paint();

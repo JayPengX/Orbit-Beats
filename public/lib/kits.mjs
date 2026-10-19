@@ -13,7 +13,7 @@ import { levelOk } from './easy.mjs';
 // (level, 2026-10-18: 簡單 / 進階, lib/easy.mjs; radioMood: what 聽 plays, lib/radio.mjs.)
 export const SETTING_KEYS = ['count', 'minBars', 'maxBars', 'styles', 'humanize', 'seed', 'bits', 'silenceDb', 'minGap', 'mood', 'smart', 'studioBpm', 'mix', 'level', 'radioMood', 'length'];
 // The settings as the page opens them.
-export const DEFAULTS = { count: 8, minBars: 25, maxBars: 29, styles: [...STYLES], humanize: 100, seed: '', bits: 32, silenceDb: -90, minGap: 0.2, mood: 'all', smart: true, studioBpm: 120, mix: mixOf(null), level: 'simple', radioMood: 'all', length: 60 };
+export const DEFAULTS = { count: 8, minBars: 25, maxBars: 29, styles: [...STYLES], humanize: 100, seed: '', bits: 32, silenceDb: -90, minGap: 0.2, mood: 'all', smart: true, studioBpm: 120, mix: mixOf(null), level: 'simple', radioMood: 'all', length: 180 };
 // Each kept setting as it can be used (another phone's, an old version's, a
 // typo): a wrong kind or out of range is left as it was.
 const CHECK = {
