@@ -92,6 +92,17 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
     音量, 靜音 and 切音 (self, or group A/B: an open hat cut by a closed
     one), kept per kit (fingerprint) on the phone; a take's song carries
     each hit's level and cut, so it sounds as played.
+  - **節奏遊戲** (Rhythm game; `lib/game.mjs`, `lib/gameview.mjs`): every
+    radio song is a level. Its chart comes from the song's own notes
+    (`radioSong` returns the engine's hits and each riff's melody and chords),
+    so every tap lands on a sound; a long chord is a hold. Four lanes, four
+    levels (簡單 普通 困難 專家), judged 完美 ±45 ms, 很好 ±90, 不錯 ±135,
+    scored to 1,000,000 (S+ to D); 火力全開 from 50 combo. A full-screen
+    canvas stage on the page's AudioContext clock; 時間校正 in the pause menu
+    for Bluetooth lag. Opens from 創作's card (今日挑戰 and a mood's six songs
+    of the day) or a song's ⋯; `#game`. Bests per song and level on this
+    phone (`orbit-beats-game.v1`); `orbit-beats-game-auto` = `1` plays every
+    note itself (screenshots).
   - **資料庫** (Library): kept songs (IndexedDB), small (`lib/pack.mjs`): AAC (else Opus)
     from the phone's AudioEncoder in a plain .m4a, about a tenth of the WAV; with no
     encoder a built-in song is mono 16-bit and one of your pieces stays a WAV. WAVs
