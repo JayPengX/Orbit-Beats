@@ -541,13 +541,16 @@ export function radioKit(sp, sr = RADIO_SR) {
 // Its sections, every one four or eight bars (so the four-bar loops stay on
 // their chords): an intro, verse–hook pairs (pre-hooks maybe), a break or
 // bridge, and an outro; about `seconds` long.
+export const RING_BARS = 3.5;
 export function radioPlan(R, bpm, seconds = 90, asked = false) {
   // (A length asked for: from 8 bars to 400, 8 minutes at 100 BPM. The radio's own songs keep 24 to 64.)
-  const bars = asked ? Math.max(8, Math.min(400, Math.round((seconds * bpm) / 240 / 2) * 2)) : Math.max(24, Math.min(64, Math.round((seconds * bpm) / 240 / 4) * 4));
+  // (The last notes ring on for about RING_BARS after the outro: an asked length counts them.)
+  const bars = asked ? Math.max(6, Math.min(400, Math.round(((seconds * bpm) / 240 - RING_BARS) / 2) * 2)) : Math.max(24, Math.min(64, Math.round((seconds * bpm) / 240 / 4) * 4));
   if (bars < 24) {
     // (A short one: an intro, a verse, a hook, an outro.)
-    const n = Math.max(2, Math.floor((bars - 4) / 2));
-    return [['intro', 2], ['verse', n], ['hook', bars - 4 - n], ['outro', 2]];
+    const end = bars < 8 ? 1 : 2;
+    const n = Math.max(2, Math.floor((bars - 2 * end) / 2));
+    return [['intro', end], ['verse', n], ['hook', bars - 2 * end - n], ['outro', end]];
   }
   const pre = R.random() < 0.5;
   const unit = pre ? 20 : 16;
@@ -586,10 +589,16 @@ const MIXES = {
   world: { reverb: 0.24, delay: 0.16, pump: 0.25 }
 };
 
+// What a remix may set on a song's spec: its tempo, its lead and its two chord instruments
+// (the rest follows from the seed and the groove).
+export const REMIX_KEYS = ['bpm', 'lead', 'chords', 'chords2'];
+// The instruments a groove's band may play: { leads, chords }.
+export const bandSounds = style => ({ leads: [...(BAND[style]?.leads || [])], chords: [...(BAND[style]?.chords || [])] });
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
-export function radioSong(spec, sr = RADIO_SR) {
+export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
-  const sp = radioSpec(seed, mood, style);
+  const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);
+  const sp = Object.assign(radioSpec(seed, mood, style), Object.fromEntries(over));
   const { pieces, roles } = radioKit(sp, sr);
   const analysis = analyzeRecording(pieces, sr, { bpm: sp.bpm });
   const R = makeRng(seed ^ 0x1b873593);
@@ -598,9 +607,10 @@ export function radioSong(spec, sr = RADIO_SR) {
   const plan = radioPlan(R, sp.bpm, asked ? spec.seconds : sp.seconds, asked);
   const song = makeSong(pieces, sr, seed, {
     analysis, roles, bpm: sp.bpm, styles: moodStyles(mood), style: sp.style,
-    humanize: (MOODS[mood]?.humanize ?? 100) / 100, plan, mix: mixOf({ ...MIXES[mood], ...BAND[sp.style].mix })
+    humanize: (MOODS[mood]?.humanize ?? 100) / 100, plan, mix: mixOf({ ...MIXES[mood], ...BAND[sp.style].mix }), stems
   });
-  return { audio: song.audio, info: { ...song.info, key: sp.key, mood, radio: { seed, mood, style: sp.style } } };
+  // (A remix's own choices ride along in `radio`, so the song is made again as it was.)
+  return { audio: song.audio, stems: song.stems, info: { ...song.info, key: sp.key, mood, radio: { seed, mood, style: sp.style, ...Object.fromEntries(over), ...(asked ? { seconds: spec.seconds } : {}) } } };
 }
 
 // Where the song is cut for the next one to come in: just before its last

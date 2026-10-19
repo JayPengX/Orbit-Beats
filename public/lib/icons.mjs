@@ -32,6 +32,7 @@ const PATHS = {
   down: [S, '<path d="M5 9l7 7 7-7"/>'],
   up: [S, '<path d="M5 15l7-7 7 7"/>'],
   plus: [S, '<path d="M12 5v14M5 12h14"/>'],
+  minus: [S, '<path d="M5 12h14"/>'],
   trash: [S, '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a1.5 1.5 0 0 0 1.5 1.4h7A1.5 1.5 0 0 0 17 19l1-12M9 7V4.5h6V7"/>'],
   search: [S, '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>'],
   home: [S, '<path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/>'],

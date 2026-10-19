@@ -32,6 +32,7 @@ export function createPlayer(d) {
   } catch {}
   let active = null; // 'radio' | 'song' | null: which of the two the last play was
   let handing = false;
+  let making = null; // the radio song whose file is being made for a repeat
   const subs = new Set();
   const emit = what => {
     for (const f of subs)
@@ -82,9 +83,17 @@ export function createPlayer(d) {
       active = 'radio';
       handing = false;
       if (q.loop === 'one') {
-        // (One song on repeat: from its own file, which the player loops.)
+        // (One song on repeat: from its own file, which the player loops. The radio plays on while it's
+        // made, so the file picks up where the radio is then, not where it was.)
+        if (making === track.id) return true;
+        making = track.id;
         const made = await d.makeSong(track).catch(() => null);
-        if (made) return (active = 'song'), (audio.loop = true), d.playSong(made, at).then(() => true);
+        making = null;
+        if (made) {
+          const r = radio.state();
+          const now = r.cur?.id === track.id && r.playing ? r.t : at;
+          return (active = 'song'), (audio.loop = true), d.playSong(made, now).then(() => true);
+        }
       }
       d.quiet?.();
       radio.playSpec(track);
@@ -189,6 +198,14 @@ export function createPlayer(d) {
     if (what === 'song') {
       const r = radio.state();
       if (active === 'radio' && r.cur) set(Q.radioNow(q, r.cur));
+    }
+    if (what === 'time' && active === 'radio' && !making && q.loop === 'one') {
+      const r = radio.state();
+      // (On repeat but still on the radio: over to its own file before the radio moves on.)
+      if (r.playing && r.cur && r.seconds && r.seconds - r.t < 4 && r.t > 1) {
+        handing = true;
+        start(r.cur, r.t);
+      }
     }
     if (what === 'time' && active === 'radio' && !handing && (q.upNext.length || q.again.length)) {
       const r = radio.state();

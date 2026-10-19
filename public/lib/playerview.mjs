@@ -57,6 +57,7 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
       'divider',
       { label: kept ? W('取消收藏', 'Remove from Library') : W('收藏', 'Keep'), icon: kept ? 'heart-fill' : 'heart', onClick: () => core.toggleKeep(track).then(() => paint()) },
       { label: W('分享', 'Share'), icon: 'share', onClick: () => core.share(track) },
+      ...(core.remix ? [{ label: W('重新混音', 'Remix'), icon: 'shuffle', onClick: () => core.remix(track) }, { label: W('取出片段', 'Take a clip'), icon: 'cut', onClick: () => core.clip(track) }] : []),
       ...(core.inLibrary(track) ? ['divider', { label: W('刪除', 'Delete'), icon: 'trash', danger: true, onClick: () => core.remove(track) }] : [])
     ]);
   }
@@ -113,6 +114,8 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
     const loop = btn('np-ico', LOOP_LABEL.off, () => (P.cycleLoop(), paint()));
     const sleep = btn('np-ico np-sleep', W('睡眠定時', 'Sleep timer'), e => core.sleep(e.currentTarget));
     const queue = btn('np-ico', W('播放佇列', 'Queue'), () => queueSheet());
+    const cut = btn('np-ico', W('取出片段', 'Take a clip'), () => P.state()?.track && core.clip?.(P.state().track));
+    cut.innerHTML = icon('cut');
     const down = btn('np-down', W('收起', 'Close'), () => closeNow());
     down.innerHTML = icon('down');
     back.innerHTML = icon('prev');
@@ -128,7 +131,7 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
       bar,
       h('div', { class: 'np-times' }, [t0, t1]),
       h('div', { class: 'np-main' }, [back, play, fwd]),
-      h('div', { class: 'np-extra' }, [loop, sleep, queue])
+      h('div', { class: 'np-extra' }, [loop, sleep, ...(core.clip ? [cut] : []), queue])
     ]);
     npHost.append(np);
     // The position: a tap or drag along the bar (a song; the radio's is shown only).

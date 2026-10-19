@@ -36,6 +36,8 @@ import { icon, inner } from './lib/icons.mjs';
 import { createPlayer, coverOfTrack } from './lib/player.mjs';
 import { mountPlayerView, subOf, onLong, speedText } from './lib/playerview.mjs';
 import { mountHome } from './lib/homeview.mjs';
+import { remix, surprise, remixId, remixTitle, kindOfRecipe, baseOf, radioBase, bandBase, lengthStep, retime, clipSpan, partOf } from './lib/remix.mjs';
+import { remixSheet, clipSheet, PART_NAMES } from './lib/remixview.mjs';
 import { stationId } from './lib/stations.mjs';
 import * as Q from './lib/queue.mjs';
 import { LENGTH_MIN, LENGTH_MAX, LENGTH_STEP, LENGTH_PRESETS, clampLength, clock, kitLength } from './lib/length.mjs';
@@ -951,6 +953,10 @@ function addClip(clip) {
     if (tick) shot(tick, 'tick');
     if (used('sub')) shot('sub', 'sub', clip.pitch || 33);
   } else made.push({ src: { name: `♪ ${name(INSTRUMENT_NAMES, clip.inst)} ${n}`, ...renderClip(clip, rate, tempo) }, role: INSTRUMENT_ROLE[clip.inst] || 'riff' });
+  return insertMade(made, tempo, had);
+}
+// Sources made on the phone (a clip) into the kit, each with the role its pieces are set to.
+function insertMade(made, tempo, had) {
   const before = { roles: [...roles], edited: new Set(edited), bpm, count: pieces.length, at: sources.length };
   stopPiece();
   sources = atRate([...sources, ...made.map(m => m.src)]);
@@ -1188,6 +1194,8 @@ function songMenu(song, anchor, inLib, list = null) {
     { label: W('稍後播放', 'Play later'), icon: 'queue', onClick: () => P.playLater(t) },
     { label: k ? W('取消收藏', 'Remove from Library') : W('收藏', 'Keep'), icon: k ? 'heart-fill' : 'heart', onClick: () => keepSong(song) },
     { label: W('分享', 'Share'), icon: 'share', onClick: () => shareSong(song) },
+    { label: W('重新混音', 'Remix'), icon: 'shuffle', onClick: () => remixOf(song) },
+    { label: W('取出片段', 'Take a clip'), icon: 'cut', onClick: () => clipOf(song) },
     ...(inLib ? [{ label: W('刪除', 'Delete'), icon: 'trash', danger: true, onClick: () => keepSong(song) }] : []),
     'divider',
     ...(can && !isJam
@@ -1211,6 +1219,125 @@ function songMenu(song, anchor, inLib, list = null) {
         ]
       : [])
   ]);
+}
+// ---- 重新混音 and 取出片段 (lib/remix.mjs, lib/remixview.mjs) ----
+
+// What a remix starts from: a song (a row) or a track (a radio song, or a queued one). -> { base, kind, note } | null
+function remixBase(x) {
+  const song = x.kind ? songOfTrack(x) : x;
+  if (!song) return x.kind === 'radio' ? { base: radioBase(x), kind: 'radio', note: '' } : null;
+  const r = song.recipe;
+  const kind = r ? kindOfRecipe(r) : 'kit';
+  if (kind === 'radio' || kind === 'band' || (heard && r?.print === print)) return { base: baseOf(r, song.info), kind, note: '' };
+  // (Its pieces aren't loaded: the same groove and length, on the app's own band.)
+  return { base: bandBase(r || {}, song.info, Math.floor(Math.random() * 1e9)), kind: 'radio', note: W('沒有原本的片段，改用內建樂團', "The original pieces aren't here: using the built-in band") };
+}
+function remixOf(x) {
+  const r = remixBase(x);
+  if (!r) return toast(W('找不到這首歌', "Can't find that song"), { tone: 'bad' });
+  remixSheet({
+    kind: r.kind,
+    style: r.base.style,
+    length: d => (r.base.seconds ? lengthStep(r.base.seconds, d) : null),
+    note: r.note,
+    pick: c => makeRemix(r.base, c, x.kind ? x.title : x.name, x.id)
+  });
+}
+// The song a recipe makes, under a title: { id, name, info, data, url, bits, recipe }.
+async function madeFrom(recipe, title, fromId) {
+  const kind = kindOfRecipe(recipe);
+  let s;
+  if (kind === 'radio') {
+    const { info, wav } = await make.radioWav(recipe.radio);
+    s = { info, data: wav, bits: 16, recipe: { print: 'radio', radio: info.radio } };
+  } else if (kind === 'band') {
+    const { info, wav } = await make.song(recipe, 16);
+    s = { info, data: wav, bits: 16, recipe };
+  } else {
+    s = await makeOne(recipe, title);
+  }
+  return { ...s, id: remixId(fromId, recipe), name: title, url: s.url || URL.createObjectURL(new Blob([s.data], { type: 'audio/wav' })) };
+}
+async function makeRemix(base, choice, title, fromId) {
+  const { recipe, changed } = remix(base, choice === 'surprise' ? surprise(base) : choice);
+  if (!changed.length) return toast(W('已經是這樣了', 'Already like that'), { ms: 1400 });
+  toast(W('混音中…', 'Remixing…'), { ms: 2500 });
+  let song;
+  try {
+    song = await madeFrom(recipe, remixTitle(title), fromId);
+  } catch (e) {
+    return toast(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`), { tone: 'bad' });
+  }
+  const old = remixes.findIndex(s => s.id === song.id);
+  if (old >= 0) remixes.splice(old, 1);
+  remixes.unshift(song);
+  while (remixes.length > 12) {
+    const o = remixes.pop();
+    if (nowPlaying?.id !== o.id) URL.revokeObjectURL(o.url);
+  }
+  playRow(song);
+}
+
+// A clip from a song: pick a section (and a part), hear it, add it to the clips.
+async function clipOf(x) {
+  let song = x.kind ? songOfTrack(x) : x;
+  if (!song && x.kind === 'radio') {
+    toast(W('準備中…', 'Getting it ready…'), { ms: 2500 });
+    song = await bandSong({ seed: x.seed, mood: x.mood, style: x.style }).then(s => ({ ...s, name: x.title })).catch(() => null);
+  }
+  if (!song?.info?.plan?.length) return toast(W('找不到這首歌', "Can't find that song"), { tone: 'bad' });
+  const r = song.recipe;
+  const kind = r ? kindOfRecipe(r) : 'kit';
+  const remake = kind === 'radio' || kind === 'band' || Boolean(heard && r?.print === print);
+  let decoded = null;
+  if (remake) {
+    if (kind === 'kit' || kind === 'jam') await kitToMaker();
+  } else {
+    // (Not made again: cut from the sound itself, all of it.)
+    try {
+      decoded = song.data ? parseWav(song.data) : await keptAudio(lib.get(song.id) || song);
+    } catch {}
+    if (!decoded) return toast(W('讀不了這首歌', "Can't read that song"), { tone: 'bad' });
+  }
+  const info = song.info;
+  const got = new Map();
+  const made = [];
+  clipSheet({
+    plan: info.plan,
+    parts: remake,
+    stop: () => P.state()?.playing && P.toggle(),
+    closed: () => made.forEach(u => URL.revokeObjectURL(u)),
+    render: async (k, part) => {
+      let out;
+      if (remake) out = await make.clip(r, k, part);
+      else {
+        const sp = clipSpan(info.plan, info.bpm, k, decoded.sr);
+        const a = partOf(decoded, 'all', sp.from, sp.to);
+        out = { wav: encodeWav(a, 16), seconds: sp.seconds, bars: sp.bars, bpm: info.bpm, peak: a.peak };
+      }
+      got.set(`${k}:${part}`, out);
+      const url = URL.createObjectURL(new Blob([out.wav], { type: 'audio/wav' }));
+      made.push(url);
+      return { url, seconds: out.seconds, silent: out.peak < 0.003 };
+    },
+    add: (k, part) => {
+      const out = got.get(`${k}:${part}`);
+      if (!out) return false;
+      addAudioClip({ title: song.name, section: name(SECTION_NAMES, info.plan[k][0]), part, audio: parseWav(out.wav), bpm: out.bpm });
+      toast(W('已加到「做歌」的片段，也能在「即興」彈', 'Added to Make songs’ clips, and to Jam’s pads'));
+      return true;
+    }
+  });
+}
+// A stretch of a song into the kit as one piece to loop (at the kit's tempo, the song's when there is no kit).
+function addAudioClip({ title, section, part, audio, bpm: clipBpm }) {
+  const had = pieces.length > 0;
+  let { sr: csr, L, R } = audio;
+  const f = bpm / clipBpm;
+  if (had && f > 0.5 && f < 2 && Math.abs(f - 1) > 0.01) ({ L, R } = retime({ L, R, sr: csr }, f));
+  const label = [title, section, part === 'all' ? '' : name(PART_NAMES, part)].filter(Boolean).join(' · ');
+  const role = { all: 'riff', melody: 'riff', drums: 'fill', bass: 'bass' }[part] || 'riff';
+  return insertMade([{ src: { name: `♪ ${label}`, sr: csr, L, R }, role }], had ? bpm : Math.round(clipBpm), had);
 }
 function pickGroove(song) {
   const s = sheet({
@@ -1320,15 +1447,18 @@ async function playSong(song, at = 0) {
   if (turn !== songTurn) return;
   audio.src = url;
   audio.currentTime = at;
+  // (Safari can keep the last song's time across a new src: set again once it's loaded.)
+  audio.addEventListener('loadedmetadata', () => Math.abs(audio.currentTime - at) > 0.5 && (audio.currentTime = at), { once: true });
   // (A play refused, iOS between songs with the screen locked: once more a moment later.)
   await audio.play().catch(() => new Promise(r => setTimeout(r, 300)).then(() => audio.play()).catch(() => {}));
-  claimSession({ title: song.name, artist: 'Orbit Beats', album: song.info.style ? name(STYLE_NAMES, song.info.style) : W('即興', 'Jam'), play: () => audio.play(), pause: () => audio.pause() });
+  claimSession({ title: song.name, artist: song.info.style ? name(STYLE_NAMES, song.info.style) : W('即興', 'Jam'), album: 'Orbit Beats', play: () => audio.play(), pause: () => audio.pause() });
   P.songStarted(song);
   paintPlayer();
   for (const li of rowsOf(song.id)) markRow(li, true);
 }
 // A song from a row: it plays, and the list it is in goes on after it (the batch, or what 歌單 shows).
-const songOfTrack = t => lib.get(t.id) || songs.find(s => s.id === t.id) || null;
+const remixes = []; // the remixes made this visit (newest first), so the queue can play them
+const songOfTrack = t => lib.get(t.id) || songs.find(s => s.id === t.id) || remixes.find(s => s.id === t.id) || null;
 function playRow(song, at = 0) {
   const list = (tabNow === 'library' ? lib.shown() : songs).map(x => P.track(x));
   const track = P.track(song);
@@ -1942,6 +2072,8 @@ async function boot() {
       }
       if (song) shareSong(song);
     },
+    remix: t => remixOf(t),
+    clip: t => clipOf(t),
     inLibrary: t => Boolean(t && lib.has(t.id)),
     remove: t => {
       const song = lib.get(t.id);
@@ -1975,7 +2107,7 @@ async function boot() {
     goMake: () => showTab('make')
   });
   jam = mountJam($('panel-jam'), {
-    kit: () => ({ pieces, roles, bpm, sr, heard, print }),
+    kit: () => ({ pieces, roles, bpm, sr, heard, print, names: pieces.map(p => sources[p.src]?.name || '') }),
     audio: audioCtx,
     ahead,
     live,
