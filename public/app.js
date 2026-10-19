@@ -2251,8 +2251,8 @@ function helpSheet() {
     body: [
       h('div', { class: 'card sheet-card tours' }, cards),
       h('div', { class: 'card sheet-card' }, [row(W('名詞小辭典', 'Music words'), () => wordsSheet()), row(W('完整說明', 'The full guide'), () => (s.close(), kitQ.openHelp ? kitQ.openHelp(q) : (location.hash = 'help=beats')))]),
-      // (The recorded instruments' credit: FluidR3 asks for it, CC BY 3.0.)
-      h('p', { class: 'sheet-credit', text: W('樂器錄音：FluidR3 GM 音色庫（Frank Wen，CC BY 3.0）。鼓組：Virtuosity Drums（Versilian Studios、Karoryfer Samples）、Michael Fischer 的 TR-808、Sonic Pi（CC0）。', 'Recorded instruments: the FluidR3 GM soundfont (Frank Wen, CC BY 3.0). Drums: Virtuosity Drums (Versilian Studios, Karoryfer Samples), the TR-808 by Michael Fischer, Sonic Pi (CC0).') })
+      // (The recorded instruments' credit: both sets ask for it, lib/samples.mjs SAMPLE_SET.)
+      h('p', { class: 'sheet-credit', text: W('樂器錄音：MusyngKite 音色庫（CC BY-SA 3.0）與 FluidR3 GM 音色庫（Frank Wen，CC BY 3.0），經 gleitz/midi-js-soundfonts。鼓組：Virtuosity Drums（Versilian Studios、Karoryfer Samples）、Michael Fischer 的 TR-808、Sonic Pi（CC0）。', 'Recorded instruments: the MusyngKite soundfont (CC BY-SA 3.0) and the FluidR3 GM soundfont (Frank Wen, CC BY 3.0), via gleitz/midi-js-soundfonts. Drums: Virtuosity Drums (Versilian Studios, Karoryfer Samples), the TR-808 by Michael Fischer, Sonic Pi (CC0).') })
     ]
   });
 }

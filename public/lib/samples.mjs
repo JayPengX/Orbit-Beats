@@ -1,7 +1,7 @@
 // Recorded instruments: real pianos, guitars, basses, strings, winds and
 // mallets in place of the oscillators for the instruments that are real
 // ones (the synths, 8-bit and 808 stay made). Notes a major third apart
-// (public/samples/<inst>/<midi>.mp3, from the FluidR3 GM soundfont, CC BY
+// (public/samples/mk/<inst>/<midi>.mp3 from MusyngKite, or public/samples/<inst>/<midi>.mp3 from the FluidR3 GM soundfont, CC BY
 // 3.0, Frank Wen: scripts/samples.mjs fetches them); a note between two is
 // the nearest one played a step or two higher or lower. Loaded on the page
 // only for the instruments a song plays, decoded once, and handed to the
@@ -58,7 +58,11 @@ export function sampleNotes(inst) {
 // The soundfont's own name for a note (its files): C4, Db4, …
 const NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 export const noteName = m => `${NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
-export const sampleUrl = (base, inst, m) => `${base}samples/${inst}/${m}.mp3`;
+// Which recorded set the instruments play: 'mk' (MusyngKite, CC BY-SA 3.0, the default) or 'fluid' (FluidR3 GM, CC BY 3.0).
+// Both are in public/samples (mk/ and the instruments' own folders); change this one line to switch.
+export const SAMPLE_SET = 'mk';
+export const sampleDir = (set = SAMPLE_SET) => (set === 'mk' ? 'samples/mk/' : 'samples/');
+export const sampleUrl = (base, inst, m) => `${base}${sampleDir()}${inst}/${m}.mp3`;
 // How each kind of instrument lets go of a note: a struck or plucked one rings
 // on as recorded (only a short note is damped), a held one stops with the hand.
 const RINGS = new Set(['piano', 'vibes', 'marimba', 'kalimba', 'musicbox', 'glass', 'bell', 'steel', 'harp', 'nylon', 'guitar', 'banjo', 'guzheng', 'sitar', 'pizz', 'rhodes', 'keys', 'clav']);

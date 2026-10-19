@@ -14,7 +14,7 @@ const want = args.filter(a => !a.startsWith('--'));
 let bytes = 0;
 for (const [inst, [gm]] of Object.entries(SAMPLED)) {
   if (want.length && !want.includes(inst)) continue;
-  const dir = new URL(`../public/samples/${inst}/`, import.meta.url);
+  const dir = new URL(`../public/samples/${sf === 'MusyngKite' ? 'mk/' : ''}${inst}/`, import.meta.url);
   await mkdir(dir, { recursive: true });
   for (const m of sampleNotes(inst)) {
     const file = new URL(`${m}.mp3`, dir);
