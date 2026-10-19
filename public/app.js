@@ -3,7 +3,7 @@
 // instruments), new songs out, made of the pieces and mixed (or exactly as
 // recorded, the mixer off). Four tabs: 做歌 (the pieces, a mood, the songs),
 // 樂器 (drums and notes to make clips with, lib/studio.mjs), 即興 (the
-// pieces as pads, played live and kept as a song, lib/jamview.mjs) and 歌單
+// pieces as pads, played live and kept as a song, lib/jamview.mjs) and 資料庫
 // (the songs kept, on this phone). An Orbit app: the kit draws the loading
 // screen, the bar and the tab bar, keeps the app current and opening
 // offline; the Quadra Pass keeps the settings, each kit's tempo and roles
@@ -26,19 +26,20 @@ import { libraryView, nameSheet } from './lib/library.mjs';
 import { packSong, packWay, playsWhole, keptAudio, sameSong, slimTo, soundOf, formOf, kindOf, builtIn, mbText, PACKED } from './lib/pack.mjs';
 import { mountStudio } from './lib/studio.mjs';
 import { mountJam, readSet, setCover } from './lib/jamview.mjs';
-import { specOf } from './lib/jamset.mjs';
+import { specOf, setOf } from './lib/jamset.mjs';
 import { W, en, lang } from './lib/lang.mjs';
-import { shows, levelCss, makeSettings } from './lib/easy.mjs';
+import { shows, levelCss, makeSettings, makeWith, easyMood, EASY_MOODS } from './lib/easy.mjs';
 import { MOODS, radioPick, radioPlan, RADIO_V } from './lib/radio.mjs';
 import { mountRadio } from './lib/radioview.mjs';
-import { TERM_ORDER, EXAMPLES, term, info } from './lib/help.mjs';
+import { TERM_ORDER, TOUR, EXAMPLES, term, info } from './lib/help.mjs';
 import * as kitQ from '#kit/quadra.mjs';
 import { icon, inner } from './lib/icons.mjs';
 import { createPlayer, coverOfTrack } from './lib/player.mjs';
 import { mountPlayerView, subOf, onLong, speedText } from './lib/playerview.mjs';
-import { mountHome, songShelf } from './lib/homeview.mjs';
+import { mountHome, songShelf, shelfOf, sqCard, stationCover } from './lib/homeview.mjs';
 import { remix, surprise, remixId, remixTitle, kindOfRecipe, baseOf, radioBase, bandBase, lengthStep, retime, clipSpan, partOf } from './lib/remix.mjs';
 import { remixSheet, clipSheet, PART_NAMES } from './lib/remixview.mjs';
+import { coverSvg, coverUrl } from './lib/cover.mjs';
 import { stationId } from './lib/stations.mjs';
 import * as Q from './lib/queue.mjs';
 import { LENGTH_MIN, LENGTH_MAX, LENGTH_STEP, LENGTH_PRESETS, clampLength, clock, kitLength } from './lib/length.mjs';
@@ -105,7 +106,16 @@ if (!kept.settings) {
 let settings = settingsOf(kept.settings, DEFAULTS);
 const simple = () => settings.level !== 'pro';
 // What songs are made on: Advanced's settings, or Simple's own fixed ones (lib/easy.mjs), never mixed.
-const cfg = () => makeSettings(settings.level, settings);
+// (簡單's 情境 card, if one is picked: a mood of the grooves to make from. Kept on this phone only.)
+const MOOD_KEY = 'orbit-beats-make-mood';
+let easyPick = (() => {
+  try {
+    return easyMood(localStorage.getItem(MOOD_KEY));
+  } catch {
+    return 'all';
+  }
+})();
+const cfg = () => makeWith(settings.level, settings, easyPick);
 // The level on the page: body.lv-simple or body.lv-pro.
 function applyLevel() {
   document.body.classList.toggle('lv-simple', simple());
@@ -174,6 +184,8 @@ function showTab(id) {
   for (const s of SUBS) $(`panel-${s}`).hidden = s !== sub;
   $('subnav').hidden = !sub;
   if (sub) $('subnav-title').textContent = name(SUB_NAMES, sub);
+  // (The mini player is out of the way only while 樂器 or 即興 is the one playing, on their own screens.)
+  if (id !== 'studio' && id !== 'jam') document.body.classList.remove('own-sound');
   try {
     const hh = `#${sub || tab}`;
     if (location.hash !== hh) history.replaceState(null, '', hh);
@@ -189,7 +201,8 @@ function showTab(id) {
 const firstTab = () => (SCREEN_TAB[location.hash.slice(1)] ? location.hash.slice(1) : 'home');
 $('subnav-back').innerHTML = icon('back-chevron');
 $('subnav-back').onclick = () => showTab('create');
-// 創作: the path in three cards. 即興 (the band, with ▶), then 樂器 and 做歌 (with how many pieces wait there).
+// 創作: the path in cards. 即興 (the band, with ▶), then 樂器 and 做歌 (with how many pieces wait there),
+// then shelves: your songs (or ways to start, before there are any) and 即興's sets.
 let hubDraw = () => {};
 {
   const cover = h('img', { alt: '', class: 'hub-cover' });
@@ -206,16 +219,36 @@ let hubDraw = () => {};
     const fresh = songs.filter(x => !lib.has(x.id));
     return [...fresh, ...[...lib.all()].sort((a, b) => (b.at || 0) - (a.at || 0))].slice(0, 12);
   };
+  // 即興's sets: six grooves, each a band of its own (the same set every time, so its cover is too).
+  const JAM_SETS = ['hiphop', 'house', 'citypop', 'jazz', 'kpop', 'afro', 'trap'].filter(x => STYLES.includes(x)).slice(0, 6).map((style, i) => setOf({ seed: 11 + i * 97, style }));
+  const openJam = set => {
+    showTab('jam');
+    jam?.useSet?.(set);
+    jam?.start();
+  };
+  const card = (img, title, sub, onclick, cls = 'sq') => sqCard(img, title, sub, { onclick }, cls);
+  // Before there are songs: four ways to begin, one tap each.
+  const starters = () => {
+    const last = radio?.recent?.()[0];
+    const lofi = setOf({ seed: 11, style: 'lofi' });
+    return [
+      card(setCover(lofi, specOf(lofi).bpm), W('用 Lo-fi 即興', 'Jam on Lo-fi'), W('即興', 'Jam'), () => openJam(lofi), 'sq big'),
+      card(coverUrl(coverSvg({ seed: 4242, style: 'trap', bpm: 140, text: false })), W('寫一段 Trap 鼓', 'Write a trap beat'), W('樂器', 'Studio'), () => showTab('studio'), 'sq big'),
+      ...(last ? [card(radio.coverOf(last), W('混音剛聽的歌', 'Remix what you heard'), last.title, () => remixOf(last), 'sq big')] : []),
+      card(stationCover('all'), W('做 6 首歌', 'Make 6 songs'), W('做歌', 'Songs'), () => (showTab('make'), $('go').click()), 'sq big')
+    ];
+  };
   hubDraw = () => {
     const set = readSet();
     cover.src = setCover(set, specOf(set).bpm);
     badge.textContent = String(pieces.length);
     badge.hidden = !pieces.length;
     const mine = songShelf({ P, trackMenu: (t, a) => trackMenuOf(t, a) }, 'mine', W('你的歌', 'Your songs'), mineFirst());
-    shelf.replaceChildren(...(mine ? [mine] : []));
+    const sets = shelfOf('jam-sets', W('即興組合', 'Jam sets'), JAM_SETS.map(x => card(setCover(x, specOf(x).bpm), name(STYLE_NAMES, x.style), speedText(specOf(x).bpm), () => openJam(x))));
+    shelf.replaceChildren(...(mine ? [mine] : [shelfOf('start', W('從這裡開始', 'Start here'), starters())]), sets);
   };
   const shelf = h('div', { class: 'hub-shelf' });
-  $('panel-create').append(h('h1', { class: 'page-title', text: W('創作', 'Create') }), hero, h('div', { class: 'hub-pair' }, [half('studio', 'grid', W('樂器', 'Studio')), half('make', 'note', W('做歌', 'Songs'), badge)]), shelf);
+  $('panel-create').append(hero, h('div', { class: 'hub-pair' }, [half('studio', 'grid', W('樂器', 'Studio')), half('make', 'note', W('做歌', 'Songs'), badge)]), shelf);
 }
 
 // ---- Settings (做歌) ----
@@ -228,6 +261,22 @@ const smartSwitch = toggle({ checked: settings.smart, label: W('依你的口味'
 smartSwitch.id = 'smart';
 $('smart-slot').replaceWith(smartSwitch);
 
+// 簡單's 情境: four cards (a mood of grooves to make from). A tap picks one, a tap again lets it go.
+{
+  const cards = EASY_MOODS.map(id =>
+    h('button', { class: 'mood-card', type: 'button', 'data-mood': id, 'aria-pressed': String(easyPick === id) }, [h('span', { class: 'mc-cover' }, [h('img', { alt: '', src: stationCover(id), draggable: 'false' })]), h('b', { text: en ? MOODS[id].en : MOODS[id].zh })])
+  );
+  const row = h('div', { class: 'stack easy-moods', 'data-ctl': 'make-mood-cards' }, [h('div', { class: 'label' }, [h('span', { text: W('情境', 'Mood') })]), h('div', { class: 'mood-cards' }, cards)]);
+  for (const c of cards)
+    c.onclick = () => {
+      easyPick = easyPick === c.dataset.mood ? 'all' : c.dataset.mood;
+      try {
+        localStorage.setItem(MOOD_KEY, easyPick);
+      } catch {}
+      for (const o of cards) o.setAttribute('aria-pressed', String(o.dataset.mood === easyPick));
+    };
+  $('moods').closest('.stack').after(row);
+}
 // Which mood the styles are, if any.
 const moodFor = styles => Object.entries(MOODS).find(([, m]) => m.styles.length === styles.length && m.styles.every(s => styles.includes(s)))?.[0] || '';
 const moodOf = () => moodFor(settings.styles);
@@ -258,7 +307,7 @@ const weights = () => (cfg().smart && Object.keys(kept.taste || {}).length ? kep
 
 // 長度: presets and a slider, in minutes and seconds.
 {
-  const out = h('b', { class: 'len-val' });
+  const out = h('b', { class: 'len-val', 'data-ctl': 'make-length-slider' });
   const slider = h('input', { 'data-ctl': 'make-length-slider', type: 'range', min: LENGTH_MIN, max: LENGTH_MAX, step: LENGTH_STEP, 'aria-label': W('長度', 'Length') });
   const chips = h('div', { class: 'len-chips' }, LENGTH_PRESETS.map(v => h('button', { class: 'chip', type: 'button', 'data-len': String(v), text: clock(v), 'data-ctl': [30, 60, 120, 180].includes(v) ? null : 'make-length-slider', onclick: () => set(v) })));
   const set = v => {
@@ -275,7 +324,7 @@ const weights = () => (cfg().smart && Object.keys(kept.taste || {}).length ? kep
   slider.addEventListener('input', () => set(slider.value));
   paint();
   lengthPaint = paint;
-  document.querySelector('[data-ctl="make-count"]').before(h('div', { class: 'stack len-row' }, [h('div', { class: 'sheet-line', 'data-ctl': 'make-length-slider' }, [h('span', { class: 'label', text: W('長度', 'Length') }), out]), chips, slider]));
+  document.querySelector('[data-ctl="make-count"]').before(h('div', { class: 'stack len-row' }, [h('div', { class: 'sheet-line' }, [h('span', { class: 'label', text: W('長度', 'Length') }), out]), chips, slider]));
 }
 // What's wrong with the settings, if anything.
 function problem() {
@@ -310,6 +359,10 @@ function update() {
   $('count-down').disabled = busy || count <= 1;
   $('count-up').disabled = busy || count >= MAX_SONGS;
   $('error').textContent = bad;
+  if (!busy) {
+    $('go').removeAttribute('aria-busy');
+    $('go').removeAttribute('aria-label');
+  }
   if (!busy && simple()) {
     $('go').innerHTML = `${icon('dice')}<span>${W(`做 ${count} 首歌`, `Make ${count} songs`)}</span>`;
     $('go').disabled = false;
@@ -371,7 +424,7 @@ const termLabel = id => h('span', { class: 'label' }, [term(id).name, ' ', info(
 const levelRow = () =>
   sheetRow(
     W('模式', 'Mode'),
-    h('small', { text: W('簡單：只留做歌需要的 · 進階：所有工具', 'Simple: just what you need · Advanced: every tool') }),
+    null,
     seg(
       [
         ['simple', W('簡單', 'Simple')],
@@ -602,7 +655,11 @@ function ingredientCards(grid) {
   const add = h('button', { class: 'ing-add', type: 'button', 'data-ctl': 'make-ingredients', 'aria-label': W('加材料', 'Add'), html: `${icon('plus')}` });
   add.onclick = addSheet;
   const nodes = [add];
-  if (!pieces.length) nodes.push(h('div', { class: 'ing-band', 'data-ctl': 'make-ingredients' }, [h('span', { html: icon('grid') }), h('span', { text: W('內建樂團', 'Built-in band') })]));
+  // (Picked, as it is the default: the band's own cover, ringed in the accent.)
+  if (!pieces.length) {
+    const set = readSet();
+    nodes.push(h('div', { class: 'ing-band', 'data-ctl': 'make-ingredients', role: 'img', 'aria-label': W('內建樂團', 'Built-in band') }, [h('img', { alt: '', src: setCover(set, specOf(set).bpm), draggable: 'false' }), h('span', { text: W('內建樂團', 'Built-in band') })]));
+  }
   grid.prepend(...nodes);
 }
 // ＋: the ways in, as big rows.
@@ -823,6 +880,8 @@ function quiet({ keep: but = '' } = {}) {
   if (but !== 'song') stopSong();
   if (but !== 'studio') studio?.stop();
   if (but !== 'jam') jam?.stop();
+  // 樂器 or 即興 playing: the mini player (a paused radio song) steps aside, so there's one ▶ on screen. Back with anything else.
+  document.body.classList.toggle('own-sound', but === 'studio' || but === 'jam');
 }
 // Tap a piece to hear it; tap again to stop.
 let playing = null;
@@ -1048,25 +1107,30 @@ const lib = libraryView({
   zip: list => zipOf(list, 'Orbit Beats · Library.zip')
 });
 
-// One row: play, its name and what it is, ♡ and ⋯; its sections under it (tap one to go there).
+// One row: the whole of it plays (a tap on its cover or name), ♡ and ⋯ beside it. On 做歌, the song playing shows its sections under it (tap one to go there).
 function songRow(song, { lib: inLib = false, list = null } = {}) {
   const li = h('li', { class: 'song', 'data-id': song.id });
   const info = song.info;
   const what = [timeText(info.seconds), info.style ? name(STYLE_NAMES, info.style) : W('即興', 'Jam'), info.bpm ? speedText(info.bpm) : '', simple() ? '' : keyName(info.key)].filter(Boolean);
   const plan = info.plan.map(([t]) => name(SECTION_NAMES, t)).join(', ');
-  const play = h('button', { class: 'play', type: 'button', 'aria-label': W(`播放 ${song.name}`, `Play ${song.name}`), onclick: () => toggleSong(song) }, [h('img', { class: 'sc', alt: '', src: coverOfTrack(P.track(song)), width: 52, height: 52, loading: 'lazy' }), h('span', { class: 'si', html: ICON.play })]);
+  const play = h('span', { class: 'play' }, [h('img', { class: 'sc', alt: '', src: coverOfTrack(P.track(song)), width: 52, height: 52, loading: 'lazy' }), h('span', { class: 'si', html: ICON.play })]);
+  const main = h('button', { class: 'main', type: 'button', 'aria-label': W(`播放 ${song.name}`, `Play ${song.name}`), onclick: () => toggleSong(song) }, [play, h('span', { class: 'what' }, [h('span', { class: 'name', text: song.name }), h('span', { class: 'info' }, what.flatMap((w, i) => [...(i ? [' · '] : []), h('span', { text: w })]))])]);
   const heart = h('button', { class: `act heart${lib.has(song.id) ? ' kept' : ''}`, type: 'button', 'aria-label': lib.has(song.id) ? W('取消收藏', 'Remove from Library') : W('收藏', 'Keep'), 'aria-pressed': String(lib.has(song.id)), html: lib.has(song.id) ? ICON.hearted : ICON.heart, onclick: () => keepSong(song) });
   const more = h('button', { class: 'act', type: 'button', 'aria-label': W('更多', 'More'), html: ICON.more, onclick: e => songMenu(song, e.currentTarget, inLib, list) });
-  const bar = h('div', { class: 'plan', role: 'group', 'aria-label': plan });
-  const total = info.plan.reduce((a, [, n]) => a + n, 0);
-  const width = Math.min(innerWidth, 560) - 32 - 62 - 40; // the strip's room (row and card padding, play column), on the safe side so no label is cut
-  sectionTimes(info.plan, info.bpm || bpm).forEach((s, k) => {
-    const label = name(SECTION_NAMES, s.type);
-    const em = en ? label.length * 0.66 : label.length;
-    bar.append(h('button', { type: 'button', class: `sec t-${s.type}`, 'data-k': String(k), style: { flex: String(s.bars), background: `var(--${s.type})`, '--k': String(k) }, 'aria-label': label, text: labelFits(s.bars, total, width, em) ? label : '' }));
-    holdable(bar.lastChild, () => seekBar(song, s.bar), () => loopSection(song, s.bar));
-  });
-  li.append(h('div', { class: 'line' }, [play, h('div', { class: 'what' }, [h('span', { class: 'name', text: song.name }), h('span', { class: 'info' }, what.flatMap((w, i) => [...(i ? [' · '] : []), h('span', { text: w })]))]), heart, more]), bar);
+  li.append(h('div', { class: 'line' }, [main, heart, more]));
+  // (The section strip is 做歌's: a library list is only songs.)
+  if (!inLib) {
+    const bar = h('div', { class: 'plan', role: 'group', 'aria-label': plan });
+    const total = info.plan.reduce((a, [, n]) => a + n, 0);
+    const width = Math.min(innerWidth, 560) - 32 - 62 - 40; // the strip's room (row and card padding, play column), on the safe side so no label is cut
+    sectionTimes(info.plan, info.bpm || bpm).forEach((s, k) => {
+      const label = name(SECTION_NAMES, s.type);
+      const em = en ? label.length * 0.66 : label.length;
+      bar.append(h('button', { type: 'button', class: `sec t-${s.type}`, 'data-k': String(k), style: { flex: String(s.bars), background: `var(--${s.type})`, '--k': String(k) }, 'aria-label': label, text: labelFits(s.bars, total, width, em) ? label : '' }));
+      holdable(bar.lastChild, () => seekBar(song, s.bar), () => loopSection(song, s.bar));
+    });
+    li.append(bar);
+  }
   onLong(li.querySelector('.line'), () => songMenu(song, more, inLib, list));
   litAt = '';
   if (nowPlaying?.id === song.id) markRow(li, true);
@@ -1119,6 +1183,21 @@ async function makeOne(recipe, title) {
 const fromRecipe = (from, over) => ({ ...from.recipe, ...over });
 
 $('go').onclick = () => makeBatch();
+// The button while a batch is made: a spinner, nothing else (the list below fills as each song lands).
+function goBusy() {
+  $('go').innerHTML = icon('spinner', { cls: 'spin' });
+  $('go').setAttribute('aria-busy', 'true');
+  $('go').setAttribute('aria-label', W('做歌中', 'Making songs'));
+}
+// A song's place in a batch, before it is made: its cover and name as bars that shimmer.
+const skeletonRow = () =>
+  h('li', { class: 'song skeleton', 'aria-hidden': 'true' }, [h('div', { class: 'line' }, [h('span', { class: 'main' }, [h('span', { class: 'play' }), h('span', { class: 'what' }, [h('span', { class: 'name' }), h('span', { class: 'info' })])])])]);
+// The batch's rows: one place each at once; a song takes its place as it lands, and what's left is cleared at the end.
+const placeholders = n => {
+  const rows = Array.from({ length: n }, skeletonRow);
+  $('songs').append(...rows);
+  return { fill: (k, row) => (rows[k]?.isConnected ? rows[k].replaceWith(row) : $('songs').append(row)), clear: () => rows.forEach(r => r.remove()) };
+};
 // A batch of `count` songs, in place of the last.
 async function makeBatch(count = cfg().count) {
   if (ownBand()) return bandBatch(count);
@@ -1136,18 +1215,18 @@ async function makeBatch(count = cfg().count) {
   $('out-meta').textContent = `${bpm} BPM · ${W('種子', 'seed')} ${seed} · ${bits === 32 ? W('32 位元', '32-bit') : W('16 位元', '16-bit')} · ${mix.on ? W('混音', 'mixed') : W('原音', 'raw')}${lean}`;
   $('go').disabled = true;
   update();
+  goBusy();
   const list = batch(count, seed);
   const kit = print;
+  const rows = placeholders(list.length);
+  $('out').scrollIntoView({ behavior: 'smooth', block: 'start' });
   try {
     for (let k = 0; k < list.length; k++) {
-      $('go').textContent = W(`第 ${k + 1} / ${list.length} 首…`, `Making ${k + 1} of ${list.length}…`);
-      $('busy').textContent = W(`正在做第 ${k + 1} / ${list.length} 首…`, `Making song ${k + 1} of ${list.length}…`);
-      if (k === 0) $('out').scrollIntoView({ behavior: 'smooth', block: 'start' });
       await new Promise(r => setTimeout(r, 0));
       if (print !== kit) break;   // (the kit changed under the batch: what's made stays)
       const song = await makeOne(recipeOf({ seed: list[k].seed }), songTitle(list[k].seed));
       songs.push(song);
-      $('songs').append(songRow(song));
+      rows.fill(k, songRow(song));
       // (The first one plays as soon as it's made, unless something else already is; the rest follow it.)
       if (k === 0 && !P.state()?.playing) playRow(song);
       else P.relist(songs.map(x => P.track(x)));
@@ -1155,7 +1234,7 @@ async function makeBatch(count = cfg().count) {
   } catch (e) {
     toast(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`), { tone: 'bad' });
   }
-  $('busy').textContent = '';
+  rows.clear();
   $('zip').disabled = !songs.length;
   busy = false;
   update();
@@ -1173,17 +1252,17 @@ async function bandBatch(count) {
   $('zip').disabled = true;
   $('go').disabled = true;
   update();
+  goBusy();
   const recent = [];
+  const rows = placeholders(count);
+  $('out').scrollIntoView({ behavior: 'smooth', block: 'start' });
   try {
     for (let k = 0; k < count; k++) {
-      $('go').textContent = W(`第 ${k + 1} / ${count} 首…`, `Making ${k + 1} of ${count}…`);
-      $('busy').textContent = W(`正在做第 ${k + 1} / ${count} 首…`, `Making song ${k + 1} of ${count}…`);
-      if (k === 0) $('out').scrollIntoView({ behavior: 'smooth', block: 'start' });
-      const spec = radioPick('all', recent);
+      const spec = radioPick(cfg().mood, recent);
       recent.push(spec.style);
       const song = await bandSong({ ...spec, seconds: settings.length });
       songs.push(song);
-      $('songs').append(songRow(song));
+      rows.fill(k, songRow(song));
       // (The first one plays as soon as it's made, unless something else already is; the rest follow it.)
       if (k === 0 && !P.state()?.playing) playRow(song);
       else P.relist(songs.map(x => P.track(x)));
@@ -1191,7 +1270,7 @@ async function bandBatch(count) {
   } catch (e) {
     toast(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`), { tone: 'bad' });
   }
-  $('busy').textContent = '';
+  rows.clear();
   $('zip').disabled = !songs.length;
   busy = false;
   update();
@@ -1226,43 +1305,47 @@ async function another(from, recipe, title) {
 }
 const baseTitle = song => song.name.split(' · ')[0];
 const nth = base => songs.filter(s => s.name.startsWith(`${base} · `)).length + 1;
-// (In 歌單: into a list; shown in a list, out of it.)
+// A song's ⋯: what to play it after, where to put it, what to make from it, how to take it, and (in 資料庫) its name and the way out.
+// (Not 播放, 收藏 or 刪除 as a second 取消收藏: the row, the ♡ and the last red item are those.)
 function songMenu(song, anchor, inLib, list = null) {
   const can = heard && song.recipe?.print === print;
   const isJam = Boolean(song.recipe?.jam);
   const t = P.track(song);
-  const k = lib.has(song.id);
-  menu(anchor, [
-    { label: W('播放', 'Play'), icon: 'play', onClick: () => playRow(song) },
-    { label: W('插播', 'Play next'), icon: 'play_next', onClick: () => P.playNext(t) },
-    { label: W('稍後播放', 'Play later'), icon: 'queue', onClick: () => P.playLater(t) },
-    { label: k ? W('取消收藏', 'Remove from Library') : W('收藏', 'Keep'), icon: k ? 'heart-fill' : 'heart', onClick: () => keepSong(song) },
-    { label: W('分享', 'Share'), icon: 'share', onClick: () => shareSong(song) },
-    { label: W('重新混音', 'Remix'), icon: 'shuffle', onClick: () => remixOf(song) },
-    { label: W('取出片段', 'Take a clip'), icon: 'cut', onClick: () => clipOf(song) },
-    ...(inLib ? [{ label: W('刪除', 'Delete'), icon: 'trash', danger: true, onClick: () => keepSong(song) }] : []),
-    'divider',
-    ...(can && !isJam
-      ? [
-          { label: W('變奏一首', 'A variation'), icon: 'refresh', onClick: () => another(song, fromRecipe(song, { detail: Math.floor(Math.random() * 1e9) }), `${baseTitle(song)} · ${W('變奏', 'Var.')} ${nth(baseTitle(song))}`) },
-          { label: W('換個鼓…', 'Another groove…'), icon: 'note', onClick: () => pickGroove(song) },
-          ...(shows(settings.level, 'make-arrange') ? [{ label: W('編排…', 'Arrange…'), icon: 'grid', onClick: () => arrange(song) }] : []),
-          'divider'
-        ]
-      : []),
-    { label: W('下載 WAV', 'Download WAV'), icon: 'download', onClick: () => downloadSong(song) },
-    ...(song.recipe?.radio || song.recipe?.band ? [] : [{ label: W('存成檔案', 'Save as file'), icon: 'download', onClick: () => saveProject(song) }]),
-    ...(can && shows(settings.level, 'make-stems') ? [{ label: W('下載分軌', 'Download stems'), icon: 'grid', onClick: () => stemsOf(song) }] : []),
-    ...(can && shows(settings.level, 'make-midi') ? [{ label: W('匯出 MIDI', 'Export MIDI'), icon: 'note', onClick: () => midiOf(song) }] : []),
-    ...(inLib
-      ? [
-          'divider',
-          { label: W('加到清單…', 'Add to playlist…'), icon: 'plus', onClick: () => lib.pickList(song) },
-          ...(list ? [{ label: W('從這個清單移除', 'Remove from this playlist'), icon: 'close', onClick: () => lib.unlist(list, song.id) }] : []),
-          { label: W('重新命名', 'Rename'), icon: 'edit', onClick: () => renameKept(song) }
-        ]
-      : [])
-  ]);
+  const info = song.info;
+  const pro = settings.level === 'pro';
+  const groups = [
+    [
+      { label: W('插播', 'Play next'), icon: 'play_next', onClick: () => P.playNext(t) },
+      { label: W('稍後播放', 'Play later'), icon: 'play_later', onClick: () => P.playLater(t) }
+    ],
+    [
+      ...(inLib ? [{ label: W('加到清單…', 'Add to playlist…'), icon: 'plus', onClick: () => lib.pickList(song) }] : []),
+      ...(inLib && list ? [{ label: W('從這個清單移除', 'Remove from this playlist'), icon: 'close', onClick: () => lib.unlist(list, song.id) }] : []),
+      { label: W('分享', 'Share'), icon: 'share', onClick: () => shareSong(song) }
+    ],
+    [
+      { label: W('重新混音', 'Remix'), icon: 'shuffle', onClick: () => remixOf(song) },
+      { label: W('取出片段', 'Take a clip'), icon: 'cut', onClick: () => clipOf(song) },
+      ...(can && !isJam
+        ? [
+            { label: W('變奏一首', 'A variation'), icon: 'refresh', onClick: () => another(song, fromRecipe(song, { detail: Math.floor(Math.random() * 1e9) }), `${baseTitle(song)} · ${W('變奏', 'Var.')} ${nth(baseTitle(song))}`) },
+            { label: W('換個鼓…', 'Another groove…'), icon: 'note', onClick: () => pickGroove(song) },
+            ...(shows(settings.level, 'make-arrange') ? [{ label: W('編排…', 'Arrange…'), icon: 'grid', onClick: () => arrange(song) }] : [])
+          ]
+        : [])
+    ],
+    [
+      { label: W('下載', 'Download'), icon: 'download', onClick: () => downloadSong(song) },
+      ...(pro && !(song.recipe?.radio || song.recipe?.band) ? [{ label: W('存成檔案', 'Save as file'), icon: 'download', onClick: () => saveProject(song) }] : []),
+      ...(can && shows(settings.level, 'make-stems') ? [{ label: W('下載分軌', 'Download stems'), icon: 'grid', onClick: () => stemsOf(song) }] : []),
+      ...(can && shows(settings.level, 'make-midi') ? [{ label: W('匯出 MIDI', 'Export MIDI'), icon: 'note', onClick: () => midiOf(song) }] : []),
+      ...(inLib ? [{ label: W('重新命名', 'Rename'), icon: 'edit', onClick: () => renameKept(song) }] : [])
+    ],
+    inLib ? [{ label: W('從資料庫移除', 'Remove from Library'), icon: 'trash', danger: true, onClick: () => keepSong(song) }] : []
+  ];
+  const items = groups.filter(g => g.length).flatMap((g, i) => (i ? ['divider', ...g] : g));
+  const sub = [timeText(info.seconds), info.style ? name(STYLE_NAMES, info.style) : W('即興', 'Jam')].filter(Boolean).join(' · ');
+  menu(anchor, items, { header: { cover: coverOfTrack(t), title: song.name, sub }, scrim: true });
 }
 // ---- 重新混音 and 取出片段 (lib/remix.mjs, lib/remixview.mjs) ----
 
@@ -1472,7 +1555,7 @@ let home = null;
 let trackMenuOf = () => {};
 async function urlOf(song) {
   if (song.url) return song.url;
-  // (The kept record as it is now: 歌單瘦身 may have packed it since its row was drawn.)
+  // (The kept record as it is now: 資料庫瘦身 may have packed it since its row was drawn.)
   if (!urls.has(song.id)) urls.set(song.id, URL.createObjectURL(soundOf(lib.get(song.id) || song)));
   return urls.get(song.id);
 }
@@ -1501,7 +1584,7 @@ async function playSong(song, at = 0) {
   paintPlayer();
   for (const li of rowsOf(song.id)) markRow(li, true);
 }
-// A song from a row: it plays, and the list it is in goes on after it (the batch, or what 歌單 shows).
+// A song from a row: it plays, and the list it is in goes on after it (the batch, or what 資料庫 shows).
 const remixes = []; // the remixes made this visit (newest first), so the queue can play them
 const songOfTrack = t => lib.get(t.id) || songs.find(s => s.id === t.id) || remixes.find(s => s.id === t.id) || null;
 function playRow(song, at = 0) {
@@ -1584,7 +1667,7 @@ function paintPlayer() {
   const t = audio.currentTime || 0;
   const pct = d ? Math.min(100, (t / d) * 100) : 0;
   paintSections();
-  if (nowPlaying) for (const li of rowsOf(nowPlaying.id)) li.querySelector('.plan').style.setProperty('--at', `${pct}%`);
+  if (nowPlaying) for (const li of rowsOf(nowPlaying.id)) li.querySelector('.plan')?.style.setProperty('--at', `${pct}%`);
 }
 // (A section looped is held by the frame, not timeupdate's quarter second.)
 function watchLoop() {
@@ -1641,7 +1724,7 @@ function claimSession(o) {
 
 // ---- Keep, share, download ----
 
-// ♡: into 歌單 (this phone) and your taste (the Pass); again, out of both.
+// ♡: into 資料庫 (this phone) and your taste (the Pass); again, out of both.
 const keeping = new Set(); // (being packed: a second tap waits for the first)
 async function keepSong(song, { quiet = false } = {}) {
   if (lib.has(song.id)) {
@@ -1651,12 +1734,12 @@ async function keepSong(song, { quiet = false } = {}) {
     keep();
     refreshHearts(song.id);
     tasteHint();
-    quiet || toast(W('已從歌單移除', 'Removed from Library'));
+    quiet || toast(W('已從資料庫移除', 'Removed from Library'));
     return;
   }
   if (keeping.has(song.id)) return;
   keeping.add(song.id);
-  const slow = setTimeout(() => toast(W('存到歌單中…', 'Keeping it…'), { ms: 4000 }), 400);
+  const slow = setTimeout(() => toast(W('存到資料庫中…', 'Keeping it…'), { ms: 4000 }), 400);
   let rec;
   try {
     // (Kept small: packed by the phone, about a tenth of the WAV; made again whole to export, lib/pack.mjs.)
@@ -1675,7 +1758,7 @@ async function keepSong(song, { quiet = false } = {}) {
   keep();
   refreshHearts(song.id);
   tasteHint();
-  quiet || toast(W('已存到歌單', 'Kept in Library'));
+  quiet || toast(W('已存到資料庫', 'Kept in Library'));
 }
 // A song's WAV to hand over, at full quality: a batch's own; a kept one made
 // again from its recipe (聽's band, 即興's set, or the kit it was made on
@@ -1701,7 +1784,7 @@ async function wavOf(song) {
     } catch {}
   }
   kept ||= await keptAudio(rec);
-  const note = kind === 'kit' && !mine ? W('從歌單的壓縮檔轉成 WAV。放進做這首的片段，就能匯出原音質。', 'Made from the Library copy. Add the pieces it was made from for full quality.') : W('從歌單的壓縮檔轉成 WAV。', 'Made from the Library copy.');
+  const note = kind === 'kit' && !mine ? W('從資料庫的壓縮檔轉成 WAV。放進做這首的片段，就能匯出原音質。', 'Made from the Library copy. Add the pieces it was made from for full quality.') : W('從資料庫的壓縮檔轉成 WAV。', 'Made from the Library copy.');
   return { blob: new Blob([encodeWav(kept, 16)], { type: 'audio/wav' }), note };
 }
 // wavOf with word of it: a moment's making shows, a failure says so. -> { blob, note } | null
@@ -1855,10 +1938,10 @@ async function zipOf(list, filename) {
   }
   document.querySelector('.q-toast')?.remove();
   download(new Blob(zipParts(files), { type: 'application/zip' }), filename);
-  if (noted) toast(W(`${noted} 首從歌單的壓縮檔轉成 WAV`, `${noted} made from the Library copy`), { ms: 4000 });
+  if (noted) toast(W(`${noted} 首從資料庫的壓縮檔轉成 WAV`, `${noted} made from the Library copy`), { ms: 4000 });
 }
 
-// ---- 歌單瘦身: songs kept as WAVs before, packed small ----
+// ---- 資料庫瘦身: songs kept as WAVs before, packed small ----
 // One at a time behind everything else (never while 樂器 or 即興 play, or
 // the song itself does). A song's WAV goes only once its packed copy plays
 // back whole and is written and read back as made; a tab closed halfway
@@ -1918,7 +2001,7 @@ async function slimLibrary() {
   try {
     localStorage.removeItem(SLIM_FREED);
   } catch {}
-  toast(W(`歌單瘦身：省下 ${mbText(freed)}`, `Library slimmed: ${mbText(freed)} freed`), { ms: 3500 });
+  toast(W(`資料庫瘦身：省下 ${mbText(freed)}`, `Library slimmed: ${mbText(freed)} freed`), { ms: 3500 });
   if (tabNow === 'library' && !document.activeElement?.matches?.('input')) lib.draw();
 }
 $('zip').onclick = () => zipOf(songs, 'Orbit Beats.zip');
@@ -1929,11 +2012,11 @@ let studio = null;
 let jam = null;
 let jamMake = null;
 let radio = null;
-// ♡ on 聽: the song whole into 歌單 (made again from its seed), or out again.
+// ♡ on 聽: the song whole into 資料庫 (made again from its seed), or out again.
 async function keepRadio(item) {
   const id = `radio:${item.spec.seed}:${item.spec.mood}:${item.info.style}`;
   const there = lib.has(id);
-  if (!there) toast(W('存到歌單中…', 'Keeping it…'), { ms: 1200 });
+  if (!there) toast(W('存到資料庫中…', 'Keeping it…'), { ms: 1200 });
   try {
     await keepSong(there ? { id, info: item.info } : await bandSong({ ...item.spec, style: item.info.style }).then(s => ({ ...s, name: item.title })));
   } catch (e) {
@@ -2044,27 +2127,45 @@ function explain(id) {
     body: h('div', { class: 'card sheet-card' }, [h('p', { class: 'term-text', text: t.text }), listen])
   });
 }
-// The ? at the top: 簡單 / 進階, the words, and the full guide (the kit's, in the Quadra Pass sheet).
+// The ? at the top: the four screens as cards (tap one to go, ▶ to try it), the words, and the full guide (the kit's, in the Quadra Pass sheet).
+// ▶ starts what the screen does: 聽's radio, 即興's pads, 樂器's beat, 做歌's batch.
+function tourPlay(id) {
+  if (id === 'home') return (showTab('home'), P?.radioPlay());
+  showTab(id);
+  if (id === 'jam') jam?.start();
+  else if (id === 'studio') $('panel-studio').querySelector('.st-play:not(.on)')?.click();
+  else $('go').click();
+}
+function wordsSheet() {
+  sheet({
+    title: W('名詞小辭典', 'Music words'),
+    closeLabel: W('關閉', 'Close'),
+    body: h('div', { class: 'card sheet-card' }, [
+      h('ul', { class: 'terms' }, TERM_ORDER.map(id => h('li', {}, [h('button', { type: 'button', onclick: () => explain(id) }, [h('div', {}, [h('b', { text: term(id).name }), h('small', { text: term(id).hint })]), h('span', { class: 'chev', 'aria-hidden': 'true', html: icon('chevron') })])])))
+    ])
+  });
+}
 function helpSheet() {
+  const row = (label, onclick) => h('button', { class: 'more-row row', type: 'button', onclick }, [h('span', { class: 'label', text: label }), h('span', { class: 'chev', 'aria-hidden': 'true', html: icon('chevron') })]);
+  const cards = TOUR.map(x => {
+    const [title, line] = en ? x.en : x.zh;
+    const go = () => (s.close(), showTab(x.id));
+    return h('div', { class: 'tour' }, [
+      h('button', { class: 'tour-go', type: 'button', onclick: go }, [h('span', { class: 'tour-ico', html: icon(x.icon) }), h('span', { class: 'tour-text' }, [h('b', { text: title }), h('small', { text: line })])]),
+      h('button', { class: 'tour-play', type: 'button', 'aria-label': W(`試試${title}`, `Try ${title}`), html: icon('play'), onclick: () => (s.close(), tourPlay(x.id)) })
+    ]);
+  });
   const s = sheet({
     title: W('說明', 'Help'),
     closeLabel: W('關閉', 'Close'),
     body: [
-      h('div', { class: 'card sheet-card' }, [
-        levelRow(),
-        h('button', { class: 'more-row row', type: 'button', onclick: () => (s.close(), kitQ.openHelp ? kitQ.openHelp(q) : (location.hash = 'help=beats')) }, [h('span', { class: 'label' }, [h('span', { text: W('完整說明', 'The full guide') }), h('small', { text: W('每個分頁、每個功能', 'Every tab and tool') })]), h('span', { class: 'chev', 'aria-hidden': 'true', text: '›' })])
-      ]),
-      h('div', { class: 'card sheet-card' }, [
-        h('div', { class: 'head' }, [h('h2', { text: W('名詞小辭典', 'Music words') })]),
-        h(
-          'ul',
-          { class: 'terms' },
-          TERM_ORDER.map(id => h('li', {}, [h('button', { type: 'button', onclick: () => explain(id) }, [h('div', {}, [h('b', { text: term(id).name }), h('small', { text: term(id).hint })]), h('span', { class: 'chev', 'aria-hidden': 'true', text: '›' })])]))
-        )
-      ])
+      h('div', { class: 'card sheet-card tours' }, cards),
+      h('div', { class: 'card sheet-card' }, [row(W('名詞小辭典', 'Music words'), () => wordsSheet()), row(W('完整說明', 'The full guide'), () => (s.close(), kitQ.openHelp ? kitQ.openHelp(q) : (location.hash = 'help=beats')))])
     ]
   });
 }
+// 簡單 / 進階 is a setting of the app: in the account sheet, with the Pass's own.
+const appSettings = () => h('div', {}, [h('h3', { class: 'q-sheet-h', text: W('模式', 'Mode') }), h('div', { class: 'q-rows' }, [h('div', { class: 'q-cell' }, [h('span', { class: 'level-label', text: W('使用方式', 'Tools') }), seg([['simple', W('簡單', 'Simple')], ['pro', W('進階', 'Advanced')]], settings.level, setLevel)])])]);
 
 // ---- Opening ----
 
@@ -2072,7 +2173,7 @@ const BUILD = document.querySelector('meta[name="build-version"]')?.content || '
 window.__fxStarted = true;
 const gated = installGate('beats', lang);
 watchUpdates({ current: BUILD, key: 'orbitBeats', cachePrefix: 'beats-', busy: () => busy || Boolean(recorder) || !audio.paused || Boolean(radio?.playing()) || Boolean(studio?.playing()) || Boolean(jam?.playing()) || Boolean(document.querySelector('.q-sheet, dialog[open]')) });
-topActions(q, { help: helpSheet });
+topActions(q, { help: helpSheet, extra: appSettings });
 
 // Everything drawn before the loading screen lifts: the settings, the last
 // kit (this phone's) split and heard, the studio's clip; the Pass's settings,

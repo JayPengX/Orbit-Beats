@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { LEVELS, PRO_ONLY, SIMPLE_ONLY, shows, levelCss, SIMPLE_MAKE, makeSettings } from '../public/lib/easy.mjs';
+import { LEVELS, PRO_ONLY, SIMPLE_ONLY, shows, levelCss, SIMPLE_MAKE, makeSettings, makeWith, easyMood, EASY_MOODS } from '../public/lib/easy.mjs';
+import { MOODS } from '../public/lib/radio.mjs';
+import { ICON_NAMES } from '../public/lib/icons.mjs';
 import { STYLES } from '../public/engine.mjs';
 import { MIX } from '../public/lib/mix.mjs';
-import { TERMS, TERM_ORDER, EXAMPLES, term } from '../public/lib/help.mjs';
+import { TERMS, TERM_ORDER, EXAMPLES, TOUR, term } from '../public/lib/help.mjs';
 import { DEFAULTS, settingsOf, keptSettings, decode, encode } from '../public/lib/kits.mjs';
 import { renderClip } from '../public/lib/synth.mjs';
 
@@ -98,4 +100,40 @@ test('each "hear it" plays the same bar without the thing and with it, and they 
     const same = off.n === on.n && Math.abs(off.e - on.e) < 1e-6 && off.first.every((x, i) => x === on.first[i]);
     assert.ok(!same, `${id}: on and off differ`);
   }
+});
+
+test("簡單's 情境 cards: a mood narrows the grooves and the feel, none leaves every groove, and 進階 never reads it", () => {
+  assert.deepEqual(EASY_MOODS, ['chill', 'hype', 'groove', 'classic']);
+  for (const id of EASY_MOODS) assert.ok(MOODS[id], id);
+  assert.equal(easyMood('hype'), 'hype');
+  for (const bad of ['pop', 'all', '', null, undefined, 'style:lofi']) assert.equal(easyMood(bad), 'all', String(bad));
+  const mine = settingsOf({ level: 'simple', count: 9 });
+  assert.deepEqual(makeWith('simple', mine, 'all'), makeSettings('simple', mine), 'no card: as before');
+  assert.deepEqual(makeWith('simple', mine, 'nonsense'), makeSettings('simple', mine));
+  for (const id of EASY_MOODS) {
+    const c = makeWith('simple', mine, id);
+    assert.deepEqual(c.styles, MOODS[id].styles, id);
+    assert.equal(c.humanize, MOODS[id].humanize);
+    assert.equal(c.mood, id);
+    // (Only the grooves and the feel: the rest stays simple's own.)
+    assert.equal(c.count, SIMPLE_MAKE.count);
+    assert.equal(c.bits, 16);
+    assert.deepEqual(c.mix, makeSettings('simple', mine).mix);
+  }
+  // The card's grooves are a copy: changing one changes no mood.
+  makeWith('simple', mine, 'chill').styles.push('x');
+  assert.ok(!MOODS.chill.styles.includes('x'));
+  // Advanced: its own settings, whatever card was last picked in simple.
+  const pro = settingsOf({ level: 'pro', styles: ['trap'], mood: 'hype' });
+  assert.equal(makeWith('pro', pro, 'chill'), pro);
+  assert.ok(shows('simple', 'make-mood-cards') && !shows('pro', 'make-mood-cards'));
+});
+
+test('the ? sheet has one card a screen, in both languages, each with an icon that is drawn', () => {
+  assert.deepEqual(TOUR.map(x => x.id), ['home', 'jam', 'studio', 'make']);
+  for (const x of TOUR) {
+    assert.ok(ICON_NAMES.includes(x.icon), `${x.id}: ${x.icon}`);
+    for (const l of [x.zh, x.en]) assert.ok(l.length === 2 && l.every(t => t && !/[\u{1F300}-\u{1FAFF}]/u.test(t)), x.id);
+  }
+  for (const id of ['spinner', 'play_later', 'play_next', 'queue']) assert.ok(ICON_NAMES.includes(id), id);
 });

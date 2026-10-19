@@ -17,13 +17,13 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
   🎲 隨機做一批: six songs from your pieces when they have a tune, else on
   the built-in band. 樂器 starts from a clip written for you (▶, 🎲,
   the groove chips, 存成片段); 即興 is the pads and ● 錄一段. 進階 shows every tool
-  below. The choice is a setting on the Pass, in the ? sheet and 更多設定.
+  below. The choice is a setting on the Pass, in the account sheet (模式) and 更多設定.
   Each control only one of them shows carries `data-ctl`, hidden by one
   stylesheet rule per name.
 - **Words** (`lib/help.mjs`): 23 music words (BPM, swing, riff, hi-hat, 808,
   chords, key, sections, chain, stems, MIDI, velocity, steps, choke, snap…) in
   everyday words, zh and en; a ⓘ beside a control opens one, eight with
-  ▶ the same bar without it and with it. The ? sheet lists them all and
+  ▶ the same bar without it and with it. The ? sheet is the four screens as rows (聽 即興 樂器 做歌: tap one to go there, ▶ to try it; `TOUR` in `lib/help.mjs`), then rows for the words and
   opens the full guide (the kit's `help.mjs`, in the Quadra Pass sheet).
 - **Tabs:**
   - **聽** (Listen, the first screen; `lib/radio.mjs`, `lib/radioview.mjs`):
@@ -45,7 +45,7 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
     `localStorage['orbit-beats-radio']` = `files` keeps a phone on files,
     `flac` / `aac` / `opus` tries only that one.
     If the next isn't made by the outro, the last hook plays again from its
-    bar line. ♡ keeps the whole song in 歌單; ⏭ the next. Each song has its
+    bar line. ♡ keeps the whole song in 資料庫; ⏭ the next. Each song has its
     own cover (`lib/cover.mjs`: drawn from its seed, groove, mood, key and
     tempo, the same every time), crossfaded in and shown on the lock screen
     (a small JPEG, the app icon after it); its bars and a breath of the cover land on the song's
@@ -92,16 +92,16 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
     音量, 靜音 and 切音 (self, or group A/B: an open hat cut by a closed
     one), kept per kit (fingerprint) on the phone; a take's song carries
     each hit's level and cut, so it sounds as played.
-  - **歌單** (Library): kept songs (IndexedDB), small (`lib/pack.mjs`): AAC (else Opus)
+  - **資料庫** (Library): kept songs (IndexedDB), small (`lib/pack.mjs`): AAC (else Opus)
     from the phone's AudioEncoder in a plain .m4a, about a tenth of the WAV; with no
     encoder a built-in song is mono 16-bit and one of your pieces stays a WAV. WAVs
-    kept before are packed in the background (歌單瘦身). 下載 / 分享 WAV and the zip
+    kept before are packed in the background (資料庫瘦身). 下載 / 分享 WAV and the zip
     make the song again at full quality from its recipe when it still sounds like
     what was kept, else decode the kept copy (and say so). Play, share,
     rename, delete, vary; search by name, groove or key, four orders, and
     a zip of what's shown. 清單 (playlists, localStorage): make, rename,
     delete, add a song from its ⋯, open one and play it in order; a song
-    taken out of 歌單 leaves every list. 依你的口味 leans new batches toward
+    taken out of 資料庫 leaves every list. 依你的口味 leans new batches toward
     the styles you keep.
 - **Pieces in:** one recording split on its silences, a sample pack (many
   files, each split), or the microphone, in any mix.
@@ -176,15 +176,15 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 | `lib/mix.mjs` | The mixer, stems, limiter |
 | `lib/make.mjs`, `lib/maker.mjs`, `lib/maker.worker.mjs` | Making songs in a worker |
 | `lib/jam.mjs`, `lib/jamview.mjs` | 即興: timing, levels, choke; the pads |
-| `lib/library.mjs`, `lib/lists.mjs` | 歌單: search, order, zip; playlists |
+| `lib/library.mjs`, `lib/lists.mjs` | 資料庫: search, order, zip; playlists |
 | `lib/jam.mjs`, `lib/jamview.mjs` | 即興: timing; the pads |
-| `lib/library.mjs` | 歌單: search, order, zip |
+| `lib/library.mjs` | 資料庫: search, order, zip |
 | `lib/sections.mjs` | 做歌: section times and the playing section |
 | `lib/radio.mjs`, `lib/radioview.mjs` | 聽: songs out of nothing, the join between them; its screen and player |
 | `lib/cover.mjs`, `lib/listen.mjs` | 聽's covers; its sleep timer and recently played |
 | `lib/tape.mjs` | 聽's one stream: FLAC frames, or AAC / Opus from AudioEncoder, in MP4 for Media Source; which way a phone plays; the songs in order (the hook again while waiting) |
 | `lib/easy.mjs`, `lib/help.mjs` | 簡單 / 進階 and 簡單's fixed settings; the music words and their examples |
-| `lib/pack.mjs` | 歌單's songs kept small: the .m4a, packing, 歌單瘦身's rule, telling a song made again from another |
+| `lib/pack.mjs` | 資料庫's songs kept small: the .m4a, packing, 資料庫瘦身's rule, telling a song made again from another |
 | `lib/project.mjs` | 存成檔案 / 打開檔案: a song's settings (no sound) as a versioned `.orbitbeats.json` |
 | `lib/midi.mjs`, `lib/tap.mjs`, `lib/download.mjs`, `lib/names.mjs` | MIDI files, tap tempo, saving, names |
 
@@ -208,3 +208,10 @@ Its flags: `--bpm`, `--roles 3=riff,12=off`, `--styles`, `--humanize`,
 `--seed`, `--min-bars` / `--max-bars`, `--silence-db -60`,
 `--save-pieces`, `--raw` (no mix), `--levels`, `--reverb`, `--delay`,
 `--pump`, `--width`, `--fade`, `--no-sweep`, `--stems`, `--plan`. A push to `main` tests and deploys to Pages.
+
+## The create shell (app.js)
+
+- **創作** has no big title: 即興's hero, 樂器 and 做歌, then 你的歌 (or 從這裡開始, four one-tap ways in, before there are songs) and 即興組合 (six grooves, each a band: a tap opens 即興 on it and starts it, `jam.useSet`).
+- **樂器, 即興, 做歌** put their chevron and name in the account's own line (`#subnav` in the app bar). While 樂器 or 即興 plays, the mini player steps aside (`body.own-sound`).
+- A **song row** is one button (cover and name play it); ♡ and ⋯ stand beside it. The section strip is 做歌's only. The ⋯ menu leads with the song (cover, title) over a dimmed page: 插播, 稍後播放 · 加到清單, 分享 · 重新混音, 取出片段, 變奏一首 · 下載 · 重新命名 · 從資料庫移除 (red, last).
+- **簡單 做歌**: the built-in band (its cover, ringed) beside ＋, four 情境 cards (放鬆 熱血 律動 經典; a tap picks, again lets go; `makeWith` in `lib/easy.mjs`) and the length. 做 N 首歌 shows a spinner only while it works, and the list below is the progress: a shimmering place per song, filled as each lands.

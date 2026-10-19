@@ -796,6 +796,8 @@ export function mountJam(panel, api) {
     },
     shown: () => (draw(), ready()),
     level: () => (stop(), draw()),
+    // (Another built-in set, from outside: 創作's 即興組合.)
+    useSet: next => changeSet(next),
     start,
     hidden: () => stop(),
     stop,

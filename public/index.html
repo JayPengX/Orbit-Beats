@@ -132,7 +132,6 @@ button { cursor: pointer; }
   padding: 5px 4px 6px; font-size: 13px; text-align: center; text-align-last: center; color: var(--text);
 }
 .piece.off { opacity: 0.5; }
-.piece.mine b::after { content: ""; display: inline-block; width: 5px; height: 5px; margin-left: 3px; border-radius: 50%; background: var(--accent); vertical-align: 3px; }
 .piece button.on { background: var(--accent); color: var(--accent-ink); }
 .piece button.on span { color: inherit; opacity: 0.85; }
 .hint { margin: 8px 0 0; font-size: 13px; color: var(--text-2); }
@@ -219,16 +218,19 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .song { padding: 12px 0; border-top: 1px solid var(--line); }
 .song:first-child { border-top: 0; }
 .song .line { display: flex; align-items: center; gap: 10px; }
+/* (The whole row plays: cover and name are one button; ♡ and ⋯ stand beside it.) */
+.song .main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; margin: -4px 0 -4px -6px; padding: 4px 6px; border: 0; border-radius: 14px; background: none; color: inherit; text-align: left; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: background-color .15s; }
+.song .main:active { background: var(--fill); }
 .song .play {
-  position: relative; width: 52px; height: 52px; padding: 0; border-radius: 10px; border: 0; flex: none; overflow: hidden; background: var(--fill);
+  position: relative; display: block; width: 52px; height: 52px; padding: 0; border-radius: 10px; flex: none; overflow: hidden; background: var(--fill);
   box-shadow: 0 3px 10px rgba(0,0,0,.18); transition: transform var(--q-dur-snappy) var(--q-spring-snappy);
 }
-.song .play:active { transform: scale(0.94); }
+.song .main:active .play { transform: scale(0.94); }
 .song .sc { display: block; width: 100%; height: 100%; object-fit: cover; }
 .song .si { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; background: rgba(0,0,0,.3); opacity: 0; transition: opacity .15s; }
-.song .play:hover .si, .song .play:focus-visible .si, .song.now .si { opacity: 1; }
+.song .main:hover .si, .song .main:focus-visible .si, .song.now .si { opacity: 1; }
 .song .si svg { width: 22px; height: 22px; }
-.song .what { flex: 1; min-width: 0; }
+.song .what { display: block; flex: 1; min-width: 0; }
 .song .name { display: block; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .song .info { display: block; color: var(--text-2); font-size: 13px; font-variant-numeric: tabular-nums; }
 .song .info span { white-space: nowrap; }
@@ -252,8 +254,6 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .plan .sec.loop { box-shadow: inset 0 0 0 2px var(--q-label); }
 .plan .sec:active { filter: brightness(1.2); }
 .song.now .plan::after { content: ""; pointer-events: none; position: absolute; inset: 0 auto 0 0; width: var(--at, 0%); background: color-mix(in srgb, var(--q-label) 28%, transparent); }
-.busy-line { color: var(--text-2); font-size: 14px; padding: 14px 0 2px; white-space: nowrap; border-top: 1px solid var(--line); }
-.busy-line:empty { display: none; }
 .lib-head { display: flex; align-items: baseline; justify-content: space-between; margin: 4px 4px 10px; }
 .lib-head h2 { margin: 0; font-size: 28px; font-weight: 700; }
 .lib-head small { color: var(--text-2); font-size: 13px; white-space: nowrap; }
@@ -627,11 +627,11 @@ body.lv-simple #pieces .piece .more { width: 28px; height: 28px; }
 .hub-card b { display: block; font-size: 22px; font-weight: 800; letter-spacing: -.01em; }
 .hub-card .l { display: block; margin-top: 2px; font-size: 15px; color: var(--text-2); }
 .hub-card > svg { flex: none; width: 20px; height: 20px; margin-left: auto; color: var(--text-3); }
-.subnav { display: flex; align-items: center; gap: 2px; margin: 0 0 10px -10px; }
+.subnav { display: flex; align-items: center; min-width: 0; margin-left: -10px; }
 .subnav[hidden] { display: none; }
-.subnav button { flex: none; width: 44px; height: 44px; border: 0; background: none; color: var(--accent); display: grid; place-items: center; }
+.subnav button { flex: none; width: 44px; height: 44px; border: 0; background: none; color: var(--accent); display: grid; place-items: center; touch-action: manipulation; }
 .subnav button svg { width: 26px; height: 26px; }
-.subnav h1 { margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -.02em; }
+.subnav-title { min-width: 0; margin-left: 2px; font-size: 17px; font-weight: 600; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* The mini player over the tab bar, and Now Playing. */
 .player {
@@ -751,7 +751,6 @@ footer, .q-brand-logo, .q-brand-text { display: none; }
 .q-actions { margin-left: auto; }
 .page-title { font-size: 26px; margin: 4px 0 18px; }
 .hub-shelf { margin-top: 26px; }
-.subnav h1 { font-size: 24px; }
 .hero { margin-top: 4px; }
 
 /* Remix and Take a clip */
@@ -780,7 +779,7 @@ footer, .q-brand-logo, .q-brand-text { display: none; }
 
 /* One calm look, the 首頁's: no hint lines, no ⓘ beside controls (the ? sheet has the words), headings as the shelves'. */
 #panel-make small, #panel-studio .row small, #panel-studio .stack small, #panel-jam small, #panel-make .hint, #panel-make .meta, #panel-make .drop span,
-#panel-make .info-btn, #panel-studio .info-btn, #panel-jam .info-btn, #panel-studio .hint, #panel-jam .hint, #panel-make .busy-line:empty { display: none !important; }
+#panel-make .info-btn, #panel-studio .info-btn, #panel-jam .info-btn, #panel-studio .hint, #panel-jam .hint { display: none !important; }
 #panel-make .row + .row, #panel-make .row + .stack, #panel-make .stack + .row, #panel-make .stack + .stack,
 #panel-studio .row + .row, #panel-studio .stack + .stack, #panel-jam .row + .row, #panel-jam .stack + .stack { border-top: 0; }
 #panel-make .card, #panel-studio .card, #panel-jam .card { padding: 18px 16px; margin-bottom: 14px; }
@@ -790,6 +789,75 @@ footer, .q-brand-logo, .q-brand-text { display: none; }
 .st-more:not([hidden]) { display: flex; align-items: center; gap: 6px; }
 .st-more svg, .mini svg { width: 16px; height: 16px; flex: none; }
 .mini:has(svg) { display: inline-flex; align-items: center; gap: 4px; }
+
+/* ---- Create shell: the make screen, song rows, the help sheet, the song menu ---- */
+/* 做歌 簡單: the band's tile (picked: its cover, ringed), 情境 as four cards, the lengths in four equal places. */
+.ing-band { overflow: hidden; padding: 0; background: var(--fill); color: #fff; opacity: 1; box-shadow: 0 0 0 2.5px var(--accent); }
+.ing-band img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ing-band::after { content: ""; position: absolute; inset: 0; background: linear-gradient(transparent 35%, rgba(0,0,0,.62)); }
+.ing-band span { position: absolute; z-index: 1; left: 6px; right: 6px; bottom: 5px; font-size: 12px; font-weight: 600; line-height: 1.2; text-align: center; }
+.easy-moods { padding: 0; margin-bottom: 22px; }
+body.lv-simple .len-row { padding: 0; }
+body.lv-simple .len-row .len-chips { margin: 10px 0 0; }
+body.lv-simple #panel-make #go { margin-top: 24px; }
+.easy-moods .label, .len-row .sheet-line .label { font-size: 15px; font-weight: 600; color: var(--text); }
+.mood-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
+.mood-card { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 0; border: 0; background: none; color: var(--text); text-align: center; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.mc-cover { display: block; aspect-ratio: 1; border-radius: 14px; overflow: hidden; background: var(--fill); box-shadow: 0 4px 12px rgba(0,0,0,.14); transition: transform var(--q-dur-snappy) var(--q-spring-snappy), box-shadow .2s; }
+.mc-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.mood-card:active .mc-cover { transform: scale(.95); }
+.mood-card b { font-size: 13px; font-weight: 600; white-space: nowrap; }
+.mood-card[aria-pressed="true"] .mc-cover { box-shadow: 0 0 0 2.5px var(--accent), 0 4px 12px rgba(0,0,0,.14); }
+.mood-card[aria-pressed="true"] b { color: var(--accent); }
+body.lv-simple .len-chips { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+body.lv-simple .len-chips .chip { height: 38px; }
+body.lv-simple .len-row .sheet-line { margin-bottom: 0; }
+/* The button while a batch is made: a spinner, still the accent. */
+.primary svg.spin { width: 26px; height: 26px; animation: pb-spin .8s linear infinite; }
+.primary[aria-busy="true"]:disabled { background: var(--accent); color: var(--accent-ink); }
+@keyframes pb-spin { to { transform: rotate(360deg); } }
+/* A song's place before it's made. */
+.song.skeleton .play, .song.skeleton .name, .song.skeleton .info {
+  background: linear-gradient(100deg, var(--fill) 35%, color-mix(in srgb, var(--text) 9%, var(--fill)) 50%, var(--fill) 65%) 0 0 / 300% 100%;
+  animation: pb-shimmer 1.4s linear infinite;
+}
+.song.skeleton .play { box-shadow: none; }
+.song.skeleton .name { width: 60%; height: 15px; margin-bottom: 8px; border-radius: 8px; }
+.song.skeleton .info { width: 36%; height: 12px; border-radius: 6px; }
+.song.skeleton .main:active { background: none; }
+@keyframes pb-shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .song.skeleton .play, .song.skeleton .name, .song.skeleton .info, .primary svg.spin { animation: none; } }
+
+/* 樂器 or 即興 playing: one ▶ on screen (the mini player waits). */
+body.own-sound .player { display: none; }
+body.own-sound main, body.own-sound.playing main { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
+#panel-create .hub-hero { margin-top: 4px; }
+
+/* The ? sheet: the four screens as rows. */
+.tours { padding: 4px 16px; }
+.tour { display: flex; align-items: center; gap: 8px; }
+.tour + .tour { border-top: .5px solid var(--line); }
+.tour-go { flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px; padding: 12px 0; border: 0; background: none; color: var(--text); text-align: left; touch-action: manipulation; }
+.tour-ico { flex: none; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.tour-ico svg { width: 24px; height: 24px; }
+.tour-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.tour-text b { font-size: 17px; font-weight: 600; }
+.tour-text small { font-size: 14px; color: var(--text-2); }
+.tour-play { flex: none; width: 40px; height: 40px; border: 0; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); touch-action: manipulation; transition: transform var(--q-dur-snappy) var(--q-spring-snappy); }
+.tour-play:active { transform: scale(.9); }
+.tour-play svg { width: 18px; height: 18px; }
+.q-cell .level-label { flex: 1; min-width: 0; }
+.more-row .chev svg, .terms .chev svg { width: 18px; height: 18px; display: block; }
+
+/* A ⋯ menu: the song on top, the page dimmed behind. */
+.q-menu { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
+.q-menu .mh { display: flex; align-items: center; gap: 12px; padding: 8px 10px 6px; min-width: 0; }
+.q-menu .mh-cover { flex: none; width: 44px; height: 44px; border-radius: 8px; object-fit: cover; background: var(--fill); }
+.q-menu .mh-text { min-width: 0; display: flex; flex-direction: column; }
+.q-menu .mh-text b { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-menu .mh-text small { font-size: 13px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-menu-scrim { position: fixed; inset: 0; z-index: 2147482700; background: rgba(0,0,0,.28); animation: pb-fade .2s ease-out both; }
+@keyframes pb-fade { from { opacity: 0; } }
 </style>
 </head>
 <body>
@@ -805,6 +873,8 @@ footer, .q-brand-logo, .q-brand-text { display: none; }
         <h1 id="title">Orbit Beats</h1>
         <p id="badge" class="q-status" aria-live="polite" data-en="Music that never stops">聽不完的音樂，也做自己的歌</p>
       </div>
+      <!-- A screen opened from 創作: its back chevron and name in the bar's own line, beside the account's capsule. -->
+      <div class="subnav" id="subnav" hidden><button type="button" id="subnav-back" aria-label="返回" data-en-label="Back"></button><span class="subnav-title" id="subnav-title" role="heading" aria-level="1"></span></div>
     </div>
     <nav id="tabs" class="q-tabbar" role="tablist"></nav>
     <div id="top-actions" class="q-actions"></div>
@@ -814,7 +884,6 @@ footer, .q-brand-logo, .q-brand-text { display: none; }
   <div id="panel-home" class="tab-panel" role="tabpanel"></div>
 
   <div id="panel-create" class="tab-panel" role="tabpanel" hidden></div>
-  <div class="subnav" id="subnav" hidden><button type="button" id="subnav-back" aria-label="返回" data-en-label="Back"></button><h1 id="subnav-title"></h1></div>
 
   <div id="panel-make" class="tab-panel" role="tabpanel" hidden>
     <section class="card pieces-card" aria-labelledby="h-rec">
@@ -899,7 +968,6 @@ footer, .q-brand-logo, .q-brand-text { display: none; }
       <p class="meta" id="out-meta" data-ctl="make-meta"></p>
       <div class="legend-line" data-ctl="make-legend"><div class="legend" id="legend"></div><button class="info-btn" type="button" data-term="section" aria-label="說明：段落" data-en-label="What are sections?">ⓘ</button></div>
       <ol class="songs" id="songs"></ol>
-      <div class="busy-line" id="busy"></div>
     </section>
     <footer data-en="Runs on your phone · nothing is uploaded">全部在手機上做 · 什麼都不上傳</footer>
   </div>
