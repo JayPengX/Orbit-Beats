@@ -11,55 +11,56 @@
 //   drumPattern(style, seed, bars), melody(key, inst, seed, bars) (自動編: a start written for you)
 
 import { makeRng } from '../engine.mjs';
+import { NOTE_VOICES, DRUM_VOICES, RELEASE, PEAK, noiseOf, bandpass } from './voices.mjs';
 
-// The drums, left to right as the grid shows them: the kit, and the
-// percussion beside it (a lane set each, eight to a phone's width).
+// The drums, left to right as the grid shows them: the kit, the
+// percussion beside it, the world's hand drums and bells, and the other
+// kits' own (brush, rock, hardstyle, 8-bit, a gong): a lane set each,
+// eight to a phone's width.
 export const DRUMS = ['kick', 'snare', 'clap', 'hat', 'open', 'rim', 'tom', 'sub'];
 export const PERC = ['crash', 'ride', 'shaker', 'cowbell', 'conga', 'bongo', 'snap', 'perc'];
-export const ALL_DRUMS = [...DRUMS, ...PERC];
+export const WORLD = ['timbale', 'cajon', 'tabla', 'clave', 'tamb', 'guiro', 'agogo', 'dhol'];
+export const KITS = ['brush', 'rkick', 'rsnare', 'hardkick', 'chipk', 'chipn', 'chiph', 'gong'];
+export const DRUM_SETS = { kit: DRUMS, perc: PERC, world: WORLD, kits: KITS };
+export const ALL_DRUMS = [...DRUMS, ...PERC, ...WORLD, ...KITS];
 export const DRUM_NAMES = {
   kick: ['大鼓', 'Kick'], snare: ['小鼓', 'Snare'], clap: ['拍手', 'Clap'], hat: ['閉鈸', 'Hat'], open: ['開鈸', 'Open'], rim: ['邊擊', 'Rim'], tom: ['中鼓', 'Tom'], sub: ['808', '808'],
-  crash: ['銅鈸', 'Crash'], ride: ['疊音鈸', 'Ride'], shaker: ['沙鈴', 'Shaker'], cowbell: ['牛鈴', 'Cowbell'], conga: ['康加', 'Conga'], bongo: ['邦哥', 'Bongo'], snap: ['彈指', 'Snap'], perc: ['木魚', 'Block']
+  crash: ['銅鈸', 'Crash'], ride: ['疊音鈸', 'Ride'], shaker: ['沙鈴', 'Shaker'], cowbell: ['牛鈴', 'Cowbell'], conga: ['康加', 'Conga'], bongo: ['邦哥', 'Bongo'], snap: ['彈指', 'Snap'], perc: ['木魚', 'Block'],
+  timbale: ['天巴鼓', 'Timbale'], cajon: ['木箱鼓', 'Cajón'], tabla: ['塔布拉', 'Tabla'], clave: ['響棒', 'Clave'], tamb: ['鈴鼓', 'Tambourine'], guiro: ['刮瓜', 'Güiro'], agogo: ['阿哥哥鈴', 'Agogô'], dhol: ['多爾鼓', 'Dhol'],
+  brush: ['刷鼓', 'Brush'], rkick: ['搖滾大鼓', 'Rock kick'], rsnare: ['搖滾小鼓', 'Rock snare'], hardkick: ['硬派大鼓', 'Hard kick'], chipk: ['8-bit 大鼓', '8-bit kick'], chipn: ['8-bit 小鼓', '8-bit snare'], chiph: ['8-bit 鈸', '8-bit hat'], gong: ['鑼', 'Gong']
 };
-// The instruments that play notes, and the role each one's clip takes in a song.
-export const INSTRUMENTS = ['keys', 'pluck', 'bass', 'lead', 'pad', 'bell', 'organ', 'strings', 'brass', 'guitar', 'subbass', 'vox'];
+// The instruments that play notes (the chips' order: the most played first,
+// then by kind), and the role each one's clip takes in a song.
+export const INSTRUMENTS = [
+  'keys', 'piano', 'rhodes', 'pluck', 'guitar', 'nylon', 'bass', 'subbass', 'bass808', 'upright', 'lead', 'pad', 'strings', 'bell', 'organ', 'brass', 'vox', 'choir',
+  'sax', 'flute', 'harmonica', 'accordion', 'supersaw', 'chip', 'tri', 'acid', 'reese', 'slap', 'distgtr', 'clav', 'vibes', 'marimba', 'kalimba', 'musicbox', 'glass', 'steel',
+  'harp', 'banjo', 'pizz', 'guzheng', 'erhu', 'sitar'
+];
 export const INSTRUMENT_NAMES = {
   keys: ['電鋼琴', 'Keys'], pluck: ['撥弦', 'Pluck'], bass: ['貝斯', 'Bass'], lead: ['主音', 'Lead'], pad: ['鋪底', 'Pad'], bell: ['鐘聲', 'Bell'],
-  organ: ['風琴', 'Organ'], strings: ['弦樂', 'Strings'], brass: ['銅管', 'Brass'], guitar: ['吉他', 'Guitar'], subbass: ['低音', 'Sub bass'], vox: ['人聲', 'Vox']
+  organ: ['風琴', 'Organ'], strings: ['弦樂', 'Strings'], brass: ['銅管', 'Brass'], guitar: ['吉他', 'Guitar'], subbass: ['低音', 'Sub bass'], vox: ['人聲', 'Vox'],
+  piano: ['鋼琴', 'Piano'], rhodes: ['復古電鋼', 'Rhodes'], clav: ['克拉維', 'Clavinet'], vibes: ['顫音琴', 'Vibes'], marimba: ['馬林巴', 'Marimba'], kalimba: ['拇指琴', 'Kalimba'],
+  musicbox: ['音樂盒', 'Music box'], glass: ['玻璃鐘', 'Glass bell'], steel: ['鋼鼓', 'Steel drum'], harp: ['豎琴', 'Harp'], nylon: ['古典吉他', 'Nylon guitar'], banjo: ['斑鳩琴', 'Banjo'],
+  guzheng: ['古箏', 'Guzheng'], sitar: ['西塔琴', 'Sitar'], pizz: ['撥奏弦樂', 'Pizzicato'], erhu: ['二胡', 'Erhu'], sax: ['薩克斯風', 'Sax'], flute: ['長笛', 'Flute'],
+  harmonica: ['口琴', 'Harmonica'], accordion: ['手風琴', 'Accordion'], choir: ['合唱', 'Choir'], supersaw: ['超級鋸齒', 'Supersaw'], chip: ['8-bit 方波', 'Chip'], tri: ['8-bit 貝斯', 'Chip bass'],
+  bass808: ['808 滑音', '808 glide'], upright: ['低音提琴', 'Upright bass'], acid: ['酸性貝斯', 'Acid bass'], reese: ['Reese 貝斯', 'Reese bass'], distgtr: ['破音吉他', 'Dist. guitar'], slap: ['擊弦貝斯', 'Slap bass']
 };
-export const INSTRUMENT_ROLE = { keys: 'riff', pluck: 'riff', bass: 'bass', lead: 'riff', pad: 'riff', bell: 'riff', organ: 'riff', strings: 'riff', brass: 'riff', guitar: 'riff', subbass: 'bass', vox: 'riff' };
+const BASSES = new Set(['bass', 'subbass', 'bass808', 'upright', 'tri', 'acid', 'reese', 'slap']);
+export const INSTRUMENT_ROLE = Object.fromEntries(INSTRUMENTS.map(i => [i, BASSES.has(i) ? 'bass' : 'riff']));
 // Each instrument's octave (the grid's lowest note's MIDI number for C).
-export const OCTAVE = { keys: 60, pluck: 60, bass: 36, lead: 72, pad: 60, bell: 72, organ: 60, strings: 60, brass: 60, guitar: 48, subbass: 36, vox: 60 };
+export const OCTAVE = {
+  keys: 60, pluck: 60, bass: 36, lead: 72, pad: 60, bell: 72, organ: 60, strings: 60, brass: 60, guitar: 48, subbass: 36, vox: 60,
+  piano: 60, rhodes: 60, clav: 60, vibes: 60, marimba: 60, kalimba: 72, musicbox: 72, glass: 72, steel: 60, harp: 60, nylon: 48, banjo: 60, guzheng: 60, sitar: 60,
+  pizz: 60, erhu: 60, sax: 60, flute: 72, harmonica: 60, accordion: 60, choir: 60, supersaw: 60, chip: 72, tri: 36, bass808: 36, upright: 36, acid: 36, reese: 36, distgtr: 48, slap: 36
+};
 // How long a note is when tapped in (16ths): a pad holds, a bass is short.
-export const NOTE_LEN = { keys: 2, pluck: 2, bass: 2, lead: 2, pad: 8, bell: 2, organ: 4, strings: 8, brass: 2, guitar: 2, subbass: 2, vox: 4 };
+const LONG = { pad: 8, strings: 8, choir: 8, organ: 4, vox: 4, sax: 4, flute: 4, erhu: 4, harmonica: 4, accordion: 4, supersaw: 4 };
+export const NOTE_LEN = Object.fromEntries(INSTRUMENTS.map(i => [i, LONG[i] || 2]));
 // The instruments that hold chords when written for you.
-const CHORDAL = new Set(['pad', 'strings', 'organ']);
+const CHORDAL = new Set(['pad', 'strings', 'organ', 'choir', 'accordion']);
 
 const hz = m => 440 * 2 ** ((m - 69) / 12);
 const TAU = 2 * Math.PI;
-
-// A small random source for the noisy voices: the same sound every time.
-function noiseOf(seed) {
-  let x = seed >>> 0 || 1;
-  return () => {
-    x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
-    return ((x >>> 0) / 4294967296) * 2 - 1;
-  };
-}
-// A two-pole resonant band-pass (a state-variable filter), for the vox's vowels and the cowbell.
-function bandpass(x, sr, f, q = 6) {
-  const out = new Float32Array(x.length);
-  const k = 2 * Math.sin((Math.PI * f) / sr);
-  let low = 0;
-  let band = 0;
-  for (let i = 0; i < x.length; i++) {
-    low += k * band;
-    const high = x[i] - low - band / q;
-    band += k * high;
-    out[i] = band;
-  }
-  return out;
-}
 
 // One hit or note: a drum (midi only for the 808's pitch) or an
 // instrument's note, held `hold` seconds (the notes), then ringing out.
@@ -68,6 +69,16 @@ export function voice(inst, midi = 36, sr = 48000, hold = 0.25) {
   const env = (t, d) => Math.exp(-t / d);
   const noise = noiseOf(inst.length * 7919 + midi);
   let x;
+  if (DRUM_VOICES[inst]) x = DRUM_VOICES[inst](sr, noise);
+  else if (NOTE_VOICES[inst]) {
+    // (The newer notes: each its own loop, then brought to its own loudness, whatever the pitch.)
+    x = len(hold + RELEASE[inst]);
+    NOTE_VOICES[inst](x, hz(midi), sr, hold, noise);
+    let peak = 0;
+    for (let i = 0; i < x.length; i++) peak = Math.max(peak, Math.abs(x[i]));
+    const g = peak > 1e-9 ? PEAK[inst] / peak : 0;
+    for (let i = 0; i < x.length; i++) x[i] *= g;
+  } else
   switch (inst) {
     case 'kick': {
       x = len(0.5);
