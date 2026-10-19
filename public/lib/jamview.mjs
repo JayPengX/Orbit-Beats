@@ -26,7 +26,6 @@ import { genreSheet } from './genres.mjs';
 const AHEAD = 0.12; // seconds scheduled ahead of the clock
 const LATE = 0.03; // a tap this late (s) still counts as the step it missed
 const HOLD = 700; // ms a pad is held still to open its level (a drummer's held hit is shorter)
-const TAKES = 'orbit-beats.jam.takes.v1'; // [{ set, hits, beats, at }]: the last takes kept on the built-in set, latest first
 const PADS = 'orbit-beats.pads.v1'; // { <print>: { at, pads: { <piece>: { level, mute, choke } } } }
 const SET = 'orbit-beats.jam-set'; // the built-in set last played: { seed, style }
 const BUILT_IN = 'builtin'; // the built-in set's pads, kept as one kit's
@@ -61,25 +60,6 @@ export function readSet() {
     return setOf(JSON.parse(localStorage.getItem(SET) || 'null') || { seed: 7, style: SET_STYLES[0] });
   } catch {
     return setOf(null);
-  }
-}
-const MOST_TAKES = 8;
-function readTakes() {
-  try {
-    const v = JSON.parse(localStorage.getItem(TAKES) || '[]');
-    return Array.isArray(v) ? v.filter(t => t && t.set && Array.isArray(t.hits) && t.beats > 0).map(t => ({ ...t, set: setOf(t.set) })) : [];
-  } catch {
-    return [];
-  }
-}
-function saveTake(t) {
-  const list = [t, ...readTakes()].slice(0, MOST_TAKES);
-  // (A phone with no room left keeps fewer, never none.)
-  for (let n = list.length; n > 0; n--) {
-    try {
-      localStorage.setItem(TAKES, JSON.stringify(list.slice(0, n)));
-      return;
-    } catch {}
   }
 }
 const calm = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -186,22 +166,20 @@ export function mountJam(panel, api) {
   const undoSet = h('button', { class: 'jam-undo ghost', type: 'button', disabled: true, 'aria-label': W('回到上一組', 'Back to the last set'), html: icon('undo'), onclick: () => prevSet && changeSet(prevSet, { back: true }) });
   const setRow = h('div', { class: 'jam-set' }, [h('span', { class: 'jam-art' }, [coverBtn, ring]), h('div', { class: 'jam-id' }, [nameBtn]), undoSet, dice, srcSeg]);
   const note = h('p', { class: 'studio-note', 'data-ctl': 'jam-note' });
-  // 你的即興: the takes kept on the built-in set, as covers; a tap makes it again and plays it.
+  // 你的即興: the jams kept in 資料庫, latest first, as covers; a tap plays the kept song.
   const takesRow = h('div', { class: 'jam-takes-row' });
   const takesRail = h('section', { class: 'jam-takes', hidden: true }, [h('h3', { text: W('你的即興', 'Your jams') }), takesRow]);
   function paintTakes() {
-    const list = readTakes();
+    const list = api.takes?.() || [];
     takesRail.hidden = !list.length;
     takesRow.replaceChildren(
-      ...list.map(t => {
-        const secs = (t.beats * 60) / specOf(t.set).bpm;
-        const b = h('button', { class: 'jam-take', type: 'button', 'aria-label': `${name(STYLE_NAMES, t.set.style)} ${clock(secs)}`, onclick: () => api.take(t.hits, t.beats, t.set, {}) }, [
-          h('img', { alt: '', width: 120, height: 120, src: setCover(t.set, specOf(t.set).bpm) }),
-          h('b', { text: name(STYLE_NAMES, t.set.style) }),
-          h('small', { text: clock(secs) })
-        ]);
-        return b;
-      })
+      ...list.map(t =>
+        h('button', { class: 'jam-take', type: 'button', 'aria-label': `${t.name} ${clock(t.secs)}`, onclick: () => t.play() }, [
+          h('img', { alt: '', width: 120, height: 120, src: t.cover }),
+          h('b', { text: t.name }),
+          h('small', { text: clock(t.secs) })
+        ])
+      )
     );
   }
   // A row: its name (and the word's ⓘ), a line under it, its control; only: which of 簡單 / 進階 shows it.
@@ -677,8 +655,7 @@ export function mountJam(panel, api) {
     for (const t of jam.done.splice(0)) {
       if (!t.hits.length) continue;
       const { hits: took, beats } = trimTake(t.hits, t.beats, t.from);
-      api.take(took, beats, from, { keep: true });
-      if (from) (saveTake({ set: from, hits: took, beats, at: Date.now() }), paintTakes());
+      Promise.resolve(api.take(took, beats, from, { keep: true })).then(paintTakes, () => {});
     }
   }
   // The beat: which of the four beats of the bar, and the loops' tiles (on, waiting for the bar, leaving).

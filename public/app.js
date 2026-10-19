@@ -2296,7 +2296,14 @@ async function boot() {
     // (The built-in set made in a worker of its own: not queued behind 聽's songs.)
     band: set => (jamMake ||= maker(new URL('./lib/maker.worker.mjs', import.meta.url))).jamBand(set),
     simple,
-    take: (hits, beats, band, opts) => jamSong(hits, beats, band, opts)
+    take: (hits, beats, band, opts) => jamSong(hits, beats, band, opts),
+    takes: () =>
+      lib
+        .all()
+        .filter(s => s.recipe?.jam)
+        .sort((a, b) => (b.recipe.at || 0) - (a.recipe.at || 0))
+        .slice(0, 8)
+        .map(s => ({ name: s.name, secs: s.info.seconds, cover: coverOfTrack(P.track(s)), play: () => playRow(s) }))
   });
   const last = await loadLast();
   if (last) {

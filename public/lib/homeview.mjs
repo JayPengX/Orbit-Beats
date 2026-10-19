@@ -2,8 +2,9 @@
 // 今日精選 (songs picked for the day, a tap plays that song and the radio goes on), 適合現在
 // (the station for the hour), 最近播放, 為你推薦 (the stations of what you keep), 你的歌, 心情 and
 // 瀏覽類型 (eight grooves and 全部類型). A station's cover has its name in the art.
-import { h, sheet } from './ui.mjs';
+import { h } from './ui.mjs';
 import { icon } from './icons.mjs';
+import { genreSheet } from './genres.mjs';
 import { W } from './lang.mjs';
 import { STYLE_NAMES, STYLE_ORDER, name } from './names.mjs';
 import { MOODS, stationStyles } from './radio.mjs';
@@ -46,12 +47,6 @@ export function songShelf(api, key, title, songs) {
     onLong(c, () => api.trackMenu(t, c.querySelector('.sq-cover')));
     return c;
   }));
-}
-
-// 全部類型: every groove as its cover; a tap starts its station. (Until lib/genres.mjs has the
-// shared genre sheet, grouped by mood: then this opens that.)
-function allGenres(api) {
-  const s = sheet({ title: W('全部類型', 'All genres'), closeLabel: W('關閉', 'Close'), body: h('div', { class: 'gx-grid' }, STYLE_ORDER.map(g => h('button', { class: 'gx', type: 'button', 'aria-label': stationName(`style:${g}`), onclick: () => (s.close(), api.P.station(`style:${g}`)) }, [h('img', { alt: '', src: stationCover(`style:${g}`, api.taste()), width: 96, height: 96 })]))) });
 }
 
 // api: { P, radio, taste() -> { style: n }, trackMenu(track, anchor), openNow(), songs(), go(tab, run) }
@@ -133,7 +128,7 @@ export function mountHome(panel, api) {
   }
   const browse = () => {
     const ids = homeRows(api.taste()).find(r => r.key === 'genres').ids;
-    const all = h('button', { class: 'sq st sm all', type: 'button', onclick: () => allGenres(api) }, [h('span', { class: 'sq-cover tile', html: icon('grid') }), h('b', { text: W('全部類型', 'All genres') })]);
+    const all = h('button', { class: 'sq st sm all', type: 'button', onclick: () => genreSheet({ title: W('全部類型', 'All genres'), onPick: g => api.P.station(`style:${g}`) }) }, [h('span', { class: 'sq-cover tile', html: icon('grid') }), h('b', { text: W('全部類型', 'All genres') })]);
     const el = shelf('genres', W(...ROW_NAMES.genres), [...ids.map(id => station(id, 'sm')), all]);
     el.querySelector('.rail').classList.add('rail-grid');
     return el;

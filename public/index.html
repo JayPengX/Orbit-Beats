@@ -706,10 +706,6 @@ body.lv-simple #pieces .piece .more { width: 28px; height: 28px; }
 .sq.sm.all .sq-cover { flex: 1; height: auto; }
 .sq.sm.all b { position: static; width: auto; height: auto; clip: auto; margin-top: 8px; font-size: 14px; text-align: center; }
 .sq.sm.all .sq-cover.tile svg { width: 34px; height: 34px; }
-.gx-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 10px; padding: 4px 0 8px; }
-.gx { padding: 0; border: 0; background: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-.gx img { display: block; width: 100%; aspect-ratio: 1; border-radius: 14px; object-fit: cover; box-shadow: 0 6px 14px rgba(0,0,0,.16); }
-.gx:active img { transform: scale(.96); }
 
 /* 創作: three big cards; a screen opened from one has a back chevron. */
 .hub { display: grid; gap: 14px; }
@@ -970,13 +966,6 @@ body.own-sound main, body.own-sound.playing main { padding-bottom: calc(112px + 
 
 /* A ⋯ menu: the song on top, the page dimmed behind. */
 .q-menu { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
-.q-menu .mh { display: flex; align-items: center; gap: 12px; padding: 8px 10px 6px; min-width: 0; }
-.q-menu .mh-cover { flex: none; width: 44px; height: 44px; border-radius: 8px; object-fit: cover; background: var(--fill); }
-.q-menu .mh-text { min-width: 0; display: flex; flex-direction: column; }
-.q-menu .mh-text b { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.q-menu .mh-text small { font-size: 13px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.q-menu-scrim { position: fixed; inset: 0; z-index: 2147482700; background: rgba(0,0,0,.28); animation: pb-fade .2s ease-out both; }
-@keyframes pb-fade { from { opacity: 0; } }
 </style>
 </head>
 <body>
