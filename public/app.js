@@ -951,6 +951,10 @@ function addClip(clip) {
     if (tick) shot(tick, 'tick');
     if (used('sub')) shot('sub', 'sub', clip.pitch || 33);
   } else made.push({ src: { name: `♪ ${name(INSTRUMENT_NAMES, clip.inst)} ${n}`, ...renderClip(clip, rate, tempo) }, role: INSTRUMENT_ROLE[clip.inst] || 'riff' });
+  return insertMade(made, tempo, had);
+}
+// Sources made on the phone (a clip) into the kit, each with the role its pieces are set to.
+function insertMade(made, tempo, had) {
   const before = { roles: [...roles], edited: new Set(edited), bpm, count: pieces.length, at: sources.length };
   stopPiece();
   sources = atRate([...sources, ...made.map(m => m.src)]);

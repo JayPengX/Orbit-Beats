@@ -586,10 +586,16 @@ const MIXES = {
   world: { reverb: 0.24, delay: 0.16, pump: 0.25 }
 };
 
+// What a remix may set on a song's spec: its tempo, its lead and its two chord instruments
+// (the rest follows from the seed and the groove).
+export const REMIX_KEYS = ['bpm', 'lead', 'chords', 'chords2'];
+// The instruments a groove's band may play: { leads, chords }.
+export const bandSounds = style => ({ leads: [...(BAND[style]?.leads || [])], chords: [...(BAND[style]?.chords || [])] });
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
-export function radioSong(spec, sr = RADIO_SR) {
+export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
-  const sp = radioSpec(seed, mood, style);
+  const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);
+  const sp = Object.assign(radioSpec(seed, mood, style), Object.fromEntries(over));
   const { pieces, roles } = radioKit(sp, sr);
   const analysis = analyzeRecording(pieces, sr, { bpm: sp.bpm });
   const R = makeRng(seed ^ 0x1b873593);
@@ -598,9 +604,10 @@ export function radioSong(spec, sr = RADIO_SR) {
   const plan = radioPlan(R, sp.bpm, asked ? spec.seconds : sp.seconds, asked);
   const song = makeSong(pieces, sr, seed, {
     analysis, roles, bpm: sp.bpm, styles: moodStyles(mood), style: sp.style,
-    humanize: (MOODS[mood]?.humanize ?? 100) / 100, plan, mix: mixOf({ ...MIXES[mood], ...BAND[sp.style].mix })
+    humanize: (MOODS[mood]?.humanize ?? 100) / 100, plan, mix: mixOf({ ...MIXES[mood], ...BAND[sp.style].mix }), stems
   });
-  return { audio: song.audio, info: { ...song.info, key: sp.key, mood, radio: { seed, mood, style: sp.style } } };
+  // (A remix's own choices ride along in `radio`, so the song is made again as it was.)
+  return { audio: song.audio, stems: song.stems, info: { ...song.info, key: sp.key, mood, radio: { seed, mood, style: sp.style, ...Object.fromEntries(over), ...(asked ? { seconds: spec.seconds } : {}) } } };
 }
 
 // Where the song is cut for the next one to come in: just before its last
