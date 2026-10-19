@@ -193,9 +193,11 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
     document.addEventListener('keydown', e => e.key === 'Escape' && np && !np.hidden && !document.querySelector('dialog[open]') && closeNow());
     els = { bg, art, title, sub, heart, fill, t0, t1, play, loop, sleep, bar };
   }
+  let hideTimer = 0;
   function openNow() {
     if (!P.state()) return;
     if (!np) buildNow();
+    clearTimeout(hideTimer);
     np.hidden = false;
     document.body.classList.add('np-open');
     requestAnimationFrame(() => np.classList.add('in'));
@@ -206,7 +208,8 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
     if (!np || np.hidden) return;
     np.classList.remove('in');
     document.body.classList.remove('np-open');
-    setTimeout(() => (np.hidden = true), 280);
+    // (Opened again before it was gone: it stays.)
+    hideTimer = setTimeout(() => !np.classList.contains('in') && (np.hidden = true), 280);
     mini.querySelector('.mp-main')?.focus?.({ preventScroll: true });
   }
   let npKey = '';
