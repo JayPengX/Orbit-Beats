@@ -10,6 +10,7 @@
 // and the styles you keep (your taste); the sound never leaves the phone.
 import { banksFor } from './lib/sampleload.mjs';
 import { quadraSession, topActions, installGate, watchUpdates, keepOffline, tabBar, ask } from '#kit/quadra.mjs';
+import * as kit from '#kit/quadra.mjs';
 import { h, sheet, menu, toast, toggle, empty } from './lib/ui.mjs';
 import * as ui from './lib/ui.mjs';
 import { sectionTimes, sectionIndex, labelFits } from './lib/sections.mjs';
@@ -2267,21 +2268,6 @@ const gated = installGate('beats', lang);
 watchUpdates({ current: BUILD, key: 'orbitBeats', cachePrefix: 'beats-', busy: () => busy || Boolean(recorder) || !audio.paused || Boolean(radio?.playing()) || Boolean(studio?.playing()) || Boolean(jam?.playing()) || Boolean(document.querySelector('.q-sheet, dialog[open]')) });
 topActions(q, { help: helpSheet, extra: appSettings });
 
-// Is a newer deploy out than this page? Asked before the loading screen lifts (the kit's
-// boot check may have answered after the app started, which left its reload until after the
-// app showed): when there is, the kit's watch reloads to it while the loading screen stays up
-// (up to 8 s; then the app opens as it is). -> whether a reload is coming
-async function newerDeploy() {
-  if (BUILD === 'dev') return false;
-  const verdict = await Promise.race([window.__bootCheck?.catch?.(() => null), new Promise(r => setTimeout(r, 2500))]);
-  if (verdict === 'boot') return true;
-  const latest = await Promise.race([
-    fetch(`./version.json?t=${Date.now()}`, { cache: 'no-store' }).then(r => (r.ok ? r.json() : null)).then(j => j?.version || null).catch(() => null),
-    new Promise(r => setTimeout(() => r(null), 2500))
-  ]);
-  return Boolean(latest && latest !== BUILD);
-}
-
 // Everything drawn before the loading screen lifts: the settings, the last
 // kit (this phone's) split and heard, the studio's clip; the Pass's settings,
 // kits and taste merged in once it answers.
@@ -2429,8 +2415,9 @@ async function boot() {
   if (location.hash === '#game') game?.open();
   await lib.read();
   home?.refresh();
-  // (A newer deploy is loaded behind the loading screen, never over the app once it shows.)
-  if (await newerDeploy()) await new Promise(r => setTimeout(r, 8000));
+  // (A newer deploy is loaded behind the loading screen, never over the app once it shows: the kit's
+  // boot check says false while it reloads to one. Still here after 8 s: the app opens as it is.)
+  if (!((await kit.updateChecked?.()) ?? true)) await new Promise(r => setTimeout(r, 8000));
   $('loading').hidden = true;
   setTimeout(() => slimLibrary().catch(() => {}), 4000);
   const first = await q.start().catch(() => null);
