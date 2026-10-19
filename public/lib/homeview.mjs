@@ -112,7 +112,7 @@ export function mountHome(panel, api) {
   const recentSlot = h('div', { class: 'recent-slot' });
   const mineSlot = h('div', { class: 'recent-slot' });
   function drawPicks() {
-    const nodes = pickTracks().map(({ e, t }) => {
+    const nodes = pickTracks().slice(1).map(({ e, t }) => {
       const c = card(radio.coverOf(e), t.title, subOf(t), { 'data-id': t.id, 'data-pick': t.id, onclick: () => P.play(t) }, 'sq lg');
       c.querySelector('.sq-cover').append(more(t, c));
       onLong(c, () => api.trackMenu(t, c.querySelector('.sq-cover')));
@@ -139,7 +139,9 @@ export function mountHome(panel, api) {
       slots[r.key]?.remove();
       slots[r.key] = null;
       if (!r.ids.length) continue;
-      slots[r.key] = r.key === 'genres' ? browse() : shelf(r.key, W(...ROW_NAMES[r.key]), r.ids.map(id => station(id)));
+      // (心情 leaves out the mood 適合現在 already shows.)
+      const ids = r.key === 'moods' ? r.ids.filter(id => id !== nowStation(new Date().getHours()).id) : r.ids;
+      slots[r.key] = r.key === 'genres' ? browse() : shelf(r.key, W(...ROW_NAMES[r.key]), ids.map(id => station(id)));
     }
   }
   let recentId = '';

@@ -5,6 +5,7 @@
 // same wherever it's shown. 清單: lists of kept songs (lib/lists.mjs), each
 // opened to play in its order.
 import { h, sheet, cell, list as group, menu, toast } from './ui.mjs';
+import * as ui from './ui.mjs';
 import { ask } from '#kit/quadra.mjs';
 import { listSongs } from './kits.mjs';
 import { soundOf, mbText } from './pack.mjs';
@@ -154,7 +155,7 @@ export function libraryView({ panel, row, goMake, zip, play, cover = () => '', s
       cell({ icon: icon('note'), title: W('歌曲', 'Songs'), value: has ? songs.length : '', chevron: has, onClick: has ? () => go('songs') : null })
     ]);
     rows.classList.toggle('lib-dim', !has);
-    const top = h('h1', { class: 'sr-only', text: W('資料庫', 'Library') });
+    const top = ui.navTitle?.(W('資料庫', 'Library')) ?? h('h1', { class: 'sr-only', text: W('資料庫', 'Library') });
     if (has) {
       const grid = h('div', { class: 'lib-grid' }, recentOf(songs).map(s => {
         const more = h('button', { class: 'lib-card-more', type: 'button', 'aria-label': W('更多', 'More'), html: icon('more'), onclick: e => (e.stopPropagation(), songMenu(s, e.currentTarget)) });

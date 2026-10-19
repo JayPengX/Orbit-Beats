@@ -10,6 +10,7 @@
 // and the styles you keep (your taste); the sound never leaves the phone.
 import { quadraSession, topActions, installGate, watchUpdates, keepOffline, tabBar, ask } from '#kit/quadra.mjs';
 import { h, sheet, menu, toast, toggle, empty } from './lib/ui.mjs';
+import * as ui from './lib/ui.mjs';
 import { sectionTimes, sectionIndex, labelFits } from './lib/sections.mjs';
 import { STYLES, SECTIONS, ROLES, MIN_BARS, makeRng, NOTE_NAMES, keyOf, pieceChroma, parseWav, analyzeRecording, guessRole, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
 import { atRate, splitAll, baseName } from './lib/sources.mjs';
@@ -248,7 +249,7 @@ let hubDraw = () => {};
     shelf.replaceChildren(...(mine ? [mine] : [shelfOf('start', W('從這裡開始', 'Start here'), starters())]), sets);
   };
   const shelf = h('div', { class: 'hub-shelf' });
-  $('panel-create').append(hero, h('div', { class: 'hub-pair' }, [half('studio', 'grid', W('樂器', 'Studio')), half('make', 'note', W('做歌', 'Songs'), badge)]), shelf);
+  $('panel-create').append(ui.navTitle?.(W('創作', 'Create')) ?? '', hero, h('div', { class: 'hub-pair' }, [half('studio', 'grid', W('樂器', 'Studio')), half('make', 'note', W('做歌', 'Songs'), badge)]), shelf);
 }
 
 // ---- Settings (做歌) ----
@@ -264,7 +265,7 @@ $('smart-slot').replaceWith(smartSwitch);
 // 簡單's 情境: four cards (a mood of grooves to make from). A tap picks one, a tap again lets it go.
 {
   const cards = EASY_MOODS.map(id =>
-    h('button', { class: 'mood-card', type: 'button', 'data-mood': id, 'aria-pressed': String(easyPick === id) }, [h('span', { class: 'mc-cover' }, [h('img', { alt: '', src: stationCover(id), draggable: 'false' })]), h('b', { text: en ? MOODS[id].en : MOODS[id].zh })])
+    h('button', { class: 'mood-card', type: 'button', 'data-mood': id, 'aria-pressed': String(easyPick === id), 'aria-label': en ? MOODS[id].en : MOODS[id].zh }, [h('span', { class: 'mc-cover' }, [h('img', { alt: '', src: stationCover(id), draggable: 'false' })])])
   );
   const row = h('div', { class: 'stack easy-moods', 'data-ctl': 'make-mood-cards' }, [h('div', { class: 'label' }, [h('span', { text: W('情境', 'Mood') })]), h('div', { class: 'mood-cards' }, cards)]);
   for (const c of cards)
