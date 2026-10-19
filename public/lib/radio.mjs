@@ -716,6 +716,7 @@ export const REMIX_KEYS = ['bpm', 'lead', 'chords', 'chords2'];
 // The instruments a groove's band may play: { leads, chords }.
 export const bandSounds = style => ({ leads: [...(BAND[style]?.leads || [])], chords: [...(BAND[style]?.chords || [])] });
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
+export const RADIO_V = 2;
 export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
   const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);
@@ -732,8 +733,9 @@ export function radioSong(spec, sr = RADIO_SR, stems = false) {
     analysis, roles, bpm: sp.bpm, styles: moodStyles(mood), style: sp.style,
     humanize: (MOODS[mood]?.humanize ?? 100) / 100, plan, mix: mixOf({ ...MIXES[mood], ...BAND[sp.style].mix }), stems, arrange, varied: sp.dress, key: sp.key
   });
-  // (A remix's own choices ride along in `radio`, so the song is made again as it was.)
-  return { audio: song.audio, stems: song.stems, info: { ...song.info, key: sp.key, mood, radio: { seed, mood, style: sp.style, ...Object.fromEntries(over), ...(asked ? { seconds: spec.seconds } : {}) } } };
+  // (A remix's own choices ride along in `radio`, so the song is made again as it was. `v`: the
+  // engine that made it; a song kept from before RADIO_V is cut from its own sound, not made again.)
+  return { audio: song.audio, stems: song.stems, info: { ...song.info, key: sp.key, mood, radio: { seed, mood, style: sp.style, ...Object.fromEntries(over), ...(asked ? { seconds: spec.seconds } : {}), v: RADIO_V } } };
 }
 
 // Where the song is cut for the next one to come in: just before its last

@@ -28,7 +28,7 @@ import { mountStudio } from './lib/studio.mjs';
 import { mountJam } from './lib/jamview.mjs';
 import { W, en, lang } from './lib/lang.mjs';
 import { shows, levelCss, makeSettings } from './lib/easy.mjs';
-import { MOODS, radioPick, radioPlan } from './lib/radio.mjs';
+import { MOODS, radioPick, radioPlan, RADIO_V } from './lib/radio.mjs';
 import { mountRadio } from './lib/radioview.mjs';
 import { TERM_ORDER, EXAMPLES, term, info } from './lib/help.mjs';
 import * as kitQ from '#kit/quadra.mjs';
@@ -1288,7 +1288,7 @@ async function clipOf(x) {
   if (!song?.info?.plan?.length) return toast(W('找不到這首歌', "Can't find that song"), { tone: 'bad' });
   const r = song.recipe;
   const kind = r ? kindOfRecipe(r) : 'kit';
-  const remake = kind === 'radio' || kind === 'band' || Boolean(heard && r?.print === print);
+  const remake = ((kind === 'radio' || kind === 'band') && r?.radio?.v >= RADIO_V) || Boolean(heard && r?.print === print && kind !== 'radio' && kind !== 'band');
   let decoded = null;
   if (remake) {
     if (kind === 'kit' || kind === 'jam') await kitToMaker();
