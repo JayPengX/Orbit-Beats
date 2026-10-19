@@ -103,9 +103,9 @@ export function radioBase(t) {
 }
 // A song of the user's own pieces, remade on the built-in band when those aren't loaded:
 // its groove and length kept, its seed (so its key and chords are its own band's).
-export function bandBase(recipe, info = {}) {
+export function bandBase(recipe, info = {}, fresh = 1) {
   const style = STYLES.includes(info.style) ? info.style : null;
-  const seed = Number.isFinite(recipe?.seed) ? recipe.seed : Number.isFinite(recipe?.band?.seed) ? recipe.band.seed : 1;
+  const seed = Number.isFinite(recipe?.seed) ? recipe.seed : Number.isFinite(recipe?.band?.seed) ? recipe.band.seed : fresh;
   const radio = { seed, mood: 'all', style: style || radioSpec(seed, 'all').style };
   if (Number.isFinite(info.seconds) && info.seconds > 0) radio.seconds = clampLength(info.seconds);
   return { recipe: { print: 'radio', radio }, bpm: 0, seconds: info.seconds || 0, style: radio.style };

@@ -55,6 +55,7 @@ export function maker(url, { limit = 90000 } = {}) {
     midi: (recipe, opts) => call('midi', recipe, opts),
     radio: (spec, after) => call('radio', spec, after),
     radioWav: spec => call('radioWav', spec),
+    clip: (recipe, k, part) => call('clip', recipe, k, part),
     jamBand: set => call('jamBand', set)
   };
 }
