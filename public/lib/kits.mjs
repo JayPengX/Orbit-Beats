@@ -162,7 +162,7 @@ export const forgetLast = () => run('readwrite', s => s.delete('last')).catch(()
 
 // ---- The songs kept (歌單): on this phone only, never sent anywhere ----------------
 // { id, name, at, info, recipe: { print, seed, detail, style, plan, minBars, maxBars, styles, humanize, mix } | { print, jam, plan, mix } | { print: 'radio', radio } | { print: 'band', band, jam, mix },
-//   sound: Blob, form: 'aac' | 'opus' | 'mono' | 'wav', sr } (lib/pack.mjs). (Kept before: { bits: 16, wav: Blob }, packed by 歌單瘦身.)
+//   sound: Blob, form: 'aac' | 'opus' | 'mono' | 'wav', sr, seconds } (lib/pack.mjs). (Kept before: { bits: 16, wav: Blob }, packed by 歌單瘦身.)
 export const saveSong = song => run('readwrite', s => s.put(song), SONGS);
 export const deleteSong = id => run('readwrite', s => s.delete(id), SONGS);
 export const getSong = id => run('readonly', s => s.get(id), SONGS);

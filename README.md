@@ -92,7 +92,12 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
     音量, 靜音 and 切音 (self, or group A/B: an open hat cut by a closed
     one), kept per kit (fingerprint) on the phone; a take's song carries
     each hit's level and cut, so it sounds as played.
-  - **歌單** (Library): kept songs (IndexedDB, 16-bit WAV). Play, share,
+  - **歌單** (Library): kept songs (IndexedDB), small (`lib/pack.mjs`): AAC (else Opus)
+    from the phone's AudioEncoder in a plain .m4a, about a tenth of the WAV; with no
+    encoder a built-in song is mono 16-bit and one of your pieces stays a WAV. WAVs
+    kept before are packed in the background (歌單瘦身). 下載 / 分享 WAV and the zip
+    make the song again at full quality from its recipe when it still sounds like
+    what was kept, else decode the kept copy (and say so). Play, share,
     rename, delete, vary; search by name, groove or key, four orders, and
     a zip of what's shown. 清單 (playlists, localStorage): make, rename,
     delete, add a song from its ⋯, open one and play it in order; a song
@@ -168,6 +173,7 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 | `lib/cover.mjs`, `lib/listen.mjs` | 聽's covers; its sleep timer and recently played |
 | `lib/tape.mjs` | 聽's one stream: FLAC frames, or AAC / Opus from AudioEncoder, in MP4 for Media Source; which way a phone plays; the songs in order (the hook again while waiting) |
 | `lib/easy.mjs`, `lib/help.mjs` | 簡單 / 進階 and 簡單's fixed settings; the music words and their examples |
+| `lib/pack.mjs` | 歌單's songs kept small: the .m4a, packing, 歌單瘦身's rule, telling a song made again from another |
 | `lib/project.mjs` | 存成檔案 / 打開檔案: a song's settings (no sound) as a versioned `.orbitbeats.json` |
 | `lib/midi.mjs`, `lib/tap.mjs`, `lib/download.mjs`, `lib/names.mjs` | MIDI files, tap tempo, saving, names |
 

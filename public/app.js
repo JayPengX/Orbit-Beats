@@ -1454,7 +1454,7 @@ async function keepSong(song) {
   try {
     // (Kept small: packed by the phone, about a tenth of the WAV; made again whole to export, lib/pack.mjs.)
     const small = await packSong(song.data || new Uint8Array(await soundOf(song).arrayBuffer()), { built: builtIn(song.recipe) });
-    rec = { id: song.id, name: song.name, at: Date.now(), info: song.info, recipe: song.recipe, sound: small.sound, form: small.form, sr: small.sr };
+    rec = { id: song.id, name: song.name, at: Date.now(), info: song.info, recipe: song.recipe, sound: small.sound, form: small.form, sr: small.sr, seconds: small.seconds };
     await saveSong(rec);
   } catch {
     return toast(W('存不下：手機空間不夠？', "Couldn't keep it: phone storage full?"), { tone: 'bad' });
@@ -1675,13 +1675,13 @@ async function slimOne(rec) {
   if (PACKED.includes(small.form) && !(await playsWhole(small.sound, small.sr, small.seconds))) return 0;
   const temp = tempId(rec.id);
   const { wav: _, bits: __, ...rest } = rec;
-  await saveSong({ ...rest, id: temp, sound: small.sound, form: small.form, sr: small.sr });
+  await saveSong({ ...rest, id: temp, sound: small.sound, form: small.form, sr: small.sr, seconds: small.seconds });
   const back = await getSong(temp);
   if (!back?.sound || !(await sameBytes(back.sound, small.sound))) {
     await deleteSong(temp).catch(() => {});
     return 0;
   }
-  const done = await swapSong(rec.id, { sound: back.sound, form: small.form, sr: small.sr });
+  const done = await swapSong(rec.id, { sound: back.sound, form: small.form, sr: small.sr, seconds: small.seconds });
   if (!done) return 0;
   lib.replace(done);
   if (urls.has(rec.id)) (URL.revokeObjectURL(urls.get(rec.id)), urls.delete(rec.id));

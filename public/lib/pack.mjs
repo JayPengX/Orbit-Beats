@@ -183,9 +183,10 @@ export async function decodeSound(blob, sr, env = globalThis) {
 }
 const bufferAudio = (b, sr) => ({ sr, L: b.getChannelData(0), R: b.numberOfChannels > 1 ? b.getChannelData(1) : b.getChannelData(0) });
 
-// How this phone packs a song at `sr`: { codec, skip } (skip: the
-// encoder's start, as played back here), or null. Found once a rate: a
-// tone starting at 0.1 s packed, decoded, and where it starts measured; a
+// How this phone packs a song at `sr`: { codec, skip, cut } (skip: the
+// encoder's start, as played back here, in the track's clock; cut: what's
+// left of it, at sr, when this phone decodes a file whole), or null. Found once a rate: a
+// click at 0.1 s packed, decoded, and where it comes back measured; a
 // codec the phone can't play back, or that comes back wrong, isn't used.
 const ways = new Map();
 export const packWay = (sr, env = globalThis) => (ways.has(sr) ? ways.get(sr) : ways.set(sr, findWay(sr, env).catch(() => null)).get(sr));
@@ -197,22 +198,31 @@ async function findWay(sr, env) {
     const bitrate = BITRATE[codec].kit;
     if (!(await env.AudioEncoder.isConfigSupported(configOf(codec, sr, bitrate)).then(r => r.supported, () => false))) continue;
     try {
+      // (A click: a steady tone's start is smeared by the codec and reads early.)
       const n = Math.round(sr * 0.6);
       const at = Math.round(sr * 0.1);
       const L = new Float32Array(n);
-      for (let i = at; i < at + Math.round(sr * 0.3); i++) L[i] = 0.5 * Math.sin((2 * Math.PI * 880 * (i - at)) / sr);
+      for (let i = 0; i < sr * 0.01; i++) L[at + i] = 0.6 * Math.sin((2 * Math.PI * 2000 * i) / sr) * Math.exp((-i * 400) / sr);
+      const onset = x => {
+        let top = 0;
+        for (let i = 0; i < x.length; i++) top = Math.max(top, Math.abs(x[i]));
+        if (top < 0.05) return null;
+        for (let i = 0; i < x.length; i++) if (Math.abs(x[i]) > top / 2) return i;
+        return null;
+      };
+      const start = onset(L);
       const { frames, description } = await encodePcm({ sr, L, R: L }, { codec, bitrate }, env);
-      const b = await decodeSound(new Blob(m4a({ codec, sr, description, bitrate, frames }), { type: 'audio/mp4' }), sr, env);
-      const x = b.getChannelData(0);
-      let pos = -1;
-      for (let i = 0; i < x.length; i++)
-        if (Math.abs(x[i]) > 0.25) {
-          pos = i;
-          break;
-        }
-      const lag = pos - at;
-      if (pos < 0 || lag < -sr * 0.01 || lag > sr * 0.2) continue;
-      return { codec, skip: Math.max(0, Math.round((lag * timescaleOf(codec, sr)) / sr)) };
+      const ts = timescaleOf(codec, sr);
+      const lagOf = async skip => {
+        const got = onset((await decodeSound(new Blob(m4a({ codec, sr, description, bitrate, frames, skip }), { type: 'audio/mp4' }), sr, env)).getChannelData(0));
+        return got === null ? null : got - start;
+      };
+      const lag = await lagOf(0);
+      if (lag === null || lag < -sr * 0.01 || lag > sr * 0.2) continue;
+      const skip = Math.max(0, Math.round((lag * ts) / sr));
+      // (Does this phone's decoder cut the edit list's start too? If not, an unpacked copy is cut by hand.)
+      const cuts = skip === 0 || Math.abs((await lagOf(skip)) ?? lag) < lag / 2;
+      return { codec, skip, cut: cuts ? 0 : Math.max(0, lag) };
     } catch {}
   }
   return null;
@@ -240,8 +250,14 @@ export async function playsWhole(sound, sr, seconds, env = globalThis) {
   return Math.abs(b.length / sr - seconds) < 0.25;
 }
 // The kept copy as audio ({ sr, L, R }), for a WAV or a comparison.
+// (Cut to the song's own length: a decoder may play a packed copy's last frame whole.)
 export async function keptAudio(rec, env = globalThis) {
   const sound = soundOf(rec);
   if (formOf(rec) === 'wav') return parseWav(await sound.arrayBuffer());
-  return bufferAudio(await decodeSound(sound, rec.sr || 48000, env), rec.sr || 48000);
+  const sr = rec.sr || 48000;
+  const a = bufferAudio(await decodeSound(sound, sr, env), sr);
+  const way = PACKED.includes(rec.form) ? await packWay(sr, env) : null;
+  const from = way?.codec === rec.form ? Math.min(way.cut, a.L.length) : 0;
+  const n = rec.seconds ? Math.min(a.L.length - from, Math.round(rec.seconds * sr)) : a.L.length - from;
+  return { sr, L: a.L.subarray(from, from + n), R: a.R.subarray(from, from + n) };
 }
