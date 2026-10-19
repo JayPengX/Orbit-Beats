@@ -12,7 +12,8 @@
 // form. No DOM: the worker makes them (lib/make.mjs), the tests listen to them.
 
 import { makeSong, makeRng, analyzeRecording, dressOf, STYLES, FAMILY, SHUFFLE } from '../engine.mjs';
-import { voice, renderClip, emptyDrums, swingOf } from './synth.mjs';
+import { voice, renderClip, emptyDrums } from './synth.mjs';
+import { noted } from './game.mjs';
 import { mixOf } from './mix.mjs';
 
 export const RADIO_SR = 32000;
@@ -546,12 +547,8 @@ const sum = (...xs) => {
   const n = Math.max(...xs.map(x => x.L.length));
   const L = new Float32Array(n);
   for (const x of xs) for (let i = 0; i < x.L.length; i++) L[i] += x.L[i] * (x.g ?? 1);
-  // (The notes ride along, each part's with its level: the game's charts are drawn from them, lib/game.mjs.)
-  const tune = xs.flatMap(x => (x.tune || []).map(t => ({ ...t, g: t.g * (x.g ?? 1) })));
-  return tune.length ? { L, R: L, tune } : { L, R: L };
+  return noted({ L, R: L }, { parts: xs });   // (its notes ride along for the game, lib/game.mjs)
 };
-// A clip's notes as [beat, midi, beats long], its swing in the beat. -> [{ inst, g, notes }] or none
-const tuneOf = c => (c.kind === 'notes' && c.notes.length ? [{ inst: c.inst, g: 1, notes: c.notes.map(n => [(n.step + swingOf(c, n.step)) / 4, n.midi, n.len / 4]) }] : null);
 const shot = (inst, sr, midi) => {
   const x = voice(inst, midi, sr);
   return { L: x, R: x };
@@ -565,11 +562,7 @@ const shot = (inst, sr, midi) => {
 export function radioKit(sp, sr = RADIO_SR, { song = false, lift = true } = {}) {
   const R = makeRng(sp.seed ^ 0x68e31da4);
   const band = BAND[sp.style];
-  const clip = c => {
-    const x = renderClip(c, sr, sp.bpm);
-    const tune = tuneOf(c);
-    return tune ? { ...x, tune } : x;
-  };
+  const clip = c => noted(renderClip(c, sr, sp.bpm), { clip: c });
   const comp = COMP[band.comp];
   const rhythms = band.rhythms || RHYTHMS;
   const [ra, rb, rc] = [R.choice(rhythms), R.choice(rhythms), R.choice(rhythms)];

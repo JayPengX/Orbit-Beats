@@ -5,6 +5,18 @@
 // Four lanes, four levels; judged by the ear's windows, scored to 1,000,000.
 // No DOM (lib/gameview.mjs draws it).
 
+import { swingOf } from './synth.mjs';
+
+// The one hook in the song maker (lib/radio.mjs): a piece with its notes riding along, as
+// `tune`: [{ inst, g, notes: [[beat, midi, beats long]] }]. From a clip (its notes, swing in
+// the beat) or from parts summed (theirs, each at its level). -> the piece
+export function noted(piece, { clip = null, parts = null } = {}) {
+  const tune = clip
+    ? clip.kind === 'notes' && clip.notes.length ? [{ inst: clip.inst, g: 1, notes: clip.notes.map(n => [(n.step + swingOf(clip, n.step)) / 4, n.midi, n.len / 4]) }] : []
+    : (parts || []).flatMap(x => (x.tune || []).map(t => ({ ...t, g: t.g * (x.g ?? 1) })));
+  return tune.length ? { ...piece, tune } : piece;
+}
+
 export const LANES = 4;
 export const LEVELS = ['easy', 'normal', 'hard', 'expert'];
 export const LEVEL_NAMES = { easy: ['簡單', 'Easy'], normal: ['普通', 'Normal'], hard: ['困難', 'Hard'], expert: ['專家', 'Expert'] };
