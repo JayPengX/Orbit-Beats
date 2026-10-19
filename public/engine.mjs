@@ -663,7 +663,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   // (An arrangement by hand: the hook's own bass, the lifted hook's riffs, bass and 808 and the layer are theirs alone, never drawn for any other section.)
   const P = arrange || {};
   if (arrange) {
-    const own = new Set([...(P.lift || []), ...(P.hookBass || []), ...(P.liftBass || []), ...(P.hook2 || []), ...(P.bridgeBass || []), P.liftSub, P.layer, P.crash].filter(x => x != null));
+    const own = new Set([...(P.lift || []), ...(P.hookBass || []), ...(P.liftBass || []), ...(P.hook2 || []), ...(P.bridgeBass || []), P.liftSub, P.layer, P.crash, P.swell].filter(x => x != null));
     for (const x of ROLES) pool[x] = pool[x].filter(i => !own.has(i));
   }
   const riffs = pool.riff.length ? pool.riff : pool.phrase, phrases = pool.phrase.length ? pool.phrase : riffs;
@@ -745,6 +745,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   let verseNo = 0, hookNo = 0;
   plan.forEach(([t, b, L], idx) => {
     if (b > 0 && CRASH_AT.has(t)) s.hit(P.crash, b * 4, true);   // (a crash where a section comes in, when the arrangement has one)
+    if (b >= 4 && t === 'hook') s.hit(P.swell, b * 4 - 4, true);   // (a bar's swell rising into every hook: a reversed cymbal, when the arrangement has one)
     if (t === 'intro') {   // previews: hats then a riff, a riff, or phrases
       const c = R.choice(verseHat == null ? ['riff', 'phr'] : ['riff', 'phr', 'hats']);
       if (c === 'riff') riff(b, L, introSet);

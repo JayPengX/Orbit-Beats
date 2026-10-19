@@ -692,10 +692,21 @@ function arpNotes(sp, inst, slots, from, shape, D) {
   return notes;
 }
 // A bass line four bars long: bar by bar which of the groove's two lines it plays (the last often the other: a turn).
-function bassNotes(sp, inst, lines, plan, D) {
+// `turn`: the last bar turns to the fifth chord halfway (as the chords do), and the bass goes with it.
+// Now and then a bar's last eighth walks into the next chord: a step below or above its root.
+function bassNotes(sp, inst, lines, plan, D, turn = false) {
   const notes = [];
   plan.forEach((li, bar) => {
-    for (const [step, len, tone] of lines[li]) notes.push({ step: bar * 16 + step, midi: noteOf(sp, sp.prog[bar] + tone, LOW[inst]), len, g: (step === 0 ? 1 : 0.9) * (0.95 + 0.1 * D.random()) });
+    const root = sp.prog[bar], next = bar === 3 ? sp.prog[0] : sp.prog[bar + 1];
+    const turned = turn && bar === 3 && root % 7 !== 4;
+    const walk = !turned && next !== root && D.random() < 0.55;
+    for (const [step, len, tone] of lines[li]) {
+      if (walk && step >= 14) continue;
+      if (turned && step >= 8) continue;
+      notes.push({ step: bar * 16 + step, midi: noteOf(sp, root + tone, LOW[inst]), len: walk && step + len > 14 ? Math.max(1, 14 - step) : turned && step + len > 8 ? Math.max(1, 8 - step) : len, g: (step === 0 ? 1 : 0.9) * (0.95 + 0.1 * D.random()) });
+    }
+    if (turned) notes.push({ step: bar * 16 + 8, midi: noteOf(sp, 4, LOW[inst]), len: 6, g: 0.95 });
+    if (walk) notes.push({ step: bar * 16 + 14, midi: noteOf(sp, next + (D.random() < 0.6 ? -1 : 1), LOW[inst]), len: 2, g: 0.85 });
   });
   return notes;
 }
@@ -733,7 +744,8 @@ function tune(R, D, c, o = {}) {
     return clamp(prev + dir * (R.random() < 0.7 ? 1 : 2));
   };
   const degs = [];
-  let prev = o.start ?? 3 + R.int(0, 2);
+  // ('high': a hook's tune starts up around the octave, above the verse's.)
+  let prev = o.start === 'high' ? Math.max(lo, Math.min(hi - 2, 7)) : o.start ?? 3 + R.int(0, 2);
   for (let bar = 0; bar < 8; bar++) {
     const cell = cellsOf[bar];
     let line = [];
@@ -810,6 +822,8 @@ function songKit(sp, sr, { lift = true } = {}) {
   const block = (spX, K, { catchy = false, maxNotes = 6, leadX, bass = true, oct = 0, own = false, bedOf = bedFor(sp.style) }) => {
     const pat = own ? comp.map(c => fresh(c, K)) : comp;
     const slots = slotsOf(spX.prog, turns(K, band.comp, spX.prog));
+    // (The eighth bar turns round to the fifth chord halfway through: the section closes and leans into the next.)
+    if (slots[7].length === 1 && slots[7][0].deg % 7 !== 4 && band.comp !== 'power' && band.comp !== 'chug') slots[7] = [slots[7][0], { at: 8, deg: 4 }];
     const plain = slotsOf(spX.prog, Array(8).fill(null));
     // (The soft pad under a riff is voiced another way each half, so it is not the same in every piece.)
     const beds = [0, 1].map(half => clip(notesClip(bedOf, spX, chordNotes(spX, bedOf, plain, half * 4, Array(4).fill(COMP.held[0]), [0, 1, 2, 1].map(x => (half ? (x + 1) % 3 : x)), D, oct))));
@@ -829,8 +843,10 @@ function songKit(sp, sr, { lift = true } = {}) {
     const make = o => tune(K, D, { slots, cells, lo, hi }, { catchy, ...o });
     const tunes8 = [];
     const mel = (t, half) => once(`m${tunes8.indexOf(t) < 0 ? tunes8.push(t) - 1 : tunes8.indexOf(t)}${half}`, () => clip(tuneClip(spX, leadX, t, half)));
-    const lowBass = !bass ? null : half => once(`b${half}`, () => clip(notesClip(sp.bass, spX, bassNotes(spX, sp.bass, lines, half ? [0, 1, 0, 1] : [0, 0, 0, 1], D))));
-    return { beds, chords, arp, make, mel, bass: lowBass };
+    const lowBass = !bass ? null : half => once(`b${half}`, () => clip(notesClip(sp.bass, spX, bassNotes(spX, sp.bass, lines, half ? [0, 1, 0, 1] : [0, 0, 0, 1], D, half === 1 && slots[7].length > 1 && slots[7][1].deg === 4))));
+    // The tune again on another instrument, `dd` scale steps away (-2 a third under it, 7 an octave over): a harmony or a doubling.
+    const harm = (t, half, inst, dd) => once(`h${tunes8.indexOf(t) < 0 ? tunes8.push(t) - 1 : tunes8.indexOf(t)}${half}${inst}${dd}`, () => clip(tuneClip(spX, inst, { notes: t.notes.map(n => ({ ...n, deg: n.deg + dd })) }, half)));
+    return { beds, chords, arp, make, mel, harm, bass: lowBass };
   };
   const ratio = (x, g) => ({ ...x, g });
   // (Where each sits: the chords a little left, the arpeggio right, the tune in the middle.)
@@ -890,20 +906,31 @@ function songKit(sp, sr, { lift = true } = {}) {
   at(sum(shot(kick), { ...shot(k?.boom || 'sub', tonic808), g: 0.5 }), 'kick');
   // A crash on the first beat of each verse, hook, bridge and outro, and on the last hit: where a drummer marks a new section.
   parts.crash = at(sum({ ...shot('crash'), g: 0.6 }), 'tick');
+  // A swell into every hook: the crash played backwards, one bar long, rising to the hook's first beat (the engine places it).
+  {
+    const c = shot('crash').L, bar = Math.round((240 / sp.bpm) * sr), w = new Float32Array(bar);
+    for (let i = 0; i < bar; i++) {
+      const k = bar - 1 - i;
+      if (k < c.length) w[i] = c[k] * 0.55 * Math.min(1, i / (bar * 0.4));
+    }
+    parts.swell = at({ L: w, R: w }, 'tick');
+  }
 
   // The hook: another loop of chords when the spec has one, its lead, its bass. Its second time its own variant of the tune, fuller.
   const spB = { ...sp, prog: sp.progB || sp.prog };
   const HX = block(spB, rngOf(sp, 3), { catchy: true, maxNotes: 4, leadX: sp.leadB, bass: Boolean(sp.progB), own: true, bedOf: 'strings' });
-  const tH1 = HX.make({}), tH2 = HX.make({ motif: tH1.motif, displace: true, up: [4, 5, 6, 7] });
+  const tH1 = HX.make({ start: 'high' }), tH2 = HX.make({ motif: tH1.motif, displace: true, up: [4, 5, 6, 7] });
 
   tunes.hook1 = tH1.notes; tunes.hook2 = tH2.notes;
   parts.hook = [
     at(sum(HX.chords(sp.chords2, 0, 0), HX.mel(tH1, 0)), 'riff'),
     at(sum(HX.chords(sp.chords, 1, 1), ratio(HX.mel(tH1, 1), 0.85), arpAt(HX.arp(sp.lead2, 1), 0.6)), 'riff')
   ];
+  // (The hook again, fuller: a harmony a third under its tune, on strings to one side.)
+  const third = (t, h, g) => ({ ...HX.harm(t, h, 'strings', -2), g, pan: 0.3 });
   parts.hook2 = [
-    at(sum(HX.chords(sp.chords, 1, 0), ratio(HX.mel(tH2, 0), 0.9), arpAt(HX.arp(sp.lead2, 0), 0.6)), 'riff'),
-    at(sum(HX.chords(sp.chordsC, 0, 1), ratio(HX.mel(tH2, 1), 0.9), arpAt(HX.arp(sp.lead2, 1), 0.7)), 'riff')
+    at(sum(HX.chords(sp.chords, 1, 0), ratio(HX.mel(tH2, 0), 0.9), arpAt(HX.arp(sp.lead2, 0), 0.6), third(tH2, 0, 0.38)), 'riff'),
+    at(sum(HX.chords(sp.chordsC, 0, 1), ratio(HX.mel(tH2, 1), 0.9), arpAt(HX.arp(sp.lead2, 1), 0.7), third(tH2, 1, 0.38)), 'riff')
   ];
   parts.layer = at(sum(arpAt(HX.arp(sp.lead2, 0), 0.8), ratio(HX.beds[0], 0.2)), 'riff');
   // (Its bass follows the hook's chords only when they are not the verse's.)
@@ -927,9 +954,11 @@ function songKit(sp, sr, { lift = true } = {}) {
     const L = block(spL, rngOf(sp, 6), { catchy: true, maxNotes: 4, leadX: sp.leadB, oct: 12, own: true });
     const t3 = L.make({ motif: tH1.motif, up: [4, 5, 6, 7] });
     tunes.lift = t3.notes;
+    // (The last hook the fullest: the tune doubled an octave up on a bell, and its harmony under it.)
+    const lift = (t, h) => [{ ...L.harm(t, h, 'glass', 7), g: 0.28, pan: -0.35 }, { ...L.harm(t, h, 'strings', -2), g: 0.38, pan: 0.3 }];
     parts.lift = [
-      at(sum(L.chords(sp.chords2, 0, 0), L.mel(t3, 0), arpAt(L.arp(sp.lead2, 0), 0.5)), 'riff'),
-      at(sum(L.chords(sp.chordsC, 1, 1), ratio(L.mel(t3, 1), 0.9), arpAt(L.arp(sp.lead2, 1), 0.7)), 'riff')
+      at(sum(L.chords(sp.chords2, 0, 0), L.mel(t3, 0), arpAt(L.arp(sp.lead2, 0), 0.5), ...lift(t3, 0)), 'riff'),
+      at(sum(L.chords(sp.chordsC, 1, 1), ratio(L.mel(t3, 1), 0.9), arpAt(L.arp(sp.lead2, 1), 0.7), ...lift(t3, 1)), 'riff')
     ];
     parts.liftBass = [0, 1].map(h => at(L.bass(h), 'bass'));
     parts.liftSub = at(subOf(tonicL), 'sub');
@@ -1111,7 +1140,7 @@ function shape(song, bpm) {
 export const PART_LIST = ['drums', 'bass', 'melody'];
 const PART_ROLES = { drums: ['hat', 'fill', 'kick', 'snare', 'tick', 'roll'], bass: ['bass', 'sub'], melody: ['riff', 'phrase'] };
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
-export const RADIO_V = 8;
+export const RADIO_V = 9;
 export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
   const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);
