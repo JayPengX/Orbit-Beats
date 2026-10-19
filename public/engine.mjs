@@ -11,6 +11,12 @@ export { analyzeRecording, analyzePiece, detectTempo, guessRole, loopBeats } fro
 
 export const STYLES = ['four', 'hiphop', 'trap', 'half', 'broken', 'house', 'dembow', 'afro', 'drill', 'boombap', 'jersey', 'amapiano', 'lofi', 'funk', 'garage', 'dnb', 'reggae', 'phonk', 'baile', 'techno',
   'jazz', 'bossa', 'samba', 'salsa', 'rock', 'punk', 'metal', 'citypop', 'kpop', 'synthwave', 'disco', 'gospel', 'neosoul', 'ballad', 'ambient', 'cinematic', 'chiptune', 'kizomba', 'highlife', 'cumbia', 'bhangra', 'dubstep', 'footwork', 'jungle', 'trance', 'hardstyle', 'chinese', 'blues', 'country'];
+// The styles as the app lists them: the most played first (names.mjs shows them; here so a worker can read it).
+export const STYLE_ORDER = [
+  'lofi', 'hiphop', 'trap', 'kpop', 'house', 'afro', 'reggae', 'jazz', 'rock', 'citypop', 'dembow', 'ballad', 'chinese', 'synthwave', 'disco', 'bossa',
+  'drill', 'boombap', 'phonk', 'half', 'neosoul', 'funk', 'gospel', 'four', 'techno', 'trance', 'garage', 'dnb', 'jungle', 'dubstep', 'jersey', 'footwork', 'hardstyle', 'broken',
+  'amapiano', 'baile', 'samba', 'salsa', 'cumbia', 'kizomba', 'highlife', 'bhangra', 'blues', 'country', 'punk', 'metal', 'ambient', 'cinematic', 'chiptune'
+];
 export const SECTIONS = ['intro', 'verse', 'pre', 'hook', 'break', 'bridge', 'outro'];
 
 // What a piece does in a song. Loops repeat every so many beats (a loop

@@ -546,8 +546,9 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .q-menu.radio-menu { background: var(--q-surface-2); } }
 :root[data-theme='dark'] .q-menu.radio-menu { background: var(--q-surface-2); }
 .radio-more { margin-top: 12px; }
-.radio-moods { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
-.radio-moods .chip { flex: 1 0 auto; padding: 0 12px; height: 38px; border-radius: 19px; font-size: 15px; }
+.radio-moods { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; gap: 8px; margin: 4px -4px 0; padding: 2px 4px; -webkit-mask-image: linear-gradient(90deg, #000 90%, transparent); mask-image: linear-gradient(90deg, #000 90%, transparent); }
+.radio-moods::-webkit-scrollbar { display: none; }
+.radio-moods .chip { flex: none; padding: 0 12px; height: 38px; border-radius: 19px; font-size: 15px; }
 .radio-recent { list-style: none; margin: -6px 0 -8px; padding: 0; }
 .radio-recent li { display: flex; align-items: center; gap: 12px; min-height: 60px; border-top: 1px solid var(--line); }
 .radio-recent li:first-child { border-top: 0; }
