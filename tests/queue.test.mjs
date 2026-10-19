@@ -171,3 +171,60 @@ test('a bad read is an empty queue, bad items are dropped', () => {
   assert.equal(fromText('{"loop":"one"}').loop, 'one');
   assert.equal(fromText('{"loop":"zzz"}').loop, 'off');
 });
+
+import { setShuffle, setAutoplay } from '../public/lib/queue.mjs';
+
+test('shuffle mixes the rest of the list and the queue, and off puts the list back', () => {
+  const list = ['a', 'b', 'c', 'd', 'e', 'f'].map(x => s(x));
+  let q = playNow(newQueue(), list[1], listStation(list, 'b'));
+  q = playLater(playLater(q, s('x')), s('y'));
+  const seq = [0.9, 0.1, 0.5, 0.3, 0.7, 0.2, 0.6];
+  let i = 0;
+  const rnd = () => seq[i++ % seq.length];
+  const m = setShuffle(q, true, rnd);
+  assert.equal(m.shuffle, true);
+  assert.equal(m.station.items[0].id, 'a');
+  assert.equal(m.station.items[1].id, 'b', 'the song playing stays in place');
+  assert.equal(m.station.index, 1);
+  assert.deepEqual(ids(m.station.items).sort(), ['a', 'b', 'c', 'd', 'e', 'f']);
+  assert.deepEqual(ids(m.upNext).sort(), ['x', 'y']);
+  assert.equal(setShuffle(m, true), m, 'on again changes nothing');
+  const off = setShuffle(m, false);
+  assert.equal(off.shuffle, false);
+  assert.deepEqual(ids(off.station.items), ['a', 'b', 'c', 'd', 'e', 'f']);
+  assert.equal(off.station.index, 1);
+});
+
+test('a list played while shuffle is on is mixed too', () => {
+  const list = ['a', 'b', 'c', 'd'].map(x => s(x));
+  let q = setShuffle(newQueue(), true);
+  q = playNow(q, list[0], listStation(list, 'a'));
+  assert.equal(q.station.items[0].id, 'a');
+  assert.deepEqual(ids(q.station.items).sort(), ['a', 'b', 'c', 'd']);
+  assert.equal(q.station.orig.length, 4);
+});
+
+test('autoplay hands over to the radio when the list ends; without it nothing plays', () => {
+  const list = [s('a'), s('b')];
+  let q = playNow(newQueue(), list[1], listStation(list, 'b'));
+  assert.equal(next(q).handoff, undefined);
+  assert.equal(next(q).item, null);
+  q = setAutoplay(q, true);
+  const r1 = next(q);
+  assert.equal(r1.handoff, 'radio');
+  assert.equal(r1.item, null);
+  // (A repeat of all keeps going round: no hand-over.)
+  assert.equal(next(setLoop(q, 'all')).item.id, 'a');
+  // (A single song with nothing after it, too.)
+  const one = setAutoplay(playNow(newQueue(), s('z')), true);
+  assert.equal(next(one).handoff, 'radio');
+  assert.equal(next(setAutoplay(newQueue(), true)).handoff, undefined, 'nothing playing: nothing to follow');
+});
+
+test('autoplay is kept; shuffle is not', () => {
+  const q = setShuffle(setAutoplay(playLater(playNow(newQueue(), s('a')), s('b')), true), true);
+  const back = fromText(toText(q));
+  assert.equal(back.autoplay, true);
+  assert.equal(back.shuffle, false);
+  assert.equal(fromText('{"v":1,"autoplay":"yes"}').autoplay, false);
+});

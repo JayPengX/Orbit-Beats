@@ -52,6 +52,7 @@ const PATHS = {
   copy: [S, '<rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V6A2.5 2.5 0 0 0 13 3.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5"/>'],
   wave: [S, '<path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10"/>'],
   grip: [S, '<path d="M5 8h14M5 12h14M5 16h14"/>'],
+  play_later: [S, '<path d="M4 6h12M4 12h8M4 18h8"/><path d="M18 14v6M15 17h6"/>'],
   play_next: [S, '<path d="M4 6h10M4 12h7M4 18h7"/><path d="M15 12v8l6-4z" fill="currentColor"/>']
 };
 export const ICON_NAMES = Object.keys(PATHS);

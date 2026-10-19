@@ -7,7 +7,9 @@ import { STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
 import { coverOfTrack } from './player.mjs';
 import { speedKey } from './length.mjs';
-import { TEMPOS } from './stations.mjs';
+import { TEMPOS, stationName } from './stations.mjs';
+
+const STYLES_FOR_HOLES = ['lofi', 'house', 'jazz', 'citypop', 'hiphop'];
 
 const clock = s => {
   s = Math.max(0, Math.floor(s || 0));
@@ -48,18 +50,24 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
   const q = sel => mini.querySelector(sel);
 
   // ---- ⋯ ----
-  function trackMenu(track, anchor) {
+  // np: opened from Now Playing, where the song is already playing and ♡ and ✂ sit beside the ⋯.
+  function trackMenu(track, anchor, { np = false } = {}) {
     const kept = core.kept(track);
-    menu(anchor, [
-      { label: W('播放', 'Play'), icon: 'play', onClick: () => P.play(track) },
-      { label: W('插播', 'Play next'), icon: 'play_next', onClick: () => P.playNext(track) },
-      { label: W('稍後播放', 'Play later'), icon: 'queue', onClick: () => P.playLater(track) },
-      'divider',
-      { label: kept ? W('取消收藏', 'Remove from Library') : W('收藏', 'Keep'), icon: kept ? 'heart-fill' : 'heart', onClick: () => core.toggleKeep(track).then(() => paint()) },
-      { label: W('分享', 'Share'), icon: 'share', onClick: () => core.share(track) },
-      ...(core.remix ? [{ label: W('重新混音', 'Remix'), icon: 'shuffle', onClick: () => core.remix(track) }, { label: W('取出片段', 'Take a clip'), icon: 'cut', onClick: () => core.clip(track) }] : []),
-      ...(core.inLibrary(track) ? ['divider', { label: W('刪除', 'Delete'), icon: 'trash', danger: true, onClick: () => core.remove(track) }] : [])
-    ]);
+    const header = { cover: coverOfTrack(track), title: track.title, sub: subOf(track) };
+    menu(
+      anchor,
+      [
+        ...(np ? [] : [{ label: W('播放', 'Play'), icon: 'play', onClick: () => P.play(track) }]),
+        { label: W('插播', 'Play next'), icon: 'play_next', onClick: () => P.playNext(track) },
+        { label: W('稍後播放', 'Play later'), icon: 'play_later', onClick: () => P.playLater(track) },
+        'divider',
+        ...(np ? [] : [{ label: kept ? W('取消收藏', 'Remove from Library') : W('收藏', 'Keep'), icon: kept ? 'heart-fill' : 'heart', onClick: () => core.toggleKeep(track).then(() => paint()) }]),
+        { label: W('分享', 'Share'), icon: 'share', onClick: () => core.share(track) },
+        ...(core.remix ? [{ label: W('重新混音', 'Remix'), icon: 'shuffle', onClick: () => core.remix(track) }, ...(np ? [] : [{ label: W('取出片段', 'Take a clip'), icon: 'cut', onClick: () => core.clip(track) }])] : []),
+        ...(core.inLibrary(track) ? ['divider', { label: W('從資料庫移除', 'Remove from Library'), icon: 'trash', danger: true, onClick: () => core.remove(track) }] : [])
+      ],
+      { header, scrim: true }
+    );
   }
 
   // ---- The mini bar ----
@@ -103,7 +111,7 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
     const title = h('h2', { class: 'np-title' });
     const sub = h('p', { class: 'np-sub' });
     const heart = btn('np-ico', W('收藏', 'Keep'), () => P.state()?.track && core.toggleKeep(P.state().track).then(() => paint()));
-    const more = btn('np-ico', W('更多', 'More'), e => P.state()?.track && trackMenu(P.state().track, e.currentTarget));
+    const more = btn('np-ico', W('更多', 'More'), e => P.state()?.track && trackMenu(P.state().track, e.currentTarget, { np: true }));
     const fill = h('i');
     const bar = h('div', { class: 'np-bar', role: 'slider', 'aria-label': W('播放位置', 'Position'), tabindex: '0' }, [fill]);
     const t0 = h('span', { text: '0:00' });
@@ -124,7 +132,10 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
     more.innerHTML = icon('more');
     queue.innerHTML = icon('queue');
     sleep.innerHTML = icon('moon');
+    const bg = h('img', { class: 'np-bg', alt: '', draggable: 'false', 'aria-hidden': 'true' });
     np = h('div', { class: 'np', role: 'dialog', 'aria-modal': 'true', 'aria-label': W('正在播放', 'Now playing'), hidden: true }, [
+      bg,
+      h('i', { class: 'np-shade', 'aria-hidden': 'true' }),
       h('div', { class: 'np-top' }, [down, h('i', { class: 'np-grab', 'aria-hidden': 'true' }), h('span', { class: 'np-top-gap' })]),
       h('div', { class: 'np-art' }, [art]),
       h('div', { class: 'np-what' }, [h('div', { class: 'np-text' }, [title, sub]), heart, more]),
@@ -179,7 +190,7 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
       if (dy > 110) closeNow();
     });
     document.addEventListener('keydown', e => e.key === 'Escape' && np && !np.hidden && !document.querySelector('dialog[open]') && closeNow());
-    els = { art, title, sub, heart, fill, t0, t1, play, loop, sleep, bar };
+    els = { bg, art, title, sub, heart, fill, t0, t1, play, loop, sleep, bar };
   }
   function openNow() {
     if (!P.state()) return;
@@ -209,6 +220,7 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
       if (key !== npKey) {
         npKey = key;
         els.art.src = s.cover || '';
+        els.bg.src = s.cover || '';
         els.title.textContent = t ? t.title : W('電台', 'Radio');
         els.sub.textContent = s.busy ? W('調頻中…', 'Tuning in…') : subOf(t);
         np.classList.toggle('paused', !playing);
@@ -256,13 +268,30 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
       const after = P.q.station?.kind === 'radio' ? P.upNextRadio() : P.stationNext();
       const list = h('ul', { class: 'qlist' }, up.map((t, i) => row(t, { grip: true, index: i, onRemove: () => P.remove(i) })));
       grips(list);
+      const radioQ = P.q.station?.kind === 'radio';
+      // (The radio makes two ahead; the rest of the five are the station's, not made yet.)
+      const holes = radioQ ? Math.max(0, 5 - up.length - after.length) : 0;
+      const hole = i => {
+        const t = { id: `ph:${i}`, kind: 'radio', seed: 7000 + i * 977, mood: s?.station && !/:/.test(s.station) ? s.station : 'all', style: STYLES_FOR_HOLES[i % STYLES_FOR_HOLES.length] };
+        return h('li', { class: 'qrow ph', 'aria-hidden': 'true' }, [h('span', { class: 'qcover', style: `background-image:url("${coverOfTrack(t)}")` }), h('div', { class: 'qtext' }, [h('b', { text: W(`電台 · ${stationName(s?.station || 'all')}`, `Radio · ${stationName(s?.station || 'all')}`) }), h('i', { class: 'qbar' })])]);
+      };
+      const pill = (cls, ico, label, on, fn) => h('button', { class: `qpill${on ? ' on' : ''}`, type: 'button', 'aria-pressed': String(on), onclick: fn, html: `${icon(ico)}<span>${label}</span>` });
+      const loop = P.q.loop;
+      const pills = [
+        P.q.station?.kind === 'list' || up.length > 1 || P.q.shuffle ? pill('', 'shuffle', W('隨機播放', 'Shuffle'), P.q.shuffle, () => P.shuffle()) : null,
+        pill('', loop === 'one' ? 'loop-one' : 'loop', loop === 'one' ? W('循環 · 單曲', 'Repeat one') : W('循環', 'Repeat'), loop !== 'off', () => P.cycleLoop()),
+        radioQ ? null : pill('', 'radio', W('自動播放', 'Autoplay'), P.q.autoplay, () => P.autoplay())
+      ].filter(Boolean);
+      const now = s?.track
+        ? h('div', { class: 'qnow' }, [h('img', { class: 'qcover', alt: '', src: s.cover || coverOfTrack(s.track), width: 56, height: 56 }), h('div', { class: 'qtext' }, [h('b', { text: s.track.title }), h('small', { text: subOf(s.track) })]), h('span', { class: `qeq${s.playing ? ' on' : ''}`, 'aria-hidden': 'true', html: icon('wave') })])
+        : h('p', { class: 'qnone', text: W('沒有在播放', 'Nothing playing') });
+      const any = up.length || after.length || holes;
       body.replaceChildren(...[
-        h('h3', { class: 'qhead', text: W('正在播放', 'Now playing') }),
-        s?.track ? h('ul', { class: 'qlist' }, [row(s.track)]) : h('p', { class: 'qnone', text: W('沒有在播放', 'Nothing playing') }),
-        // (One heading over what's next: the songs lined up, then what plays after them, dimmed.)
-        up.length || after.length ? h('div', { class: 'qhead-row' }, [h('h3', { class: 'qhead', text: W('接下來', 'Up next') }), up.length ? h('button', { class: 'qclear', type: 'button', text: W('清除', 'Clear'), onclick: () => P.clear() }) : null]) : null,
+        now,
+        h('div', { class: 'qpills' }, pills),
+        any ? h('div', { class: 'qhead-row' }, [h('h3', { class: 'qhead', text: W('接下來', 'Up next') }), up.length ? h('button', { class: 'qclear', type: 'button', text: W('清除', 'Clear'), onclick: () => P.clear() }) : null]) : null,
         up.length ? list : null,
-        after.length ? h('ul', { class: 'qlist dim' }, after.map(t => row(t))) : null
+        after.length || holes ? h('ul', { class: 'qlist dim' }, [...after.map(t => row(t)), ...Array.from({ length: holes }, (_, i) => hole(i))]) : null
       ].filter(Boolean));
     };
     // Drag a row by its grip to a new place.
@@ -299,7 +328,8 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
     }
     draw();
     const off = P.on(w => (w === 'queue' || w === 'song') && draw());
-    qs = sheet({ title: W('播放佇列', 'Queue'), cls: 'q-queue', closeLabel: W('關閉', 'Close'), body, onClose: () => (off(), (qs = null)) });
+    qs = sheet({ title: '', cls: 'q-queue', closeLabel: W('關閉', 'Close'), body, onClose: () => (off(), (qs = null)) });
+    qs.el.setAttribute('aria-label', W('播放佇列', 'Queue'));
   }
 
   function paint() {
