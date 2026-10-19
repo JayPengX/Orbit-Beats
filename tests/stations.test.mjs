@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { radioPick, radioSpec, stationStyles, MOODS } from '../public/lib/radio.mjs';
 import { STYLES } from '../public/engine.mjs';
-import { stationFilter, stationId, homeRows, tasteList, TEMPOS, POPULAR, stationGrooves } from '../public/lib/stations.mjs';
+import { stationFilter, stationId, homeRows, tasteList, TEMPOS, POPULAR, stationGrooves, dailyPicks, nowStation, dayKey } from '../public/lib/stations.mjs';
 
 test('a station filter narrows the grooves, never to none', () => {
   assert.deepEqual(stationStyles({ mood: 'chill', styles: ['lofi', 'trap', 'jazz'] }).sort(), ['lofi']);
@@ -65,15 +65,37 @@ test('station ids become filters', () => {
   assert.ok(stationGrooves('tempo:slow').includes('lofi'));
 });
 
-test('the home rows: taste first, moods, every groove, tempos', () => {
+test('the home rows: your taste, moods, eight grooves to browse', () => {
   const rows = homeRows({ jazz: 3, lofi: 1 });
-  assert.deepEqual(rows.map(r => r.key), ['for-you', 'moods', 'genres', 'tempo', 'liked']);
-  assert.deepEqual(rows[0].ids, ['taste', 'style:lofi', 'style:hiphop', 'style:house', 'style:kpop']);
-  assert.equal(homeRows({})[0].ids.length, 5, 'popular when nothing is kept');
-  assert.ok(rows[2].ids.length >= 40);
-  assert.deepEqual(rows[3].ids, ['tempo:slow', 'tempo:mid', 'tempo:fast']);
-  assert.deepEqual(rows[4].ids, ['style:jazz'], '喜歡的 leaves out what 為你推薦 shows');
-  assert.ok(!rows[2].ids.some(id => rows[0].ids.includes(id)), 'no groove twice on the page');
-  assert.deepEqual(homeRows({})[4].ids, []);
+  assert.deepEqual(rows.map(r => r.key), ['for-you', 'moods', 'genres']);
+  assert.deepEqual(rows[0].ids, ['taste', 'style:jazz', 'style:lofi'], 'the taste stations, most kept first');
+  assert.deepEqual(homeRows({})[0].ids, [], 'nothing kept: no row, 今日精選 speaks for it');
+  assert.deepEqual(rows[2].ids, POPULAR.map(s => `style:${s}`));
+  assert.equal(rows[2].ids.length, 8);
   assert.deepEqual(tasteList({ jazz: 0, bogus: 4, rock: 2 }), [['rock', 2]]);
+});
+
+test('今日精選: a day gives the same songs, each differing from the one before; another day, others', () => {
+  const a = dailyPicks('2026-10-19', {});
+  assert.equal(a.length, 8);
+  assert.deepEqual(a, dailyPicks('2026-10-19', {}));
+  assert.notDeepEqual(a.map(x => x.seed), dailyPicks('2026-10-20', {}).map(x => x.seed));
+  for (const [i, x] of a.entries()) {
+    assert.ok(Number.isInteger(x.seed) && STYLES.includes(x.style) && x.mood === 'all' && x.bpm > 40 && x.key && x.seconds > 0);
+    if (i) assert.notEqual(x.style, a[i - 1].style, 'no groove twice in a row');
+  }
+  assert.ok(new Set(a.map(x => x.style)).size >= 6, 'many grooves in one day');
+  // (With taste, every other song is of the grooves kept.)
+  const mine = dailyPicks('2026-10-19', { jazz: 5, blues: 2 });
+  for (const i of [1, 3, 5, 7]) assert.ok(['jazz', 'blues'].includes(mine[i].style), mine[i].style);
+});
+
+test('適合現在: a station for the hour', () => {
+  const at = h => nowStation(h).id;
+  assert.equal(at(7), 'chill');
+  assert.equal(at(14), 'pop');
+  assert.equal(at(19), 'groove');
+  assert.equal(at(2), 'style:ambient');
+  for (let h = 0; h < 24; h++) assert.ok(stationId(at(h)) === at(h), `${h}: a real station`);
+  assert.equal(dayKey(new Date(2026, 9, 5)), '2026-10-05');
 });

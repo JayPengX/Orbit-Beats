@@ -4,7 +4,7 @@
 //   'style:<id>'         one groove
 //   'tempo:slow|mid|fast' a range of tempos
 //   'taste'              the grooves you keep (♡), most kept first
-import { MOODS, stationStyles } from './radio.mjs';
+import { MOODS, stationStyles, radioPick, radioSpec } from './radio.mjs';
 import { STYLE_ORDER, STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
 
@@ -40,21 +40,44 @@ export function stationFilter(id, taste = {}) {
 // An id that is a station, else 'all'.
 export const stationId = id => (id === 'taste' || MOODS[id] || /^style:[a-z]+$/.test(id) || /^tempo:(slow|mid|fast)$/.test(id) ? id : 'all');
 
-// The rows of 首頁: [{ key, ids: [station id] }].
+// The rows of 首頁: [{ key, ids: [station id] }]. 為你推薦 is the taste stations (your mix, then the grooves
+// you keep most) and is empty until something is kept: 今日精選's songs speak for it. 瀏覽類型 is eight
+// grooves to start from; the rest are behind 全部類型.
 export function homeRows(taste = {}) {
-  const liked = tasteList(taste, 6);
-  const pop = POPULAR.slice(0, 5).map(s => `style:${s}`);
-  // (No station twice on the page: 類型 and 喜歡的 leave out what 為你推薦 already shows.)
-  const forYou = liked.length ? ['taste', ...pop.slice(0, 4)] : pop;
-  const fresh = id => !forYou.includes(id);
+  const liked = tasteList(taste, 5);
   return [
-    { key: 'for-you', ids: forYou },
+    { key: 'for-you', ids: liked.length ? ['taste', ...liked.map(([s]) => `style:${s}`)] : [] },
     // (隨機 is the hero's own station: not again as a mood.)
     { key: 'moods', ids: Object.keys(MOODS).filter(id => id !== 'all') },
-    { key: 'genres', ids: STYLE_ORDER.map(s => `style:${s}`).filter(fresh) },
-    { key: 'tempo', ids: Object.keys(TEMPOS).map(t => `tempo:${t}`) },
-    { key: 'liked', ids: liked.map(([s]) => `style:${s}`).filter(fresh) }
+    { key: 'genres', ids: POPULAR.map(s => `style:${s}`) }
   ];
+}
+
+const dayHash = s => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 17);
+// A day as a key: "2026-10-19", the phone's own date.
+export const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// 今日精選: n songs for a day, each { seed, mood, style, bpm, key, seconds }: the same all day, another
+// tomorrow. Each differs from the one before (the radio's own rule), and with something kept, every
+// other one is of the grooves you keep.
+export function dailyPicks(day, taste = {}, n = 8) {
+  const f = stationFilter('taste', taste);
+  const mine = tasteList(taste, 1).length > 0;
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const seed = dayHash(`${day}:${i}`) % 1e9;
+    const st = mine && i % 2 === 1 ? f : null;
+    const p = radioPick('all', out, seed, st);
+    const sp = radioSpec(p.seed, p.mood, p.style);
+    out.push({ seed: p.seed, mood: p.mood, style: p.style, bpm: sp.bpm, key: { tonic: sp.key.tonic, minor: Boolean(sp.key.minor) }, seconds: Math.round(sp.seconds) });
+  }
+  return out;
+}
+// 適合現在: the station for the hour (0-23): morning easy, afternoon pop, evening groove, late night ambient.
+export function nowStation(hour) {
+  if (hour >= 5 && hour < 11) return { id: 'chill', part: ['早晨', 'Morning'] };
+  if (hour >= 11 && hour < 17) return { id: 'pop', part: ['午後', 'Afternoon'] };
+  if (hour >= 17 && hour < 22) return { id: 'groove', part: ['傍晚', 'Evening'] };
+  return { id: 'style:ambient', part: ['深夜', 'Late night'] };
 }
 // The grooves a station plays (for a card's cover and the tests).
 export const stationGrooves = (id, taste = {}) => stationStyles(stationFilter(id, taste));
