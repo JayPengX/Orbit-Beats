@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { STYLES, parseWav } from '../public/engine.mjs';
 import { remix, surprise, remixId, remixTitle, kindOfRecipe, baseOf, radioBase, bandBase, lengthStep, speedStep, clipSpan, partOf, retime } from '../public/lib/remix.mjs';
-import { radioSpec, radioSong } from '../public/lib/radio.mjs';
+import { radioSpec, radioSong, RING_BARS } from '../public/lib/radio.mjs';
 import * as make from '../public/lib/make.mjs';
 
 const seq = (...xs) => { let i = 0; return () => xs[i++ % xs.length]; };
@@ -73,10 +73,10 @@ test('kit song: style, sounds, speed and length each set their own field and kee
   assert.ok(Math.abs(r.speed - 1.15) < 1e-9); keep(r, 'speed');
   r = remix(kit, { length: 1 }).recipe;
   const bars = r.plan.reduce((a, [, n]) => a + n, 0);
-  assert.ok(Math.abs((bars * 240) / 100 - 90) < 6, `${bars} bars`); keep(r, 'plan');
+  assert.ok(Math.abs(((bars + RING_BARS) * 240) / 100 - 90) < 6, `${bars} bars`); // (with the last notes' ring) keep(r, 'plan');
   // length after a speed-up: the bars are made for the tempo it plays at
   const fast = remix(remix(kit, { speed: 1 }).recipe && { ...kit, recipe: { ...recipe, speed: 1.15 }, bpm: 115 }, { length: 1 }).recipe;
-  assert.ok(Math.abs((fast.plan.reduce((a, [, n]) => a + n, 0) * 240) / 115 - 90) < 6);
+  assert.ok(Math.abs(((fast.plan.reduce((a, [, n]) => a + n, 0) + RING_BARS) * 240) / 115 - 90) < 6);
 });
 test('built-in jam take: style re-picks the band\'s groove, sounds its seed, speed the tape; no length', () => {
   const take = { band: { seed: 5, style: 'house' }, jam: [{ i: 11, beat: 0 }], plan: [['hook', 4]], mix: {} };
@@ -143,4 +143,11 @@ test('clip: spans add up, and a part with nothing in it reports silence', () => 
   assert.equal(partOf({ drums: x }, 'bass', 0, 1000).peak, 0);
   assert.ok(partOf({ drums: x }, 'drums', 0, 1000).peak > 0.4);
   assert.equal(partOf(x, 'all', 19000, 21000).L.length, 2000); // past the end: silence, same length
+});
+
+test('an asked length is about that long, ring included (0:30 no longer ~42 s)', () => {
+  for (const seed of [1, 7, 42, 99]) {
+    const { info } = radioSong({ seed, mood: 'all', seconds: 30 }, 8000);
+    assert.ok(info.seconds < 38, `seed ${seed}: ${info.seconds.toFixed(1)} s`);
+  }
 });

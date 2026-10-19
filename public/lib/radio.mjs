@@ -541,13 +541,16 @@ export function radioKit(sp, sr = RADIO_SR) {
 // Its sections, every one four or eight bars (so the four-bar loops stay on
 // their chords): an intro, verse–hook pairs (pre-hooks maybe), a break or
 // bridge, and an outro; about `seconds` long.
+export const RING_BARS = 3.5;
 export function radioPlan(R, bpm, seconds = 90, asked = false) {
   // (A length asked for: from 8 bars to 400, 8 minutes at 100 BPM. The radio's own songs keep 24 to 64.)
-  const bars = asked ? Math.max(8, Math.min(400, Math.round((seconds * bpm) / 240 / 2) * 2)) : Math.max(24, Math.min(64, Math.round((seconds * bpm) / 240 / 4) * 4));
+  // (The last notes ring on for about RING_BARS after the outro: an asked length counts them.)
+  const bars = asked ? Math.max(6, Math.min(400, Math.round(((seconds * bpm) / 240 - RING_BARS) / 2) * 2)) : Math.max(24, Math.min(64, Math.round((seconds * bpm) / 240 / 4) * 4));
   if (bars < 24) {
     // (A short one: an intro, a verse, a hook, an outro.)
-    const n = Math.max(2, Math.floor((bars - 4) / 2));
-    return [['intro', 2], ['verse', n], ['hook', bars - 4 - n], ['outro', 2]];
+    const end = bars < 8 ? 1 : 2;
+    const n = Math.max(2, Math.floor((bars - 2 * end) / 2));
+    return [['intro', end], ['verse', n], ['hook', bars - 2 * end - n], ['outro', end]];
   }
   const pre = R.random() < 0.5;
   const unit = pre ? 20 : 16;
