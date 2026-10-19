@@ -36,7 +36,7 @@ export function remixSheet({ kind, style, length, note = '', pick }) {
   if (can.length) {
     const up = length(1);
     const down = length(-1);
-    grid.push(big('plus', W('更長', 'Longer'), up ? clock(up) : '', () => go({ length: 1 })), big('close', W('更短', 'Shorter'), down ? clock(down) : '', () => go({ length: -1 })));
+    grid.push(big('plus', W('更長', 'Longer'), up ? clock(up) : '', () => go({ length: 1 })), big('minus', W('更短', 'Shorter'), down ? clock(down) : '', () => go({ length: -1 })));
   }
   if (can.sounds) grid.push(big('note', W('換樂器', 'New sounds'), '', () => go({ sounds: true })));
   const s = sheet({
