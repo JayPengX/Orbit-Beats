@@ -3,7 +3,7 @@
 // Imported by the song maker's worker (lib/make.mjs): no DOM, and no names/lang/icons/ui.
 
 import { STYLES, makeRng, SECTIONS } from '../engine.mjs';
-import { radioSpec, radioPlan, bandSounds } from './radio.mjs';
+import { radioSpec, radioPlan, bandSounds, PART_LIST } from './radio.mjs';
 import { clampLength } from './length.mjs';
 import { barSeconds } from './sections.mjs';
 
@@ -85,8 +85,9 @@ export const baseTitle = t => String(t).replace(/\s*\((?:Remix|混音)\)\s*$/, '
 //   kit:   a song of the user's own pieces (needs them loaded)
 //   jam:   a take on the user's own pieces
 export const kindOfRecipe = r => (r?.print === 'radio' && r.radio ? 'radio' : r?.band ? 'band' : r?.jam ? 'jam' : 'kit');
+// (key, parts, fade, pick: a radio song's own, made again from its seed: its key moved, parts left out, its end faded, its instruments picked.)
 export const CAN = {
-  radio: { style: true, speed: true, sounds: true, length: true },
+  radio: { style: true, speed: true, sounds: true, length: true, key: true, parts: true, fade: true, pick: true },
   band: { style: true, speed: true, sounds: true, length: false },
   kit: { style: true, speed: true, sounds: true, length: true },
   jam: { style: false, speed: true, sounds: false, length: false }
@@ -123,7 +124,25 @@ export const lengthStep = (seconds, dir) => clampLength(dir > 0 ? seconds * LONG
 // The tempo a Faster / Slower tap asks for.
 export const speedStep = (bpm, dir) => clamp(Math.round(dir > 0 ? bpm * SPEED : bpm / SPEED), BPM_MIN, BPM_MAX);
 
-// One choice made on a song: `choice` is { style?: a groove | 'random', speed?: 1 | -1, sounds?: true, length?: 1 | -1 }.
+// A song's tempo or length after `k` taps of Faster/Slower or Longer/Shorter (k < 0: the other way).
+const steps = (v, k, step) => {
+  for (let j = 0; j < Math.abs(k); j++) v = step(v, Math.sign(k));
+  return v;
+};
+export const bpmAfter = (bpm, k) => steps(bpm, k, speedStep);
+export const lengthAfter = (seconds, k) => steps(seconds, k, lengthStep);
+// What a song stands at now, for the sheet: { bpm, seconds, style, shift, mute, fade, lead, chords, key } (the last five a radio song's only).
+export function remixNow(base) {
+  const kind = kindOfRecipe(base.recipe);
+  if (kind !== 'radio') return { bpm: base.bpm, seconds: base.seconds, style: base.style, shift: 0, mute: [], fade: false };
+  const radio = base.recipe.radio;
+  const now = radioNow(radio);
+  return { bpm: base.bpm || now.bpm, seconds: radio.seconds ?? (base.seconds || now.sp.seconds), style: radio.style, shift: radio.shift || 0, mute: radio.mute || [], fade: radio.fade === true, lead: now.lead, chords: now.chords, key: { ...now.sp.key, tonic: (now.sp.key.tonic + (radio.shift || 0) + 12) % 12 } };
+}
+const sameSet = (a, b) => a.length === b.length && a.every(x => b.includes(x));
+
+// One choice made on a song: `choice` is { style?: a groove | 'random', speed?: taps (+ faster, - slower), sounds?: true, length?: taps (+ longer, - shorter),
+// and on a radio song shift?: semitones from its own key (-6 to 6), mute?: the parts left out, fade?: true | false, lead?, chords?: an instrument of its groove's band }.
 // Anything not chosen is left as it was. `rand` is a function () -> [0, 1).
 // -> { recipe, changed: ['style', …] } (changed: the choices that took, a style the song is already in not among them)
 export function remix(base, choice, rand = Math.random) {
@@ -148,7 +167,7 @@ export function remix(base, choice, rand = Math.random) {
       }
     }
     if (choice.speed) {
-      radio.bpm = speedStep(radio.bpm ?? bpm, choice.speed);
+      radio.bpm = bpmAfter(radio.bpm ?? bpm, choice.speed);
       changed.push('speed');
     }
     if (choice.sounds) {
@@ -160,8 +179,38 @@ export function remix(base, choice, rand = Math.random) {
       changed.push('sounds');
     }
     if (choice.length) {
-      radio.seconds = lengthStep(radio.seconds ?? seconds, choice.length);
+      radio.seconds = lengthAfter(radio.seconds ?? seconds, choice.length);
       changed.push('length');
+    }
+    // (An instrument picked: one the groove's band plays; the second chords another of them.)
+    const band = bandSounds(radio.style);
+    if (choice.lead && band.leads.includes(choice.lead) && choice.lead !== radioNow(radio).lead) (radio.lead = choice.lead), changed.push('lead');
+    if (choice.chords && band.chords.includes(choice.chords) && choice.chords !== radioNow(radio).chords) {
+      radio.chords = choice.chords;
+      if (radioNow(radio).chords2 === choice.chords) radio.chords2 = band.chords.find(x => x !== choice.chords) || choice.chords;
+      changed.push('chords');
+    }
+    if (Number.isFinite(choice.shift)) {
+      const k = clamp(Math.round(choice.shift), -6, 6);
+      if (k !== (radio.shift || 0)) {
+        if (k) radio.shift = k;
+        else delete radio.shift;
+        changed.push('key');
+      }
+    }
+    if (Array.isArray(choice.mute)) {
+      // (Never all three: a song with nothing in it.)
+      const m = PART_LIST.filter(p => choice.mute.includes(p));
+      if (m.length < PART_LIST.length && !sameSet(m, radio.mute || [])) {
+        if (m.length) radio.mute = m;
+        else delete radio.mute;
+        changed.push('parts');
+      }
+    }
+    if (typeof choice.fade === 'boolean' && choice.fade !== (radio.fade === true)) {
+      if (choice.fade) radio.fade = true;
+      else delete radio.fade;
+      changed.push('fade');
     }
     r = { ...base.recipe, radio };
   } else if (kind === 'band') {
@@ -173,7 +222,7 @@ export function remix(base, choice, rand = Math.random) {
     }
     if (choice.sounds) (band.seed = seedOf()), changed.push('sounds');
     r.band = band;
-    if (choice.speed) (r.speed = clamp((r.speed || 1) * (choice.speed > 0 ? SPEED : 1 / SPEED), SPEED_MIN, SPEED_MAX)), changed.push('speed');
+    if (choice.speed) (r.speed = clamp((r.speed || 1) * SPEED ** choice.speed, SPEED_MIN, SPEED_MAX)), changed.push('speed');
   } else {
     r = { ...base.recipe };
     if (can.style && choice.style) {
@@ -181,11 +230,11 @@ export function remix(base, choice, rand = Math.random) {
       if (STYLES.includes(st) && st !== base.style) (r.style = st), changed.push('style');
     }
     if (can.sounds && choice.sounds) (r.detail = seedOf()), changed.push('sounds');
-    if (choice.speed) (r.speed = clamp((r.speed || 1) * (choice.speed > 0 ? SPEED : 1 / SPEED), SPEED_MIN, SPEED_MAX)), changed.push('speed');
+    if (choice.speed) (r.speed = clamp((r.speed || 1) * SPEED ** choice.speed, SPEED_MIN, SPEED_MAX)), changed.push('speed');
     if (can.length && choice.length) {
       // (Sections for the length asked at the tempo the song will play at: the pieces' own, times any speed.)
       const at = (base.bpm || 100) / (base.recipe.speed || 1) * (r.speed || 1);
-      r.plan = radioPlan(makeRng(seedOf()), at, lengthStep(base.seconds, choice.length), true);
+      r.plan = radioPlan(makeRng(seedOf()), at, lengthAfter(base.seconds, choice.length), true);
       changed.push('length');
     }
   }

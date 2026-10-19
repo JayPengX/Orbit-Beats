@@ -40,7 +40,7 @@ import { icon, inner } from './lib/icons.mjs';
 import { createPlayer, coverOfTrack } from './lib/player.mjs';
 import { mountPlayerView, subOf, onLong, speedText } from './lib/playerview.mjs';
 import { mountHome, songShelf, shelfOf, sqCard, stationCover } from './lib/homeview.mjs';
-import { remix, surprise, remixId, remixTitle, kindOfRecipe, baseOf, radioBase, bandBase, lengthStep, retime, clipSpan, partOf } from './lib/remix.mjs';
+import { remix, surprise, remixId, remixTitle, kindOfRecipe, baseOf, radioBase, bandBase, remixNow, retime, clipSpan, partOf } from './lib/remix.mjs';
 import { remixSheet, clipSheet, PART_NAMES } from './lib/remixview.mjs';
 import { coverSvg, coverUrl } from './lib/cover.mjs';
 import { stationId } from './lib/stations.mjs';
@@ -1410,8 +1410,7 @@ function remixOf(x) {
   if (!r) return toast(W('找不到這首歌', "Can't find that song"), { tone: 'bad' });
   remixSheet({
     kind: r.kind,
-    style: r.base.style,
-    length: d => (r.base.seconds ? lengthStep(r.base.seconds, d) : null),
+    now: remixNow(r.base),
     note: r.note,
     pick: c => makeRemix(r.base, c, x.kind ? x.title : x.name, x.id)
   });

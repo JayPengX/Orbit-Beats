@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { STYLES, parseWav } from '../public/engine.mjs';
-import { remix, surprise, remixId, remixTitle, kindOfRecipe, baseOf, radioBase, bandBase, lengthStep, speedStep, clipSpan, partOf, retime } from '../public/lib/remix.mjs';
+import { remix, surprise, remixId, remixTitle, kindOfRecipe, baseOf, radioBase, bandBase, lengthStep, speedStep, clipSpan, partOf, retime, remixNow, bpmAfter } from '../public/lib/remix.mjs';
 import { radioSpec, radioSong, RING_BARS } from '../public/lib/radio.mjs';
 import * as make from '../public/lib/make.mjs';
 
@@ -150,4 +150,40 @@ test('an asked length is about that long, ring included (0:30 no longer ~42 s)',
     const { info } = radioSong({ seed, mood: 'all', seconds: 30 }, 8000);
     assert.ok(info.seconds < 38, `seed ${seed}: ${info.seconds.toFixed(1)} s`);
   }
+});
+
+test('radio: key, parts and fade are kept in the recipe; a song with every part left out is refused', () => {
+  const { recipe, changed } = remix(base, { shift: 2, mute: ['drums'], fade: true, speed: 2 });
+  assert.deepEqual(changed, ['speed', 'key', 'parts', 'fade']);
+  assert.equal(recipe.radio.shift, 2);
+  assert.deepEqual(recipe.radio.mute, ['drums']);
+  assert.equal(recipe.radio.fade, true);
+  assert.equal(recipe.radio.bpm, bpmAfter(sp.bpm, 2));
+  const now = remixNow(baseOf(recipe, { bpm: recipe.radio.bpm, seconds: 90 }));
+  assert.equal(now.shift, 2);
+  assert.equal(now.key.tonic, (sp.key.tonic + 2) % 12);
+  assert.deepEqual(remix(base, { mute: ['drums', 'bass', 'melody'] }).changed, []);
+  // (Back to the song's own key and every part: nothing of them left in the recipe.)
+  const back = remix(baseOf(recipe, { bpm: recipe.radio.bpm, seconds: 90 }), { shift: 0, mute: [], fade: false }).recipe.radio;
+  assert.ok(!('shift' in back) && !('mute' in back) && !('fade' in back));
+});
+
+test('radio: an instrument picked is one of the groove band\'s', () => {
+  const now = remixNow(base);
+  const { recipe, changed } = remix(base, { lead: 'flute', chords: now.chords === 'piano' ? 'rhodes' : 'piano' });
+  assert.ok(changed.includes('chords'));
+  assert.notEqual(recipe.radio.chords, now.chords);
+  assert.deepEqual(remix(base, { lead: 'distgtr' }).changed, []);
+});
+
+test('radio: drums left out are silent, the rest plays as it was', () => {
+  const spec = { seed: 4242, mood: 'chill', style: 'lofi' };
+  const peak = a => a.L.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+  const all = radioSong(spec, 8000, true);
+  const quiet = radioSong({ ...spec, mute: ['drums'] }, 8000, true);
+  assert.ok(peak(all.stems.drums) > 0.01);
+  assert.ok(peak(quiet.stems.drums) < 1e-6);
+  assert.ok(peak(quiet.stems.keys) > 0.01);
+  assert.deepEqual(quiet.info.radio.mute, ['drums']);
+  assert.equal(quiet.info.plan.length, all.info.plan.length);
 });

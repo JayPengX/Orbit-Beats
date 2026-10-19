@@ -4,55 +4,105 @@ import { h, sheet, toast } from './ui.mjs';
 import { icon } from './icons.mjs';
 import { W } from './lang.mjs';
 import { STYLE_NAMES, SECTION_NAMES, name } from './names.mjs';
-import { STYLE_ORDER } from '../engine.mjs';
-import { CAN, PARTS } from './remix.mjs';
+import { STYLE_ORDER, NOTE_NAMES } from '../engine.mjs';
+import { CAN, PARTS, SPEED, bpmAfter, lengthAfter } from './remix.mjs';
+import { bandSounds, PART_LIST } from './radio.mjs';
+import { INSTRUMENT_NAMES } from './synth.mjs';
 import { clock } from './length.mjs';
 import { chipsOf, readRecent, noteRecent, genreSheet } from './genres.mjs';
 
 export const PART_NAMES = { all: ['全部', 'All'], drums: ['鼓', 'Drums'], bass: ['貝斯', 'Bass'], melody: ['旋律', 'Melody'] };
 
-// kind: 'radio' | 'band' | 'kit' | 'jam' (what the song is, so what can change); style: its groove now;
-// length(dir) -> the length that tap would make, in seconds | null; note: one short line, or ''.
+// kind: 'radio' | 'band' | 'kit' | 'jam' (what the song is, so what can change); now: where it stands (lib/remix.mjs remixNow);
+// note: one short line, or ''. Changes are picked first and made together with one tap:
 // pick(choice) is called with a choice (lib/remix.mjs remix) or 'surprise'.
-export function remixSheet({ kind, style, length, note = '', pick }) {
+export function remixSheet({ kind, now, note = '', pick }) {
   const can = CAN[kind] || CAN.kit;
+  const st = { style: now.style, speed: 0, length: 0, shift: now.shift || 0, mute: [...(now.mute || [])], fade: Boolean(now.fade), lead: null, chords: null, sounds: false };
   const go = choice => {
     s.close();
     pick(choice);
   };
-  const big = (ic, label, sub, onclick) =>
-    h('button', { class: 'rx-big', type: 'button', onclick }, [h('span', { class: 'rx-ic', html: icon(ic) }), h('span', { class: 'rx-t', text: label }), sub ? h('small', { text: sub }) : null]);
-  const rows = [];
-  const others = STYLE_ORDER.filter(st => st !== style);
-  if (can.style) {
-    rows.push(
-      h('div', { class: 'rx-lab', text: W('換風格', 'New style') }),
-      h('div', { class: 'rx-styles' }, [
-        h('button', { class: 'chip rx-rand', type: 'button', html: `${icon('dice')}<span>${W('隨機', 'Random')}</span>`, onclick: () => go({ style: 'random' }) }),
-        ...chipsOf('', readRecent(), others).map(st => h('button', { class: 'chip', type: 'button', text: name(STYLE_NAMES, st), onclick: () => (noteRecent(st), go({ style: st })) })),
-        h('button', { class: 'chip rx-more', type: 'button', html: `<span>${W('更多', 'More')}</span>${icon('chevron')}`, onclick: () => genreSheet({ selected: style, styles: others, onPick: st => go({ style: st }) }) })
-      ])
+  // What's been picked, as a remix's choice (only what differs from the song).
+  const choice = () => {
+    const c = {};
+    if (st.style && st.style !== now.style) c.style = st.style;
+    if (st.speed) c.speed = st.speed;
+    if (st.length) c.length = st.length;
+    if (can.key && st.shift !== (now.shift || 0)) c.shift = st.shift;
+    if (can.parts && (st.mute.length !== now.mute.length || st.mute.some(p => !now.mute.includes(p)))) c.mute = [...st.mute];
+    if (can.fade && st.fade !== Boolean(now.fade)) c.fade = st.fade;
+    if (st.lead) c.lead = st.lead;
+    if (st.chords) c.chords = st.chords;
+    if (st.sounds) c.sounds = true;
+    return c;
+  };
+  const chip = (label, on, onclick, cls = '') => h('button', { class: `chip ${cls}`.trim(), type: 'button', 'aria-pressed': String(on), text: label, onclick });
+  const row = (label, control) => h('div', { class: 'rx-row' }, [h('div', { class: 'rx-lab', text: label }), control]);
+  const stepper = (val, dec, inc) =>
+    h('div', { class: 'rx-step' }, [
+      h('button', { type: 'button', 'aria-label': W('減少', 'Less'), html: icon('minus'), disabled: !dec, onclick: dec || null }),
+      h('span', { class: 'rx-val', text: val }),
+      h('button', { type: 'button', 'aria-label': W('增加', 'More'), html: icon('plus'), disabled: !inc, onclick: inc || null })
+    ]);
+  const body = h('div', { class: 'card sheet-card rx-body' });
+  const made = h('button', { class: 'primary', type: 'button', html: `${icon('shuffle')}<span>${W('做出混音', 'Make the remix')}</span>`, onclick: () => go(choice()) });
+  const set = f => () => (f(), paint());
+  function paint() {
+    const parts = [];
+    if (can.style) {
+      const others = STYLE_ORDER.filter(x => x !== now.style && x !== st.style);
+      const shown = [st.style, ...chipsOf('', readRecent(), others)].filter(Boolean).slice(0, 7);
+      parts.push(
+        h('div', { class: 'rx-lab rx-top', text: W('風格', 'Style') }),
+        h('div', { class: 'rx-styles' }, [
+          h('button', { class: 'chip rx-rand', type: 'button', html: `${icon('dice')}<span>${W('隨機', 'Random')}</span>`, onclick: set(() => ((st.style = others[Math.floor(Math.random() * others.length)]), (st.lead = st.chords = null))) }),
+          ...shown.map(x => chip(name(STYLE_NAMES, x), x === st.style, set(() => (x !== st.style && ((st.lead = st.chords = null), noteRecent(x)), (st.style = x))))),
+          h('button', { class: 'chip rx-more', type: 'button', html: `<span>${W('更多', 'More')}</span>${icon('chevron')}`, onclick: () => genreSheet({ selected: st.style, styles: STYLE_ORDER, onPick: x => ((st.style = x), (st.lead = st.chords = null), paint()) }) })
+        ])
+      );
+    }
+    if (can.speed) {
+      const at = k => (now.bpm ? `${Math.round(kind === 'radio' ? bpmAfter(now.bpm, k) : now.bpm * SPEED ** k)} BPM` : `×${(SPEED ** k).toFixed(2)}`);
+      const moves = d => (kind === 'radio' && now.bpm ? bpmAfter(now.bpm, st.speed + d) !== bpmAfter(now.bpm, st.speed) : Math.abs(st.speed + d) <= 3);
+      parts.push(row(W('速度', 'Tempo'), stepper(at(st.speed), moves(-1) && set(() => st.speed--), moves(1) && set(() => st.speed++))));
+    }
+    if (can.length && now.seconds) {
+      const moves = d => lengthAfter(now.seconds, st.length + d) !== lengthAfter(now.seconds, st.length);
+      parts.push(row(W('長度', 'Length'), stepper(clock(lengthAfter(now.seconds, st.length)), moves(-1) && set(() => st.length--), moves(1) && set(() => st.length++))));
+    }
+    if (can.key && now.key) {
+      const key = { ...now.key, tonic: (now.key.tonic - (now.shift || 0) + st.shift + 24) % 12 };
+      const label = `${NOTE_NAMES[key.tonic]} ${key.minor ? W('小調', 'minor') : W('大調', 'major')}`;
+      parts.push(row(W('調', 'Key'), stepper(label, st.shift > -6 && set(() => st.shift--), st.shift < 6 && set(() => st.shift++))));
+    }
+    if (can.pick) {
+      const band = bandSounds(st.style);
+      const same = st.style === now.style;
+      const lead = st.lead || (same ? now.lead : null);
+      const chords = st.chords || (same ? now.chords : null);
+      parts.push(
+        row(W('主旋律', 'Lead'), h('div', { class: 'rx-scroll' }, band.leads.map(x => chip(name(INSTRUMENT_NAMES, x), x === lead, set(() => (st.lead = same && x === now.lead ? null : x)))))),
+        row(W('和弦', 'Chords'), h('div', { class: 'rx-scroll' }, band.chords.map(x => chip(name(INSTRUMENT_NAMES, x), x === chords, set(() => (st.chords = same && x === now.chords ? null : x))))))
+      );
+    } else if (can.sounds) {
+      parts.push(row(W('樂器', 'Sounds'), h('div', { class: 'rx-scroll' }, [chip(W('換一組', 'New ones'), st.sounds, set(() => (st.sounds = !st.sounds)))])));
+    }
+    if (can.parts) {
+      const on = p => !st.mute.includes(p);
+      const flip = p => set(() => (on(p) ? st.mute.length < PART_LIST.length - 1 && st.mute.push(p) : st.mute.splice(st.mute.indexOf(p), 1)));
+      parts.push(row(W('聲部', 'Parts'), h('div', { class: 'rx-scroll' }, PART_LIST.map(p => chip(name(PART_NAMES, p), on(p), flip(p))))));
+    }
+    if (can.fade) parts.push(row(W('結尾', 'Ending'), h('div', { class: 'rx-scroll' }, [chip(W('淡出', 'Fade out'), st.fade, set(() => (st.fade = !st.fade)))])));
+    made.disabled = !Object.keys(choice()).length;
+    body.replaceChildren(
+      ...parts,
+      h('div', { class: 'rx-foot' }, [h('button', { class: 'rx-surprise', type: 'button', html: `${icon('dice')}<span>${W('驚喜', 'Surprise me')}</span>`, onclick: () => go('surprise') }), made]),
+      ...(note ? [h('p', { class: 'hint', text: note })] : [])
     );
   }
-  const grid = [];
-  if (can.speed) grid.push(big('arrow-up', W('更快', 'Faster'), '', () => go({ speed: 1 })), big('arrow-down', W('更慢', 'Slower'), '', () => go({ speed: -1 })));
-  if (can.length) {
-    const up = length(1);
-    const down = length(-1);
-    grid.push(big('plus', W('更長', 'Longer'), up ? clock(up) : '', () => go({ length: 1 })), big('minus', W('更短', 'Shorter'), down ? clock(down) : '', () => go({ length: -1 })));
-  }
-  if (can.sounds) grid.push(big('note', W('換樂器', 'New sounds'), '', () => go({ sounds: true })));
-  const s = sheet({
-    title: W('重新混音', 'Remix'),
-    closeLabel: W('關閉', 'Close'),
-    cls: 'rx-sheet',
-    body: h('div', { class: 'card sheet-card' }, [
-      ...rows,
-      grid.length ? h('div', { class: 'rx-grid' }, grid) : null,
-      h('button', { class: 'primary rx-surprise', type: 'button', html: `${icon('dice')}<span>${W('驚喜', 'Surprise me')}</span>`, onclick: () => go('surprise') }),
-      note ? h('p', { class: 'hint', text: note }) : null
-    ])
-  });
+  paint();
+  const s = sheet({ title: W('重新混音', 'Remix'), closeLabel: W('關閉', 'Close'), cls: 'rx-sheet', body });
   return s;
 }
 
