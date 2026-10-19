@@ -8,8 +8,10 @@
 // into the next with nothing between; else file by file, swapped at the cut
 // just before a song's last hit. When the next isn't made yet, the last hook
 // plays again from its bar line until it is. A stream that fails or stalls,
-// or that the phone stops with the screen off, goes over to files from where
-// it was ('orbit-beats-radio' = 'files' on this phone keeps it that way).
+// goes over to files from where it was ('orbit-beats-radio' = 'files' on this
+// phone keeps it that way). Stopped by the phone, not you (another app's sound,
+// a call, Siri), it comes back by itself, and ▶ (here or on the lock screen)
+// always brings it back: a stream that can't go on is opened again.
 // Around the music, nothing in its way: each song's own cover (lib/cover.mjs),
 // crossfaded in, its bars and a breath of the cover on the song's beat (CSS
 // set to the tempo, lined up with the player's time, no listening to the
@@ -164,6 +166,7 @@ export function mountRadio(panel, api) {
   // { ms, sb, time (samples laid down), number, seq, marks: [{ t (s), item, from (s) }], cut (s, a ⏭ to make) }
   let tape = null;
   const AHEAD = 12; // seconds laid down ahead of the one playing
+  const AHEAD_OFF = 90; // off the screen, where the phone runs the page only now and then: more
   const CHUNK = 20; // FLAC frames an append (2.6 s); as many samples a time to the encoder
   const SR = RADIO_SR;
   // The stream: FLAC as it is, or AAC / Opus packed on the phone (WebCodecs).
@@ -252,7 +255,7 @@ export function mountRadio(panel, api) {
         return;
       }
       // (Managed Media Source says when it's a good time; under 5 s left, it's always one.)
-      if (ahead() > AHEAD || (t.ms.streaming === false && ahead() > 5)) return;
+      if (ahead() > (document.visibilityState === 'hidden' ? AHEAD_OFF : AHEAD) || (t.ms.streaming === false && ahead() > 5)) return;
       if (t.enc) return feedEncoder(t);
       const n = CHUNK * FRAME;
       const marks = take(t, n);
@@ -330,6 +333,47 @@ export function mountRadio(panel, api) {
     if (at > 0) audio.addEventListener('loadedmetadata', () => (audio.currentTime = Math.min(at, cur.seconds - 0.5)), { once: true });
     if (want) audio.play().catch(() => retry());
   }
+  // The stream can't go on (closed, or the player broke while the phone held it): opened
+  // again from the next song, the songs not heard yet back in line.
+  function freshTape(why) {
+    const t = tape;
+    if (t) {
+      const later = [...new Set(t.marks.filter(m => m.t > audio.currentTime && m.item !== cur).map(m => m.item))];
+      q.ready.unshift(...later.filter(it => !q.ready.includes(it)));
+      if (t.feed.item && t.feed.item !== cur && !q.ready.includes(t.feed.item)) q.ready.unshift(t.feed.item);
+      try {
+        t.enc?.close();
+      } catch {}
+    }
+    tape = null;
+    const was = cur;
+    cur = null;
+    if (was) setTimeout(() => drop(was), 4000);
+    note('stream', `opened again: ${why}`);
+    if (!taped || !openOr()) {
+      q.ready.forEach(urlOf);
+      if (q.ready.length) advance();
+    } else {
+      audio.play().catch(() => {});
+      pump();
+    }
+    fill();
+    paint();
+    claim();
+  }
+  const broken = () => Boolean(audio.error) || (tape && tape.ms.readyState === 'closed');
+  // Music asked for and not playing (the phone stopped it, not you): on again. A play the
+  // phone won't allow yet (off the screen) waits for the next chance; a broken one opens afresh.
+  function resume(why) {
+    if (!want || !audio.paused) return;
+    if (broken()) return tape ? freshTape(why) : cur ? (q.ready.length ? advance() : retry()) : undefined;
+    audio.play().catch(e => {
+      if (e?.name === 'NotAllowedError') return paint();
+      if (tape) freshTape(`${why}: ${e?.name || e}`);
+      else if (q.ready.length) advance();
+    });
+    if (tape) pump();
+  }
   // Which way this phone plays (decided once, as the screen opens), kept for a look:
   // localStorage 'orbit-beats-radio-path' ('stream: …' or 'files: …'), and on 聽 with ?debug.
   let taped = false;
@@ -345,6 +389,13 @@ export function mountRadio(panel, api) {
   let forced = null;
   try {
     forced = localStorage.getItem('orbit-beats-radio');
+    // (Once: 'files' set by the app itself when the phone paused the stream; that's no
+    // reason to stay on files, so phones it was set on go back to the stream.)
+    if (forced === 'files' && !localStorage.getItem('orbit-beats-radio-unstuck')) {
+      localStorage.removeItem('orbit-beats-radio');
+      forced = null;
+    }
+    localStorage.setItem('orbit-beats-radio-unstuck', '1');
   } catch {}
   if (forced === 'files') note('files', "set to files on this phone ('orbit-beats-radio')");
   else
@@ -375,8 +426,12 @@ export function mountRadio(panel, api) {
     want = true;
     retried = 0;
     fails = 0;
-    if (cur) {
+    if (cur && broken()) {
+      if (tape) return freshTape('▶ on a broken stream');
       audio.play().catch(() => retry());
+    } else if (cur) {
+      audio.play().catch(e => (e?.name === 'NotAllowedError' ? paint() : tape ? freshTape(`▶: ${e?.name || e}`) : retry()));
+      if (tape) pump();
     } else if (taped && (tape || openOr())) {
       // (The tap opens the stream and plays it: the music starts as soon as the first song is on it.)
       audio.play().catch(() => {});
@@ -539,14 +594,13 @@ export function mountRadio(panel, api) {
     if (cur && want && audio.src === cur.url) q.ready.length ? advance() : retry();
   });
   for (const ev of ['play', 'pause']) audio.addEventListener(ev, paint);
-  // (The phone stopped the tape with the screen off, not you: this phone plays the songs file by file from now on, which it keeps playing locked.)
+  // (The phone stopped it, not you: another app's sound, a call, Siri. Tried again in a
+  // moment, a few times; and whenever the page is back, or ▶ is tapped anywhere.)
   audio.addEventListener('pause', () => {
-    if (!tape || !want || document.visibilityState !== 'hidden') return;
-    try {
-      localStorage.setItem('orbit-beats-radio', 'files');
-    } catch {}
-    toFiles('paused with the screen off');
+    if (!want) return;
+    for (const ms of [1000, 3000, 8000, 20000]) setTimeout(() => resume('paused by the phone'), ms);
   });
+  for (const ev of ['pageshow', 'focus']) addEventListener(ev, () => resume(ev));
   audio.addEventListener('playing', () => ((retried = 0), beat()));
   audio.addEventListener('seeked', () => beat());
   // (Every few seconds: the stream topped up, and a stall, time not moving with music ahead, caught.)
@@ -561,7 +615,7 @@ export function mountRadio(panel, api) {
   }, 1000);
   // Back on the screen after a call or Siri: the music was asked for, so it goes on.
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && want && cur && audio.paused) audio.play().catch(() => {});
+    if (document.visibilityState === 'visible') resume('back on the screen');
   });
 
   // ---- The cover, the beat, the tint ----

@@ -13,7 +13,7 @@ import { h, sheet, menu, toast, toggle, empty } from '#kit/ui.mjs';
 import { sectionTimes, sectionIndex, labelFits } from './lib/sections.mjs';
 import { STYLES, SECTIONS, ROLES, MIN_BARS, NOTE_NAMES, keyOf, pieceChroma, parseWav, analyzeRecording, guessRole, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
 import { atRate, splitAll, baseName } from './lib/sources.mjs';
-import { fingerprint, decode, encode, merge, keptSettings, settingsOf, DEFAULTS, kitEntry, saveLast, loadLast, liked, saveSong, deleteSong, listSongs, renameSong, forgetLast, saveNamed, deleteNamed, listNamed, renameNamed } from './lib/kits.mjs';
+import { fingerprint, decode, encode, merge, keptSettings, settingsOf, DEFAULTS, kitEntry, saveLast, loadLast, liked, saveSong, deleteSong, getSong, swapSong, dropTemps, tempId, renameSong, forgetLast, saveNamed, deleteNamed, listNamed, renameNamed } from './lib/kits.mjs';
 import { dropPieces, snapOf, rolesBack, undoStack, namedKit, kitFrom, freeName } from './lib/kitops.mjs';
 import { voice, renderClip, DRUM_NAMES, INSTRUMENT_ROLE, INSTRUMENT_NAMES } from './lib/synth.mjs';
 import { MIX, mixOf, STEMS } from './lib/mix.mjs';
@@ -23,6 +23,7 @@ import { download, shareFile, fileName } from './lib/download.mjs';
 import { toFile, toText, fromText } from './lib/project.mjs';
 import { maker } from './lib/maker.mjs';
 import { libraryView, nameSheet } from './lib/library.mjs';
+import { packSong, packWay, playsWhole, keptAudio, sameSong, slimTo, soundOf, formOf, kindOf, builtIn, mbText, PACKED } from './lib/pack.mjs';
 import { mountStudio } from './lib/studio.mjs';
 import { mountJam } from './lib/jamview.mjs';
 import { W, en, lang } from './lib/lang.mjs';
@@ -964,7 +965,7 @@ $('legend').innerHTML = SECTIONS.map(s => `<span><i style="background:var(--${s}
 const timeText = s => `${Math.floor(s / 60)}:${String(Math.floor(s) % 60).padStart(2, '0')}`;
 // A song's id: its kit and how it was made (the same song made again is the same song).
 const recipeId = r => (r.jam ? `${r.print}:jam:${r.at}` : `${r.print}:${r.seed}:${r.detail ?? ''}:${r.style ?? ''}:${r.plan ? r.plan.map(x => x.join('')).join('.') : ''}:${r.mix?.on === false ? 'raw' : 'mix'}`);
-const urls = new Map(); // a kept song's WAV as a URL, made when first played or shared
+const urls = new Map(); // a kept song's sound as a URL, made when first played
 const lib = libraryView({
   panel: $('panel-library'),
   row: (song, list) => songRow(song, { lib: true, list }),
@@ -1258,7 +1259,8 @@ let repeat = 'list';
 let loopAt = null; // { from, to } in seconds: the section looped
 async function urlOf(song) {
   if (song.url) return song.url;
-  if (!urls.has(song.id)) urls.set(song.id, URL.createObjectURL(song.wav));
+  // (The kept record as it is now: 歌單瘦身 may have packed it since its row was drawn.)
+  if (!urls.has(song.id)) urls.set(song.id, URL.createObjectURL(soundOf(lib.get(song.id) || song)));
   return urls.get(song.id);
 }
 // `loop`: the section to repeat in a song not yet playing (held from its row).
@@ -1394,13 +1396,31 @@ function nextSong() {
     playSong(list[i + 1]).then(() => (playFrom = from));
   }
 }
-$('player-play').onclick = () => (audio.paused ? audio.play().catch(() => {}) : audio.pause());
+// A song the phone left stuck (the share sheet, a call: time standing still, or a play it
+// won't take): its file loaded again where it was, and on.
+async function revive() {
+  if (!nowPlaying) return;
+  const at = audio.currentTime;
+  audio.src = await urlOf(lib.get(nowPlaying.id) || nowPlaying);
+  audio.addEventListener('loadedmetadata', () => ((audio.currentTime = at), audio.play().catch(() => {})), { once: true });
+  audio.load();
+}
+let stuckAt = -1;
+let stuck = 0;
+setInterval(() => {
+  if (!nowPlaying || audio.paused || audio.ended || document.visibilityState === 'hidden') return void (stuck = 0);
+  stuck = audio.currentTime === stuckAt ? stuck + 1 : 0;
+  stuckAt = audio.currentTime;
+  if (stuck >= 3) (stuck = 0), revive();
+}, 1000);
+$('player-play').onclick = () => (audio.paused ? audio.play().catch(() => revive()) : audio.pause());
 $('player-x').onclick = closePlayer;
 // The bar: a tap or a drag along it moves the song there.
 const seek = e => {
   const r = $('player-bar').getBoundingClientRect();
-  const d = audio.duration || 0;
-  if (d) audio.currentTime = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * d;
+  // (A packed song's length can read as unknown for a moment: its own length then; never the very end, which some phones won't seek to.)
+  const d = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : nowPlaying?.seconds || nowPlaying?.info?.seconds || 0;
+  if (d) audio.currentTime = Math.max(0, Math.min(d - 0.3, ((e.clientX - r.left) / r.width) * d));
   if (repeat === 'section' && nowPlaying) loopAt = sectionAt(nowPlaying, audio.currentTime);
 };
 $('player-bar').addEventListener('pointerdown', e => {
@@ -1433,6 +1453,7 @@ function claimSession(o) {
 // ---- Keep, share, download ----
 
 // ♡: into 歌單 (this phone) and your taste (the Pass); again, out of both.
+const keeping = new Set(); // (being packed: a second tap waits for the first)
 async function keepSong(song) {
   if (lib.has(song.id)) {
     await deleteSong(song.id).catch(() => {});
@@ -1444,13 +1465,20 @@ async function keepSong(song) {
     toast(W('已從歌單移除', 'Removed from Library'));
     return;
   }
-  // (Kept as 16-bit: half a 32-bit float's room on the phone; the batch's own download keeps its format.)
-  const wav = song.wav || new Blob([song.bits === 16 ? song.data : encodeWav(parseWav(song.data.buffer.slice(song.data.byteOffset, song.data.byteOffset + song.data.byteLength)), 16)], { type: 'audio/wav' });
-  const rec = { id: song.id, name: song.name, at: Date.now(), info: song.info, bits: 16, wav, recipe: song.recipe };
+  if (keeping.has(song.id)) return;
+  keeping.add(song.id);
+  const slow = setTimeout(() => toast(W('存到歌單中…', 'Keeping it…'), { ms: 4000 }), 400);
+  let rec;
   try {
+    // (Kept small: packed by the phone, about a tenth of the WAV; made again whole to export, lib/pack.mjs.)
+    const small = await packSong(song.data || new Uint8Array(await soundOf(song).arrayBuffer()), { built: builtIn(song.recipe) });
+    rec = { id: song.id, name: song.name, at: Date.now(), info: song.info, recipe: song.recipe, sound: small.sound, form: small.form, sr: small.sr, seconds: small.seconds };
     await saveSong(rec);
   } catch {
     return toast(W('存不下：手機空間不夠？', "Couldn't keep it: phone storage full?"), { tone: 'bad' });
+  } finally {
+    clearTimeout(slow);
+    keeping.delete(song.id);
   }
   navigator.storage?.persist?.().catch(() => {});
   lib.add(rec);
@@ -1460,11 +1488,65 @@ async function keepSong(song) {
   tasteHint();
   toast(W('已存到歌單 ♡', 'Kept in Library ♡'));
 }
-const blobOf = song => song.wav || new Blob([song.data], { type: 'audio/wav' });
-const downloadSong = song => download(blobOf(song), `${fileName(song.name)}.wav`);
+// A song's WAV to hand over, at full quality: a batch's own; a kept one made
+// again from its recipe (聽's band, 即興's set, or the kit it was made on
+// when that's in) if it still sounds like what was kept; else the kept copy
+// (a WAV as it is; packed, decoded, and `note` says so). -> { blob, note }
+async function wavOf(song) {
+  if (song.data) return { blob: new Blob([song.data], { type: 'audio/wav' }), note: '' };
+  const rec = lib.get(song.id) || song;
+  if (formOf(rec) === 'wav') return { blob: soundOf(rec), note: '' };
+  const kind = kindOf(rec.recipe);
+  const mine = kind === 'kit' && Boolean(heard) && rec.recipe?.print === print;
+  let kept = null;
+  if (kind !== 'kit' || mine) {
+    try {
+      let wav;
+      if (kind === 'radio') ({ wav } = await make.radioWav(rec.recipe.radio));
+      else {
+        if (mine) await kitToMaker();
+        ({ wav } = await make.song(rec.recipe, cfg().bits));
+      }
+      kept = await keptAudio(rec);
+      if (sameSong(parseWav(wav), kept)) return { blob: new Blob([wav], { type: 'audio/wav' }), note: '' };
+    } catch {}
+  }
+  kept ||= await keptAudio(rec);
+  const note = kind === 'kit' && !mine ? W('從歌單的壓縮檔轉成 WAV。放進做這首的片段，就能匯出原音質。', 'Made from the Library copy. Add the pieces it was made from for full quality.') : W('從歌單的壓縮檔轉成 WAV。', 'Made from the Library copy.');
+  return { blob: new Blob([encodeWav(kept, 16)], { type: 'audio/wav' }), note };
+}
+// wavOf with word of it: a moment's making shows, a failure says so. -> { blob, note } | null
+async function exportWav(song) {
+  const slow = setTimeout(() => toast(W('正在做 WAV…', 'Making the WAV…'), { ms: 8000 }), 300);
+  try {
+    return await wavOf(song);
+  } catch (e) {
+    toast(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`), { tone: 'bad' });
+    return null;
+  } finally {
+    clearTimeout(slow);
+    document.querySelector('.q-toast')?.remove();
+  }
+}
+// (Ready at once: a batch's song, or one kept as a WAV.)
+const wavReady = song => Boolean(song.data) || formOf(lib.get(song.id) || song) === 'wav';
+async function downloadSong(song) {
+  const got = await exportWav(song);
+  if (!got) return;
+  download(got.blob, `${fileName(song.name)}.wav`);
+  if (got.note) toast(got.note, { ms: 4000 });
+}
 // 分享: the WAV itself through the phone's share sheet (AirDrop, Messages, …); a browser that can't share files downloads it.
 async function shareSong(song) {
-  const how = await shareFile(blobOf(song), `${fileName(song.name)}.wav`, { title: song.name, text: W(`${song.name} · 用 Orbit Beats 做的`, `${song.name} · made with Orbit Beats`) });
+  const ready = wavReady(song);
+  const got = await exportWav(song);
+  if (!got) return;
+  // (A WAV that took a moment to make: one more tap, as Safari shares only right after one.)
+  if (!ready && !(await ask({ title: W('WAV 做好了', 'The WAV is ready'), body: got.note, ok: W('分享', 'Share'), cancel: W('取消', 'Cancel'), lang }))) return;
+  const playing = nowPlaying && !audio.paused;
+  const how = await shareFile(got.blob, `${fileName(song.name)}.wav`, { title: song.name, text: W(`${song.name} · 用 Orbit Beats 做的`, `${song.name} · made with Orbit Beats`) });
+  // (The share sheet can leave the song stuck: on again where it was.)
+  if (playing) setTimeout(() => (audio.paused ? audio.play().catch(() => revive()) : undefined), 300);
   if (how === 'downloaded') toast(W('這個瀏覽器不能分享檔案：已下載', "This browser can't share files: downloaded"));
 }
 // 存成檔案: the song's settings (never its sound) as a small .json through the share sheet, or saved.
@@ -1564,17 +1646,91 @@ function renameKept(song) {
   });
   setTimeout(() => input.focus(), 60);
 }
-// Songs in a zip (stored: WAVs barely shrink), each its own name once.
+// Songs in a zip (stored: WAVs barely shrink), each its own name once, each at full quality (wavOf).
 async function zipOf(list, filename) {
   const seen = new Map();
   const files = [];
-  for (const s of list) {
-    const base = fileName(s.name);
-    const n = (seen.get(base) || 0) + 1;
-    seen.set(base, n);
-    files.push({ name: `${base}${n > 1 ? ` (${n})` : ''}.wav`, data: s.data || new Uint8Array(await s.wav.arrayBuffer()) });
+  let noted = 0;
+  try {
+    for (const [k, s] of list.entries()) {
+      const base = fileName(s.name);
+      const n = (seen.get(base) || 0) + 1;
+      seen.set(base, n);
+      if (!wavReady(s)) toast(W(`正在做第 ${k + 1} / ${list.length} 首…`, `Making ${k + 1} of ${list.length}…`), { ms: 60000 });
+      const got = await wavOf(s);
+      if (got.note) noted++;
+      files.push({ name: `${base}${n > 1 ? ` (${n})` : ''}.wav`, data: s.data || new Uint8Array(await got.blob.arrayBuffer()) });
+    }
+  } catch (e) {
+    return toast(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`), { tone: 'bad' });
   }
+  document.querySelector('.q-toast')?.remove();
   download(new Blob(zipParts(files), { type: 'application/zip' }), filename);
+  if (noted) toast(W(`${noted} 首從歌單的壓縮檔轉成 WAV`, `${noted} made from the Library copy`), { ms: 4000 });
+}
+
+// ---- 歌單瘦身: songs kept as WAVs before, packed small ----
+// One at a time behind everything else (never while 樂器 or 即興 play, or
+// the song itself does). A song's WAV goes only once its packed copy plays
+// back whole and is written and read back as made; a tab closed halfway
+// leaves the song as it was (its temp copy cleared next time). What's freed
+// is said once, when it's done.
+const SLIM_FREED = 'orbit-beats-slim-freed';
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const sameBytes = async (a, b) => {
+  if (a.size !== b.size) return false;
+  const [x, y] = await Promise.all([a.arrayBuffer(), b.arrayBuffer()]).then(([p, q]) => [new Uint8Array(p), new Uint8Array(q)]);
+  for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
+  return true;
+};
+// (A WAV's rate, from its header: lib/engine's WAVs have it at byte 24.)
+const wavRate = async blob => new DataView(await blob.slice(0, 28).arrayBuffer()).getUint32(24, true);
+async function slimOne(rec) {
+  const sound = soundOf(rec);
+  const way = await packWay(rec.sr || (await wavRate(sound)));
+  const to = slimTo(rec, way?.codec || null);
+  if (!to) return 0;
+  while (busy || studio?.playing() || jam?.playing() || nowPlaying?.id === rec.id) await sleep(3000);
+  const small = await packSong(new Uint8Array(await sound.arrayBuffer()), { built: builtIn(rec.recipe) });
+  if (small.form !== to) return 0;
+  if (PACKED.includes(small.form) && !(await playsWhole(small.sound, small.sr, small.seconds))) return 0;
+  const temp = tempId(rec.id);
+  const { wav: _, bits: __, ...rest } = rec;
+  await saveSong({ ...rest, id: temp, sound: small.sound, form: small.form, sr: small.sr, seconds: small.seconds });
+  const back = await getSong(temp);
+  if (!back?.sound || !(await sameBytes(back.sound, small.sound))) {
+    await deleteSong(temp).catch(() => {});
+    return 0;
+  }
+  const done = await swapSong(rec.id, { sound: back.sound, form: small.form, sr: small.sr, seconds: small.seconds });
+  if (!done) return 0;
+  lib.replace(done);
+  if (urls.has(rec.id)) (URL.revokeObjectURL(urls.get(rec.id)), urls.delete(rec.id));
+  return sound.size - small.sound.size;
+}
+async function slimLibrary() {
+  await dropTemps().catch(() => {});
+  let freed = 0;
+  try {
+    freed = +localStorage.getItem(SLIM_FREED) || 0;
+  } catch {}
+  for (const rec of [...lib.all()]) {
+    if (!slimTo(rec, PACKED[0])) continue; // (packed already)
+    const got = await slimOne(rec).catch(() => 0);
+    if (got > 0) {
+      freed += got;
+      try {
+        localStorage.setItem(SLIM_FREED, String(freed));
+      } catch {}
+    }
+    await sleep(200);
+  }
+  if (freed <= 0) return;
+  try {
+    localStorage.removeItem(SLIM_FREED);
+  } catch {}
+  toast(W(`歌單瘦身：省下 ${mbText(freed)}`, `Library slimmed: ${mbText(freed)} freed`), { ms: 3500 });
+  if (tabNow === 'library' && !document.activeElement?.matches?.('input')) lib.draw();
 }
 $('zip').onclick = () => zipOf(songs, 'Orbit Beats.zip');
 
@@ -1770,6 +1926,7 @@ async function boot() {
   showTab(firstTab());
   await lib.read();
   $('loading').hidden = true;
+  setTimeout(() => slimLibrary().catch(() => {}), 4000);
   const first = await q.start().catch(() => null);
   const theirs = decode(first?.payload || 'null');
   const before = encode(kept);

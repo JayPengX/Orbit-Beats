@@ -7,6 +7,7 @@
 import { h, empty, sheet, cell, list as group, menu, toast } from '#kit/ui.mjs';
 import { ask } from '#kit/quadra.mjs';
 import { listSongs } from './kits.mjs';
+import { soundOf, mbText } from './pack.mjs';
 import { listsOf, makeList, renameList, deleteList, addTo, removeFrom, dropSong, songsOf } from './lists.mjs';
 import { STYLE_NAMES, name } from './names.mjs';
 import { W, en, lang } from './lang.mjs';
@@ -89,8 +90,8 @@ export function libraryView({ panel, row, goMake, zip, play }) {
 
   async function draw() {
     await readAll();
-    const mb = songs.reduce((s, x) => s + (x.wav?.size || 0), 0) / 1e6;
-    const head = h('div', { class: 'lib-head' }, [h('h2', { text: W('歌單', 'Library') }), songs.length ? h('small', { text: W(`${songs.length} 首 · ${mb.toFixed(mb < 10 ? 1 : 0)} MB`, `${songs.length} song${songs.length === 1 ? '' : 's'} · ${mb.toFixed(mb < 10 ? 1 : 0)} MB`) }) : null]);
+    const mb = mbText(songs.reduce((s, x) => s + (soundOf(x)?.size || 0), 0));
+    const head = h('div', { class: 'lib-head' }, [h('h2', { text: W('歌單', 'Library') }), songs.length ? h('small', { text: W(`${songs.length} 首 · ${mb}`, `${songs.length} song${songs.length === 1 ? '' : 's'} · ${mb}`) }) : null]);
     if (!songs.length) {
       open = null;
       panel.replaceChildren(
@@ -191,6 +192,13 @@ export function libraryView({ panel, row, goMake, zip, play }) {
       songs = songs.filter(s => s.id !== id);
       const next = dropSong(lists, id);
       if (!(next !== lists && saveLists(next)) && shownNow()) draw();
+    },
+    // Every kept song, and one with its sound made small (歌單瘦身).
+    all: () => songs,
+    get: id => songs.find(s => s.id === id) || null,
+    replace(rec) {
+      songs = songs.map(s => (s.id === rec.id ? rec : s));
+      list = list.map(s => (s.id === rec.id ? rec : s));
     },
     rename(id, v) {
       songs = songs.map(s => (s.id === id ? { ...s, name: v } : s));

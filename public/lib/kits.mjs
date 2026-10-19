@@ -162,13 +162,41 @@ export async function loadLast() {
 export const forgetLast = () => run('readwrite', s => s.delete('last')).catch(() => {});
 
 // ---- The songs kept (歌單): on this phone only, never sent anywhere ----------------
-// { id, name, at, info, bits, wav: Blob, recipe: { print, seed, detail, style, plan, minBars, maxBars, styles, humanize, mix } | { print, jam, plan, mix } }
+// { id, name, at, info, recipe: { print, seed, detail, style, plan, minBars, maxBars, styles, humanize, mix } | { print, jam, plan, mix } | { print: 'radio', radio } | { print: 'band', band, jam, mix },
+//   sound: Blob, form: 'aac' | 'opus' | 'mono' | 'wav', sr, seconds } (lib/pack.mjs). (Kept before: { bits: 16, wav: Blob }, packed by 歌單瘦身.)
 export const saveSong = song => run('readwrite', s => s.put(song), SONGS);
 export const deleteSong = id => run('readwrite', s => s.delete(id), SONGS);
+export const getSong = id => run('readonly', s => s.get(id), SONGS);
+// (A packed copy waits under TEMP + its id until it's read back whole; never listed.)
+const TEMP = 'slim:';
+export const tempId = id => TEMP + id;
 export async function listSongs() {
   const all = (await run('readonly', s => s.getAll(), SONGS).catch(() => null)) || [];
-  return all.sort((a, b) => b.at - a.at);
+  return all.filter(x => !String(x.id).startsWith(TEMP)).sort((a, b) => b.at - a.at);
 }
+// The song `id` given the packed copy at its temp id, in one go: as it is
+// now (a rename meanwhile kept), its old sound gone; nothing if it was taken
+// out meanwhile. The temp copy goes either way. -> the record, or undefined
+export const swapSong = (id, fields) =>
+  run(
+    'readwrite',
+    s => {
+      const out = { result: undefined };
+      const g = s.get(id);
+      g.onsuccess = () => {
+        if (g.result) {
+          const { wav: _, bits: __, ...rest } = g.result;
+          out.result = { ...rest, ...fields };
+          s.put(out.result);
+        }
+        s.delete(TEMP + id);
+      };
+      return out;
+    },
+    SONGS
+  );
+// The temp copies of a slimming cut short (the tab closed).
+export const dropTemps = () => run('readwrite', s => s.delete(IDBKeyRange.bound(TEMP, TEMP + '\uffff')), SONGS);
 export async function renameSong(id, name) {
   const song = await run('readonly', s => s.get(id), SONGS);
   if (song) await saveSong({ ...song, name });
