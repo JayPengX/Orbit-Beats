@@ -205,11 +205,32 @@ export const dailyOf = day => ({ seed: hashOf(`game:${day}`) % 1e9, mood: 'all' 
 export const setOf = (day, mood, n = 6) => Array.from({ length: n }, (_, i) => ({ seed: hashOf(`game:${day}:${mood}:${i}`) % 1e9, mood }));
 // The key a song's best is kept under, a level each.
 export const bestKey = (spec, level) => `${spec.seed}:${spec.mood || 'all'}:${spec.style || ''}:${level}`;
-// What's kept with a new round in it: the best of each song and level, and how many rounds. -> { store, best: bool }
-export function withRound(store, key, r) {
-  const s = { bests: {}, plays: 0, ...(store || {}) };
+// What's kept with a new round in it: the best of each song and level (and when), how many rounds,
+// and when each song was last played. -> { store, best: bool }
+export function withRound(store, key, r, at = Date.now()) {
+  const s = { bests: {}, plays: 0, last: {}, ...(store || {}) };
   const was = s.bests[key];
   const best = !was || r.score > was.score;
-  const bests = best ? { ...s.bests, [key]: { score: r.score, grade: r.grade, full: r.full, combo: r.combo } } : s.bests;
-  return { store: { ...s, bests, plays: s.plays + 1 }, best };
+  const bests = best ? { ...s.bests, [key]: { score: r.score, grade: r.grade, full: r.full, combo: r.combo, at } } : s.bests;
+  const song = key.slice(0, key.lastIndexOf(':'));
+  return { store: { ...s, bests, plays: s.plays + 1, last: { ...s.last, [song]: at } }, best };
+}
+
+// Every song played, with its best at each level, the last played first; and the totals.
+// -> { songs: [{ seed, mood, style, at, levels: { easy: best|null, … } }], plays, cleared, s, full }
+export function recordsOf(store) {
+  const by = new Map();
+  for (const [key, b] of Object.entries(store?.bests || {})) {
+    const parts = key.split(':');
+    const level = parts.pop();
+    if (!LEVELS.includes(level) || !b) continue;
+    const song = parts.join(':');
+    if (!by.has(song)) by.set(song, { seed: Number(parts[0]), mood: parts[1] || 'all', style: parts[2] || '', at: 0, levels: Object.fromEntries(LEVELS.map(l => [l, null])) });
+    const x = by.get(song);
+    x.levels[level] = b;
+    x.at = Math.max(x.at, store.last?.[song] || 0, b.at || 0);
+  }
+  const songs = [...by.values()].sort((a, b) => b.at - a.at || b.seed - a.seed);
+  const all = songs.flatMap(x => LEVELS.map(l => x.levels[l]).filter(Boolean));
+  return { songs, plays: store?.plays || 0, cleared: songs.length, s: all.filter(b => b.grade.startsWith('S')).length, full: all.filter(b => b.full).length };
 }

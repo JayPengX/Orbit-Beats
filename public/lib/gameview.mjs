@@ -8,20 +8,23 @@
 // AudioContext, whose clock judges every tap.
 // api: { make (lib/maker.mjs), audio() (the page's AudioContext), quiet(), title(seed), keep(item)?, kept(id)? }
 
-import { h, segmented } from './ui.mjs';
+import { h } from './ui.mjs';
 import { icon } from './icons.mjs';
 import { W, en } from './lang.mjs';
 import { radioSpec, MOODS } from './radio.mjs';
 import { coverSvg, coverUrl, coverPalette } from './cover.mjs';
 import { STYLE_NAMES, SECTION_NAMES, name } from './names.mjs';
 import { dayKey } from './stations.mjs';
-import { LANES, LEVELS, LEVEL_NAMES, WINDOWS, GRADE_NAMES, judge, unitsOf, scoreOf, FEVER, dailyOf, setOf, bestKey, withRound } from './game.mjs';
+import { LANES, LEVELS, LEVEL_NAMES, WINDOWS, GRADE_NAMES, judge, unitsOf, scoreOf, FEVER, dailyOf, setOf, bestKey, withRound, recordsOf } from './game.mjs';
 
 const STORE = 'orbit-beats-game.v1';
 const LEAD = 2.4; // seconds of countdown before the song's first moment
 const APPROACH = { easy: 1.7, normal: 1.4, hard: 1.15, expert: 0.95 }; // how long a note falls (s)
 const DEPTH = 3; // the highway's far end is a quarter of its near width
 const GRADE_TINT = { perfect: '#ffd76a', great: '#6ee7ff', good: '#9ef0a8', miss: '#ff6b81' };
+// Each level: its colour, and what it's like in a few words.
+const LEVEL_TINT = { easy: '#9ef0a8', normal: '#6ee7ff', hard: '#ff9de2', expert: '#ffb15c' };
+const LEVEL_HINTS = { easy: ['慢慢落下，一次一個', 'Slow, one at a time'], normal: ['半拍一個，有長按', 'Half beats, some holds'], hard: ['更快，有時兩個一起', 'Faster, some doubles'], expert: ['每個音都點，最快', 'Every note, fastest'] };
 const RANK_TINT = { 'S+': '#ffd76a', S: '#ffd76a', A: '#7ce3ff', B: '#9ef0a8', C: '#d7c3ff', D: '#ff9aa9' };
 const reduced = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
@@ -57,10 +60,61 @@ body.gm-open:has(.gm.in) > :not(.gm) { visibility: hidden; }
 .gm-go svg { width: 30px; height: 30px; margin-left: 3px; }
 .gm-best { position: absolute; z-index: 1; top: 16px; right: 16px; min-width: 40px; padding: 5px 11px; border-radius: 999px; font-size: 14px; font-weight: 800; text-align: center; background: rgba(0,0,0,.38); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
 .gm-sect { margin: 26px 0 10px; font-size: 22px; font-weight: 800; letter-spacing: -.01em; }
-.gm-pick .q-seg { margin-top: 18px; --q-label: #fff; --q-fill-3: rgba(255,255,255,.12); }
-.gm .q-seg::before { background: #fff !important; }
-.gm .q-seg > button { padding: 0 4px; }
-.gm .q-seg > button[aria-selected='true'] { color: #0b0b12; }
+.gm-recs-btn { flex: none; height: 36px; margin-right: -4px; padding: 0 14px 0 11px; border: 0; border-radius: 18px; background: var(--fill); color: #fff; display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; white-space: nowrap; touch-action: manipulation; }
+.gm-recs-btn svg { width: 19px; height: 19px; }
+.gm-lv { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 8px; }
+.gm-lv span { min-width: 0; height: 40px; padding: 0 2px; border-radius: 9px; background: rgba(255,255,255,.07); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font-size: 10.5px; font-weight: 700; line-height: 1.1; color: var(--text-3); white-space: nowrap; }
+.gm-lv span b { font-size: 15px; font-weight: 900; color: var(--text-3); }
+.gm-lv span.on { color: var(--c); }
+.gm-sheet { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; justify-content: flex-end; background: rgba(6,6,11,.55); opacity: 0; transition: opacity .25s ease; }
+.gm-sheet.in { opacity: 1; }
+.gm-sheet-box { position: relative; padding: 10px 16px calc(18px + env(safe-area-inset-bottom)); border-radius: 28px 28px 0 0; background: #15151f; box-shadow: 0 -20px 60px rgba(0,0,0,.5); transform: translateY(100%); transition: transform .38s cubic-bezier(.2,.8,.2,1); }
+.gm-sheet.in .gm-sheet-box { transform: none; }
+.gm-sheet-box > * { width: min(100%, 520px); margin-left: auto; margin-right: auto; }
+.gm-sheet-head { display: flex; align-items: center; gap: 14px; padding: 6px 0 14px; }
+.gm-sheet-head img { flex: none; width: 64px; height: 64px; border-radius: 14px; object-fit: cover; }
+.gm-sheet-head div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.gm-sheet-head b { font-size: 20px; font-weight: 800; line-height: 1.2; }
+.gm-sheet-head span { font-size: 14px; color: var(--text-2); }
+.gm-sheet-head .gm-x { margin: -8px -10px 0 0; align-self: flex-start; }
+.gm-sheet-q { margin: 0 0 8px; font-size: 13px; font-weight: 700; letter-spacing: .04em; color: var(--text-3); }
+.gm-levels { display: grid; gap: 8px; }
+.gm-level { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 66px; padding: 10px 12px 10px 14px; border: 0; border-radius: 18px; background: var(--card); color: #fff; text-align: left; touch-action: manipulation; transition: transform .2s cubic-bezier(.2,.8,.2,1), background .2s; }
+.gm-level:active { transform: scale(.98); background: var(--fill); }
+.gm-level.last { box-shadow: inset 0 0 0 2px var(--c); }
+.gm-level-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.gm-level-t b { font-size: 17px; font-weight: 800; color: var(--c); }
+.gm-level-t span { font-size: 13.5px; color: var(--text-2); }
+.gm-level-best { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+.gm-level-best b { font-size: 20px; font-weight: 900; line-height: 1.1; }
+.gm-level-best span { font-size: 12.5px; font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.gm-level-best.none span { color: var(--text-3); }
+.gm-level-go { flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: #0b0b12; }
+.gm-level-go svg { width: 17px; height: 17px; margin-left: 2px; }
+.gm-recs { overflow-y: auto; overscroll-behavior: contain; align-items: center; padding: max(8px, env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom)); }
+.gm-recs > * { width: min(100%, 520px); flex: none; }
+.gm-sum { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+.gm-sum div { padding: 12px 4px; border-radius: 16px; background: var(--card); display: grid; gap: 2px; text-align: center; }
+.gm-sum b { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.gm-sum span { font-size: 12.5px; font-weight: 600; color: var(--text-2); white-space: nowrap; }
+.gm-rec { width: 100%; padding: 12px; border: 0; border-radius: 18px; background: var(--card); color: #fff; text-align: left; touch-action: manipulation; transition: transform .2s cubic-bezier(.2,.8,.2,1), background .2s; }
+.gm-rec:active { transform: scale(.98); background: var(--fill); }
+.gm-rec-top { display: flex; align-items: center; gap: 12px; }
+.gm-rec-top img { flex: none; width: 48px; height: 48px; border-radius: 10px; object-fit: cover; }
+.gm-rec-top div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.gm-rec-top b { font-size: 17px; font-weight: 700; }
+.gm-rec-top span { font-size: 13.5px; color: var(--text-2); }
+.gm-rec-lv { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+.gm-rec-lv div { min-width: 0; padding: 7px 2px; border-radius: 12px; background: rgba(255,255,255,.06); display: grid; gap: 1px; text-align: center; }
+.gm-rec-lv i { font-style: normal; font-size: 11.5px; font-weight: 700; color: var(--c); white-space: nowrap; }
+.gm-rec-lv b { font-size: 18px; font-weight: 900; line-height: 1.15; }
+.gm-rec-lv span { font-size: 11px; font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gm-rec-lv div.none b, .gm-rec-lv div.none span { color: var(--text-3); }
+.gm-empty { margin-top: 40px; display: grid; justify-items: center; gap: 10px; text-align: center; }
+.gm-empty > span:first-child svg { width: 44px; height: 44px; color: var(--text-3); }
+.gm-empty > b { font-size: 20px; font-weight: 800; }
+.gm-empty > span { font-size: 15px; color: var(--text-2); }
+.gm-empty .gm-btn { margin-top: 10px; padding: 0 22px; }
 .gm-chips { display: flex; gap: 8px; padding-bottom: 2px; overflow-x: auto; scrollbar-width: none; }
 .gm-chips::-webkit-scrollbar { display: none; }
 .gm-chip { flex: none; height: 36px; padding: 0 16px; border: 0; border-radius: 18px; background: var(--fill); color: #fff; font-size: 15px; font-weight: 600; touch-action: manipulation; transition: background .2s, color .2s, transform .2s; }
@@ -71,8 +125,8 @@ body.gm-open:has(.gm.in) > :not(.gm) { visibility: hidden; }
 .gm-row:active { transform: scale(.98); background: var(--fill); }
 .gm-row img { flex: none; width: 58px; height: 58px; border-radius: 12px; object-fit: cover; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
 .gm-row-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.gm-row-t b { font-size: 17px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gm-row-t span { font-size: 14px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gm-row-t > b { font-size: 17px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gm-row-t > span:not(.gm-lv) { font-size: 14px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gm-rank { flex: none; min-width: 34px; height: 30px; padding: 0 8px; border-radius: 10px; display: grid; place-items: center; font-size: 15px; font-weight: 800; background: rgba(255,255,255,.1); color: var(--text-3); }
 .gm-rank.on { color: #0b0b12; }
 .gm-row-go { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); }
@@ -175,29 +229,41 @@ export function mountGame(host, api) {
   const pick = h('div', { class: 'gm-screen gm-pick' });
   const stage = h('div', { class: 'gm-screen gm-stage', hidden: true });
   const done = h('div', { class: 'gm-screen gm-done', hidden: true });
-  const root = h('div', { class: 'gm', role: 'dialog', 'aria-modal': 'true', 'aria-label': W('節奏遊戲', 'Rhythm game'), hidden: true }, [bg, h('i', { class: 'gm-shade', 'aria-hidden': 'true' }), pick, stage, done]);
+  const recs = h('div', { class: 'gm-screen gm-recs', hidden: true });
+  const root = h('div', { class: 'gm', role: 'dialog', 'aria-modal': 'true', 'aria-label': W('節奏遊戲', 'Rhythm game'), hidden: true }, [bg, h('i', { class: 'gm-shade', 'aria-hidden': 'true' }), pick, stage, done, recs]);
   host.append(root);
   const show = el => {
-    for (const s of [pick, stage, done]) s.hidden = s !== el;
+    for (const s of [pick, stage, done, recs]) s.hidden = s !== el;
+    closeSheet(true);
   };
   const xBtn = (label, onclick, ic = 'down') => h('button', { class: 'gm-x', type: 'button', 'aria-label': label, html: icon(ic), onclick });
 
   // ---- The pick ----
   let list = [];
   let today = null;
+  // A song's grade at each level, in a row (the last level played lit).
+  const levelStrip = it =>
+    h(
+      'span',
+      { class: 'gm-lv' },
+      LEVELS.map(lv => {
+        const b = bestOf(it, lv);
+        return h('span', { class: b ? 'on' : '', style: `--c: ${LEVEL_TINT[lv]}` }, [name(LEVEL_NAMES, lv), h('b', { text: b ? b.grade : '–', style: b ? { color: RANK_TINT[b.grade] } : {} })]);
+      })
+    );
+  const recsBtn = () => h('button', { class: 'gm-recs-btn', type: 'button', html: `${icon('trophy')}<span>${W('紀錄', 'Records')}</span>`, onclick: () => drawRecords() });
   function drawPick() {
     const day = dayKey();
     today = itemOf(dailyOf(day));
     list = setOf(day, mood).map(itemOf);
     bg.src = coverOf(today);
     const best = bestOf(today);
-    const hero = h('button', { class: 'gm-hero', type: 'button', 'aria-label': `${W('今日挑戰', "Today's challenge")} ${today.title}`, onclick: () => play(today, [today, ...list]) }, [
+    const hero = h('button', { class: 'gm-hero', type: 'button', 'aria-label': `${W('今日挑戰', "Today's challenge")} ${today.title}`, onclick: () => openSheet(today, [today, ...list]) }, [
       h('img', { alt: '', src: coverOf(today), draggable: 'false' }),
-      best ? h('span', { class: 'gm-best', text: best.grade, style: { color: RANK_TINT[best.grade] } }) : null,
+      best ? h('span', { class: 'gm-best', text: `${name(LEVEL_NAMES, level)} ${best.grade}`, style: { color: RANK_TINT[best.grade] } }) : null,
       h('span', { class: 'gm-hero-text' }, [h('span', { class: 'gm-eyebrow', text: W('今日挑戰', "Today's challenge") }), h('b', { text: today.title }), h('span', { text: subOf(today) })]),
       h('span', { class: 'gm-go', html: icon('play') })
     ]);
-    const seg = segmented(LEVELS.map(id => ({ id, label: name(LEVEL_NAMES, id) })), { value: level, big: true, label: W('難度', 'Level'), onChange: v => ((level = store.level = v), save(), drawPick()) });
     const chips = h(
       'div',
       { class: 'gm-chips', role: 'group', 'aria-label': W('心情', 'Mood') },
@@ -205,25 +271,105 @@ export function mountGame(host, api) {
         h('button', { class: 'gm-chip', type: 'button', 'aria-pressed': String(id === mood), text: id === 'all' ? W('隨機', 'Mix') : en ? MOODS[id].en : MOODS[id].zh, onclick: () => ((mood = store.mood = id), save(), drawPick()) })
       )
     );
-    const rows = list.map((it, k) => {
-      const b = bestOf(it);
-      return h('button', { class: 'gm-row', type: 'button', style: { animationDelay: `${k * 40}ms` }, onclick: () => play(it, list) }, [
+    const rows = list.map((it, k) =>
+      h('button', { class: 'gm-row', type: 'button', style: { animationDelay: `${k * 40}ms` }, onclick: () => openSheet(it, list) }, [
         h('img', { alt: '', src: coverOf(it), draggable: 'false', loading: 'lazy' }),
-        h('span', { class: 'gm-row-t' }, [h('b', { text: it.title }), h('span', { text: subOf(it) })]),
-        b ? h('span', { class: 'gm-rank on', text: b.grade, style: { background: RANK_TINT[b.grade] } }) : h('span', { class: 'gm-row-go', html: icon('play') })
-      ]);
-    });
+        h('span', { class: 'gm-row-t' }, [h('b', { text: it.title }), h('span', { text: subOf(it) }), levelStrip(it)]),
+        h('span', { class: 'gm-row-go', html: icon('play') })
+      ])
+    );
     pick.replaceChildren(
-      h('div', { class: 'gm-top' }, [xBtn(W('關閉', 'Close'), close), h('h1', { text: '' }), h('span', { class: 'gm-gap' })]),
+      h('div', { class: 'gm-top' }, [xBtn(W('關閉', 'Close'), close), h('h1', { text: '' }), recsBtn()]),
       h('h2', { class: 'gm-title', html: W('跟著<i>節拍</i>點', 'Tap to the <i>beat</i>') }),
       hero,
-      seg,
       h('h2', { class: 'gm-sect', text: W('今天的歌', "Today's songs") }),
       chips,
       h('div', { class: 'gm-list' }, rows)
     );
     // (The day's challenge is made while you look: one tap and it starts.)
     warm(today);
+  }
+
+  // ---- A song's levels: pick one to play, each with your best ----
+  let sheet = null;
+  function openSheet(it, from = list) {
+    closeSheet(true);
+    warm(it);
+    const rowOf = lv => {
+      const b = bestOf(it, lv);
+      return h('button', { class: `gm-level${lv === level ? ' last' : ''}`, type: 'button', style: `--c: ${LEVEL_TINT[lv]}`, onclick: () => ((level = store.level = lv), save(), closeSheet(true), play(it, from)) }, [
+        h('span', { class: 'gm-level-t' }, [h('b', { text: name(LEVEL_NAMES, lv) }), h('span', { text: W(...LEVEL_HINTS[lv]) })]),
+        b
+          ? h('span', { class: 'gm-level-best' }, [h('b', { text: b.grade, style: { color: RANK_TINT[b.grade] } }), h('span', { text: b.score.toLocaleString() })])
+          : h('span', { class: 'gm-level-best none' }, [h('span', { text: W('還沒玩', 'Not played') })]),
+        h('span', { class: 'gm-level-go', html: icon('play') })
+      ]);
+    };
+    const box = h('div', { class: 'gm-sheet-box', onclick: e => e.stopPropagation() }, [
+      h('div', { class: 'gm-sheet-head' }, [h('img', { alt: '', src: coverOf(it), draggable: 'false' }), h('div', {}, [h('b', { text: it.title }), h('span', { text: subOf(it) })]), xBtn(W('關閉', 'Close'), () => closeSheet(), 'close')]),
+      h('p', { class: 'gm-sheet-q', text: W('選難度開始', 'Pick a level to play') }),
+      h('div', { class: 'gm-levels' }, LEVELS.map(rowOf))
+    ]);
+    sheet = h('div', { class: 'gm-sheet', role: 'dialog', 'aria-label': it.title, onclick: () => closeSheet() }, [box]);
+    root.append(sheet);
+    const el = sheet;
+    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in')));
+  }
+  function closeSheet(now = false) {
+    if (!sheet) return;
+    const el = sheet;
+    sheet = null;
+    if (now || reduced()) return el.remove();
+    el.classList.remove('in');
+    setTimeout(() => el.remove(), 380);
+  }
+
+  // ---- Records: every song played, its best at each level ----
+  function drawRecords() {
+    const r = recordsOf(store);
+    show(recs);
+    const tile = (n, label) => h('div', {}, [h('b', { text: String(n) }), h('span', { text: label })]);
+    // (A song from the game's own lists is drawn with its style left to the seed, as there.)
+    const itemOfRec = x => {
+      const plain = itemOf({ seed: x.seed, mood: x.mood });
+      return plain.style === x.style ? plain : itemOf(x);
+    };
+    const songs = r.songs.map(x => {
+      const it = itemOfRec(x);
+      return h('button', { class: 'gm-rec', type: 'button', onclick: () => openSheet(it, r.songs.map(itemOfRec)) }, [
+        h('span', { class: 'gm-rec-top' }, [h('img', { alt: '', src: coverOf(it), draggable: 'false', loading: 'lazy' }), h('div', {}, [h('b', { text: it.title }), h('span', { text: subOf(it) })])]),
+        h(
+          'span',
+          { class: 'gm-rec-lv' },
+          LEVELS.map(lv => {
+            const b = x.levels[lv];
+            return h('div', { class: b ? '' : 'none', style: `--c: ${LEVEL_TINT[lv]}` }, [
+              h('i', { text: name(LEVEL_NAMES, lv) }),
+              h('b', { text: b ? b.grade : '–', style: b ? { color: RANK_TINT[b.grade] } : {} }),
+              h('span', { text: b ? b.score.toLocaleString() : W('還沒玩', 'Not yet') })
+            ]);
+          })
+        )
+      ]);
+    });
+    recs.replaceChildren(
+      h('div', { class: 'gm-top' }, [xBtn(W('返回', 'Back'), () => (show(pick), drawPick()), 'back-chevron'), h('h1', { text: W('我的紀錄', 'My records') }), h('span', { class: 'gm-gap' })]),
+      ...(r.songs.length
+        ? [
+            h('div', { class: 'gm-sum' }, [tile(r.plays, W('回合', 'Rounds')), tile(r.cleared, W('首歌', 'Songs')), tile(r.s, W('S 以上', 'S or up')), tile(r.full, W('全連擊', 'Full combo'))]),
+            h('h2', { class: 'gm-sect', text: W('每首歌的最佳', 'Best on each song') }),
+            h('div', { class: 'gm-list' }, songs)
+          ]
+        : [
+            h('div', { class: 'gm-empty' }, [
+              h('span', { html: icon('trophy') }),
+              h('b', { text: W('還沒有紀錄', 'No records yet') }),
+              h('span', { text: W('玩完一首歌，最佳成績會記在這裡。', 'Finish a song and your best at each level is kept here.') }),
+              h('button', { class: 'gm-btn main', type: 'button', html: `${icon('play')}<span>${W('玩今日挑戰', "Play today's challenge")}</span>`, onclick: () => openSheet(today || itemOf(dailyOf(dayKey())), [today, ...list].filter(Boolean)) })
+            ])
+          ])
+    );
+    recs.scrollTop = 0;
   }
 
   // ---- Songs made, and their sound ----
@@ -626,6 +772,7 @@ export function mountGame(host, api) {
   const keysDown = new Set();
   addEventListener('keydown', e => {
     if (root.hidden) return;
+    if (e.key === 'Escape' && sheet) return closeSheet();
     if (e.key === 'Escape') return void (R && !R.over && !stage.hidden ? (R.paused ? resume() : pause()) : !stage.hidden ? null : close());
     if (stage.hidden || !(e.code in KEYS) || e.repeat) return;
     e.preventDefault();
@@ -1016,7 +1163,7 @@ export function mountGame(host, api) {
         : null;
     done.style.setProperty('--gm-rank', RANK_TINT[r.grade]);
     done.replaceChildren(
-      h('div', { class: 'gm-top' }, [xBtn(W('選歌', 'Songs'), () => (show(pick), drawPick()), 'back-chevron'), h('h1', { text: name(LEVEL_NAMES, level) }), h('span', { class: 'gm-gap' })]),
+      h('div', { class: 'gm-top' }, [xBtn(W('選歌', 'Songs'), () => (show(pick), drawPick()), 'back-chevron'), h('h1', { text: name(LEVEL_NAMES, level), style: { color: LEVEL_TINT[level] } }), h('span', { class: 'gm-gap' })]),
       h('div', { class: 'gm-res' }, [
         h('img', { alt: '', src: coverOf(it) }),
         h('div', { class: 'gm-res-t', text: it.title }),
@@ -1040,6 +1187,10 @@ export function mountGame(host, api) {
         h('div', { class: 'two' }, [
           h('button', { class: 'gm-btn', type: 'button', html: `${icon('next')}<span>${W('下一首', 'Next song')}</span>`, onclick: () => play(nextOne, queue) }),
           h('button', { class: 'gm-btn', type: 'button', html: `${icon('grid')}<span>${W('選歌', 'Songs')}</span>`, onclick: () => (show(pick), drawPick()) })
+        ]),
+        h('div', { class: 'two' }, [
+          h('button', { class: 'gm-btn', type: 'button', html: `${icon('sort')}<span>${W('換難度', 'Change level')}</span>`, onclick: () => openSheet(it, queue) }),
+          h('button', { class: 'gm-btn', type: 'button', html: `${icon('trophy')}<span>${W('我的紀錄', 'My records')}</span>`, onclick: () => drawRecords() })
         ]),
         keepBtn
       ])
@@ -1074,8 +1225,9 @@ export function mountGame(host, api) {
       const it = itemOf(spec);
       list = setOf(dayKey(), mood).map(itemOf);
       today ||= itemOf(dailyOf(dayKey()));
+      show(pick);
       drawPick();
-      play(it, [it, ...list]);
+      openSheet(it, [it, ...list]);
     } else {
       show(pick);
       drawPick();

@@ -55,6 +55,7 @@ const PATHS = {
   copy: [S, '<rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V6A2.5 2.5 0 0 0 13 3.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5"/>'],
   wave: [S, '<path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10"/>'],
   grip: [S, '<path d="M5 8h14M5 12h14M5 16h14"/>'],
+  trophy: [S, '<path d="M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M7 6H4.5v1.5A3.5 3.5 0 0 0 8 11M17 6h2.5v1.5A3.5 3.5 0 0 1 16 11M12 14v3.5M8.5 20.5h7M9.5 20.5c0-1.7 1.1-3 2.5-3s2.5 1.3 2.5 3"/>'],
   play_later: [S, '<path d="M4 6h12M4 12h8M4 18h8"/><path d="M18 14v6M15 17h6"/>'],
   play_next: [S, '<path d="M4 6h10M4 12h7M4 18h7"/><path d="M15 12v8l6-4z" fill="currentColor"/>']
 };

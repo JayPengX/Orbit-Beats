@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { radioSong, RADIO_SR } from '../public/lib/radio.mjs';
-import { chartsOf, sounds, LEVELS, LANES, judge, scoreOf, unitsOf, rankOf, withRound, bestKey, dailyOf, setOf } from '../public/lib/game.mjs';
+import { chartsOf, sounds, LEVELS, LANES, judge, scoreOf, unitsOf, rankOf, withRound, recordsOf, bestKey, dailyOf, setOf } from '../public/lib/game.mjs';
 
 const songOf = spec => {
   const s = radioSong(spec, RADIO_SR);
@@ -79,4 +79,24 @@ test('the best of each song and level is kept, never lowered', () => {
   assert.deepEqual(dailyOf('2026-10-19'), dailyOf('2026-10-19'));
   assert.notDeepEqual(dailyOf('2026-10-19'), dailyOf('2026-10-20'));
   assert.equal(new Set(setOf('2026-10-19', 'hype').map(x => x.seed)).size, 6);
+});
+
+test('records: every song played, its best at each level, the last played first', () => {
+  const a = { seed: 7, mood: 'all', style: 'lofi' };
+  const b = { seed: 9, mood: 'hype', style: 'house' };
+  let { store } = withRound(null, bestKey(a, 'easy'), { score: 960000, grade: 'S', full: true, combo: 90 }, 1000);
+  ({ store } = withRound(store, bestKey(b, 'hard'), { score: 820000, grade: 'B', full: false, combo: 30 }, 2000));
+  ({ store } = withRound(store, bestKey(a, 'expert'), { score: 600000, grade: 'D', full: false, combo: 5 }, 3000));
+  const r = recordsOf(store);
+  assert.equal(r.plays, 3);
+  assert.equal(r.cleared, 2);
+  assert.equal(r.s, 1);
+  assert.equal(r.full, 1);
+  assert.deepEqual(r.songs.map(x => x.seed), [7, 9]);
+  assert.equal(r.songs[0].levels.easy.score, 960000);
+  assert.equal(r.songs[0].levels.normal, null);
+  assert.equal(r.songs[0].levels.expert.grade, 'D');
+  assert.equal(r.songs[1].mood, 'hype');
+  assert.equal(r.songs[1].style, 'house');
+  assert.deepEqual(recordsOf(null), { songs: [], plays: 0, cleared: 0, s: 0, full: 0 });
 });
