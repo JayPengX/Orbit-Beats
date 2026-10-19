@@ -587,8 +587,8 @@ export function planSong(R, minBars, maxBars) {
 }
 
 // An arrangement as asked ([[type, bars], …], 編排): each a known section of
-// 1 to 16 bars, 128 bars at most in all. -> the plan, or an Error's message.
-export const MAX_PLAN_BARS = 128;
+// 1 to 16 bars, 400 bars at most in all (8 minutes at 100 BPM). -> the plan, or an Error's message.
+export const MAX_PLAN_BARS = 400;
 export function planOf(sections) {
   if (!Array.isArray(sections) || !sections.length) throw new Error('An arrangement needs a section');
   const plan = [];

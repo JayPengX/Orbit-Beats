@@ -84,12 +84,12 @@ test('sleep timer: full until the last ten seconds, then down to nothing', () =>
   assert.equal(sleepClock(1001), '0:02');
 });
 
-test('recently played: newest first, once each, ten at most, read back safely', () => {
+test('recently played: newest first, once each, twenty at most, read back safely', () => {
   const item = seed => ({ spec: { seed, mood: 'all' }, info: { style: 'trap', bpm: 140, key: { tonic: 3, minor: true, extra: 1 } }, seconds: 90 });
   let list = [];
-  for (let i = 0; i < 14; i++) list = recentAdd(list, recentEntry(item(i)));
+  for (let i = 0; i < 24; i++) list = recentAdd(list, recentEntry(item(i)));
   assert.equal(list.length, RECENT_MAX);
-  assert.equal(list[0].seed, 13);
+  assert.equal(list[0].seed, 23);
   list = recentAdd(list, recentEntry(item(9)));
   assert.equal(list[0].seed, 9);
   assert.equal(list.filter(e => e.seed === 9).length, 1);

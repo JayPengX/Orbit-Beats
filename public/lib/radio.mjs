@@ -31,6 +31,21 @@ export const MOODS = {
 // A mood's grooves, or one groove picked on its own (`style:<id>`).
 export const moodStyles = mood => (MOODS[mood] ? MOODS[mood].styles : STYLES.includes(String(mood).replace(/^style:/, '')) ? [String(mood).replace(/^style:/, '')] : STYLES);
 
+// A station: { mood?, styles?, bpm?: [lo, hi] } narrows the grooves to those in the mood, among
+// `styles`, and whose tempo range reaches [lo, hi]. Never empty: with none left, the styles asked for, else the mood's.
+export function stationStyles(st = {}) {
+  const base = st.mood ? moodStyles(st.mood) : STYLES;
+  const want = Array.isArray(st.styles) ? st.styles.filter(x => STYLES.includes(x)) : null;
+  let list = want ? base.filter(x => want.includes(x)) : base;
+  if (!list.length && want?.length) list = want;
+  if (Array.isArray(st.bpm)) {
+    const [lo, hi] = st.bpm;
+    const tempo = list.filter(x => BAND[x].bpm[1] >= lo && BAND[x].bpm[0] <= hi);
+    if (tempo.length) list = tempo;
+  }
+  return list.length ? list : base;
+}
+
 // The kinds of sound the grooves come in: two in a row are never of one kind
 // (not trap, then drill, then phonk).
 export const SOUND = {
@@ -63,8 +78,11 @@ export function contrast(a, b) {
 // drawn from `seed` whose song differs from the last in tempo (15 BPM or a
 // half / double-time feel), key, mode, chord and lead instruments and form,
 // else the one differing most. One groove asked for (`style:<id>`): always it.
-export function radioPick(mood, recent = [], seed = Math.floor(Math.random() * 1e9)) {
-  const styles = moodStyles(mood);
+export function radioPick(mood, recent = [], seed = Math.floor(Math.random() * 1e9), station = null) {
+  const styles = station ? stationStyles({ mood, ...station }) : moodStyles(mood);
+  // (A tempo station: a seed whose song falls in its range.)
+  const fits = station?.bpm ? (s, st) => { const b = radioSpec(s, outMood, st).bpm; return b >= station.bpm[0] && b <= station.bpm[1]; } : () => true;
+  const outMood = MOODS[mood] || /^style:/.test(mood) ? mood : 'all';
   const R = makeRng(seed);
   const past = recent.map(x => (typeof x === 'string' ? x : x?.style)).filter(Boolean);
   const prev = recent.length && typeof recent.at(-1) === 'object' && Number.isInteger(recent.at(-1).seed) ? recent.at(-1) : null;
@@ -83,12 +101,16 @@ export function radioPick(mood, recent = [], seed = Math.floor(Math.random() * 1
   }
   pool = keep(pool, s => !past.includes(s));
   const style = R.choice(pool);
-  const out = s => ({ seed: s, mood: MOODS[mood] || /^style:/.test(mood) ? mood : 'all', style });
-  if (!was) return out(seed);
+  const out = s => ({ seed: s, mood: outMood, style });
+  if (!was) {
+    for (let k = 0; k < 60 && !fits(seed, style); k++) seed = R.int(0, 1e9 - 1);
+    return out(seed);
+  }
   let best = null;
   // (The tempo jump and a new key or mode count most: they are what a listener hears first.)
   for (let k = 0; k < 120; k++) {
     const s = k ? R.int(0, 1e9 - 1) : seed;
+    if (!fits(s, style) && (best || k < 119)) continue;
     const c = contrast(radioSpec(s, out(s).mood, style), was);
     const score = c.filter(Boolean).length + (c[0] ? 10 : 0) + (c[1] || c[2] ? 10 : 0);
     if (!best || score > best.score) best = { s, score };
@@ -519,14 +541,32 @@ export function radioKit(sp, sr = RADIO_SR) {
 // Its sections, every one four or eight bars (so the four-bar loops stay on
 // their chords): an intro, verse–hook pairs (pre-hooks maybe), a break or
 // bridge, and an outro; about `seconds` long.
-export function radioPlan(R, bpm, seconds = 90) {
-  const bars = Math.max(24, Math.min(64, Math.round((seconds * bpm) / 240 / 4) * 4));
+export function radioPlan(R, bpm, seconds = 90, asked = false) {
+  // (A length asked for: from 8 bars to 400, 8 minutes at 100 BPM. The radio's own songs keep 24 to 64.)
+  const bars = asked ? Math.max(8, Math.min(400, Math.round((seconds * bpm) / 240 / 2) * 2)) : Math.max(24, Math.min(64, Math.round((seconds * bpm) / 240 / 4) * 4));
+  if (bars < 24) {
+    // (A short one: an intro, a verse, a hook, an outro.)
+    const n = Math.max(2, Math.floor((bars - 4) / 2));
+    return [['intro', 2], ['verse', n], ['hook', bars - 4 - n], ['outro', 2]];
+  }
   const pre = R.random() < 0.5;
   const unit = pre ? 20 : 16;
-  const pairs = Math.max(1, Math.floor((bars - 8) / unit));
   const body = [];
-  for (let k = 0; k < pairs; k++) body.push(['verse', 8], ...(pre ? [['pre', 4]] : []), ['hook', 8]);
-  let rest = bars - 8 - pairs * unit;
+  let pairs = 0;
+  if (asked) {
+    // (A long one: a break or a bridge between every three, so it isn't the same eight bars for minutes.)
+    for (let used = 0; ; pairs++) {
+      const gap = pairs && pairs % 3 === 0 ? 4 : 0;
+      if (pairs && used + gap + unit > bars - 8) break;
+      if (gap) body.push([pairs % 2 ? 'bridge' : 'break', 4]);
+      body.push(['verse', 8], ...(pre ? [['pre', 4]] : []), ['hook', 8]);
+      used += gap + unit;
+    }
+  } else {
+    pairs = Math.max(1, Math.floor((bars - 8) / unit));
+    for (let k = 0; k < pairs; k++) body.push(['verse', 8], ...(pre ? [['pre', 4]] : []), ['hook', 8]);
+  }
+  let rest = bars - 8 - body.reduce((a, [, n]) => a + n, 0);
   const turn = [R.choice(['break', 'bridge']), 4];
   if (pairs === 1 && rest >= 12) body.push(turn, ['hook', 8]), (rest -= 12);
   else if (pairs > 1 && rest >= 4) body.splice(body.length - 1, 0, turn), (rest -= 4);
@@ -547,12 +587,15 @@ const MIXES = {
 };
 
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
-export function radioSong({ seed, mood = 'all', style = null }, sr = RADIO_SR) {
+export function radioSong(spec, sr = RADIO_SR) {
+  const { seed, mood = 'all', style = null } = spec;
   const sp = radioSpec(seed, mood, style);
   const { pieces, roles } = radioKit(sp, sr);
   const analysis = analyzeRecording(pieces, sr, { bpm: sp.bpm });
   const R = makeRng(seed ^ 0x1b873593);
-  const plan = radioPlan(R, sp.bpm, sp.seconds);
+  // (`seconds`: a length asked for, 0:30 to 8:00, in place of the song's own.)
+  const asked = Number.isFinite(spec.seconds);
+  const plan = radioPlan(R, sp.bpm, asked ? spec.seconds : sp.seconds, asked);
   const song = makeSong(pieces, sr, seed, {
     analysis, roles, bpm: sp.bpm, styles: moodStyles(mood), style: sp.style,
     humanize: (MOODS[mood]?.humanize ?? 100) / 100, plan, mix: mixOf({ ...MIXES[mood], ...BAND[sp.style].mix })

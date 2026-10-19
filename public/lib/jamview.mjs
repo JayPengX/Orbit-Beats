@@ -10,12 +10,14 @@
 // too, when it's on) becomes a song (api.take, mixed like any other), in
 // 做歌. A long press on a pad: its level, mute and choke (kept per kit on
 // this phone, by the kit's fingerprint; the built-in set's as one).
-import { h, segmented, sheet, toggle } from '#kit/ui.mjs';
+import { h, segmented, sheet, toggle } from './ui.mjs';
 import { STYLES, NOTE_NAMES, drumKit, grooveHits, loopBeats } from '../engine.mjs';
 import { Jam, GRIDS, PAD, padsOf, padOf, gainOf, chokeKey, withPads } from './jam.mjs';
 import { SET_STYLES, BAND_ROLES, FAMILY, bandPads, specOf, setOf, diceSet } from './jamset.mjs';
 import { ROLE_NAMES, STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
+import { icon } from './icons.mjs';
+import { speedText } from './playerview.mjs';
 import { info, hintOf } from './help.mjs';
 
 const AHEAD = 0.12; // seconds scheduled ahead of the clock
@@ -105,13 +107,13 @@ export function mountJam(panel, api) {
   );
   srcSeg.classList.add('jam-src');
   // The built-in set: 🎲 a new one, or a groove; under it, what's playing.
-  const dice = h('button', { class: 'jam-dice', type: 'button', 'aria-label': W('隨機換一組', 'A random new set'), text: '🎲', onclick: () => changeSet(diceSet(set)) });
+  const dice = h('button', { class: 'jam-dice', type: 'button', 'aria-label': W('隨機換一組', 'A random new set'), html: icon('dice'), onclick: () => changeSet(diceSet(set)) });
   const chips = h('div', { class: 'jam-chips', role: 'group', 'aria-label': W('風格', 'Style') });
   const meta = h('p', { class: 'jam-meta' });
   const setRow = h('div', { class: 'jam-set' }, [h('div', { class: 'jam-set-row' }, [dice, chips]), meta]);
   const note = h('p', { class: 'studio-note', 'data-ctl': 'jam-note' });
   // 簡單: what the pads do, in two lines.
-  const easyNote = h('p', { class: 'studio-note', 'data-ctl': 'jam-easy' }, [W('點打擊墊就會響，↻ 的會一直循環', 'Tap a pad to play it; ↻ ones loop'), ' ', info('loop'), h('br'), W('按「● 錄一段」，再按一次就變成一首歌', 'Tap ● Record, then again: it’s a song')]);
+  const easyNote = h('p', { class: 'studio-note', 'data-ctl': 'jam-easy' }, [W('點打擊墊就會響', 'Tap a pad to play'), ' ', info('loop')]);
   // A row: its name (and the word's ⓘ), a line under it, its control; only: which of 簡單 / 進階 shows it.
   const row = (label, sub, ctl, { only = null, term = null } = {}) => h('div', { class: 'row', 'data-ctl': only }, [h('div', { class: 'label' }, [h('span', {}, [label, ...(term ? [' ', info(term)] : [])]), sub ? h('small', { text: sub }) : null]), ctl]);
   const grooveSub = h('small', {});
@@ -166,7 +168,7 @@ export function mountJam(panel, api) {
         const b = h('button', { class: `jam-pad${p.loop ? ' loop' : ''}`, type: 'button', 'data-i': String(p.i), 'data-fam': p.fam, 'aria-label': `${p.name ? big : `${small} ${big}`}${p.loop ? W('（循環）', ' (loop)') : ''}` }, [
           h('b', { text: big }),
           small ? h('small', { text: small }) : null,
-          p.loop ? h('i', { class: 'mark', 'aria-hidden': 'true', text: p.name ? '↻' : `↻${p.beats}` }) : null,
+          p.loop ? h('i', { class: 'mark', 'aria-hidden': 'true', html: p.name ? icon('loop') : `${icon('loop')}${p.beats}` }) : null,
           h('i', { class: 'lvl', 'aria-hidden': 'true' })
         ]);
         hits.set(p.i, b);
@@ -184,7 +186,7 @@ export function mountJam(panel, api) {
     }
     setBacking();
     paintGroove();
-    note.replaceChildren(h('span', { text: W(`${bpm} BPM · ↻ 循環在下一小節開始`, `${bpm} BPM · ↻ loops start on the next bar`) }), h('br'), h('span', { text: W('長按打擊墊：音量、靜音、切音', 'Hold a pad: level, mute, choke') }), h('br'), h('span', { text: W('錄好的一段變成一首歌（在「做歌」）', 'A take becomes a song (in Make)') }));
+    note.replaceChildren(h('span', { text: speedText(bpm) }));
   }
   // The set's chips (its groove lit; one the dice found that isn't offered, first) and what it is.
   function paintSet() {
@@ -202,7 +204,7 @@ export function mountJam(panel, api) {
       )
     );
     const key = `${NOTE_NAMES[sp.key.tonic]} ${sp.key.minor ? W('小調', 'minor') : W('大調', 'major')}`;
-    meta.textContent = `${name(STYLE_NAMES, sp.style)} · ${sp.bpm} BPM · ${key}`;
+    meta.textContent = `${name(STYLE_NAMES, sp.style)} · ${speedText(sp.bpm)}`;
   }
   // Another built-in set: what was playing goes on with it (the same pads'
   // loops, from its first bar), once it's made. (Changed during a take, the
@@ -244,7 +246,7 @@ export function mountJam(panel, api) {
         if (making !== id) return;
         making = '';
         waiting = false;
-        meta.textContent = W('這組做不出來，換一組試試 🎲', 'Couldn’t make this set: try another 🎲');
+        meta.textContent = W('這組做不出來，換一組試試', 'Couldn’t make this set: try another');
         paintTransport();
       }
     );
@@ -257,7 +259,7 @@ export function mountJam(panel, api) {
     b.classList.toggle('muted', p.mute);
     b.classList.toggle('leveled', p.level !== 1);
     b.style.setProperty('--lvl', String(p.level));
-    b.dataset.choke = p.choke === 'self' ? '✂︎' : p.choke.toUpperCase();
+    b.dataset.choke = p.choke === 'self' ? '×' : p.choke.toUpperCase();
   }
   function savePads() {
     const all = readPads();
@@ -319,11 +321,11 @@ export function mountJam(panel, api) {
     styleSel.disabled = !jam.groove;
   }
   function paintTransport() {
-    playBtn.textContent = waiting ? W('準備中…', 'Getting ready…') : running ? W('■ 停止', '■ Stop') : W('▶ 開始', '▶ Start');
+    playBtn.innerHTML = waiting ? W('準備中…', 'Getting ready…') : running ? `${icon('stop')}<span>${W('停止', 'Stop')}</span>` : `${icon('play')}<span>${W('開始', 'Start')}</span>`;
     playBtn.classList.toggle('on', running);
     const rec = jam.recording();
     recBtn.classList.toggle('on', rec);
-    recBtn.textContent = rec ? W('■ 完成', '■ Done') : W('● 錄一段', '● Record');
+    recBtn.innerHTML = rec ? `${icon('stop')}<span>${W('完成', 'Done')}</span>` : `${icon('record')}<span>${W('錄一段', 'Record')}</span>`;
   }
   // Every piece as a buffer (made once per kit, ahead of the first tap; one
   // channel when both sides are the same). A buffer needs no audio context,

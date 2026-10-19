@@ -6,7 +6,7 @@
 // TERMS[id][lang] = { name, hint (one short line, under a control), text (1–2 sentences) }.
 // EXAMPLES[id] = { off, on: [zh, en], play(on) → { clips, bpm } }: the same
 // few bars without the thing and with it, played on the app's instruments.
-import { h } from '#kit/ui.mjs';
+import { h } from './ui.mjs';
 import { emptyDrums, emptyNotes, melody } from './synth.mjs';
 import { lang, W } from './lang.mjs';
 
@@ -72,8 +72,8 @@ export const TERMS = {
     en: { name: 'Snap', hint: 'Moves your taps onto the beat', text: 'Taps are rarely right on the beat; snap moves each to the nearest step (1/16 finest, Beat coarsest). Free keeps them as tapped.' }
   },
   loop: {
-    zh: { name: '循環', hint: '播完又從頭開始', text: '標 ↻ 的打擊墊會一直重複，從下一小節開始，再點一下停；其他的點一下響一下。' },
-    en: { name: 'Loop', hint: 'Plays over and over', text: 'A pad marked ↻ repeats from the next bar until you tap it again; the others play once per tap.' }
+    zh: { name: '循環', hint: '播完又從頭開始', text: '有循環記號的打擊墊會一直重複，從下一小節開始，再點一下停；其他的點一下響一下。' },
+    en: { name: 'Loop', hint: 'Plays over and over', text: 'A pad marked with the loop sign repeats from the next bar until you tap it again; the others play once per tap.' }
   },
   roles: {
     zh: { name: '角色', hint: '每段聲音在歌裡做什麼', text: '每段片段會被聽成一種角色（大鼓、小鼓、Hi-hat、808、貝斯、Riff…），做歌時照角色擺位置。聽錯了可以自己改。' },

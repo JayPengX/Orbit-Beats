@@ -91,7 +91,7 @@ test('planOf: an arrangement by hand, checked', () => {
   for (const bad of [[], null, undefined, 'verse', {}, [['chorus', 4]], [['verse', 0]], [['verse', 17]], [['verse', 2.5]], [['verse', '4']], [['verse']], ['verse'], [null], [[4, 'verse']]])
     assert.throws(() => planOf(bad), /section|arrangement/, JSON.stringify(bad));
   assert.equal(planOf(Array(8).fill(['verse', 16])).at(-1)[1], 112);
-  assert.throws(() => planOf([...Array(8).fill(['verse', 16]), ['outro', 1]]), new RegExp(`${MAX_PLAN_BARS} bars`));
+  assert.throws(() => planOf([...Array(MAX_PLAN_BARS / 16).fill(['verse', 16]), ['outro', 1]]), new RegExp(`${MAX_PLAN_BARS} bars`));
 });
 
 test('an arranged song keeps the rest of its seed: the same groove, riffs and bass; the hits fit its bars', () => {

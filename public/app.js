@@ -9,9 +9,9 @@
 // offline; the Quadra Pass keeps the settings, each kit's tempo and roles
 // and the styles you keep (your taste); the sound never leaves the phone.
 import { quadraSession, topActions, installGate, watchUpdates, keepOffline, tabBar, ask } from '#kit/quadra.mjs';
-import { h, sheet, menu, toast, toggle, empty } from '#kit/ui.mjs';
+import { h, sheet, menu, toast, toggle, empty } from './lib/ui.mjs';
 import { sectionTimes, sectionIndex, labelFits } from './lib/sections.mjs';
-import { STYLES, SECTIONS, ROLES, MIN_BARS, NOTE_NAMES, keyOf, pieceChroma, parseWav, analyzeRecording, guessRole, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
+import { STYLES, SECTIONS, ROLES, MIN_BARS, makeRng, NOTE_NAMES, keyOf, pieceChroma, parseWav, analyzeRecording, guessRole, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
 import { atRate, splitAll, baseName } from './lib/sources.mjs';
 import { fingerprint, decode, encode, merge, keptSettings, settingsOf, DEFAULTS, kitEntry, saveLast, loadLast, liked, saveSong, deleteSong, getSong, swapSong, dropTemps, tempId, renameSong, forgetLast, saveNamed, deleteNamed, listNamed, renameNamed } from './lib/kits.mjs';
 import { dropPieces, snapOf, rolesBack, undoStack, namedKit, kitFrom, freeName } from './lib/kitops.mjs';
@@ -28,10 +28,17 @@ import { mountStudio } from './lib/studio.mjs';
 import { mountJam } from './lib/jamview.mjs';
 import { W, en, lang } from './lib/lang.mjs';
 import { shows, levelCss, makeSettings } from './lib/easy.mjs';
-import { MOODS, radioPick } from './lib/radio.mjs';
+import { MOODS, radioPick, radioPlan } from './lib/radio.mjs';
 import { mountRadio } from './lib/radioview.mjs';
 import { TERM_ORDER, EXAMPLES, term, info } from './lib/help.mjs';
 import * as kitQ from '#kit/quadra.mjs';
+import { icon, inner } from './lib/icons.mjs';
+import { createPlayer, coverOfTrack } from './lib/player.mjs';
+import { mountPlayerView, subOf, onLong, speedText } from './lib/playerview.mjs';
+import { mountHome } from './lib/homeview.mjs';
+import { stationId } from './lib/stations.mjs';
+import * as Q from './lib/queue.mjs';
+import { LENGTH_MIN, LENGTH_MAX, LENGTH_STEP, LENGTH_PRESETS, clampLength, clock, kitLength } from './lib/length.mjs';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -47,22 +54,7 @@ const songTitle = seed => {
   const b = TITLE_B[Math.floor(seed / 20) % 20];
   return en ? `${a[1]} ${b[1]}` : `${a[0]}${b[0]}`;
 };
-const ICON = {
-  play: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.8v14.4a1 1 0 0 0 1.5.86l11.6-7.2a1 1 0 0 0 0-1.72L8.5 3.94A1 1 0 0 0 7 4.8z"/></svg>',
-  pause: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4.5" width="4" height="15" rx="1.2"/><rect x="14" y="4.5" width="4" height="15" rx="1.2"/></svg>',
-  heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.3s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg>',
-  hearted: '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.3s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/></svg>',
-  more: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5.5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.5" cy="12" r="1.9"/></svg>',
-  repeat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l3 3-3 3"/><path d="M4 11V9a4 4 0 0 1 4-4h12"/><path d="M7 22l-3-3 3-3"/><path d="M20 13v2a4 4 0 0 1-4 4H4"/></svg>'
-};
-const TAB_ICONS = {
-  listen: '<path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="14" width="4.5" height="7" rx="1.6"/><rect x="16.5" y="14" width="4.5" height="7" rx="1.6"/>',
-  make: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
-  studio: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M8 4v9M12 4v9M16 4v9M3 13h18"/>',
-  jam: '<rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/>',
-  library: '<path d="M12 20.3s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.4a4.3 4.3 0 0 1 7.5 2.7c0 5.6-7.5 10.2-7.5 10.2z"/>'
-};
-
+const ICON = { play: icon('play'), pause: icon('pause'), heart: icon('heart'), hearted: icon('heart-fill'), more: icon('more') };
 document.documentElement.lang = en ? 'en' : 'zh-Hant';
 // The page's own words in English (each element's data-en; labels and placeholders too).
 if (en) {
@@ -154,25 +146,56 @@ function keepKit() {
 
 // ---- Tabs ----
 
-const TABS = ['listen', 'make', 'studio', 'jam', 'library'];
-const TAB_NAMES = { listen: ['聽', 'Listen'], make: ['做歌', 'Make'], studio: ['樂器', 'Studio'], jam: ['即興', 'Jam'], library: ['歌單', 'Library'] };
+const TABS = ['home', 'create', 'library'];
+const TAB_NAMES = { home: ['首頁', 'Home'], create: ['創作', 'Create'], library: ['資料庫', 'Library'] };
+const TAB_ICONS = { home: inner('home'), create: inner('create'), library: inner('library') };
+// Every screen: the old hashes (#listen #make #studio #jam #library) still open theirs.
+const SCREEN_TAB = { home: 'home', listen: 'home', create: 'create', make: 'create', studio: 'create', jam: 'create', library: 'library' };
+const SUBS = ['make', 'studio', 'jam'];
+const SUB_NAMES = { make: ['做歌', 'Songs'], studio: ['樂器', 'Beat maker'], jam: ['即興', 'Pads'] };
 const tabs = tabBar({
   tabs: TABS.map(id => ({ id, label: name(TAB_NAMES, id), icon: TAB_ICONS[id] })),
-  onSelect: id => showTab(id),
+  onSelect: (id, o) => showTab(id === 'create' && !o?.again && SUBS.includes(tabNow) ? tabNow : id),
   label: W('分頁', 'Tabs')
 });
-let tabNow = 'listen';
+let tabNow = 'home';
+let lengthPaint = () => {};
 function showTab(id) {
-  tabs.select(id);
+  id = SCREEN_TAB[id] ? (id === 'listen' ? 'home' : id) : 'home';
+  const tab = SCREEN_TAB[id];
+  tabs.select(tab);
   tabNow = id;
+  const sub = SUBS.includes(id) ? id : '';
+  $('panel-create').hidden = tab !== 'create' || Boolean(sub);
+  for (const s of SUBS) $(`panel-${s}`).hidden = s !== sub;
+  $('subnav').hidden = !sub;
+  if (sub) $('subnav-title').textContent = name(SUB_NAMES, sub);
+  try {
+    const hh = `#${sub || tab}`;
+    if (location.hash !== hh) history.replaceState(null, '', hh);
+  } catch {}
   if (id === 'library') lib.draw();
-  if (id === 'listen') radio?.warm();
+  if (id === 'home') radio?.warm();
   if (id === 'studio') studio?.shown();
   else studio?.hidden();
   if (id === 'jam') jam?.shown();
   else jam?.hidden();
 }
-const firstTab = () => (TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'listen');
+const firstTab = () => (SCREEN_TAB[location.hash.slice(1)] ? location.hash.slice(1) : 'home');
+$('subnav-back').innerHTML = icon('back-chevron');
+$('subnav-back').onclick = () => showTab('create');
+// 創作: three cards, each opens one screen.
+{
+  const cards = [
+    ['jam', 'grid', ['即興', 'Pads'], ['拍下去就有聲音', 'Tap pads, hear a groove']],
+    ['studio', 'create', ['樂器', 'Beat maker'], ['一格一格寫出節拍', 'Write a beat step by step']],
+    ['make', 'note', ['做歌', 'Songs'], ['用你的片段排成歌', 'Songs from your clips']]
+  ];
+  $('panel-create').append(
+    h('h1', { class: 'page-title', text: W('創作', 'Create') }),
+    h('div', { class: 'hub' }, cards.map(([id, ic, [zh, e], [lz, le]]) => h('button', { class: 'hub-card', type: 'button', 'data-screen': id, onclick: () => showTab(id), html: `<span class="hub-ico">${icon(ic)}</span><span><b>${W(zh, e)}</b><span class="l">${W(lz, le)}</span></span>${icon('chevron')}` })))
+  );
+}
 
 // ---- Settings (做歌) ----
 
@@ -188,6 +211,7 @@ $('smart-slot').replaceWith(smartSwitch);
 const moodFor = styles => Object.entries(MOODS).find(([, m]) => m.styles.length === styles.length && m.styles.every(s => styles.includes(s)))?.[0] || '';
 const moodOf = () => moodFor(settings.styles);
 function showSettings() {
+  lengthPaint();
   $('count').value = settings.count;
   $('silence').value = settings.silenceDb;
   $('gap').value = settings.minGap;
@@ -211,14 +235,33 @@ function tasteHint() {
 }
 const weights = () => (cfg().smart && Object.keys(kept.taste || {}).length ? kept.taste : null);
 
+// 長度: presets and a slider, in minutes and seconds.
+{
+  const out = h('b', { class: 'len-val' });
+  const slider = h('input', { type: 'range', min: LENGTH_MIN, max: LENGTH_MAX, step: LENGTH_STEP, 'aria-label': W('長度', 'Length') });
+  const chips = h('div', { class: 'len-chips' }, LENGTH_PRESETS.map(v => h('button', { class: 'chip', type: 'button', 'data-len': String(v), text: clock(v), onclick: () => set(v) })));
+  const set = v => {
+    settings.length = clampLength(v);
+    paint();
+    save();
+    update();
+  };
+  const paint = () => {
+    out.textContent = clock(settings.length);
+    slider.value = settings.length;
+    for (const b of chips.children) b.setAttribute('aria-pressed', String(+b.dataset.len === settings.length));
+  };
+  slider.addEventListener('input', () => set(slider.value));
+  paint();
+  lengthPaint = paint;
+  document.querySelector('[data-ctl="make-count"]').before(h('div', { class: 'stack len-row' }, [h('div', { class: 'sheet-line' }, [h('span', { class: 'label', text: W('長度', 'Length') }), out]), chips, slider]));
+}
 // What's wrong with the settings, if anything.
 function problem() {
-  const { count, minBars, maxBars, styles, seed } = cfg();
+  const { count, styles, seed } = cfg();
   // (Simple with no tune in the pieces, or none: the app's own band plays.)
   if (simple()) return '';
   if (!(count >= 1 && count <= MAX_SONGS)) return W(`首數要 1 到 ${MAX_SONGS}`, `Songs must be 1 to ${MAX_SONGS}`);
-  if (!(minBars >= MIN_BARS && maxBars <= MAX_BARS)) return W(`長度要 ${MIN_BARS} 到 ${MAX_BARS} 小節`, `Length must be ${MIN_BARS} to ${MAX_BARS} bars`);
-  if (minBars > maxBars) return W('最短比最長還長', 'Shortest length is over the longest');
   if (!styles.length) return W('至少選一種鼓的風格', 'Pick at least one drum style');
   if (seed && !(/^\d+$/.test(seed) && +seed <= 4294967295)) return W('種子要是整數', 'Seed must be a whole number');
   if (pieces.length && !roles.some(x => x === 'riff' || x === 'phrase')) return simple() ? W('聽不出旋律：到「樂器」做一段旋律', 'No tune heard: make a melody in Studio') : W('需要一段 Riff 或樂句：設一段，或到「樂器」做一段', 'Needs a riff or a phrase: set one, or make one in Studio');
@@ -227,12 +270,7 @@ function problem() {
 }
 // Songs are an even number of bars when the range has one, plus ~1.5 s for the last hit to ring.
 function lengthText() {
-  const { minBars, maxBars } = cfg();
-  const secs = bars => Math.round((bars * 4 * 60) / bpm + 1.5);
-  const lo = minBars % 2 && minBars < maxBars ? minBars + 1 : minBars;
-  const hi = maxBars % 2 && maxBars > minBars ? maxBars - 1 : maxBars;
-  if (!(minBars <= maxBars && minBars > 0)) return W('先填最短', 'Shortest first');
-  return lo >= hi ? W(`每首約 ${secs(lo)} 秒`, `About ${secs(lo)} sec each`) : W(`每首約 ${secs(lo)}–${secs(hi)} 秒`, `About ${secs(lo)}–${secs(hi)} sec each`);
+  return W(`每首約 ${clock(settings.length)}`, `About ${clock(settings.length)} each`);
 }
 // The mixer in a few words: 混音 · 殘響 25%, or 原音.
 function mixText() {
@@ -252,7 +290,7 @@ function update() {
   $('count-up').disabled = busy || count >= MAX_SONGS;
   $('error').textContent = bad;
   if (!busy && simple()) {
-    $('go').textContent = W('🎲 隨機做一批', '🎲 Make a random batch');
+    $('go').innerHTML = `${icon('dice')}<span>${W('隨機做一批', 'Make a random batch')}</span>`;
     $('go').disabled = false;
     $('easy-hint').textContent = ownBand() ? W(`${count} 首，用內建的樂器`, `${count} songs on the built-in band`) : W(`${count} 首，用你的 ${pieces.length} 個片段`, `${count} songs from your ${pieces.length} pieces`);
   } else if (!busy) {
@@ -356,19 +394,6 @@ function seg(items, value, onPick) {
 
 // 更多設定: length, humanize, seed and format, in a sheet.
 $('more-settings').onclick = () => {
-  const numIn = (key, attrs) => {
-    const i = h('input', { class: 'num short', type: 'number', inputmode: 'numeric', ...attrs });
-    i.value = settings[key];
-    i.addEventListener('input', () => {
-      const v = i.value.trim();
-      settings[key] = v === '' ? NaN : Math.round(+v);
-      hint.textContent = lengthText();
-      save();
-      update();
-    });
-    return i;
-  };
-  const hint = h('small', { text: lengthText() });
   const seed = h('input', { class: 'num wide', type: 'text', inputmode: 'numeric', placeholder: W('隨機', 'Random'), autocomplete: 'off', 'aria-label': W('種子', 'Seed') });
   seed.value = settings.seed;
   seed.addEventListener('input', () => {
@@ -382,7 +407,6 @@ $('more-settings').onclick = () => {
     closeLabel: W('關閉', 'Close'),
     body: h('div', { class: 'card sheet-card' }, [
       levelRow(),
-      sheetRow(W('長度', 'Length'), hint, h('div', { class: 'ctl' }, [numIn('minBars', { min: 8, max: 64, 'aria-label': W('最短（小節）', 'Shortest, in bars') }), h('span', { class: 'unit', text: '–' }), numIn('maxBars', { min: 8, max: 64, 'aria-label': W('最長（小節）', 'Longest, in bars') }), h('span', { class: 'unit', text: W('小節', 'bars') })])),
       pro('make-humanize', sheetRow(termLabel('humanize'), h('small', { text: term('humanize').hint }), slider({ min: 0, max: 200, step: 10, value: settings.humanize, text: v => `${v}%`, label: W('人味', 'Humanize'), onInput: v => ((settings.humanize = v), save(), update()) }))),
       pro('make-seed', sheetRow(termLabel('seed'), h('small', { text: term('seed').hint }), seed)),
       pro('make-format', sheetRow(
@@ -559,7 +583,7 @@ function showPieces() {
   pieces.forEach((p, i) => {
     const tile = document.createElement('div');
     const beats = p.L.length / B;
-    const from = many ? baseName(sources[p.src]?.name) : '';
+    const from = many ? baseName(sources[p.src]?.name).replace(/^♪\s*/, '') : '';
     tile.className = 'piece';
     tile.dataset.i = i;
     tile.title = from;
@@ -777,7 +801,7 @@ $('pieces').addEventListener('change', e => {
 });
 $('pieces').addEventListener('click', e => {
   const more = e.target.closest('.piece .more');
-  if (more) return menu(more, [{ label: W('刪除這一段', 'Delete this piece'), icon: '✕', danger: true, onClick: () => removePiece(+more.parentNode.dataset.i) }]);
+  if (more) return menu(more, [{ label: W('刪除這一段', 'Delete this piece'), icon: 'close', danger: true, onClick: () => removePiece(+more.parentNode.dataset.i) }]);
   const btn = e.target.closest('.piece button');
   if (!btn) return;
   const again = playing && playing.btn === btn;
@@ -879,12 +903,12 @@ async function kitsSheet() {
         ? h('ul', { class: 'mine-list' }, all.map(k => h('li', {}, [
             h('div', { class: 't' }, [h('span', { text: k.name }), h('small', { text: `${W(`${k.count} 個片段`, `${k.count} piece${k.count === 1 ? '' : 's'}`)} · ${new Date(k.at).toLocaleDateString(en ? 'en' : 'zh-TW')}` })]),
             h('button', { class: 'mini', type: 'button', text: W('打開', 'Open'), onclick: () => (s.close(), openKit(k)) }),
-            h('button', { class: 'mini', type: 'button', text: '⋯', 'aria-label': W('更多', 'More'), onclick: e => menu(e.currentTarget, [
-              { label: W('重新命名', 'Rename'), icon: '✎', onClick: () => nameSheet(W('重新命名', 'Rename'), k.name, async v => (await renameNamed(k.id, v), draw())) },
-              { label: W('刪除', 'Delete'), icon: '✕', danger: true, onClick: async () => { await deleteNamed(k.id); draw(); const t = toast(W(`已刪除「${k.name}」`, `“${k.name}” deleted`), { ms: 5000 }); t.append(h('button', { type: 'button', class: 'toast-undo', text: W('復原', 'Undo'), onclick: async () => (t.remove(), await saveNamed(k), toast(W('已復原', 'Restored')))})); } }
+            h('button', { class: 'mini', type: 'button', html: icon('more'), 'aria-label': W('更多', 'More'), onclick: e => menu(e.currentTarget, [
+              { label: W('重新命名', 'Rename'), icon: 'edit', onClick: () => nameSheet(W('重新命名', 'Rename'), k.name, async v => (await renameNamed(k.id, v), draw())) },
+              { label: W('刪除', 'Delete'), icon: 'trash', danger: true, onClick: async () => { await deleteNamed(k.id); draw(); const t = toast(W(`已刪除「${k.name}」`, `“${k.name}” deleted`), { ms: 5000 }); t.append(h('button', { type: 'button', class: 'toast-undo', text: W('復原', 'Undo'), onclick: async () => (t.remove(), await saveNamed(k), toast(W('已復原', 'Restored')))})); } }
             ]) })
           ])))
-        : empty({ icon: '♪', title: W('還沒有存過套組', 'No kits saved yet'), body: W('把目前的片段存成套組，之後隨時打開。', 'Save the pieces you have now as a kit, and open it any time.') }),
+        : empty({ icon: icon('note'), title: W('還沒有存過套組', 'No kits saved yet'), body: W('把目前的片段存成套組，之後隨時打開。', 'Save the pieces you have now as a kit, and open it any time.') }),
       pieces.length ? h('button', { class: 'primary', type: 'button', text: W('把目前的片段存成套組', 'Save these pieces as a kit'), onclick: () => (s.close(), saveKit()) }) : null
     );
   };
@@ -969,7 +993,7 @@ const urls = new Map(); // a kept song's sound as a URL, made when first played
 const lib = libraryView({
   panel: $('panel-library'),
   row: (song, list) => songRow(song, { lib: true, list }),
-  play: song => playSong(song),
+  play: song => playRow(song),
   goMake: () => showTab('make'),
   zip: list => zipOf(list, 'Orbit Beats · Library.zip')
 });
@@ -978,21 +1002,22 @@ const lib = libraryView({
 function songRow(song, { lib: inLib = false, list = null } = {}) {
   const li = h('li', { class: 'song', 'data-id': song.id });
   const info = song.info;
-  const what = [timeText(info.seconds), info.style ? name(STYLE_NAMES, info.style) : W('即興', 'Jam'), keyName(info.key)].filter(Boolean);
-  const plan = info.plan.map(([t, n]) => `${name(SECTION_NAMES, t)} ${n} ${W('小節', 'bars')}`).join(', ');
-  const play = h('button', { class: 'play', type: 'button', 'aria-label': W(`播放 ${song.name}`, `Play ${song.name}`), html: ICON.play, onclick: () => toggleSong(song) });
-  const heart = h('button', { class: `act heart${lib.has(song.id) ? ' kept' : ''}`, type: 'button', 'aria-label': W('收藏', 'Keep'), 'aria-pressed': String(lib.has(song.id)), html: lib.has(song.id) ? ICON.hearted : ICON.heart, onclick: () => keepSong(song) });
+  const what = [timeText(info.seconds), info.style ? name(STYLE_NAMES, info.style) : W('即興', 'Jam'), info.bpm ? speedText(info.bpm) : '', simple() ? '' : keyName(info.key)].filter(Boolean);
+  const plan = info.plan.map(([t]) => name(SECTION_NAMES, t)).join(', ');
+  const play = h('button', { class: 'play', type: 'button', 'aria-label': W(`播放 ${song.name}`, `Play ${song.name}`), onclick: () => toggleSong(song) }, [h('img', { class: 'sc', alt: '', src: coverOfTrack(P.track(song)), width: 52, height: 52, loading: 'lazy' }), h('span', { class: 'si', html: ICON.play })]);
+  const heart = h('button', { class: `act heart${lib.has(song.id) ? ' kept' : ''}`, type: 'button', 'aria-label': lib.has(song.id) ? W('取消收藏', 'Remove from Library') : W('收藏', 'Keep'), 'aria-pressed': String(lib.has(song.id)), html: lib.has(song.id) ? ICON.hearted : ICON.heart, onclick: () => keepSong(song) });
   const more = h('button', { class: 'act', type: 'button', 'aria-label': W('更多', 'More'), html: ICON.more, onclick: e => songMenu(song, e.currentTarget, inLib, list) });
   const bar = h('div', { class: 'plan', role: 'group', 'aria-label': plan });
   const total = info.plan.reduce((a, [, n]) => a + n, 0);
-  const width = Math.min(innerWidth, 560) - 32 - 50; // the strip's room (row padding, play column)
+  const width = Math.min(innerWidth, 560) - 32 - 62; // the strip's room (row padding, play column)
   sectionTimes(info.plan, info.bpm || bpm).forEach((s, k) => {
     const label = name(SECTION_NAMES, s.type);
     const em = en ? label.length * 0.66 : label.length;
-    bar.append(h('button', { type: 'button', class: 'sec', 'data-k': String(k), style: { flex: String(s.bars), background: `var(--${s.type})`, '--k': String(k) }, 'aria-label': `${label} ${s.bars} ${W('小節', 'bars')}`, text: labelFits(s.bars, total, width, em) ? label : '' }));
+    bar.append(h('button', { type: 'button', class: 'sec', 'data-k': String(k), style: { flex: String(s.bars), background: `var(--${s.type})`, '--k': String(k) }, 'aria-label': label, text: labelFits(s.bars, total, width, em) ? label : '' }));
     holdable(bar.lastChild, () => seekBar(song, s.bar), () => loopSection(song, s.bar));
   });
   li.append(h('div', { class: 'line' }, [play, h('div', { class: 'what' }, [h('span', { class: 'name', text: song.name }), h('span', { class: 'info' }, what.flatMap((w, i) => [...(i ? [' · '] : []), h('span', { text: w })]))]), heart, more]), bar);
+  onLong(li.querySelector('.line'), () => songMenu(song, more, inLib, list));
   litAt = '';
   if (nowPlaying?.id === song.id) markRow(li, true);
   return li;
@@ -1000,11 +1025,12 @@ function songRow(song, { lib: inLib = false, list = null } = {}) {
 const rowsOf = id => [...document.querySelectorAll(`.song[data-id="${CSS.escape(id)}"]`)];
 function markRow(li, on) {
   li.classList.toggle('now', on);
-  const b = li.querySelector('.play');
-  b.innerHTML = on && !audio.paused ? ICON.pause : ICON.play;
+  li.querySelector('.si').innerHTML = on && !audio.paused ? ICON.pause : ICON.play;
 }
 function refreshHearts(id) {
   radio?.refresh();
+  P?.refresh();
+  home?.refresh();
   for (const li of rowsOf(id)) {
     const b = li.querySelector('.heart');
     const k = lib.has(id);
@@ -1024,7 +1050,8 @@ async function kitToMaker() {
 // A recipe as this batch's settings make it (a song made from another keeps that one's).
 const recipeOf = (over = {}) => {
   const c = cfg();
-  return { print, minBars: c.minBars, maxBars: c.maxBars, styles: [...c.styles], humanize: c.humanize, mix: { ...c.mix }, weights: weights(), detail: null, style: null, plan: null, ...over };
+  const len = kitLength(settings.length, bpm);
+  return { print, minBars: len.minBars, maxBars: len.maxBars, styles: [...c.styles], humanize: c.humanize, mix: { ...c.mix }, weights: weights(), detail: null, style: null, plan: len.plan ? radioPlan(makeRng(Math.floor(Math.random() * 1e9)), bpm, settings.length, true) : null, ...over };
 };
 // One song made from a recipe: { id, name, info, data, url, bits, recipe }.
 async function makeOne(recipe, title) {
@@ -1071,6 +1098,9 @@ async function makeBatch(count = cfg().count) {
       const song = await makeOne(recipeOf({ seed: list[k].seed }), songTitle(list[k].seed));
       songs.push(song);
       $('songs').append(songRow(song));
+      // (The first one plays as soon as it's made, unless something else already is; the rest follow it.)
+      if (k === 0 && !P.state()?.playing) playRow(song);
+      else P.relist(songs.map(x => P.track(x)));
     }
   } catch (e) {
     toast(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`), { tone: 'bad' });
@@ -1101,9 +1131,12 @@ async function bandBatch(count) {
       if (k === 0) $('out').scrollIntoView({ behavior: 'smooth', block: 'start' });
       const spec = radioPick('all', recent);
       recent.push(spec.style);
-      const song = await bandSong(spec);
+      const song = await bandSong({ ...spec, seconds: settings.length });
       songs.push(song);
       $('songs').append(songRow(song));
+      // (The first one plays as soon as it's made, unless something else already is; the rest follow it.)
+      if (k === 0 && !P.state()?.playing) playRow(song);
+      else P.relist(songs.map(x => P.track(x)));
     }
   } catch (e) {
     toast(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`), { tone: 'bad' });
@@ -1139,7 +1172,7 @@ async function another(from, recipe, title) {
   $('zip').disabled = false;
   if (tabNow === 'make') row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   else toast(W(`已做好：${song.name}（在「做歌」）`, `Made: ${song.name} (in Make)`));
-  playSong(song);
+  playRow(song);
 }
 const baseTitle = song => song.name.split(' · ')[0];
 const nth = base => songs.filter(s => s.name.startsWith(`${base} · `)).length + 1;
@@ -1147,27 +1180,34 @@ const nth = base => songs.filter(s => s.name.startsWith(`${base} · `)).length +
 function songMenu(song, anchor, inLib, list = null) {
   const can = heard && song.recipe?.print === print;
   const isJam = Boolean(song.recipe?.jam);
+  const t = P.track(song);
+  const k = lib.has(song.id);
   menu(anchor, [
+    { label: W('播放', 'Play'), icon: 'play', onClick: () => playRow(song) },
+    { label: W('插播', 'Play next'), icon: 'play_next', onClick: () => P.playNext(t) },
+    { label: W('稍後播放', 'Play later'), icon: 'queue', onClick: () => P.playLater(t) },
+    { label: k ? W('取消收藏', 'Remove from Library') : W('收藏', 'Keep'), icon: k ? 'heart-fill' : 'heart', onClick: () => keepSong(song) },
+    { label: W('分享', 'Share'), icon: 'share', onClick: () => shareSong(song) },
+    ...(inLib ? [{ label: W('刪除', 'Delete'), icon: 'trash', danger: true, onClick: () => keepSong(song) }] : []),
+    'divider',
     ...(can && !isJam
       ? [
-          { label: W('變奏一首', 'A variation'), icon: '✦', onClick: () => another(song, fromRecipe(song, { detail: Math.floor(Math.random() * 1e9) }), `${baseTitle(song)} · ${W('變奏', 'Var.')} ${nth(baseTitle(song))}`) },
-          { label: W('換個鼓…', 'Another groove…'), icon: '♫', onClick: () => pickGroove(song) },
-          ...(shows(settings.level, 'make-arrange') ? [{ label: W('編排…', 'Arrange…'), icon: '☰', onClick: () => arrange(song) }] : []),
+          { label: W('變奏一首', 'A variation'), icon: 'refresh', onClick: () => another(song, fromRecipe(song, { detail: Math.floor(Math.random() * 1e9) }), `${baseTitle(song)} · ${W('變奏', 'Var.')} ${nth(baseTitle(song))}`) },
+          { label: W('換個鼓…', 'Another groove…'), icon: 'note', onClick: () => pickGroove(song) },
+          ...(shows(settings.level, 'make-arrange') ? [{ label: W('編排…', 'Arrange…'), icon: 'grid', onClick: () => arrange(song) }] : []),
           'divider'
         ]
       : []),
-    { label: W('分享', 'Share'), icon: '↗', onClick: () => shareSong(song) },
-    { label: W('下載 WAV', 'Download WAV'), icon: '↓', onClick: () => downloadSong(song) },
-    ...(song.recipe?.radio || song.recipe?.band ? [] : [{ label: W('存成檔案', 'Save as file'), icon: '▤', onClick: () => saveProject(song) }]),
-    ...(can && shows(settings.level, 'make-stems') ? [{ label: W('下載分軌', 'Download stems'), icon: '≡', onClick: () => stemsOf(song) }] : []),
-    ...(can && shows(settings.level, 'make-midi') ? [{ label: W('匯出 MIDI', 'Export MIDI'), icon: '♪', onClick: () => midiOf(song) }] : []),
+    { label: W('下載 WAV', 'Download WAV'), icon: 'download', onClick: () => downloadSong(song) },
+    ...(song.recipe?.radio || song.recipe?.band ? [] : [{ label: W('存成檔案', 'Save as file'), icon: 'download', onClick: () => saveProject(song) }]),
+    ...(can && shows(settings.level, 'make-stems') ? [{ label: W('下載分軌', 'Download stems'), icon: 'grid', onClick: () => stemsOf(song) }] : []),
+    ...(can && shows(settings.level, 'make-midi') ? [{ label: W('匯出 MIDI', 'Export MIDI'), icon: 'note', onClick: () => midiOf(song) }] : []),
     ...(inLib
       ? [
           'divider',
-          { label: W('加到清單…', 'Add to playlist…'), icon: '+', onClick: () => lib.pickList(song) },
-          ...(list ? [{ label: W('從這個清單移除', 'Remove from this playlist'), icon: '−', onClick: () => lib.unlist(list, song.id) }] : []),
-          { label: W('重新命名', 'Rename'), icon: '✎', onClick: () => renameKept(song) },
-          { label: W('從歌單刪除', 'Remove from Library'), icon: '✕', danger: true, onClick: () => keepSong(song) }
+          { label: W('加到清單…', 'Add to playlist…'), icon: 'plus', onClick: () => lib.pickList(song) },
+          ...(list ? [{ label: W('從這個清單移除', 'Remove from this playlist'), icon: 'close', onClick: () => lib.unlist(list, song.id) }] : []),
+          { label: W('重新命名', 'Rename'), icon: 'edit', onClick: () => renameKept(song) }
         ]
       : [])
   ]);
@@ -1204,7 +1244,7 @@ function arrange(song) {
   const total = h('small');
   const draw = () => {
     const bars = plan.reduce((s, [, n]) => s + n, 0);
-    total.textContent = W(`${plan.length} 段 · ${bars} 小節 · 約 ${Math.round((bars * 4 * 60) / bpm)} 秒`, `${plan.length} section${plan.length === 1 ? '' : 's'} · ${bars} bars · about ${Math.round((bars * 4 * 60) / bpm)} sec`);
+    total.textContent = W(`${plan.length} 段 · 約 ${clock((bars * 4 * 60) / bpm)}`, `${plan.length} section${plan.length === 1 ? '' : 's'} · about ${clock((bars * 4 * 60) / bpm)}`);
     list.replaceChildren(
       ...plan.map(([t, n], k) => {
         const typeSel = h('select', { class: 'num wide', 'aria-label': W('段落', 'Section') }, SECTIONS.map(x => h('option', { value: x, text: name(SECTION_NAMES, x) })));
@@ -1213,15 +1253,15 @@ function arrange(song) {
         const lenSel = h('select', { class: 'num short', 'aria-label': W('小節', 'Bars') }, [1, 2, 3, 4, 6, 8, 12, 16].map(x => h('option', { value: String(x), text: String(x) })));
         lenSel.value = String(n);
         lenSel.onchange = () => ((plan[k][1] = +lenSel.value), draw());
-        const btn = (txt, label, fn, off = false) => h('button', { class: 'mini', type: 'button', text: txt, 'aria-label': label, disabled: off, onclick: () => (fn(), draw()) });
+        const btn = (txt, label, fn, off = false) => h('button', { class: 'mini', type: 'button', html: icon(txt), 'aria-label': label, disabled: off, onclick: () => (fn(), draw()) });
         return h('li', {}, [
           h('i', { style: { background: `var(--${t})` } }),
           typeSel,
           lenSel,
           h('div', { class: 'ctl' }, [
-            btn('↑', W('上移', 'Move up'), () => plan.splice(k - 1, 0, ...plan.splice(k, 1)), k === 0),
-            btn('⧉', W('重複', 'Repeat'), () => plan.splice(k + 1, 0, [...plan[k]]), plan.length >= 24),
-            btn('✕', W('拿掉', 'Remove'), () => plan.splice(k, 1), plan.length <= 1)
+            btn('arrow-up', W('上移', 'Move up'), () => plan.splice(k - 1, 0, ...plan.splice(k, 1)), k === 0),
+            btn('copy', W('重複', 'Repeat'), () => plan.splice(k + 1, 0, [...plan[k]]), plan.length >= 24),
+            btn('close', W('拿掉', 'Remove'), () => plan.splice(k, 1), plan.length <= 1)
           ])
         ]);
       })
@@ -1248,39 +1288,51 @@ function arrange(song) {
   });
 }
 
-// ---- The player: one song at a time, over the tab bar ----
+// ---- The player: a song at a time (the radio has its own), under lib/player.mjs's queue ----
 
 const audio = new Audio();
 audio.preload = 'auto';
 let nowPlaying = null;
-// What happens at a song's end: on to the next in its list, the song again, or its section again.
-const REPEATS = ['list', 'one', 'section'];
-let repeat = 'list';
+let repeat = 'list'; // 'section' while a section is held on repeat; the queue's loop (off, all, one) is lib/queue.mjs's
 let loopAt = null; // { from, to } in seconds: the section looped
+let wantLoop = null; // a section to loop in the song about to play (held from its row)
+let P = null; // lib/player.mjs, made in boot
+let home = null;
 async function urlOf(song) {
   if (song.url) return song.url;
   // (The kept record as it is now: 歌單瘦身 may have packed it since its row was drawn.)
   if (!urls.has(song.id)) urls.set(song.id, URL.createObjectURL(soundOf(lib.get(song.id) || song)));
   return urls.get(song.id);
 }
-// `loop`: the section to repeat in a song not yet playing (held from its row).
-let playFrom = 'make'; // the list the song plays from (on to its next whatever tab is open by then)
-async function playSong(song, at = 0, loop = null) {
+// A song to its sound, now (the queue's start() comes here).
+async function playSong(song, at = 0) {
   quiet({ keep: 'song' });
-  playFrom = tabNow === 'library' ? 'library' : 'make';
+  const turn = ++songTurn;
   if (nowPlaying) for (const li of rowsOf(nowPlaying.id)) markRow(li, false);
-  if (nowPlaying?.id !== song.id) loopAt = loop;
+  if (nowPlaying?.id !== song.id) {
+    loopAt = wantLoop;
+    repeat = wantLoop ? 'section' : 'list';
+  }
+  wantLoop = null;
   nowPlaying = song;
-  audio.src = await urlOf(song);
+  audio.loop = P.q.loop === 'one' && !loopAt;
+  const url = await urlOf(song);
+  if (turn !== songTurn) return;
+  audio.src = url;
   audio.currentTime = at;
   // (A play refused, iOS between songs with the screen locked: once more a moment later.)
   await audio.play().catch(() => new Promise(r => setTimeout(r, 300)).then(() => audio.play()).catch(() => {}));
-  claimSession({ title: song.name, artist: 'Orbit Beats', album: song.info.style ? name(STYLE_NAMES, song.info.style) : W('即興', 'Jam'), play: () => audio.play(), pause: () => audio.pause(), next: () => nextSong() });
-  $('player').hidden = false;
-  document.body.classList.add('playing');
-  $('player-name').textContent = song.name;
+  claimSession({ title: song.name, artist: 'Orbit Beats', album: song.info.style ? name(STYLE_NAMES, song.info.style) : W('即興', 'Jam'), play: () => audio.play(), pause: () => audio.pause() });
+  P.songStarted(song);
   paintPlayer();
   for (const li of rowsOf(song.id)) markRow(li, true);
+}
+// A song from a row: it plays, and the list it is in goes on after it (the batch, or what 歌單 shows).
+const songOfTrack = t => lib.get(t.id) || songs.find(s => s.id === t.id) || null;
+function playRow(song, at = 0) {
+  const list = (tabNow === 'library' ? lib.shown() : songs).map(x => P.track(x));
+  const track = P.track(song);
+  return P.play(track, list.some(x => x.id === track.id) ? Q.listStation(list, track.id) : null, at);
 }
 // Where a bar starts in a song (its sections at the song's tempo).
 const barTime = (song, bar) => (bar * 4 * 60) / (song.info.bpm || bpm);
@@ -1290,7 +1342,10 @@ function seekBar(song, bar) {
   if (nowPlaying?.id === song.id) {
     audio.currentTime = t;
     if (audio.paused) audio.play().catch(() => {});
-  } else playSong(song, t, repeat === 'section' ? loopAt : null);
+  } else {
+    wantLoop = repeat === 'section' ? loopAt : null;
+    playRow(song, t);
+  }
 }
 function toggleSong(song) {
   if (nowPlaying?.id === song.id) {
@@ -1298,9 +1353,12 @@ function toggleSong(song) {
     else audio.pause();
     return;
   }
-  playSong(song);
+  playRow(song);
 }
+// (Bumped by every stop: a song still loading when something else starts doesn't start after it.)
+let songTurn = 0;
 function stopSong() {
+  songTurn++;
   if (!audio.paused) audio.pause();
 }
 function closePlayer() {
@@ -1308,8 +1366,6 @@ function closePlayer() {
   if (nowPlaying) for (const li of rowsOf(nowPlaying.id)) markRow(li, false);
   nowPlaying = null;
   loopAt = null;
-  $('player').hidden = true;
-  document.body.classList.remove('playing');
 }
 // The section the song is in at time t: { from, to } in seconds.
 function sectionAt(song, t) {
@@ -1326,11 +1382,11 @@ function holdable(el, tap, hold) {
   el.addEventListener('contextmenu', e => e.preventDefault());
   el.addEventListener('click', () => { if (!held) tap(); held = false; });
 }
-// Loop one section: play it from its start and repeat it (the player's § mode).
+// Loop one section: play it from its start and repeat it.
 function loopSection(song, bar) {
   repeat = 'section';
+  audio.loop = false;
   seekBar(song, bar);
-  paintRepeat();
   navigator.vibrate?.(15);
   toast(W('重複這一段', 'Repeating this section'), { ms: 1400 });
 }
@@ -1352,26 +1408,9 @@ function paintPlayer() {
   const d = audio.duration || nowPlaying?.info?.seconds || 0;
   const t = audio.currentTime || 0;
   const pct = d ? Math.min(100, (t / d) * 100) : 0;
-  $('player-at').style.width = `${pct}%`;
-  $('player-time').textContent = `${timeText(t)} / ${timeText(d)}`;
   paintSections();
-  $('player-play').innerHTML = audio.paused ? ICON.play : ICON.pause;
-  $('player-play').setAttribute('aria-label', audio.paused ? W('播放', 'Play') : W('暫停', 'Pause'));
   if (nowPlaying) for (const li of rowsOf(nowPlaying.id)) li.querySelector('.plan').style.setProperty('--at', `${pct}%`);
 }
-function paintRepeat() {
-  const b = $('player-repeat');
-  b.dataset.mode = repeat;
-  b.setAttribute('aria-label', { list: W('播完接下一首', 'Then the next song'), one: W('單曲重複', 'Repeat this song'), section: W('重複這一段', 'Repeat this section') }[repeat]);
-  b.innerHTML = ICON.repeat + (repeat === 'one' ? '<b>1</b>' : repeat === 'section' ? '<b>§</b>' : '');
-}
-$('player-repeat').onclick = () => {
-  repeat = REPEATS[(REPEATS.indexOf(repeat) + 1) % REPEATS.length];
-  loopAt = repeat === 'section' && nowPlaying ? sectionAt(nowPlaying, audio.currentTime) : null;
-  audio.loop = repeat === 'one';
-  paintRepeat();
-  toast({ list: W('播完接下一首', 'Then the next song'), one: W('單曲重複', 'Repeating this song'), section: W('重複這一段', 'Repeating this section') }[repeat], { ms: 1400 });
-};
 // (A section looped is held by the frame, not timeupdate's quarter second.)
 function watchLoop() {
   if (repeat === 'section' && loopAt && !audio.paused && audio.currentTime >= loopAt.to) audio.currentTime = loopAt.from;
@@ -1385,17 +1424,8 @@ for (const ev of ['timeupdate', 'play', 'pause', 'loadedmetadata', 'seeked']) au
 audio.addEventListener('ended', () => {
   paintPlayer();
   if (repeat === 'section' && loopAt) return void ((audio.currentTime = loopAt.from), audio.play().catch(() => {}));
-  nextSong();
+  P.ended();
 });
-// On to the next in the list it played from (the batch or 歌單), whatever tab is open now.
-function nextSong() {
-  const list = playFrom === 'library' ? lib.shown() : songs;
-  const i = list.findIndex(s => s.id === nowPlaying?.id);
-  if (i >= 0 && list[i + 1]) {
-    const from = playFrom;
-    playSong(list[i + 1]).then(() => (playFrom = from));
-  }
-}
 // A song the phone left stuck (the share sheet, a call: time standing still, or a play it
 // won't take): its file loaded again where it was, and on.
 async function revive() {
@@ -1413,25 +1443,8 @@ setInterval(() => {
   stuckAt = audio.currentTime;
   if (stuck >= 3) (stuck = 0), revive();
 }, 1000);
-$('player-play').onclick = () => (audio.paused ? audio.play().catch(() => revive()) : audio.pause());
-$('player-x').onclick = closePlayer;
-// The bar: a tap or a drag along it moves the song there.
-const seek = e => {
-  const r = $('player-bar').getBoundingClientRect();
-  // (A packed song's length can read as unknown for a moment: its own length then; never the very end, which some phones won't seek to.)
-  const d = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : nowPlaying?.seconds || nowPlaying?.info?.seconds || 0;
-  if (d) audio.currentTime = Math.max(0, Math.min(d - 0.3, ((e.clientX - r.left) / r.width) * d));
-  if (repeat === 'section' && nowPlaying) loopAt = sectionAt(nowPlaying, audio.currentTime);
-};
-$('player-bar').addEventListener('pointerdown', e => {
-  seek(e);
-  const move = ev => seek(ev);
-  const up = () => (removeEventListener('pointermove', move), removeEventListener('pointerup', up));
-  addEventListener('pointermove', move);
-  addEventListener('pointerup', up);
-});
-// The lock screen's controls and its title (iOS's Now Playing): whatever played last (a song, or 聽) has them.
-// artwork: the song's own cover first when there's one (聽's, a 512 px JPEG), the app's icon always after it.
+// The lock screen's controls and its title (iOS's Now Playing): whatever played last (a song, or the radio) has them.
+// artwork: the song's own cover first when there's one (the radio's, a 512 px JPEG), the app's icon always after it.
 function sessionMeta({ title, artist, album = '', artwork = null }) {
   const ms = navigator.mediaSession;
   if (!ms || !globalThis.MediaMetadata) return;
@@ -1439,12 +1452,13 @@ function sessionMeta({ title, artist, album = '', artwork = null }) {
     ms.metadata = new MediaMetadata({ title, artist, album, artwork: [...(artwork ? [{ src: artwork, sizes: '512x512', type: 'image/jpeg' }] : []), { src: new URL('./icons/icon-512.png', location.href).href, sizes: '512x512', type: 'image/png' }] });
   } catch {}
 }
+// (The lock screen's back and forward are the queue's, whichever is playing.)
 function claimSession(o) {
   const ms = navigator.mediaSession;
   if (!ms) return;
   sessionMeta(o);
-  const { play, pause, next = null } = o;
-  for (const [action, fn] of [['play', play], ['pause', pause], ['nexttrack', next]])
+  const { play, pause } = o;
+  for (const [action, fn] of [['play', play], ['pause', pause], ['previoustrack', () => P.back()], ['nexttrack', () => P.forward()]])
     try {
       ms.setActionHandler(action, fn);
     } catch {}
@@ -1486,7 +1500,7 @@ async function keepSong(song) {
   keep();
   refreshHearts(song.id);
   tasteHint();
-  toast(W('已存到歌單 ♡', 'Kept in Library ♡'));
+  toast(W('已存到歌單', 'Kept in Library'));
 }
 // A song's WAV to hand over, at full quality: a batch's own; a kept one made
 // again from its recipe (聽's band, 即興's set, or the kit it was made on
@@ -1583,7 +1597,7 @@ async function openProject(f) {
   const recipe = { print, ...p.recipe };
   const id = recipeId(recipe);
   const there = songs.find(s => s.id === id);
-  if (there) return (toast(W('這首已經在清單裡', 'This song is already in the list')), playSong(there));
+  if (there) return (toast(W('這首已經在清單裡', 'This song is already in the list')), playRow(there));
   let song;
   try {
     song = await makeOne(recipe, p.name || (recipe.jam ? W('即興', 'Jam') : songTitle(recipe.seed)));
@@ -1595,7 +1609,7 @@ async function openProject(f) {
   $('songs').prepend(songRow(song));
   $('zip').disabled = false;
   toast(same ? W(`已打開：${song.name}`, `Opened: ${song.name}`) : W(`已打開：${song.name}（片段不同，聽起來會不一樣）`, `Opened: ${song.name} (different pieces, so it sounds different)`), { ms: 3200 });
-  playSong(song);
+  playRow(song);
 }
 $('open-song').onclick = () => $('song-file').click();
 $('song-file').addEventListener('change', () => {
@@ -1636,7 +1650,7 @@ function renameKept(song) {
     lib.rename(song.id, v);
     for (const x of songs) if (x.id === song.id) x.name = v;
     for (const li of rowsOf(song.id)) li.querySelector('.name').textContent = v;
-    if (nowPlaying?.id === song.id) $('player-name').textContent = v;
+    P?.refresh();
   };
   input.addEventListener('keydown', e => e.key === 'Enter' && done());
   const s = sheet({
@@ -1763,8 +1777,8 @@ async function jamSong(hits, beats, band) {
     $('out').hidden = false;
     $('songs').prepend(songRow(song));
     $('zip').disabled = false;
-    toast(W(`已做好 ${Math.round(beats / 4)} 小節（在「做歌」）`, `Made ${Math.round(beats / 4)} bars (in Make)`));
-    playSong(song);
+    toast(W(`已做好 ${clock((beats * 60) / bpm)}（在「做歌」）`, `Made ${clock((beats * 60) / bpm)} (in Create)`));
+    playRow(song);
   } catch (e) {
     toast(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`), { tone: 'bad' });
   }
@@ -1818,7 +1832,7 @@ function explain(id) {
           h('button', {
             class: 'q-btn tinted',
             type: 'button',
-            text: `▶ ${W(...(on ? ex.on : ex.off))}`,
+            html: `${icon('play')}<span>${esc(W(...(on ? ex.on : ex.off)))}</span>`,
             onclick: e => {
               const btn = e.currentTarget;
               const again = example?.btn === btn;
@@ -1880,8 +1894,7 @@ topActions(q, { help: helpSheet });
 // kits and taste merged in once it answers.
 async function boot() {
   showSettings();
-  paintRepeat();
-  radio = mountRadio($('panel-listen'), {
+  radio = mountRadio(null, {
     make,
     quiet: () => quiet({ keep: 'radio' }),
     title: seed => songTitle(seed),
@@ -1889,8 +1902,64 @@ async function boot() {
     kept: id => lib.has(id),
     session: o => claimSession(o),
     meta: o => sessionMeta(o),
+    taste: () => kept.taste,
     mood: settings.radioMood,
     setMood: m => ((settings.radioMood = m), save())
+  });
+  P = createPlayer({
+    radio,
+    audio,
+    songOf: songOfTrack,
+    playSong,
+    makeSong: t => bandSong({ seed: t.seed, mood: t.mood, style: t.style }).then(x => ({ ...x, name: t.title })),
+    nowSong: () => nowPlaying,
+    quiet: () => quiet({ keep: 'radio' }),
+    closeSong: closePlayer,
+    revive,
+    toast: text => text && toast(text, { ms: 1400 }),
+    words: { next: W('下一首播這個', 'Playing next'), later: W('已加到佇列', 'Added to the queue') },
+    missing: W('找不到這首歌', "Can't find that song"),
+    store: (() => {
+      try {
+        return localStorage;
+      } catch {
+        return null;
+      }
+    })()
+  });
+  const core = {
+    kept: t => Boolean(t && lib.has(t.id)),
+    toggleKeep: async t => {
+      if (t.kind === 'radio') return keepRadio({ id: t.id, title: t.title, spec: { seed: t.seed, mood: t.mood }, info: { style: t.style, bpm: t.bpm, key: t.key } });
+      const song = songOfTrack(t);
+      if (song) return keepSong(song);
+    },
+    share: async t => {
+      let song = songOfTrack(t);
+      if (!song && t.kind === 'radio') {
+        toast(W('做好再分享…', 'Getting it ready…'), { ms: 1500 });
+        song = await bandSong({ seed: t.seed, mood: t.mood, style: t.style }).then(x => ({ ...x, name: t.title })).catch(() => null);
+      }
+      if (song) shareSong(song);
+    },
+    inLibrary: t => Boolean(t && lib.has(t.id)),
+    remove: t => {
+      const song = lib.get(t.id);
+      if (song) keepSong(song);
+    },
+    sleep: anchor => radio.sleepMenu(anchor),
+    sleeping: () => radio.sleeping()
+  };
+  const view = mountPlayerView(P, core, { mini: $('player') });
+  home = mountHome($('panel-home'), { P, radio, taste: () => kept.taste, trackMenu: view.trackMenu, openNow: view.openNow });
+  // (The loop button leaves a section on repeat.)
+  let loopWas = P.q.loop;
+  P.on(w => {
+    if (w !== 'queue' || P.q.loop === loopWas) return;
+    loopWas = P.q.loop;
+    repeat = 'list';
+    loopAt = null;
+    audio.loop = P.q.loop === 'one' && Boolean(nowPlaying);
   });
   studio = mountStudio($('panel-studio'), {
     tempo: () => (pieces.length ? bpm : settings.studioBpm),

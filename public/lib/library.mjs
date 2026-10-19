@@ -4,13 +4,14 @@
 // are the page's (app.js songRow), so a song plays, keeps and shares the
 // same wherever it's shown. 清單: lists of kept songs (lib/lists.mjs), each
 // opened to play in its order.
-import { h, empty, sheet, cell, list as group, menu, toast } from '#kit/ui.mjs';
+import { h, empty, sheet, cell, list as group, menu, toast } from './ui.mjs';
 import { ask } from '#kit/quadra.mjs';
 import { listSongs } from './kits.mjs';
 import { soundOf, mbText } from './pack.mjs';
 import { listsOf, makeList, renameList, deleteList, addTo, removeFrom, dropSong, songsOf } from './lists.mjs';
 import { STYLE_NAMES, name } from './names.mjs';
 import { W, en, lang } from './lang.mjs';
+import { icon } from './icons.mjs';
 
 export const ORDERS = ['new', 'name', 'long', 'style'];
 const ORDER_NAMES = { new: ['最新', 'Newest'], name: ['歌名', 'Name'], long: ['最長', 'Longest'], style: ['節奏', 'Groove'] };
@@ -91,16 +92,15 @@ export function libraryView({ panel, row, goMake, zip, play }) {
   async function draw() {
     await readAll();
     const mb = mbText(songs.reduce((s, x) => s + (soundOf(x)?.size || 0), 0));
-    const head = h('div', { class: 'lib-head' }, [h('h2', { text: W('歌單', 'Library') }), songs.length ? h('small', { text: W(`${songs.length} 首 · ${mb}`, `${songs.length} song${songs.length === 1 ? '' : 's'} · ${mb}`) }) : null]);
+    const head = h('div', { class: 'lib-head' }, [h('h1', { class: 'page-title', text: W('資料庫', 'Library') }), songs.length ? h('small', { text: W(`${songs.length} 首 · ${mb}`, `${songs.length} song${songs.length === 1 ? '' : 's'} · ${mb}`) }) : null]);
     if (!songs.length) {
       open = null;
       panel.replaceChildren(
         head,
         h('section', { class: 'card' }, [
           empty({
-            icon: '♡',
+            icon: icon('heart'),
             title: W('還沒有收藏的歌', 'Nothing kept yet'),
-            body: W('做好的歌按 ♡，就會存在這裡：離線也能聽、分享。你收藏的風格，下次做歌會多做一些。', 'Tap ♡ on a song to keep it here: play it offline, share it. The styles you keep come up more next time.'),
             action: h('button', { class: 'secondary', type: 'button', text: W('去做歌', 'Make songs'), onclick: goMake })
           })
         ])
@@ -139,15 +139,15 @@ export function libraryView({ panel, row, goMake, zip, play }) {
   function drawList(l) {
     list = songsOf(l, songs);
     const back = h('button', { class: 'lib-back', type: 'button', text: W('‹ 歌單', '‹ Library'), onclick: () => ((open = null), draw()) });
-    const more = h('button', { class: 'lib-more', type: 'button', 'aria-label': W('更多', 'More'), text: '⋯' });
+    const more = h('button', { class: 'lib-more', type: 'button', 'aria-label': W('更多', 'More'), html: icon('more') });
     more.onclick = () =>
       menu(more, [
-        { label: W('重新命名', 'Rename'), icon: '✎', onClick: () => nameSheet(W('重新命名', 'Rename'), l.name, v => saveLists(renameList(lists, l.id, v))) },
-        { label: W('下載這些歌', 'Download these'), icon: '↓', onClick: () => list.length && zip(list) },
+        { label: W('重新命名', 'Rename'), icon: 'edit', onClick: () => nameSheet(W('重新命名', 'Rename'), l.name, v => saveLists(renameList(lists, l.id, v))) },
+        { label: W('下載這些歌', 'Download these'), icon: 'download', onClick: () => list.length && zip(list) },
         'divider',
         {
           label: W('刪除清單', 'Delete playlist'),
-          icon: '✕',
+          icon: 'trash',
           danger: true,
           onClick: async () => {
             const yes = await ask({ title: W(`刪除「${l.name}」？`, `Delete “${l.name}”?`), body: W('歌還會留在歌單裡。', 'The songs stay in your Library.'), ok: W('刪除', 'Delete'), cancel: W('取消', 'Cancel'), danger: true, lang });
@@ -155,7 +155,7 @@ export function libraryView({ panel, row, goMake, zip, play }) {
           }
         }
       ]);
-    const playBtn = h('button', { class: 'primary', type: 'button', text: W('▶ 依序播放', '▶ Play in order'), disabled: !list.length, onclick: () => list.length && play(list[0]) });
+    const playBtn = h('button', { class: 'primary', type: 'button', html: `${icon('play')}<span>${W('依序播放', 'Play in order')}</span>`, disabled: !list.length, onclick: () => list.length && play(list[0]) });
     const ol = h('ol', { class: 'songs' }, list.map(s => row(s, l.id)));
     panel.replaceChildren(
       h('div', { class: 'lib-nav' }, [back, more]),
@@ -171,7 +171,7 @@ export function libraryView({ panel, row, goMake, zip, play }) {
         group([
           ...lists.map(x => {
             const has = x.songs.includes(song.id);
-            return cell({ title: x.name, sub: countText(songsOf(x, songs).length), value: has ? '✓' : '', onClick: () => (saveLists(has ? removeFrom(lists, x.id, song.id) : addTo(lists, x.id, song.id)), fill(), toast(has ? W(`已從「${x.name}」移除`, `Removed from “${x.name}”`) : W(`已加到「${x.name}」`, `Added to “${x.name}”`), { ms: 1400 })) });
+            return cell({ title: x.name, sub: countText(songsOf(x, songs).length), value: has ? '•' : '', onClick: () => (saveLists(has ? removeFrom(lists, x.id, song.id) : addTo(lists, x.id, song.id)), fill(), toast(has ? W(`已從「${x.name}」移除`, `Removed from “${x.name}”`) : W(`已加到「${x.name}」`, `Added to “${x.name}”`), { ms: 1400 })) });
           }),
           cell({ title: W('＋ 新清單…', '+ New playlist…'), onClick: () => (s.close(), newList(id => (saveLists(addTo(lists, id, song.id)), toast(W('已加到新清單', 'Added to the new playlist'), { ms: 1400 })))) })
         ])

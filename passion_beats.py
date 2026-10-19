@@ -271,7 +271,7 @@ PATTERNS = [[0,1,2,1],[0,1],[0,0,1,1],[0,1,0,2],[0]]   # riff sets, over a shuff
 # verse, next to nothing into a quiet section (a pre-hook's riser is its own)
 INTO = {'hook':['roll','roll2','stutter','fill'],'verse':['roll','roll2','tick','drop'],'pre':['tick','drop'],'break':['drop','tick'],
         'bridge':['drop','tick'],'outro':['roll','roll2','stutter'],'intro':['drop','tick']}
-MAX_PLAN_BARS = 128
+MAX_PLAN_BARS = 400
 
 def fits(form, bars):   # every choice of section lengths adding up to `bars` (pruned: 24 forms of up to 15 sections)
     if not form: return [[]] if bars == 0 else []
@@ -295,7 +295,7 @@ def plan_song(R):
 
 def plan_of(text):
     """An arrangement as asked ('intro:4,verse:8,pre:2,hook:8,outro:4'): each a
-    known section of 1 to 16 bars, 128 bars at most in all. -> the plan"""
+    known section of 1 to 16 bars, 400 bars at most in all. -> the plan"""
     plan = []; bar = 0
     for part in filter(None, text.split(',')):
         t, _, n = part.partition(':')
@@ -901,7 +901,7 @@ def main():
     ap.add_argument('--bpm', type=float, default=None, help='the tempo the pieces were recorded at (default: heard from them)')
     ap.add_argument('--roles', default='', help='set pieces\' roles, e.g. 3=riff,6-8=hat,12=off (roles: ' + ','.join(ROLES) + ')')
     ap.add_argument('--plan', default=None, help='arrange every song by hand, e.g. intro:4,verse:8,pre:2,hook:8,outro:4 (sections: '
-                    + ','.join(SECTIONS) + '; 1-16 bars each, 128 in all; overrides --min-bars/--max-bars)')
+                    + ','.join(SECTIONS) + '; 1-16 bars each, 400 in all; overrides --min-bars/--max-bars)')
     mx = ap.add_argument_group('the mixer (on unless --raw)')
     mx.add_argument('--raw', action='store_true', help='no mixer: the pieces exactly as recorded, overlaps adding up past full scale')
     mx.add_argument('--levels', default='', help='bus levels in dB, -24 to 6, e.g. drums=0,hats=-2,bass=-1,keys=-1 (those are the defaults)')

@@ -11,15 +11,16 @@ import { levelOk } from './easy.mjs';
 
 // (mood, smart, studioBpm and mix were set on the page but never kept until 2026-10-18: they came back as they open.)
 // (level, 2026-10-18: 簡單 / 進階, lib/easy.mjs; radioMood: what 聽 plays, lib/radio.mjs.)
-export const SETTING_KEYS = ['count', 'minBars', 'maxBars', 'styles', 'humanize', 'seed', 'bits', 'silenceDb', 'minGap', 'mood', 'smart', 'studioBpm', 'mix', 'level', 'radioMood'];
+export const SETTING_KEYS = ['count', 'minBars', 'maxBars', 'styles', 'humanize', 'seed', 'bits', 'silenceDb', 'minGap', 'mood', 'smart', 'studioBpm', 'mix', 'level', 'radioMood', 'length'];
 // The settings as the page opens them.
-export const DEFAULTS = { count: 8, minBars: 25, maxBars: 29, styles: [...STYLES], humanize: 100, seed: '', bits: 32, silenceDb: -90, minGap: 0.2, mood: 'all', smart: true, studioBpm: 120, mix: mixOf(null), level: 'simple', radioMood: 'all' };
+export const DEFAULTS = { count: 8, minBars: 25, maxBars: 29, styles: [...STYLES], humanize: 100, seed: '', bits: 32, silenceDb: -90, minGap: 0.2, mood: 'all', smart: true, studioBpm: 120, mix: mixOf(null), level: 'simple', radioMood: 'all', length: 60 };
 // Each kept setting as it can be used (another phone's, an old version's, a
 // typo): a wrong kind or out of range is left as it was.
 const CHECK = {
   count: v => Number.isInteger(v) && v >= 1 && v <= 30,
   minBars: v => Number.isInteger(v) && v >= 8 && v <= 64,
   maxBars: v => Number.isInteger(v) && v >= 8 && v <= 64,
+  length: v => Number.isInteger(v) && v >= 30 && v <= 480,
   humanize: v => Number.isFinite(v) && v >= 0 && v <= 200,
   seed: v => typeof v === 'string' && /^\d{0,10}$/.test(v),
   bits: v => v === 16 || v === 32,
