@@ -663,7 +663,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   // (An arrangement by hand: the hook's own bass, the lifted hook's riffs, bass and 808 and the layer are theirs alone, never drawn for any other section.)
   const P = arrange || {};
   if (arrange) {
-    const own = new Set([...(P.lift || []), ...(P.hookBass || []), ...(P.liftBass || []), ...(P.hook2 || []), ...(P.bridgeBass || []), P.liftSub, P.layer].filter(x => x != null));
+    const own = new Set([...(P.lift || []), ...(P.hookBass || []), ...(P.liftBass || []), ...(P.hook2 || []), ...(P.bridgeBass || []), P.liftSub, P.layer, P.crash].filter(x => x != null));
     for (const x of ROLES) pool[x] = pool[x].filter(i => !own.has(i));
   }
   const riffs = pool.riff.length ? pool.riff : pool.phrase, phrases = pool.phrase.length ? pool.phrase : riffs;
@@ -718,6 +718,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   // a stop bar (everything lays out but the fill). Fills fit where they lead:
   // a build into a hook, something light into a verse, next to nothing into
   // a quiet section; a pre-hook's riser is its own.
+  const CRASH_AT = new Set(['verse', 'hook', 'bridge', 'outro']);
   const INTO = { hook: ['roll', 'roll2', 'stutter', 'fill'], verse: ['roll', 'roll2', 'tick', 'drop'], pre: ['tick', 'drop'], break: ['drop', 'tick'], bridge: ['drop', 'tick'], outro: ['roll', 'roll2', 'stutter'], intro: ['drop', 'tick'] };
   const into = plan.map(([t, b, L], idx) => {
     const nb = b + L - 1, next = plan[idx + 1]?.[0];
@@ -743,6 +744,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   const dress = varied ? (varied === true ? dressOf(makeRng(seed ^ 0x7f4a7c15)) : varied) : null;
   let verseNo = 0, hookNo = 0;
   plan.forEach(([t, b, L], idx) => {
+    if (b > 0 && CRASH_AT.has(t)) s.hit(P.crash, b * 4, true);   // (a crash where a section comes in, when the arrangement has one)
     if (t === 'intro') {   // previews: hats then a riff, a riff, or phrases
       const c = R.choice(verseHat == null ? ['riff', 'phr'] : ['riff', 'phr', 'hats']);
       if (c === 'riff') riff(b, L, introSet);
@@ -780,6 +782,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
     s.fill(...into[idx], kit);
   });
   s.hit(R.choice([kit.heavy, kit.sub]), bars * 4);   // one last hit on the next downbeat
+  s.hit(P.crash, bars * 4, true);
   const m = mix && mix.on !== false ? mixOf(mix) : null;
   const { audio, stems: parts } = renderSong(s, { roles, plan, mix: m, stems });
   return { audio, events: s.events, stems: parts, info: { seed, detail, key: known ?? keyOf(riffs.map(i => pieceChroma(pieces[i], sr))), bpm, style, alt: hookStyle, bass: bassMode, riffSets: [introSet, verseSet, hookSet, bridgeSet], layer, bars, beats: bars * 4, seconds: audio.L.length / sr, peak: audio.peak, over: audio.over, mixed: Boolean(m), plan: plan.map(([t, , L]) => [t, L]) } };

@@ -899,14 +899,14 @@ def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arran
     riff or a phrase; what a missing role plays is left out (or played by the
     nearest role there is). mix: the mixer (None: the pieces exactly as
     recorded); stems: also each bus as its own WAV; arranged: a plan by hand;
-    arrange: {intro, verse, verse2, hook, hook2, bridge, bridgeBass, lift, hookBass, liftBass, liftSub, layer}, pieces' numbers
+    arrange: {intro, verse, verse2, hook, hook2, bridge, bridgeBass, lift, hookBass, liftBass, liftSub, layer, crash}, pieces' numbers
     in lists, which riffs each section plays in place of the seed's riff sets (a second verse, a hook
     of its own, a last hook lifted into another key with its own bass and 808); varied: dress the drums."""
     r=np.random.default_rng(seed); R=random.Random(seed)
     pool={x:[i for i in sorted(roles) if roles[i]==x] for x in ROLES}
     P=arrange or {}
     if arrange:   # an arrangement by hand: the hook's own bass, the lifted hook's riffs, bass and 808 and the layer are theirs alone, never drawn for any other section
-        own={x for x in [*(P.get('lift') or []),*(P.get('hookBass') or []),*(P.get('liftBass') or []),*(P.get('hook2') or []),*(P.get('bridgeBass') or []),P.get('liftSub'),P.get('layer')] if x is not None}
+        own={x for x in [*(P.get('lift') or []),*(P.get('hookBass') or []),*(P.get('liftBass') or []),*(P.get('hook2') or []),*(P.get('bridgeBass') or []),P.get('liftSub'),P.get('layer'),P.get('crash')] if x is not None}
         pool={x:[i for i in pool[x] if i not in own] for x in pool}
     riffs=pool['riff'] or pool['phrase']; phrases=pool['phrase'] or riffs
     def pick(xs,no=()):
@@ -970,6 +970,7 @@ def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arran
     dress=dress_of(random.Random(seed^0x7f4a7c15)) if varied else None   # (a varied song's drum touches, a stream of their own)
     verse_no=hook_no=0
     for idx,(t,b,L) in enumerate(plan):
+        if b>0 and t in ('verse','hook','bridge','outro'): s.hit(P.get('crash'),b*4,tight=True)   # (a crash where a section comes in, when the arrangement has one)
         if t=='intro':   # previews: hats then a riff, a riff, or phrases
             c=R.choice(['riff','phr'] if verse_hat is None else ['riff','phr','hats'])
             if c=='riff': riff(b,L,intro_set)
@@ -1003,6 +1004,7 @@ def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arran
         if L==8 and t in ('verse','hook') and R.random()<0.3: s.fill(b+3,['tick','roll'],kit)   # mid-section turnaround
         s.fill(*into[idx],kit)
     s.hit(R.choice([kit['heavy'],kit['sub']]),bars*4)   # one last hit on the next downbeat
+    s.hit(P.get('crash'),bars*4,tight=True)
     yL,yR,parts,over=render(s,roles,plan,mix,stems)
     write_wav(path,yL,yR)
     for name,(a,b) in parts.items(): write_wav(f'{path[:-4]} - {name}.wav',a,b)

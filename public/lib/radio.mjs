@@ -12,7 +12,7 @@
 // kind of groove, another tempo, key and mode, other instruments, another
 // form. No DOM: the worker makes them (lib/make.mjs), the tests listen to them.
 
-import { withKit } from './samples.mjs';
+import { withKit, STYLE_KIT } from './samples.mjs';
 import { makeSong, makeRng, analyzeRecording, dressOf, STYLES, FAMILY, SHUFFLE } from '../engine.mjs';
 import { voice, renderClip, emptyDrums } from './synth.mjs';
 import { noted } from './game.mjs';
@@ -474,8 +474,18 @@ export function radioSpec(seed, mood = 'all', style = null) {
   const chordsC = band.chords.filter(x => x !== sp.chords && x !== sp.chords2);
   sp.chordsC = chordsC.length ? U.choice(chordsC) : sp.chords2;
   sp.seconds = U.random() < 0.2 ? U.uniform(85, 115) : U.uniform(165, 225);
+  // The arpeggio's instrument from the groove's own band (anything plucked or struck in it), not the same four for every groove; a stream of its own, drawn last.
+  if (!band.arps) {
+    const A = makeRng(seed ^ 0x510e527f);
+    const fits = [...new Set([...band.chords, ...band.leads, 'pluck', 'bell', 'keys', 'guitar'])].filter(x => ARPY.has(x) && x !== sp.chords && x !== sp.chords2 && x !== sp.lead);
+    if (fits.length) sp.lead2 = A.choice(fits);
+  }
   return sp;
 }
+// The soft held chords under a riff: a synth pad for the electronic grooves, recorded strings for a band's.
+const bedFor = style => (STYLE_KIT[style] === 'acoustic' || STYLE_KIT[style] === 'lofi' ? 'strings' : 'pad');
+// (What an arpeggio sounds right on: plucked or struck, so each note speaks at once.)
+const ARPY = new Set(['pluck', 'bell', 'keys', 'guitar', 'piano', 'rhodes', 'vibes', 'marimba', 'kalimba', 'harp', 'nylon', 'glass', 'musicbox', 'clav', 'steel', 'banjo', 'guzheng', 'pizz', 'sitar', 'chip']);
 
 // The scale's degree d (0 the tonic; 7 an octave up) as a MIDI note from `low`, in the song's mode.
 function noteOf(sp, d, low) {
@@ -775,7 +785,7 @@ function songKit(sp, sr, { lift = true } = {}) {
   };
   const tunes = {};
   // One set of chords with all its parts: its chords (an instrument, a comping pattern, a half), its arpeggio, its bed of pad, a bass and tunes.
-  const block = (spX, K, { catchy = false, maxNotes = 6, leadX, bass = true, oct = 0, own = false, bedOf = 'pad' }) => {
+  const block = (spX, K, { catchy = false, maxNotes = 6, leadX, bass = true, oct = 0, own = false, bedOf = bedFor(sp.style) }) => {
     const pat = own ? comp.map(c => fresh(c, K)) : comp;
     const slots = slotsOf(spX.prog, turns(K, band.comp, spX.prog));
     const plain = slotsOf(spX.prog, Array(8).fill(null));
@@ -835,10 +845,10 @@ function songKit(sp, sr, { lift = true } = {}) {
   const fillA = emptyDrums(1);
   for (const s of [6, 8, 10, 11]) fillA.steps.tom[s] = s === 8 ? 2 : 1;
   [12, 13, 14, 15].forEach((s, j) => (fillA.steps[snare][s] = [3, 1, 1, 2][j]));
-  fillA.steps[kick][0] = 1; fillA.steps.crash[0] = 3;
+  fillA.steps[kick][0] = 1;
   const fillB = emptyDrums(1);
   for (let s = 8; s < 16; s++) fillB.steps[snare][s] = [3, 3, 3, 3, 1, 1, 2, 2][s - 8];
-  fillB.steps[kick][0] = 1; fillB.steps[kick][8] = 1; fillB.steps.crash[0] = 3;
+  fillB.steps[kick][0] = 1; fillB.steps[kick][8] = 1;
   add(clip(fillA), 'fill');
   const base = pieces.length;
   add(clip(fillB), 'fill');
@@ -854,6 +864,8 @@ function songKit(sp, sr, { lift = true } = {}) {
   at(vBass[1], 'bass');
   for (const h of hats.slice(1)) at(h, 'hat');
   at(sum(shot(kick), { ...shot(k?.boom || 'sub', tonic808), g: 0.5 }), 'kick');
+  // A crash on the first beat of each verse, hook, bridge and outro, and on the last hit: where a drummer marks a new section.
+  parts.crash = at(sum({ ...shot('crash'), g: 0.6 }), 'tick');
 
   // The hook: another loop of chords when the spec has one, its lead, its bass. Its second time its own variant of the tune, fuller.
   const spB = { ...sp, prog: sp.progB || sp.prog };
@@ -920,7 +932,7 @@ function kitOf(sp, sr, { song = false, lift = true } = {}) {
   const rhythms = band.rhythms || RHYTHMS;
   const [ra, rb, rc] = [R.choice(rhythms), R.choice(rhythms), R.choice(rhythms)];
   // A soft held pad under every riff that does not hold its own chords (an off-beat stab, a pulse): no bar of a riff is ever empty.
-  const bed = clip(chordClip(sp, 'pad', COMP.held[0]));
+  const bed = clip(chordClip(sp, bedFor(sp.style), COMP.held[0]));
   const under = (x, inst) => (band.comp === 'held' && HOLDS.has(inst) ? x : sum(x, { ...bed, g: 0.3 }));
   const chords = under(clip(chordClip(sp, sp.chords, comp[0])), sp.chords);
   const chords2 = under(clip(chordClip(sp, sp.chords2, comp[1])), sp.chords2);
@@ -1046,12 +1058,20 @@ const MIXES = {
 export const REMIX_KEYS = ['bpm', 'lead', 'chords', 'chords2'];
 // The instruments a groove's band may play: { leads, chords }.
 export const bandSounds = style => ({ leads: [...(BAND[style]?.leads || [])], chords: [...(BAND[style]?.chords || [])] });
+// The parts a remix may leave out, and the pieces each is.
+export const PART_LIST = ['drums', 'bass', 'melody'];
+const PART_ROLES = { drums: ['hat', 'fill', 'kick', 'snare', 'tick', 'roll'], bass: ['bass', 'sub'], melody: ['riff', 'phrase'] };
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
 export const RADIO_V = 5;
 export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
   const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);
   const sp = Object.assign(radioSpec(seed, mood, style), Object.fromEntries(over));
+  // (A remix's key, parts and fade: `shift` semitones, the parts left out, the outro fading away.)
+  const shift = Number.isFinite(spec.shift) ? Math.max(-6, Math.min(6, Math.round(spec.shift))) : 0;
+  if (shift) sp.key = { ...sp.key, tonic: (sp.key.tonic + shift + 12) % 12 };
+  const mute = Array.isArray(spec.mute) ? PART_LIST.filter(p => spec.mute.includes(p)) : [];
+  const fade = spec.fade === true;
   const R = makeRng(seed ^ 0x1b873593);
   // (`seconds`: a length asked for, 0:30 to 8:00, in place of the song's own.)
   const asked = Number.isFinite(spec.seconds);
@@ -1060,14 +1080,17 @@ export function radioSong(spec, sr = RADIO_SR, stems = false) {
   // (Hearing the first pieces is enough: the rest are the same lengths, in other chords.)
   const heard = analyzeRecording(pieces.slice(0, base), sr, { bpm: sp.bpm });
   const analysis = { ...heard, analyses: [...heard.analyses, ...like.map(i => heard.analyses[i])], loops: [...heard.loops, ...like.map(i => heard.loops[i])], roles: [...heard.roles, ...like.map(i => heard.roles[i])] };
-  const song = makeSong(pieces, sr, seed, {
+  // (A part left out: its pieces silent, after they're heard, so the song is arranged as it was. With no drums, nothing pumps.)
+  const quiet = new Set(mute.flatMap(p => PART_ROLES[p]));
+  const played = quiet.size ? pieces.map((p, i) => (quiet.has(roles[i]) ? { L: new Float32Array(p.L.length), R: new Float32Array(p.L.length) } : p)) : pieces;
+  const song = makeSong(played, sr, seed, {
     analysis, roles, bpm: sp.bpm, styles: moodStyles(mood), style: sp.style,
-    humanize: (MOODS[mood]?.humanize ?? 100) / 100, plan, mix: mixOf({ ...MIXES[mood], ...BAND[sp.style].mix }), stems, arrange, varied: sp.dress, key: sp.key
+    humanize: (MOODS[mood]?.humanize ?? 100) / 100, plan, mix: mixOf({ ...MIXES[mood], ...BAND[sp.style].mix, ...(mute.includes('drums') ? { pump: 0 } : {}), ...(fade ? { fade: true } : {}) }), stems, arrange, varied: sp.dress, key: sp.key
   });
   // (A remix's own choices ride along in `radio`, so the song is made again as it was. `v`: the
   // engine that made it; a song kept from before RADIO_V is cut from its own sound, not made again.)
   // (`events`, `roles` and each piece's `tune`: what plays when, for the game's charts.)
-  return { audio: song.audio, stems: song.stems, events: song.events, roles, tunes: pieces.map(p => p.tune || null), info: { ...song.info, key: sp.key, mood, radio: { seed, mood, style: sp.style, ...Object.fromEntries(over), ...(asked ? { seconds: spec.seconds } : {}), v: RADIO_V } } };
+  return { audio: song.audio, stems: song.stems, events: song.events, roles, tunes: pieces.map(p => p.tune || null), info: { ...song.info, key: sp.key, mood, radio: { seed, mood, style: sp.style, ...Object.fromEntries(over), ...(asked ? { seconds: spec.seconds } : {}), ...(shift ? { shift } : {}), ...(mute.length ? { mute } : {}), ...(fade ? { fade } : {}), v: RADIO_V } } };
 }
 
 // Where the song is cut for the next one to come in: just before its last

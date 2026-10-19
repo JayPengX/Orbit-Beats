@@ -113,7 +113,7 @@ export function playSample(bank, midi, sr, hold, vel = 0.7, variant = 0, release
 }
 
 // The recorded instruments a song of the radio's band plays (its spec, lib/radio.mjs radioSpec).
-export const specInsts = sp => [...new Set([sp.chords, sp.chords2, sp.chordsC, sp.lead, sp.lead2, sp.leadB, sp.leadC, sp.bass, 'pad', 'strings'])].filter(i => i && SAMPLED[i]);
+export const specInsts = sp => [...new Set([sp.chords, sp.chords2, sp.chordsC, sp.lead, sp.lead2, sp.leadB, sp.leadC, sp.bass, 'pad', 'strings', 'choir'])].filter(i => i && SAMPLED[i]);
 
 // ---- Recorded drums ----
 // Three kits and the hand percussion: a real acoustic kit (Virtuosity Drums,
