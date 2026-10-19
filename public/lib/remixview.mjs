@@ -1,12 +1,13 @@
 // The two small sheets: 重新混音 (Remix) and 取出片段 (Take a clip). Plain words, one tap
 // each. They only draw and ask; app.js makes the song and keeps the clip.
-import { h, sheet } from './ui.mjs';
+import { h, sheet, toast } from './ui.mjs';
 import { icon } from './icons.mjs';
 import { W } from './lang.mjs';
 import { STYLE_NAMES, SECTION_NAMES, name } from './names.mjs';
 import { STYLE_ORDER } from '../engine.mjs';
 import { CAN, PARTS } from './remix.mjs';
 import { clock } from './length.mjs';
+import { chipsOf, readRecent, noteRecent, genreSheet } from './genres.mjs';
 
 export const PART_NAMES = { all: ['全部', 'All'], drums: ['鼓', 'Drums'], bass: ['貝斯', 'Bass'], melody: ['旋律', 'Melody'] };
 
@@ -22,12 +23,14 @@ export function remixSheet({ kind, style, length, note = '', pick }) {
   const big = (ic, label, sub, onclick) =>
     h('button', { class: 'rx-big', type: 'button', onclick }, [h('span', { class: 'rx-ic', html: icon(ic) }), h('span', { class: 'rx-t', text: label }), sub ? h('small', { text: sub }) : null]);
   const rows = [];
+  const others = STYLE_ORDER.filter(st => st !== style);
   if (can.style) {
     rows.push(
       h('div', { class: 'rx-lab', text: W('換風格', 'New style') }),
       h('div', { class: 'rx-styles' }, [
         h('button', { class: 'chip rx-rand', type: 'button', html: `${icon('dice')}<span>${W('隨機', 'Random')}</span>`, onclick: () => go({ style: 'random' }) }),
-        ...STYLE_ORDER.filter(st => st !== style).map(st => h('button', { class: 'chip', type: 'button', text: name(STYLE_NAMES, st), onclick: () => go({ style: st }) }))
+        ...chipsOf('', readRecent(), others).map(st => h('button', { class: 'chip', type: 'button', text: name(STYLE_NAMES, st), onclick: () => (noteRecent(st), go({ style: st })) })),
+        h('button', { class: 'chip rx-more', type: 'button', html: `<span>${W('更多', 'More')}</span>${icon('chevron')}`, onclick: () => genreSheet({ selected: style, styles: others, onPick: st => go({ style: st }) }) })
       ])
     );
   }
@@ -65,7 +68,7 @@ export function clipSheet({ plan, parts, render, add, stop, closed }) {
   let ready = null;
   const total = plan.reduce((a, [, n]) => a + n, 0);
   const secs = plan.map(([t, n], i) =>
-    h('button', { class: 'rx-sec', type: 'button', style: { flex: String(n), background: `var(--${t})` }, 'aria-label': name(SECTION_NAMES, t), 'aria-pressed': 'false', onclick: () => choose(i), text: n / total > 0.1 ? name(SECTION_NAMES, t) : '' })
+    h('button', { class: 'rx-sec', type: 'button', style: { flex: String(n), background: `var(--${t})` }, 'aria-label': name(SECTION_NAMES, t), 'aria-pressed': 'false', onclick: () => choose(i) }, [h('span', { text: n / total >= 0.12 ? name(SECTION_NAMES, t) : '' })])
   );
   const strip = h('div', { class: 'rx-strip', role: 'group', 'aria-label': W('段落', 'Sections') }, secs);
   const seg = parts
@@ -76,7 +79,7 @@ export function clipSheet({ plan, parts, render, add, stop, closed }) {
       )
     : null;
   const paintParts = () => seg?.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.p === part)));
-  const say = h('p', { class: 'hint rx-say', role: 'status', text: W('點一段來聽', 'Tap a part of the song') });
+  const time = h('span', { class: 'rx-time' });
   const playBtn = h('button', { class: 'rx-play', type: 'button', 'aria-label': W('播放', 'Play'), html: icon('play'), disabled: true, onclick: () => (audio.paused ? audio.play().catch(() => {}) : audio.pause()) });
   const addBtn = h('button', { class: 'primary', type: 'button', html: `${icon('plus')}<span>${W('加到片段', 'Add to clips')}</span>`, disabled: true });
   audio.onplay = audio.onpause = () => (playBtn.innerHTML = icon(audio.paused ? 'play' : 'pause'));
@@ -90,22 +93,21 @@ export function clipSheet({ plan, parts, render, add, stop, closed }) {
     audio.pause();
     ready = null;
     playBtn.disabled = addBtn.disabled = true;
-    say.textContent = W('取出中…', 'Cutting…');
     let r;
     try {
       r = await render(k, part);
     } catch {
-      if (mine === seq) say.textContent = W('取不出來', "Couldn't cut it");
+      if (mine === seq) toast(W('取不出來', "Couldn't cut it"), { tone: 'bad' });
       return;
     }
     if (mine !== seq) return;
     if (r.silent) {
-      say.textContent = W('這段沒有這個聲音', 'Nothing of that here');
+      toast(W('這段沒有這個聲音', 'Nothing of that here'));
       return;
     }
     ready = r;
     audio.src = r.url;
-    say.textContent = `${name(SECTION_NAMES, plan[k][0])} · ${clock(r.seconds)}`;
+    time.textContent = clock(r.seconds);
     playBtn.disabled = addBtn.disabled = false;
     stop?.();
     audio.play().catch(() => {});
@@ -128,7 +130,11 @@ export function clipSheet({ plan, parts, render, add, stop, closed }) {
       audio.load();
       closed?.();
     },
-    body: h('div', { class: 'card sheet-card' }, [strip, seg, h('div', { class: 'rx-now' }, [playBtn, say]), addBtn])
+    body: h('div', { class: 'card sheet-card' }, [strip, seg, h('div', { class: 'rx-now' }, [playBtn, time]), addBtn])
   });
+  // (Opens on the first hook, or the longest part: the clip is ready to add at once.)
+  const hook = plan.findIndex(([t]) => t === 'hook');
+  const longest = plan.reduce((best, [, n], i) => (n > plan[best][1] ? i : best), 0);
+  if (plan.length) choose(hook >= 0 ? hook : longest);
   return s;
 }

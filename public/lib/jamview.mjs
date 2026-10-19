@@ -21,10 +21,12 @@ import { W } from './lang.mjs';
 import { icon } from './icons.mjs';
 import { speedText } from './playerview.mjs';
 import { info, hintOf } from './help.mjs';
+import { genreSheet } from './genres.mjs';
 
 const AHEAD = 0.12; // seconds scheduled ahead of the clock
 const LATE = 0.03; // a tap this late (s) still counts as the step it missed
 const HOLD = 700; // ms a pad is held still to open its level (a drummer's held hit is shorter)
+const TAKES = 'orbit-beats.jam.takes.v1'; // [{ set, hits, beats, at }]: the last takes kept on the built-in set, latest first
 const PADS = 'orbit-beats.pads.v1'; // { <print>: { at, pads: { <piece>: { level, mute, choke } } } }
 const SET = 'orbit-beats.jam-set'; // the built-in set last played: { seed, style }
 const BUILT_IN = 'builtin'; // the built-in set's pads, kept as one kit's
@@ -41,6 +43,9 @@ const DRUM_TILES = [
   ['busy', ['熱鬧', 'Busy']]
 ];
 const HIT_PADS = [11, 14, 15, 17];
+const HIT_KIND = { 11: 'kick', 14: 'clap', 15: 'hat', 17: 'fill' }; // each hit its own colour
+// The second bass and the second melody, by how they play.
+const CHARACTER = { 7: ['跳躍貝斯', 'Bouncy bass'], 3: ['副旋律', 'Counter-melody'] };
 const DRUM_LOOPS = [8, 9, 10];
 // Every kit's pads on this phone. (A read that fails isn't "none": nothing is saved over it.)
 function readPads() {
@@ -56,6 +61,25 @@ export function readSet() {
     return setOf(JSON.parse(localStorage.getItem(SET) || 'null') || { seed: 7, style: SET_STYLES[0] });
   } catch {
     return setOf(null);
+  }
+}
+const MOST_TAKES = 8;
+function readTakes() {
+  try {
+    const v = JSON.parse(localStorage.getItem(TAKES) || '[]');
+    return Array.isArray(v) ? v.filter(t => t && t.set && Array.isArray(t.hits) && t.beats > 0).map(t => ({ ...t, set: setOf(t.set) })) : [];
+  } catch {
+    return [];
+  }
+}
+function saveTake(t) {
+  const list = [t, ...readTakes()].slice(0, MOST_TAKES);
+  // (A phone with no room left keeps fewer, never none.)
+  for (let n = list.length; n > 0; n--) {
+    try {
+      localStorage.setItem(TAKES, JSON.stringify(list.slice(0, n)));
+      return;
+    } catch {}
   }
 }
 const calm = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -110,8 +134,25 @@ export function mountJam(panel, api) {
   const keepTime = keepBtn.querySelector('.t');
   const recBtn = h('button', { class: 'q-btn tinted jam-rec', type: 'button', 'data-ctl': 'jam-rec' });
   const stopAllBtn = h('button', { class: 'q-btn plain', type: 'button', 'data-ctl': 'jam-rec', text: W('全停', 'All off') });
-  const beatDots = h('div', { class: 'jam-beat', 'aria-hidden': 'true' }, [0, 1, 2, 3].map(() => h('i')));
-  const ticks = [...beatDots.querySelectorAll('i')];
+  // The bar as a thin ring round the cover: a quarter more with every beat.
+  const ringArc = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  for (const [k, v] of Object.entries({ x: 1.5, y: 1.5, width: 61, height: 61, rx: 18, pathLength: 100 })) ringArc.setAttribute(k, String(v));
+  const ring = h('span', { class: 'jam-ring', 'aria-hidden': 'true' });
+  ring.innerHTML = '<svg viewBox="0 0 64 64"><rect class="trk" x="1.5" y="1.5" width="61" height="61" rx="18"/></svg>';
+  ringArc.setAttribute('class', 'arc');
+  ring.firstChild.append(ringArc);
+  function ringTo(k) {
+    // (A beat's quarter fills over the beat; the bar's first starts over from nothing.)
+    ringArc.style.opacity = k < 0 ? '0' : '1';
+    if (k <= 0) {
+      ringArc.style.transition = 'none';
+      ringArc.style.strokeDashoffset = '100';
+      if (k < 0) return;
+      void ringArc.getBoundingClientRect();
+    }
+    ringArc.style.transition = calm() ? 'none' : `stroke-dashoffset ${60 / bpm}s linear`;
+    ringArc.style.strokeDashoffset = String(100 - (k + 1) * 25);
+  }
   const padGrid = h('div', { class: 'pads', 'data-ctl': 'jam-pads' });
   const tileGrid = h('div', { class: 'jam-tiles', 'data-ctl': 'jam-band' });
   const hitRow = h('div', { class: 'jam-hits', 'data-ctl': 'jam-band' });
@@ -143,8 +184,26 @@ export function mountJam(panel, api) {
   const nameBtn = h('button', { class: 'jam-name', type: 'button', 'aria-label': W('風格', 'Style'), onclick: () => styleSheet() }, [nameEl, h('span', { class: 'chev', html: icon('down') })]);
   const dice = h('button', { class: 'jam-dice', type: 'button', 'aria-label': W('隨機換一組', 'A random new set'), html: icon('dice'), onclick: () => changeSet(diceSet(set)) });
   const undoSet = h('button', { class: 'jam-undo ghost', type: 'button', disabled: true, 'aria-label': W('回到上一組', 'Back to the last set'), html: icon('undo'), onclick: () => prevSet && changeSet(prevSet, { back: true }) });
-  const setRow = h('div', { class: 'jam-set' }, [coverBtn, h('div', { class: 'jam-id' }, [nameBtn, beatDots]), undoSet, dice, srcSeg]);
+  const setRow = h('div', { class: 'jam-set' }, [h('span', { class: 'jam-art' }, [coverBtn, ring]), h('div', { class: 'jam-id' }, [nameBtn]), undoSet, dice, srcSeg]);
   const note = h('p', { class: 'studio-note', 'data-ctl': 'jam-note' });
+  // 你的即興: the takes kept on the built-in set, as covers; a tap makes it again and plays it.
+  const takesRow = h('div', { class: 'jam-takes-row' });
+  const takesRail = h('section', { class: 'jam-takes', hidden: true }, [h('h3', { text: W('你的即興', 'Your jams') }), takesRow]);
+  function paintTakes() {
+    const list = readTakes();
+    takesRail.hidden = !list.length;
+    takesRow.replaceChildren(
+      ...list.map(t => {
+        const secs = (t.beats * 60) / specOf(t.set).bpm;
+        const b = h('button', { class: 'jam-take', type: 'button', 'aria-label': `${name(STYLE_NAMES, t.set.style)} ${clock(secs)}`, onclick: () => api.take(t.hits, t.beats, t.set, {}) }, [
+          h('img', { alt: '', width: 120, height: 120, src: setCover(t.set, specOf(t.set).bpm) }),
+          h('b', { text: name(STYLE_NAMES, t.set.style) }),
+          h('small', { text: clock(secs) })
+        ]);
+        return b;
+      })
+    );
+  }
   // A row: its name (and the word's ⓘ), a line under it, its control; only: which of 簡單 / 進階 shows it.
   const row = (label, sub, ctl, { only = null, term = null } = {}) => h('div', { class: 'row', 'data-ctl': only }, [h('div', { class: 'label' }, [h('span', {}, [label, ...(term ? [' ', info(term)] : [])]), sub ? h('small', { text: sub }) : null]), ctl]);
   const grooveSub = h('small', {});
@@ -170,7 +229,8 @@ export function mountJam(panel, api) {
     styleSel.hidden = !mine;
     if (simple() && !mine) jam.groove = drumMode !== '';
     grooveSub.textContent = mine ? W('用你的鼓打的節奏', 'Played on your drums') : W('跟著這組的風格', 'In the set’s style');
-    if (!panel.contains(body)) panel.replaceChildren(body);
+    if (!panel.contains(body)) panel.replaceChildren(body, takesRail);
+    paintTakes();
     drawPads();
     paintSet();
     paintTransport();
@@ -259,7 +319,8 @@ export function mountJam(panel, api) {
         continue;
       }
       const [p1, p2] = idx.map(i => byI[i]);
-      const text = p => (p.sub ? W(...p.sub) : W(...p.name));
+      // (A pad with no instrument of its own to name: its character, not "貝斯 2".)
+      const text = p => (p.sub ? W(...p.sub) : CHARACTER[p.i] ? W(...CHARACTER[p.i]) : W(...p.name));
       const same = text(p1) === text(p2);
       [p1, p2].forEach((p, k) => {
         const t = tile(fam, String(p.i), text(p), { two: k === 1 && same });
@@ -273,7 +334,7 @@ export function mountJam(panel, api) {
       ...HIT_PADS.map(i => {
         const p = byI[i];
         const big = W(...p.name);
-        const b = h('button', { class: 'jam-hit', type: 'button', 'data-i': String(i), 'data-fam': 'drum', 'aria-label': big }, [h('b', { text: big }), h('i', { class: 'lvl', 'aria-hidden': 'true' })]);
+        const b = h('button', { class: 'jam-hit', type: 'button', 'data-i': String(i), 'data-fam': 'drum', 'data-hit': HIT_KIND[i], 'aria-label': big }, [h('b', { text: big }), h('i', { class: 'lvl', 'aria-hidden': 'true' })]);
         hits.set(i, b);
         paintPad(i);
         return b;
@@ -316,18 +377,8 @@ export function mountJam(panel, api) {
     if (!running) for (const p of carry) hits.get(p.i)?.classList.add('wait');
     shown = -1;
   }
-  // A grooves sheet: every groove as its cover; a tap makes a new set of it and the music goes on.
-  function styleSheet() {
-    const tiles = SET_STYLES.map(s => {
-      const b = h('button', { class: 'jam-style', type: 'button', 'aria-pressed': String(s === set.style) }, [h('img', { alt: '', width: 96, height: 96, src: setCover({ seed: set.seed, style: s }) }), h('span', { text: name(STYLE_NAMES, s) })]);
-      b.onclick = () => {
-        changeSet({ seed: Math.floor(Math.random() * 1e9), style: s });
-        for (const o of tiles) o.setAttribute('aria-pressed', String(o === b));
-      };
-      return b;
-    });
-    sheet({ title: W('風格', 'Style'), closeLabel: W('關閉', 'Close'), body: h('div', { class: 'jam-styles' }, tiles) });
-  }
+  // The grooves sheet (lib/genres.mjs): a tap makes a new set of it and the music goes on.
+  const styleSheet = () => genreSheet({ selected: set.style, styles: SET_STYLES, onPick: st => changeSet({ seed: Math.floor(Math.random() * 1e9), style: st }) });
   // The set's sound, made in the worker (a second or two on a phone).
   function makeBand() {
     const id = setId();
@@ -551,7 +602,7 @@ export function mountJam(panel, api) {
     looping.clear();
     finish();
     for (const g of boards) for (const b of g.children) b.classList.remove('on', 'wait', 'hit');
-    for (const d of ticks) d.classList.remove('on');
+    ringTo(-1);
     paintTransport();
   }
   function schedule() {
@@ -627,6 +678,7 @@ export function mountJam(panel, api) {
       if (!t.hits.length) continue;
       const { hits: took, beats } = trimTake(t.hits, t.beats, t.from);
       api.take(took, beats, from, { keep: true });
+      if (from) (saveTake({ set: from, hits: took, beats, at: Date.now() }), paintTakes());
     }
   }
   // The beat: which of the four beats of the bar, and the loops' tiles (on, waiting for the bar, leaving).
@@ -638,7 +690,7 @@ export function mountJam(panel, api) {
     const at = beat < 0 ? -1 : Math.floor(beat);
     if (at !== shown) {
       const k = at < 0 ? -1 : at % 4;
-      ticks.forEach((d, j) => d.classList.toggle('on', j === k));
+      ringTo(k);
       shown = at;
       const still = calm();
       waits.clear();

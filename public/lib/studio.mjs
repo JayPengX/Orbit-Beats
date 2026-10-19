@@ -20,6 +20,7 @@ import { midiFile, clipTracks } from './midi.mjs';
 import { tapper } from './tap.mjs';
 import { download, fileName } from './download.mjs';
 import { STYLE_NAMES, STYLE_ORDER, name } from './names.mjs';
+import { chipsOf, readRecent, noteRecent, genreSheet } from './genres.mjs';
 import { W } from './lang.mjs';
 import { icon } from './icons.mjs';
 import { info, hintOf } from './help.mjs';
@@ -30,6 +31,12 @@ const OLD_KEY = 'orbit-beats.studio';
 const SHELF = 'orbit-beats.shelf';
 const MOST_SHELF = 24;
 const UNDO = 40;
+// A melody lane's name: the key's notes as Do Re Mi (high to low), the ends marked 高 and 低; the pitch too at 進階.
+const SOL = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Ti', 'Do'];
+export function solName(i, n) {
+  const d = SOL[Math.max(0, Math.min(SOL.length - 1, n - 1 - i))];
+  return i === 0 ? `${d} ${W('高', 'high')}` : i === n - 1 ? `${d} ${W('低', 'low')}` : d;
+}
 const noteName = m => `${NOTE_NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
 
 export const MOST_PATS = 4;
@@ -216,7 +223,7 @@ export function mountStudio(panel, api) {
   const stIcon = (svg, label, cls = '') => h('button', { class: `st-icon ${cls}`, type: 'button', 'aria-label': label, title: label, html: `<svg viewBox="0 0 24 24" aria-hidden="true">${svg}</svg>` });
   const undoBtn = stIcon('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>', W('復原', 'Undo'));
   const clearBtn = stIcon('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>', W('清除格子', 'Clear the grid'));
-  const saveBtn = stIcon('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>', W('收藏到收藏架', 'Keep on the shelf'));
+  const saveBtn = stIcon('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>', W('收藏這段', 'Keep this part'));
   const addBtn = h('button', { class: 'st-add', type: 'button', text: W('做成歌', 'Make songs') });
   const moreAct = stIcon('<circle cx="5.5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="18.5" cy="12" r="1.9"/>', W('更多', 'More'));
   const copyBtn = h('button', { class: 'mini', type: 'button', 'data-ctl': 'studio-copy', html: `${icon('copy')}<span>${W('複製', 'Copy')}</span>`, 'aria-label': W('第一小節複製到每一小節', 'Bar 1 over every bar') });
@@ -263,18 +270,16 @@ export function mountStudio(panel, api) {
     chordBtn.setAttribute('aria-pressed', String(st.chord));
     // The chips: the grooves (a tap writes a beat in it and plays), or the instruments.
     chips.setAttribute('aria-label', drums ? W('節奏', 'Groove') : W('樂器', 'Instrument'));
-    chips.replaceChildren(
-      ...(drums ? STYLE_ORDER.filter(s => GROOVE_STYLES.includes(s)) : INSTRUMENTS).map(id =>
-        h('button', {
-          class: 'chip',
-          type: 'button',
-          'data-id': id,
-          'aria-pressed': String(id === (drums ? st.groove : st.inst)),
-          text: drums ? name(STYLE_NAMES, id) : name(INSTRUMENT_NAMES, id),
-          onclick: () => (drums ? setGroove(id) : setInst(id))
-        })
-      )
-    );
+    chips.classList.toggle('st-few', drums);
+    const chip = (id, label, pressed, go) => h('button', { class: 'chip', type: 'button', 'data-id': id, 'aria-pressed': String(pressed), text: label, onclick: go });
+    if (drums) {
+      // The few last used, then 更多 (the sheet of every groove by mood).
+      const all = STYLE_ORDER.filter(s => GROOVE_STYLES.includes(s));
+      chips.replaceChildren(
+        ...chipsOf(st.groove, readRecent(), all, 5).map(id => chip(id, name(STYLE_NAMES, id), id === st.groove, () => setGroove(id))),
+        h('button', { class: 'chip st-morechip', type: 'button', html: `<span>${W('更多', 'More')}</span>${icon('chevron')}`, onclick: () => genreSheet({ selected: st.groove, styles: all, onPick: id => (noteRecent(id), setGroove(id), drawControls(), showChip()) }) })
+      );
+    } else chips.replaceChildren(...INSTRUMENTS.map(id => chip(id, name(INSTRUMENT_NAMES, id), id === st.inst, () => setInst(id))));
     dice.setAttribute('aria-label', drums ? W('隨機換一個鼓', 'A random new beat') : W('隨機編一段旋律', 'A random new melody'));
     setSeg.replaceChildren(
       ...[
@@ -319,6 +324,7 @@ export function mountStudio(panel, api) {
     if (st.mode === 'notes') return rows();
     return shownLanes(lanes(), bank().pats, more);
   }
+  const laneName = (i, n, m) => (easy() ? solName(i, n) : `${solName(i, n)} · ${noteName(m)}`);
   function drawGrid() {
     page = Math.min(page, st.bars - 1);
     pager.hidden = st.bars < 2;
@@ -331,7 +337,7 @@ export function mountStudio(panel, api) {
     const head = h('div', { class: 'st-head', 'aria-hidden': 'true' }, Array.from({ length: STEPS }, (_, c) => h('span', { 'data-s': String(at + c), class: c % 4 ? '' : 'beat', text: c % 4 ? '' : String(c / 4 + 1) })));
     const lanesEls = shown.map((r, i) => {
       const ri = all.indexOf(r);
-      const label = drums ? (easy() && r === 'sub' ? W('重低音', 'Sub') : name(DRUM_NAMES, r)) : noteName(r);
+      const label = drums ? (easy() && r === 'sub' ? W('重低音', 'Sub') : name(DRUM_NAMES, r)) : laneName(i, shown.length, r);
       const root = !drums && r % 12 === k.tonic;
       return h('div', { class: `st-lane${root ? ' root' : ''}`, role: 'row', style: `--c: var(--q-${drums ? LANE_COLOR[r] : NOTE_COLOR[i % NOTE_COLOR.length]})` }, [
         h('div', { class: 'st-name' }, [h('i'), h('span', { text: label })]),
@@ -342,7 +348,6 @@ export function mountStudio(panel, api) {
         )
       ]);
     });
-    grid.classList.toggle('dots', easy() && !drums);
     grid.replaceChildren(head, ...lanesEls);
     const hidden = drums ? lanes().length - shown.length : 0;
     moreBtn.hidden = !drums || (!more && !hidden);
@@ -669,9 +674,10 @@ export function mountStudio(panel, api) {
   };
   moreAct.onclick = () =>
     menu(moreAct, [
-      { label: W('清除', 'Clear'), icon: 'trash', danger: true, onClick: () => !clipEmpty(clip()) && clearBtn.onclick() },
-      { label: W('收藏到收藏架', 'Keep on the shelf'), icon: 'copy', onClick: () => !clipEmpty(clip()) && saveBtn.onclick() },
-      { label: W('只存成片段', 'Save as clip only'), icon: 'plus', onClick: () => addClip(chainOf(bank())) }
+      { label: W('存成片段', 'Save as piece'), icon: 'plus', onClick: () => addClip(chainOf(bank())) },
+      { label: W('收藏這段', 'Keep this part'), icon: 'heart', onClick: () => !clipEmpty(clip()) && saveBtn.onclick() },
+      'divider',
+      { label: W('清除', 'Clear'), icon: 'trash', danger: true, onClick: () => !clipEmpty(clip()) && clearBtn.onclick() }
     ]);
 
   // ---- Patterns and the chain ----
