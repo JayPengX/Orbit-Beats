@@ -10,22 +10,23 @@
 
 import { STYLES, makeRng } from '../engine.mjs';
 import { radioSpec } from './radio.mjs';
-import { INSTRUMENT_NAMES } from './synth.mjs';
+import { INSTRUMENT_NAMES, DRUM_NAMES } from './synth.mjs';
+import { STYLE_ORDER } from './names.mjs';
 
-// The grooves offered as chips (the dice picks from every one).
-export const SET_STYLES = ['lofi', 'hiphop', 'trap', 'house', 'afro', 'reggae'];
+// The grooves offered as chips, every one, the most played first (the dice picks from every one).
+export const SET_STYLES = STYLE_ORDER;
 // The band's pieces, as radioKit lays them out (tests/jamset.test.mjs checks it).
 export const BAND_ROLES = ['riff', 'riff', 'riff', 'riff', 'phrase', 'phrase', 'bass', 'bass', 'hat', 'hat', 'hat', 'kick', 'kick', 'sub', 'snare', 'tick', 'roll', 'fill'];
 
-const SNARE = { snare: ['小鼓', 'Snare'], clap: ['拍手', 'Clap'], both: ['小鼓', 'Snare'] };
-const TICK = { hat: ['閉鈸', 'Hat'], shaker: ['沙鈴', 'Shaker'], rim: ['邊擊', 'Rim'] };
+// (A drum's name as the 樂器 tab says it; the snare and clap together: the snare.)
+const drum = d => (d === 'both' ? DRUM_NAMES.snare : DRUM_NAMES[d] || [d, d]);
 // The pads, four rows of four: drums, more drums, the beat's loops, the music.
 // fam: the pad's colour; group: one of it plays at a time; inst: the spec's instrument named under it.
 const LAYOUT = [
   { i: 11, fam: 'drum', name: () => ['大鼓', 'Kick'] },
-  { i: 14, fam: 'drum', name: sp => SNARE[sp.snare] },
-  { i: 15, fam: 'drum', name: sp => TICK[sp.tick] },
-  { i: 13, fam: 'drum', name: () => ['808', '808'] },
+  { i: 14, fam: 'drum', name: sp => drum(sp.snare) },
+  { i: 15, fam: 'drum', name: sp => drum(sp.tick) },
+  { i: 13, fam: 'drum', name: sp => (sp.kit && sp.kit.sub.join() !== 'sub' ? ['強音', 'Accent'] : ['808', '808']) },
   { i: 12, fam: 'drum', name: () => ['重拍', 'Boom'] },
   { i: 16, fam: 'drum', name: () => ['滾奏', 'Roll'] },
   { i: 17, fam: 'drum', name: () => ['過門', 'Fill'] },

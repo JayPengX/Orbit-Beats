@@ -10,7 +10,7 @@
 //   renderClip(clip, sr, bpm) -> { sr, L, R } (exactly its bars long)
 //   drumPattern(style, seed, bars), melody(key, inst, seed, bars) (自動編: a start written for you)
 
-import { makeRng } from '../engine.mjs';
+import { makeRng, SHUFFLE } from '../engine.mjs';
 import { NOTE_VOICES, DRUM_VOICES, RELEASE, PEAK, noiseOf, bandpass } from './voices.mjs';
 
 // The drums, left to right as the grid shows them: the kit, the
@@ -304,8 +304,9 @@ export function clipOf(c) {
   if (!c || typeof c !== 'object') return null;
   const bars = BAR_CHOICES.includes(c.bars) ? c.bars : 1;
   const swing = Number.isFinite(c.swing) ? Math.min(0.6, Math.max(0, c.swing)) : 0;
+  const shuffle = Number.isFinite(c.shuffle) && c.shuffle > 0 ? { shuffle: Math.min(0.8, c.shuffle) } : {};
   if (c.kind === 'drums') {
-    const out = emptyDrums(bars);
+    const out = { ...emptyDrums(bars), ...shuffle };
     out.swing = swing;
     out.pitch = Number.isInteger(c.pitch) && c.pitch >= 24 && c.pitch <= 48 ? c.pitch : 33;
     for (const d of ALL_DRUMS) {
@@ -320,7 +321,7 @@ export function clipOf(c) {
     const notes = (Array.isArray(c.notes) ? c.notes : [])
       .filter(n => n && Number.isInteger(n.step) && n.step >= 0 && n.step < STEPS * bars && Number.isInteger(n.midi) && n.midi >= 12 && n.midi <= 120)
       .map(n => ({ step: n.step, midi: n.midi, len: Math.min(STEPS * 4, Math.max(1, Math.round(n.len) || 1)), ...(n.chord ? { chord: true } : {}), ...(n.lv === 2 || n.lv === 3 ? { lv: n.lv } : {}) }));
-    return { kind: 'notes', inst, bars, swing, key, notes };
+    return { kind: 'notes', inst, bars, swing, ...shuffle, key, notes };
   }
   return null;
 }
@@ -356,7 +357,8 @@ export function stepHits(clip, s) {
       if (n.step === s) for (const m of n.chord ? chordOf(n.midi, clip.key) : [n.midi]) out.push({ inst: clip.inst, midi: m, len: n.len || 1, gain: (n.chord ? 0.62 : 1) * levelGain(n.lv || 1) });
   return out;
 }
-export const swingOf = (clip, s) => (s % 2 ? clip.swing || 0 : 0);
+// (A swung clip, `shuffle`: its off-beat eighths late too, by that share of a 16th, as engine.mjs's SHUFFLE.)
+export const swingOf = (clip, s) => (s % 2 ? clip.swing || 0 : 0) + (s % 4 === 2 ? clip.shuffle || 0 : 0);
 
 // A clip as a piece: exactly its bars long (a loop of them), with a phone
 // mic's faint noise floor all through, so splitting keeps it whole.
@@ -453,8 +455,40 @@ const GROOVES = {
   reggae: { kick: [8], rim: [8], hat: [2, 6, 10, 14] },
   phonk: { sub: [0, 10], kick: [7], snare: [4, 12], cowbell: [0, 3, 6, 10, 12], hat: [0, 2, 4, 6, 8, 10, 12, 13, 14, 15] },
   baile: { kick: [0, 3, 8, 11], snare: [6, 14], hat: [2, 4, 10, 12] },
-  techno: { kick: [0, 4, 8, 12], clap: [4, 12], open: [2, 6, 10, 14], hat: [1, 3, 5, 7, 9, 11, 13, 15] }
+  techno: { kick: [0, 4, 8, 12], clap: [4, 12], open: [2, 6, 10, 14], hat: [1, 3, 5, 7, 9, 11, 13, 15] },
+  jazz: { kick: [0], brush: [4, 12], ride: [0, 4, 6, 8, 12, 14], hat: [4, 12] },
+  bossa: { kick: [0, 6, 8, 14], rim: [0, 3, 6, 10, 12], shaker: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] },
+  samba: { kick: [0, 8], tom: [4, 12], timbale: [2, 3, 7, 10, 13, 14], shaker: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] },
+  salsa: { kick: [6], clave: [0, 3, 6, 10, 12], cowbell: [0, 4, 8, 12], conga: [6, 7, 14, 15] },
+  rock: { rkick: [0, 8, 10], rsnare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14] },
+  punk: { rkick: [0, 6, 8], rsnare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14], crash: [0] },
+  metal: { rkick: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], rsnare: [8], ride: [0, 4, 8, 12], crash: [0] },
+  citypop: { kick: [0, 6, 8, 11], snare: [4, 12], hat: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], open: [14] },
+  kpop: { kick: [0, 4, 8, 12, 14], clap: [4, 12], hat: [2, 6, 10, 12, 13, 14, 15] },
+  synthwave: { kick: [0, 8, 11], rsnare: [4, 12], hat: [2, 6, 10, 14], tom: [13, 15] },
+  disco: { kick: [0, 4, 8, 12], snare: [4, 12], open: [2, 6, 10, 14], hat: [1, 5, 9, 13] },
+  gospel: { kick: [0, 6, 8], rsnare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14], tamb: [4, 12] },
+  neosoul: { kick: [0, 7, 10], snare: [4, 12], rim: [11], hat: [0, 2, 4, 6, 8, 10, 12, 14] },
+  ballad: { kick: [0, 6], snare: [8], hat: [0, 4, 8, 12] },
+  ambient: { kick: [0], shaker: [4, 10, 12], gong: [0] },
+  cinematic: { kick: [0, 8], tom: [3, 6, 11, 14], rsnare: [12], gong: [0] },
+  chiptune: { chipk: [0, 6, 10], chipn: [4, 12], chiph: [0, 2, 3, 4, 6, 8, 10, 11, 12, 14] },
+  kizomba: { kick: [0, 6, 8], snare: [4, 12], rim: [2, 3, 10, 11, 15], shaker: [0, 2, 4, 6, 8, 10, 12, 14] },
+  highlife: { kick: [0, 6, 10], snare: [4, 12], agogo: [0, 2, 5, 7, 10, 13, 15], shaker: [1, 3, 5, 7, 9, 11, 13, 15] },
+  cumbia: { kick: [0, 8], conga: [6, 14], guiro: [0, 2, 3, 4, 6, 7, 8, 10, 11, 12, 14, 15] },
+  bhangra: { dhol: [0, 3, 8, 11], clap: [4, 6, 12, 14], tamb: [0, 2, 4, 6, 8, 10, 12, 14] },
+  dubstep: { kick: [0, 13], snare: [8], hat: [0, 2, 4, 6, 8, 10, 12, 14], sub: [0] },
+  footwork: { kick: [0, 3, 6, 10, 13], clap: [4, 12], hat: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], sub: [9] },
+  jungle: { kick: [0, 2, 10, 11], snare: [4, 7, 12, 15], hat: [0, 2, 4, 6, 8, 10, 12, 14] },
+  trance: { kick: [0, 4, 8, 12], clap: [4, 12], open: [2, 6, 10, 14], hat: [3, 7, 11, 15] },
+  hardstyle: { hardkick: [0, 4, 8, 12], clap: [4, 12], sub: [2, 6, 10, 14], open: [2, 6, 10, 14] },
+  chinese: { kick: [0, 3, 10], snare: [4, 12], perc: [14], hat: [0, 4, 8, 12] },
+  blues: { kick: [0, 6, 8, 14], snare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14] },
+  country: { kick: [0, 8], snare: [4, 12], hat: [0, 2, 4, 6, 8, 10, 12, 14], tamb: [4, 12] }
 };
+// (A groove on another kit's kick: its downbeat accent and extra kick there; its hat roll on its own hat.)
+const KICK_OF = g => (g.rkick ? 'rkick' : g.chipk ? 'chipk' : g.hardkick ? 'hardkick' : g.dhol ? 'dhol' : 'kick');
+const ROLL_OF = { jazz: 'ride', chiptune: 'chiph', ambient: 'shaker', cinematic: 'tom', bhangra: 'tamb', cumbia: 'guiro', salsa: 'clave' };
 export const GROOVE_STYLES = Object.keys(GROOVES);
 export function drumPattern(style = 'trap', seed = 1, bars = 1) {
   const rng = makeRng(seed);
@@ -464,12 +498,14 @@ export function drumPattern(style = 'trap', seed = 1, bars = 1) {
     for (const [d, hits] of Object.entries(g))
       for (const s of hits) if (rng.random() < 0.94) clip.steps[d][b * STEPS + s] = 1;
   // The downbeat's kick a little harder; a bar's own touch: a ghost hit, or a hat roll at the end of the last bar.
-  for (let b = 0; b < bars; b++) if (clip.steps.kick[b * STEPS]) clip.steps.kick[b * STEPS] = 2;
+  const kick = clip.steps[KICK_OF(g)];
+  for (let b = 0; b < bars; b++) if (kick[b * STEPS]) kick[b * STEPS] = 2;
   const last = (bars - 1) * STEPS;
-  if (rng.random() < 0.5) for (const s of [13, 14, 15]) clip.steps.hat[last + s] = 1;
-  if (rng.random() < 0.4) clip.steps.kick[last + rng.choice([3, 7, 14])] = 1;
+  if (rng.random() < 0.5) for (const s of [13, 14, 15]) clip.steps[ROLL_OF[style] || 'hat'][last + s] = 1;
+  if (rng.random() < 0.4) kick[last + rng.choice([3, 7, 14])] = 1;
   clip.pitch = rng.choice([31, 33, 34, 36]);
-  clip.swing = ['lofi', 'boombap', 'garage', 'hiphop'].includes(style) ? 0.25 : 0;
+  clip.swing = ['lofi', 'boombap', 'garage', 'hiphop', 'neosoul'].includes(style) ? 0.25 : 0;
+  if (SHUFFLE[style]) clip.shuffle = SHUFFLE[style];
   return clip;
 }
 

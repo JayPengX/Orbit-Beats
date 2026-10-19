@@ -247,8 +247,17 @@ FAMILY = {'four':['four','broken','house','techno'],'broken':['broken','four','g
           'half':['half','hiphop'],'house':['house','four','jersey','amapiano','garage'],'dembow':['dembow','afro','reggae','baile'],'afro':['afro','dembow','amapiano'],
           'drill':['drill','trap'],'boombap':['boombap','hiphop','lofi'],'jersey':['jersey','house','baile'],'amapiano':['amapiano','house','afro'],
           'lofi':['lofi','boombap','hiphop'],'funk':['funk','broken','boombap'],'garage':['garage','house','broken'],'dnb':['dnb','broken'],
-          'reggae':['reggae','dembow'],'phonk':['phonk','trap','drill'],'baile':['baile','dembow','jersey'],'techno':['techno','four','house']}
-STYLES = ['four','hiphop','trap','half','broken','house','dembow','afro','drill','boombap','jersey','amapiano','lofi','funk','garage','dnb','reggae','phonk','baile','techno']
+          'reggae':['reggae','dembow'],'phonk':['phonk','trap','drill'],'baile':['baile','dembow','jersey'],'techno':['techno','four','house'],
+          'jazz':['jazz','bossa','blues','neosoul'],'bossa':['bossa','jazz','samba'],'samba':['samba','bossa','baile'],'salsa':['salsa','cumbia','samba'],
+          'rock':['rock','punk','metal','blues'],'punk':['punk','rock'],'metal':['metal','rock'],'citypop':['citypop','disco','funk','neosoul'],
+          'kpop':['kpop','house','trap'],'synthwave':['synthwave','citypop','four'],'disco':['disco','house','funk','citypop'],'gospel':['gospel','neosoul','blues'],
+          'neosoul':['neosoul','lofi','hiphop','gospel'],'ballad':['ballad','half','cinematic'],'ambient':['ambient','half','ballad'],'cinematic':['cinematic','half','ambient'],
+          'chiptune':['chiptune','synthwave','four'],'kizomba':['kizomba','dembow','afro'],'highlife':['highlife','afro','amapiano'],'cumbia':['cumbia','reggae','dembow','salsa'],
+          'bhangra':['bhangra','dembow','afro'],'dubstep':['dubstep','trap','half'],'footwork':['footwork','jersey','trap'],'jungle':['jungle','dnb','broken'],
+          'trance':['trance','techno','house','four'],'hardstyle':['hardstyle','techno','trance'],'chinese':['chinese','ballad','lofi'],'blues':['blues','jazz','rock','gospel'],
+          'country':['country','rock','ballad']}
+STYLES = ['four','hiphop','trap','half','broken','house','dembow','afro','drill','boombap','jersey','amapiano','lofi','funk','garage','dnb','reggae','phonk','baile','techno',
+          'jazz','bossa','samba','salsa','rock','punk','metal','citypop','kpop','synthwave','disco','gospel','neosoul','ballad','ambient','cinematic','chiptune','kizomba','highlife','cumbia','bhangra','dubstep','footwork','jungle','trance','hardstyle','chinese','blues','country']
 SECTIONS = ['intro','verse','pre','hook','break','bridge','outro']
 # the body is verse-hook pairs (each verse maybe with a pre-hook before its
 # hook, every one the same), maybe a break first, maybe a break or bridge
@@ -384,9 +393,155 @@ def _techno(s,t,k):   # techno's: the heavy kick on every beat, the hat on the o
     for q in (0.5,1.5,2.5,3.5): s.hit(k['tick'],t+q)
     if s.r.random()<0.5: s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
     if s.r.random()<0.3: s.hit(k['tick'],t+3.75)
+def _jazz(s,t,k):   # swing: the ride's ding, ding-a ding, the brush on 2 and 4, a feathered kick, a bomb now and then
+    s.hit(k['kick'],t); s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in (0,1,1.5,2,3,3.5): s.hit(k['tick'],t+q)
+    if s.r.random()<0.3: s.hit(k['roll'],t+2.5)
+    if s.r.random()<0.25: s.hit(k['heavy'],t+3.5)
+def _bossa(s,t,k):   # bossa nova's: the kick's two-beat lilt, the rim's clave, a shaker on every 16th
+    for q in (0,1.5,2,3.5): s.hit(k['kick'],t+q)
+    for q in (0,0.75,1.5,2.5,3): s.hit(k['snare'],t+q)
+    for q in np.arange(0,4,0.25):
+        if q%1==0 or s.r.random()<0.85: s.hit(k['tick'],t+q)
+def _samba(s,t,k):   # samba's: the surdos answering on 2 and 4, the tamborim's syncopation, sixteenths shaken
+    s.hit(k['kick'],t); s.hit(k['heavy'],t+1); s.hit(k['kick'],t+2); s.hit(k['heavy'],t+3)
+    for q in (0.5,0.75,1.75,2.5,3.25,3.5): s.hit(k['snare'],t+q)
+    for q in np.arange(0,4,0.25): s.hit(k['tick'],t+q)
+    if s.r.random()<0.3: s.hit(k['roll'],t+3.75)
+def _salsa(s,t,k):   # salsa's: the clave (three, then two) on the sticks, the bell on the beat, the bass drum's push
+    s.hit(k['kick'],t+1.5); s.hit(k['heavy'],t+3.5)
+    for q in (0,0.75,1.5,2.5,3): s.hit(k['snare'],t+q)
+    for q in (0,1,2,3): s.hit(k['tick'],t+q)
+    if s.r.random()<0.5: s.hit(k['tick'],t+0.5); s.hit(k['tick'],t+2.5)
+def _rock(s,t,k):   # rock's: the kick on 1 and 3 and the and of 3, the snare on 2 and 4, eighths on the hat
+    s.hit(k['heavy'],t); s.hit(k['kick'],t+2); s.hit(k['kick'],t+2.5)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in np.arange(0,4,0.5): s.hit(k['tick'],t+q)
+    if s.r.random()<0.3: s.hit(k['kick'],t+3.5)
+    if s.r.random()<0.2: s.hit(k['kick'],t+1.75)
+def _punk(s,t,k):   # pop-punk's: fast, the kick on 1 and 2-and, or the skate beat (snare on every off-beat)
+    if s.r.random()<0.35:
+        for q in range(4): s.hit(k['kick'],t+q); s.hit(k['snare'],t+q+0.5)
+    else:
+        s.hit(k['heavy'],t); s.hit(k['kick'],t+1.5); s.hit(k['kick'],t+2)
+        s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in np.arange(0,4,0.5): s.hit(k['tick'],t+q)
+def _metal(s,t,k):   # metal's half-time chug: double kicks in sixteenths (or galloping), one huge snare on 3
+    if s.r.random()<0.5:
+        for q in np.arange(0,4,0.25): s.hit(k['kick'],t+q)
+    else:
+        for q in range(4):
+            for d in (0,0.5,0.75): s.hit(k['kick'],t+q+d)
+    s.hit(k['heavy'],t); s.hit(k['snare'],t+2)
+    for q in range(4): s.hit(k['tick'],t+q)
+def _citypop(s,t,k):   # city pop's: a dance-floor kick that skips into 3, the snare on 2 and 4, busy sixteenths
+    s.hit(k['heavy'],t); s.hit(k['kick'],t+1.5); s.hit(k['kick'],t+2); s.hit(k['kick'],t+2.75)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in np.arange(0,4,0.25):
+        if q%0.5==0 or s.r.random()<0.6: s.hit(k['tick'],t+q)
+    if s.r.random()<0.3: s.hit(k['roll'],t+3.75)
+def _kpop(s,t,k):   # K-pop and J-pop dance: four on the floor with a kick before the bar, a hat roll into the next
+    for q in range(4): s.hit(k['kick'],t+q)
+    s.hit(k['kick'],t+3.5); s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in (0.5,1.5,2.5): s.hit(k['tick'],t+q)
+    if s.r.random()<0.4:
+        for q in (3,3.25,3.5,3.75): s.hit(k['tick'],t+q)
+def _synthwave(s,t,k):   # synthwave's: the eighties drum machine, a big gated snare on 2 and 4
+    s.hit(k['heavy'],t); s.hit(k['kick'],t+2)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in (0.5,1.5,2.5,3.5): s.hit(k['tick'],t+q)
+    if s.r.random()<0.5: s.hit(k['kick'],t+2.75)
+def _disco(s,t,k):   # disco's: four on the floor, the snare on 2 and 4, the open hat's tss and its little ka before
+    for q in range(4): s.hit(k['kick'],t+q)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in (0.25,0.5,1.25,1.5,2.25,2.5,3.25,3.5): s.hit(k['tick'],t+q)
+    if s.r.random()<0.25: s.hit(k['roll'],t+3.75)
+def _gospel(s,t,k):   # gospel's shuffle: a kick that rolls into 2, a heavy backbeat, shuffled eighths
+    s.hit(k['heavy'],t); s.hit(k['kick'],t+1.5); s.hit(k['kick'],t+2)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in np.arange(0,4,0.5): s.hit(k['tick'],t+q)
+    if s.r.random()<0.35: s.hit(k['roll'],t+3.5)
+def _neosoul(s,t,k):   # neo-soul's: a lazy kick, the snare on 2 and 4, a ghost note, hats that come and go
+    s.hit(k['heavy'],t); s.hit(k['kick'],t+1.75); s.hit(k['kick'],t+2.5)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    if s.r.random()<0.5: s.hit(k['roll'],t+2.75)
+    for q in np.arange(0,4,0.5):
+        if s.r.random()<0.7: s.hit(k['tick'],t+q)
+def _ballad(s,t,k):   # a ballad's: the kick on 1 (and the and of 2), the snare once on 3, quarters on the hat
+    s.hit(k['heavy'],t); s.hit(k['snare'],t+2)
+    if s.r.random()<0.5: s.hit(k['kick'],t+1.5)
+    for q in range(4): s.hit(k['tick'],t+q)
+def _ambient(s,t,k):   # ambient's: hardly there, a soft kick on 1 and a shaker's breath on 2 and 4
+    s.hit(k['kick'],t)
+    s.hit(k['tick'],t+1); s.hit(k['tick'],t+3)
+    if s.r.random()<0.3: s.hit(k['tick'],t+2.5)
+def _cinematic(s,t,k):   # a film score's: war drums, the big hit on 1, toms marching, one huge snare
+    s.hit(k['heavy'],t); s.hit(k['kick'],t+0.75); s.hit(k['kick'],t+1.5); s.hit(k['heavy'],t+2); s.hit(k['snare'],t+3)
+    if s.r.random()<0.4: s.hit(k['roll'],t+3.5)
+def _chiptune(s,t,k):   # 8-bit's: a game's kick and noise snare, the hat chattering in sixteenths
+    s.hit(k['kick'],t); s.hit(k['kick'],t+1.5); s.hit(k['kick'],t+2.5)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in np.arange(0,4,0.25):
+        if q%0.5==0 or s.r.random()<0.5: s.hit(k['tick'],t+q)
+def _kizomba(s,t,k):   # kizomba's (and zouk's): a slow, swaying kick, the snare on 2 and 4, the rim's tresillo
+    s.hit(k['heavy'],t); s.hit(k['kick'],t+1.5); s.hit(k['kick'],t+2)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in (0.5,0.75,2.5,2.75,3.75): s.hit(k['tick'],t+q)
+def _highlife(s,t,k):   # highlife's: the bell's pattern over a kick that skips, light snares on 2 and 4
+    s.hit(k['kick'],t); s.hit(k['kick'],t+1.5); s.hit(k['kick'],t+2.5)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in (0,0.5,1.25,1.75,2.5,3.25,3.75): s.hit(k['tick'],t+q)
+def _cumbia(s,t,k):   # cumbia's: the güiro's chu-chucu on every beat, the kick on 1 and 3, the drum on the and of 2 and 4
+    s.hit(k['heavy'],t); s.hit(k['kick'],t+2)
+    if s.r.random()<0.5: s.hit(k['kick'],t+1.75)
+    s.hit(k['snare'],t+1.5); s.hit(k['snare'],t+3.5)
+    for q in range(4):
+        for d in (0,0.5,0.75): s.hit(k['tick'],t+q+d)
+def _bhangra(s,t,k):   # bhangra's: the dhol's chaal, its bass head on 1 and 3 with the pickups, the high head on 2 and 4
+    for q in (0,0.75,2,2.75): s.hit(k['heavy'],t+q)
+    for q in (1,1.5,3,3.5): s.hit(k['snare'],t+q)
+    for q in np.arange(0,4,0.5): s.hit(k['tick'],t+q)
+def _dubstep(s,t,k):   # dubstep's half-time: the heavy kick, the snare on 3, kicks that stumble
+    s.hit(k['heavy'],t); s.hit(k['snare'],t+2)
+    if s.r.random()<0.5: s.hit(k['kick'],t+0.75)
+    s.hit(k['kick'],t+3.25)
+    for q in np.arange(0,4,0.5): s.hit(k['tick'],t+q)
+def _footwork(s,t,k):   # footwork's (juke): kicks in threes against the beat, claps on 2 and 4, sixteenth hats
+    for q in (0,0.75,1.5,2.5,3.25): s.hit(k['kick'],t+q)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    s.hit(k['sub'],t+2.25)
+    for q in np.arange(0,4,0.25): s.hit(k['tick'],t+q)
+def _jungle(s,t,k):   # jungle's chopped break (the Amen's shape)
+    s.hit(k['heavy'],t); s.hit(k['kick'],t+0.5); s.hit(k['kick'],t+2.5); s.hit(k['kick'],t+2.75)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+1.75); s.hit(k['snare'],t+3)
+    s.hit(k['snare'],t+3.75 if s.r.random()<0.5 else t+3.5)
+    for q in np.arange(0,4,0.5): s.hit(k['tick'],t+q)
+def _trance(s,t,k):   # trance's: four on the floor, the clap on 2 and 4, the hat rolling on each off-beat and the 16th after
+    for q in range(4): s.hit(k['kick'],t+q)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in (0.5,0.75,1.5,1.75,2.5,2.75,3.5,3.75): s.hit(k['tick'],t+q)
+def _hardstyle(s,t,k):   # hardstyle's: the distorted kick on every beat, its reverse bass on every off-beat
+    for q in range(4): s.hit(k['heavy'],t+q); s.hit(k['sub'],t+q+0.5)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    if s.r.random()<0.3: s.hit(k['tick'],t+3.75)
+def _chinese(s,t,k):   # 中國風: a pop ballad's beat, the kick's skip, the snare on 2 and 4, a woodblock's push
+    s.hit(k['heavy'],t); s.hit(k['kick'],t+0.75); s.hit(k['kick'],t+2.5)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in (0,1,2,3,3.5): s.hit(k['tick'],t+q)
+def _blues(s,t,k):   # the blues shuffle: the kick walking 1, 2-and, 3, 4-and, the snare on 2 and 4, shuffled eighths
+    for q in (0,1.5,2,3.5): s.hit(k['kick'],t+q)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in np.arange(0,4,0.5): s.hit(k['tick'],t+q)
+def _country(s,t,k):   # country's boom-chick: the kick on 1 and 3, the snare on 2 and 4, eighths, a pickup
+    s.hit(k['heavy'],t); s.hit(k['kick'],t+2)
+    s.hit(k['snare'],t+1); s.hit(k['snare'],t+3)
+    for q in np.arange(0,4,0.5): s.hit(k['tick'],t+q)
+    if s.r.random()<0.3: s.hit(k['snare'],t+3.5)
 GROOVES = {x: globals()['_' + x] for x in STYLES}
 # the grooves whose hats are part of them: no extra ticks
-FULL_HATS = {'drill','boombap','amapiano','lofi','funk','garage','dnb','reggae','phonk','baile','techno'}
+FULL_HATS = {'drill','boombap','amapiano','lofi','funk','garage','dnb','reggae','phonk','baile','techno',*STYLES[20:]}
+# the swung grooves: each off-beat eighth played late, by this share of a 16th (2/3 a full triplet), every hit of the song
+SHUFFLE = {'jazz':0.62,'blues':0.66,'gospel':0.56}
 
 class Song:
     """The pieces placed on the recording's beat grid: each hit noted as it's
@@ -398,10 +553,12 @@ class Song:
         s.per=loops; s.events=[]
         s.swing=rng.uniform(0,0.06)*humanize        # fraction of a beat pushed on off-16ths
         s.loose=rng.uniform(0.004,0.012)*humanize   # timing sd in seconds
+        s.sh=0                                      # a swung groove's off-beat eighths, late by this (beats)
     def hit(s,i,beat,tight=False):
         if i is None: return
         at=beat
         if abs(beat%0.5-0.25)<1e-6: beat+=s.swing
+        elif s.sh and abs(beat%1-0.5)<1e-6: beat+=s.sh
         s.events.append((i,at,max(0,jround(beat*B+s.r.normal(0,s.loose*(0.4 if tight else 1))*sr))))
     def span(s,i): return 1 if i is None else max(1,-(-s.per[i]//4))   # whole bars a loop takes
     def loop(s,i,bar,nbars):   # piece i every loop length; the last may run on
@@ -668,6 +825,7 @@ def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arran
     drawn=plan_song(R)   # (drawn even when arranged by hand, so every later choice is the seed's)
     plan=arranged or drawn; bars=plan[-1][1]+plan[-1][2]; hooks=sum(t=='hook' for t,_,_ in plan)
     s=Song(bars,r,humanize,loops)
+    if humanize>0: s.sh=SHUFFLE.get(style,0)*0.25   # (humanize 0: strictly on the grid)
     # how each section hands over, decided first: the bar before a hook may be
     # a stop bar, where everything lays out but the fill; a pre-hook's riser
     # runs straight into its hook

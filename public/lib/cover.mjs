@@ -2,7 +2,8 @@
 // seed, groove, mood, key and tempo), the same every time for the same song.
 // A groove has its colour and its shape (rings for the four-on-floor family,
 // waves for the slow ones, a sun for the warm ones, shards for trap and
-// drill, dots, Bauhaus arcs); the mood and the key move the colour (minor
+// drill, dots, Bauhaus arcs, a level meter's bars for the loud guitars, 8-bit
+// pixels); the mood and the key move the colour (minor
 // cooler and darker, chill softer), the tempo sets how many rings, waves or
 // stripes. The title is set small in the corner, as on a record sleeve.
 // No DOM: an SVG string, shown as an <img> and drawn to a PNG for the lock
@@ -27,10 +28,15 @@ export const STYLE_ART = {
   techno: [208, 'dots'], hiphop: [28, 'dots'], garage: [172, 'arcs'], boombap: [36, 'arcs'], broken: [146, 'arcs'],
   lofi: [204, 'waves'], half: [232, 'waves'], reggae: [128, 'waves'],
   trap: [298, 'shards'], drill: [216, 'shards'], phonk: [346, 'shards'], baile: [92, 'shards'],
-  funk: [44, 'sun'], afro: [20, 'sun'], amapiano: [50, 'sun'], dembow: [356, 'sun']
+  funk: [44, 'sun'], afro: [20, 'sun'], amapiano: [50, 'sun'], dembow: [356, 'sun'],
+  jazz: [222, 'arcs'], bossa: [160, 'waves'], samba: [58, 'sun'], salsa: [8, 'sun'], cumbia: [80, 'dots'], kizomba: [330, 'waves'], highlife: [40, 'arcs'], bhangra: [30, 'dots'],
+  rock: [0, 'bars'], punk: [312, 'bars'], metal: [240, 'shards'], blues: [214, 'bars'], country: [34, 'arcs'], gospel: [48, 'rings'], neosoul: [276, 'waves'],
+  citypop: [300, 'sun'], kpop: [326, 'dots'], synthwave: [290, 'sun'], disco: [270, 'rings'], ballad: [200, 'waves'], chinese: [354, 'arcs'],
+  ambient: [186, 'waves'], cinematic: [226, 'bars'], chiptune: [120, 'pixels'], dubstep: [262, 'shards'], footwork: [64, 'pixels'], jungle: [100, 'shards'],
+  trance: [196, 'rings'], hardstyle: [350, 'shards']
 };
 // What a mood does to the colour: saturation and lightness, a nudge of hue.
-const MOOD_TONE = { chill: [0.72, 6, -6], hype: [1, -6, 0], groove: [0.92, 0, 0], classic: [0.7, -2, 12] };
+const MOOD_TONE = { chill: [0.72, 6, -6], hype: [1, -6, 0], groove: [0.92, 0, 0], classic: [0.7, -2, 12], pop: [0.95, 4, 0], jazz: [0.65, -4, 8], world: [0.9, 2, 4] };
 
 const wrap = h => ((Math.round(h) % 360) + 360) % 360;
 const hsl = (h, s, l, a = 1) => (a === 1 ? `hsl(${wrap(h)} ${Math.round(s)}% ${Math.round(l)}%)` : `hsl(${wrap(h)} ${Math.round(s)}% ${Math.round(l)}% / ${a})`);
@@ -116,6 +122,24 @@ function shapes(shape, p, R, bpm) {
         const d = Math.hypot(x - fx, y - fy) / 380;
         const r = Math.max(0, (1 - d) * gap * 0.46);
         if (r > 1) out.push(`<circle cx="${n1(x)}" cy="${n1(y)}" r="${n1(r)}" fill="${d < 0.35 ? p.soft : p.accent}" opacity="${n1(0.35 + (1 - d) * 0.55)}"/>`);
+      }
+  } else if (shape === 'bars') {
+    // bars: a level meter's columns, taller to the beat's peak.
+    const n = coverCount(bpm, 8, 16, 10);
+    const w = 512 / n;
+    for (let i = 0; i < n; i++) {
+      const hgt = R.range(90, 420);
+      out.push(`<rect x="${n1(i * w + w * 0.14)}" y="${n1(512 - hgt)}" width="${n1(w * 0.72)}" height="${n1(hgt)}" rx="${n1(w * 0.2)}" fill="${i % 3 === 0 ? p.accent : i % 3 === 1 ? p.glow : p.soft}" opacity="${n1(R.range(0.45, 0.9))}"/>`);
+    }
+  } else if (shape === 'pixels') {
+    // pixels: an 8-bit field, squares in a grid, some lit.
+    const n = coverCount(bpm, 8, 14, 11);
+    const c = 512 / n;
+    for (let y = 0; y < n; y++)
+      for (let x = 0; x < n; x++) {
+        const v = R.next();
+        if (v < 0.45) continue;
+        out.push(`<rect x="${n1(x * c)}" y="${n1(y * c)}" width="${n1(c - 3)}" height="${n1(c - 3)}" fill="${v > 0.85 ? p.soft : v > 0.65 ? p.accent : p.glow}" opacity="${n1(0.35 + (v - 0.45))}"/>`);
       }
   } else {
     // arcs: a Bauhaus grid of quarter and half circles.

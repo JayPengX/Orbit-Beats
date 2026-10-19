@@ -17,10 +17,10 @@
 // cover; 最近播放, and 睡眠定時 (lib/listen.mjs).
 
 import { h, toast, menu } from '#kit/ui.mjs';
-import { STYLES, NOTE_NAMES } from '../engine.mjs';
+import { NOTE_NAMES } from '../engine.mjs';
 import { MOODS, RADIO_SR, radioPick, radioQueue, moodStyles } from './radio.mjs';
 import { FRAME, CODECS, bytesOf, tapeInit, tapeSegment, tapeFragment, tapeFeed, wavPcm, pickStream, timescaleOf, audioData } from './tape.mjs';
-import { STYLE_NAMES, name } from './names.mjs';
+import { STYLE_NAMES, STYLE_ORDER, name } from './names.mjs';
 import { W } from './lang.mjs';
 import { coverSvg, coverUrl, coverPalette } from './cover.mjs';
 import { SLEEP_CHOICES, sleepSet, sleepLeft, sleepGain, sleepDone, sleepClock, RECENT_KEY, recentAdd, recentEntry, recentParse, recentItem } from './listen.mjs';
@@ -61,7 +61,7 @@ export function mountRadio(panel, api) {
   let want = false; // the music asked for (play tapped, not paused)
   let silent = null;
   let fails = 0;
-  let last = []; // the grooves played lately, so the next differs
+  let last = []; // the songs played lately ({ seed, mood, style }), so the next differs
 
   // ---- The screen ----
   const covers = h('div', { class: 'covers' });
@@ -81,7 +81,7 @@ export function mountRadio(panel, api) {
   const card = h('section', { class: 'card radio-card', style: { position: 'relative' } }, [art, h('div', { class: 'radio-what' }, [title, sub]), bar, time, h('div', { class: 'radio-ctl' }, [heart, play, next]), h('div', { class: 'radio-foot' }, [upNext, sleepBtn]), debug]);
   const chip = (id, label) => h('button', { class: 'chip', type: 'button', 'data-mood': id, 'aria-pressed': String(id === mood), text: label, onclick: () => pick(id) });
   const moods = h('div', { class: 'radio-moods' }, Object.keys(MOODS).map(id => chip(id, moodName(id))));
-  const grooves = h('div', { class: 'radio-moods' }, STYLES.map(s => chip(`style:${s}`, name(STYLE_NAMES, s))));
+  const grooves = h('div', { class: 'radio-moods' }, STYLE_ORDER.map(s => chip(`style:${s}`, name(STYLE_NAMES, s))));
   const more = h('details', { class: 'radio-more' }, [h('summary', { text: W('或只聽一種鼓', 'Or just one groove') }), grooves]);
   const recentList = h('ul', { class: 'radio-recent' });
   const recentCard = h('section', { class: 'card', hidden: true }, [h('div', { class: 'head' }, [h('h2', { text: W('最近播放', 'Recently played') })]), recentList]);
@@ -91,7 +91,7 @@ export function mountRadio(panel, api) {
   // ---- Making ahead ----
   const spec = () => {
     const s = radioPick(mood, last, Math.floor(Math.random() * 1e9));
-    last = [...last, s.style].slice(-3);
+    last = [...last, s].slice(-24);
     return s;
   };
   // Two ahead of the one playing (on the tape, one already laid down counts); one more as soon as one is used.

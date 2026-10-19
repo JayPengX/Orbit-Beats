@@ -17,7 +17,7 @@ import { fingerprint, decode, encode, merge, keptSettings, settingsOf, DEFAULTS,
 import { dropPieces, snapOf, rolesBack, undoStack, namedKit, kitFrom, freeName } from './lib/kitops.mjs';
 import { voice, renderClip, DRUM_NAMES, INSTRUMENT_ROLE, INSTRUMENT_NAMES } from './lib/synth.mjs';
 import { MIX, mixOf, STEMS } from './lib/mix.mjs';
-import { STYLE_NAMES, SECTION_NAMES, ROLE_NAMES, BUS_NAMES, name } from './lib/names.mjs';
+import { STYLE_NAMES, STYLE_ORDER, SECTION_NAMES, ROLE_NAMES, BUS_NAMES, name } from './lib/names.mjs';
 import { tapper } from './lib/tap.mjs';
 import { download, shareFile, fileName } from './lib/download.mjs';
 import { toFile, toText, fromText } from './lib/project.mjs';
@@ -175,7 +175,7 @@ const firstTab = () => (TABS.includes(location.hash.slice(1)) ? location.hash.sl
 
 // ---- Settings (做歌) ----
 
-$('styles').innerHTML = STYLES.map(s => `<button class="chip" type="button" data-style="${s}" aria-pressed="true">${esc(name(STYLE_NAMES, s))}</button>`).join('');
+$('styles').innerHTML = STYLE_ORDER.map(s => `<button class="chip" type="button" data-style="${s}" aria-pressed="true">${esc(name(STYLE_NAMES, s))}</button>`).join('');
 $('moods').innerHTML = Object.entries(MOODS)
   .map(([id, m]) => `<button class="chip" type="button" data-mood="${id}" aria-pressed="false">${esc(en ? m.en : m.zh)}</button>`)
   .join('');

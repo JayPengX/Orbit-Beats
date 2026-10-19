@@ -10,7 +10,8 @@ import { STEPS, stepHits, swingOf } from './synth.mjs';
 
 export const PPQ = 480;
 // General MIDI's drum notes for the studio's drums.
-export const GM_DRUMS = { kick: 36, snare: 38, clap: 39, hat: 42, open: 46, rim: 37, tom: 45, sub: 35, crash: 49, ride: 51, shaker: 70, cowbell: 56, conga: 63, bongo: 60, snap: 40, perc: 76 };
+export const GM_DRUMS = { kick: 36, snare: 38, clap: 39, hat: 42, open: 46, rim: 37, tom: 45, sub: 35, crash: 49, ride: 51, shaker: 70, cowbell: 56, conga: 63, bongo: 60, snap: 40, perc: 76,
+  timbale: 65, cajon: 64, tabla: 61, clave: 75, tamb: 54, guiro: 73, agogo: 67, dhol: 41, brush: 38, rkick: 36, rsnare: 40, hardkick: 36, chipk: 35, chipn: 38, chiph: 42, gong: 52 };
 
 const vlq = n => {
   const out = [n & 0x7f];

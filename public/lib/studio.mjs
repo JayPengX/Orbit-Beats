@@ -15,11 +15,11 @@
 // this phone (localStorage), so they're there the next time.
 import { h, segmented, toast, menu } from '#kit/ui.mjs';
 import { NOTE_NAMES } from '../engine.mjs';
-import { DRUMS, PERC, ALL_DRUMS, DRUM_NAMES, INSTRUMENTS, INSTRUMENT_NAMES, OCTAVE, NOTE_LEN, STEPS, BAR_CHOICES, GROOVE_STYLES, LEVELS, emptyDrums, emptyNotes, drumPattern, melody, scaleRows, voice, clipEmpty, clipOf, stepHits, swingOf, copyFirstBar, resizeClip, chainClips } from './synth.mjs';
+import { DRUM_SETS, ALL_DRUMS, DRUM_NAMES, INSTRUMENTS, INSTRUMENT_NAMES, OCTAVE, NOTE_LEN, STEPS, BAR_CHOICES, GROOVE_STYLES, LEVELS, emptyDrums, emptyNotes, drumPattern, melody, scaleRows, voice, clipEmpty, clipOf, stepHits, swingOf, copyFirstBar, resizeClip, chainClips } from './synth.mjs';
 import { midiFile, clipTracks } from './midi.mjs';
 import { tapper } from './tap.mjs';
 import { download, fileName } from './download.mjs';
-import { STYLE_NAMES, name } from './names.mjs';
+import { STYLE_NAMES, STYLE_ORDER, name } from './names.mjs';
 import { W } from './lang.mjs';
 import { info, hintOf } from './help.mjs';
 
@@ -49,7 +49,9 @@ export function otherGroove(now, r = Math.random()) {
   return rest[Math.min(rest.length - 1, Math.floor(r * rest.length))];
 }
 // Each lane's colour (the kit's, var(--q-…)): a drum its own; the notes, high to low.
-export const LANE_COLOR = { kick: 'orange', snare: 'red', clap: 'pink', hat: 'yellow', open: 'mint', rim: 'purple', tom: 'indigo', sub: 'blue', crash: 'yellow', ride: 'teal', shaker: 'green', cowbell: 'orange', conga: 'red', bongo: 'pink', snap: 'purple', perc: 'indigo' };
+export const LANE_COLOR = { kick: 'orange', snare: 'red', clap: 'pink', hat: 'yellow', open: 'mint', rim: 'purple', tom: 'indigo', sub: 'blue', crash: 'yellow', ride: 'teal', shaker: 'green', cowbell: 'orange', conga: 'red', bongo: 'pink', snap: 'purple', perc: 'indigo',
+  timbale: 'orange', cajon: 'red', tabla: 'pink', clave: 'yellow', tamb: 'mint', guiro: 'green', agogo: 'teal', dhol: 'blue',
+  brush: 'teal', rkick: 'orange', rsnare: 'red', hardkick: 'pink', chipk: 'yellow', chipn: 'green', chiph: 'mint', gong: 'indigo' };
 const NOTE_COLOR = ['pink', 'red', 'orange', 'yellow', 'green', 'teal', 'blue', 'indigo'];
 // A set of patterns: { pats: [clip…] (1–4, one kind, one length, one sound:
 // instrument, key, swing and 808 the first's), at: the one shown, chain:
@@ -64,7 +66,7 @@ export function bankOf(b, kind, bars) {
     .map(c => (c.bars === bars ? c : resizeClip(c, bars)));
   if (!pats.length) return null;
   const [first] = pats;
-  for (const c of pats) Object.assign(c, kind === 'drums' ? { swing: first.swing, pitch: first.pitch } : { swing: first.swing, inst: first.inst, key: first.key });
+  for (const c of pats) Object.assign(c, kind === 'drums' ? { swing: first.swing, shuffle: first.shuffle, pitch: first.pitch } : { swing: first.swing, shuffle: first.shuffle, inst: first.inst, key: first.key });
   const at = Number.isInteger(raw.at) && raw.at >= 0 && raw.at < pats.length ? raw.at : 0;
   const chain = (Array.isArray(raw.chain) ? raw.chain : []).filter(i => Number.isInteger(i) && i >= 0 && i < pats.length).slice(0, MOST_CHAIN);
   return { pats, at, chain: pats.length > 1 && chain.length ? chain : [0] };
@@ -89,7 +91,7 @@ export function stateOf(s) {
   if (!drums || !notes) return null;
   return {
     mode: s.mode === 'notes' ? 'notes' : 'drums',
-    set: s.set === 'perc' ? 'perc' : 'kit',
+    set: DRUM_SETS[s.set] ? s.set : 'kit',
     bars,
     groove: GROOVE_STYLES.includes(s.groove) ? s.groove : 'trap',
     inst: INSTRUMENTS.includes(s.inst) ? s.inst : 'keys',
@@ -132,7 +134,7 @@ export function mountStudio(panel, api) {
   };
   // The key the notes are in: yours, else the kit's (heard from its riffs), else A minor.
   const keyNow = () => st.key || api.key() || { tonic: 9, minor: true };
-  const lanes = () => (st.set === 'perc' ? PERC : DRUMS);
+  const lanes = () => DRUM_SETS[st.set] || DRUM_SETS.kit;
   const rows = () => (st.mode === 'drums' ? lanes() : scaleRows(keyNow().tonic, keyNow().minor, OCTAVE[st.inst] ?? 60, 8).reverse());
   const bank = () => (st.mode === 'drums' ? st.drums : st.notes);
   const clip = () => bank().pats[bank().at];
@@ -219,7 +221,7 @@ export function mountStudio(panel, api) {
     // The chips: the grooves (a tap writes a beat in it and plays), or the instruments.
     chips.setAttribute('aria-label', drums ? W('節奏', 'Groove') : W('樂器', 'Instrument'));
     chips.replaceChildren(
-      ...(drums ? GROOVE_STYLES : INSTRUMENTS).map(id =>
+      ...(drums ? STYLE_ORDER.filter(s => GROOVE_STYLES.includes(s)) : INSTRUMENTS).map(id =>
         h('button', {
           class: 'chip',
           type: 'button',
@@ -234,7 +236,9 @@ export function mountStudio(panel, api) {
     setSeg.replaceChildren(
       ...[
         ['kit', W('鼓組', 'Kit')],
-        ['perc', W('打擊', 'Perc')]
+        ['perc', W('打擊', 'Perc')],
+        ['world', W('世界', 'World')],
+        ['kits', W('特色', 'More kits')]
       ].map(([id, label]) => h('button', { type: 'button', 'aria-pressed': String(st.set === id), text: label, onclick: () => ((st.set = id), keep(), draw()) }))
     );
     const k = keyNow();
@@ -411,7 +415,7 @@ export function mountStudio(panel, api) {
   // (Swing and the 808's pitch are the patterns' together.)
   const sameSound = () => {
     const c = clip();
-    for (const x of bank().pats) Object.assign(x, c.kind === 'drums' ? { swing: c.swing, pitch: c.pitch } : { swing: c.swing });
+    for (const x of bank().pats) Object.assign(x, c.kind === 'drums' ? { swing: c.swing, shuffle: c.shuffle, pitch: c.pitch } : { swing: c.swing, shuffle: c.shuffle });
   };
   swingIn.addEventListener('input', () => {
     clip().swing = +swingIn.value;
