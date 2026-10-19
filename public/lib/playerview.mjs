@@ -253,14 +253,14 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
       const after = P.q.station?.kind === 'radio' ? P.upNextRadio() : P.stationNext();
       const list = h('ul', { class: 'qlist' }, up.map((t, i) => row(t, { grip: true, index: i, onRemove: () => P.remove(i) })));
       grips(list);
-      body.replaceChildren(
+      body.replaceChildren(...[
         h('h3', { class: 'qhead', text: W('正在播放', 'Now playing') }),
         s?.track ? h('ul', { class: 'qlist' }, [row(s.track)]) : h('p', { class: 'qnone', text: W('沒有在播放', 'Nothing playing') }),
         h('div', { class: 'qhead-row' }, [h('h3', { class: 'qhead', text: W('接下來', 'Up next') }), up.length ? h('button', { class: 'qclear', type: 'button', text: W('清除', 'Clear'), onclick: () => P.clear() }) : null]),
         up.length ? list : h('p', { class: 'qnone', text: W('空的：用「稍後播放」加歌', 'Empty: add songs with Play later') }),
         after.length ? h('h3', { class: 'qhead', text: P.q.station?.kind === 'radio' ? W('電台接著播', 'Radio plays next') : W('接著播', 'Then') }) : null,
         after.length ? h('ul', { class: 'qlist dim' }, after.map(t => row(t))) : null
-      );
+      ].filter(Boolean));
     };
     // Drag a row by its grip to a new place.
     function grips(list) {

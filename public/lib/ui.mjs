@@ -1,7 +1,7 @@
 // The kit's ui.mjs (h, sheet, menu, toast, …) with two changes for this app: a menu's
 // icons are drawn from lib/icons.mjs (an item's `icon` is an icon's name), and a sheet's
 // close button is an icon, not a character.
-import { h, sheet as kitSheet, menu as kitMenu } from '#kit/ui.mjs';
+import { h, sheet as kitSheet, menu as kitMenu, empty as kitEmpty } from '#kit/ui.mjs';
 import { icon } from './icons.mjs';
 
 export * from '#kit/ui.mjs';
@@ -17,4 +17,10 @@ export function sheet(o) {
   const x = s.el.querySelector('.q-close');
   if (x) x.innerHTML = icon('close');
   return s;
+}
+// (An icon given as an SVG string is drawn, not shown as text.)
+export function empty(o = {}) {
+  const el = kitEmpty({ ...o, icon: String(o.icon || '').startsWith('<svg') ? '' : o.icon });
+  if (String(o.icon || '').startsWith('<svg')) el.prepend(h('span', { class: 'q-empty-icon', 'aria-hidden': 'true', html: o.icon }));
+  return el;
 }

@@ -92,7 +92,7 @@ export function libraryView({ panel, row, goMake, zip, play }) {
   async function draw() {
     await readAll();
     const mb = mbText(songs.reduce((s, x) => s + (soundOf(x)?.size || 0), 0));
-    const head = h('div', { class: 'lib-head' }, [h('h2', { text: W('歌單', 'Library') }), songs.length ? h('small', { text: W(`${songs.length} 首 · ${mb}`, `${songs.length} song${songs.length === 1 ? '' : 's'} · ${mb}`) }) : null]);
+    const head = h('div', { class: 'lib-head' }, [h('h1', { class: 'page-title', text: W('資料庫', 'Library') }), songs.length ? h('small', { text: W(`${songs.length} 首 · ${mb}`, `${songs.length} song${songs.length === 1 ? '' : 's'} · ${mb}`) }) : null]);
     if (!songs.length) {
       open = null;
       panel.replaceChildren(
@@ -101,7 +101,6 @@ export function libraryView({ panel, row, goMake, zip, play }) {
           empty({
             icon: icon('heart'),
             title: W('還沒有收藏的歌', 'Nothing kept yet'),
-            body: W('做好的歌按收藏，就會存在這裡：離線也能聽、分享。你收藏的風格，下次做歌會多做一些。', 'Tap Keep on a song to keep it here: play it offline, share it. The styles you keep come up more next time.'),
             action: h('button', { class: 'secondary', type: 'button', text: W('去做歌', 'Make songs'), onclick: goMake })
           })
         ])

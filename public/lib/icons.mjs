@@ -57,7 +57,9 @@ export const ICON_NAMES = Object.keys(PATHS);
 export function icon(name, { size = '', cls = '' } = {}) {
   const [attrs, body] = PATHS[name] || PATHS.more;
   const dim = size ? ` width="${size}" height="${size}"` : '';
-  return `<svg viewBox="0 0 24 24"${dim} ${attrs}${cls ? ` class="${cls}"` : ''} aria-hidden="true" focusable="false">${body}</svg>`;
+  // (Also as an inline style: a stylesheet's `svg { fill: none }` must not undo a filled icon.)
+  const style = [...attrs.matchAll(/([a-z-]+)="([^"]*)"/g)].map(m => `${m[1]}:${m[2]}`).join(';');
+  return `<svg viewBox="0 0 24 24"${dim} ${attrs} style="${style}"${cls ? ` class="${cls}"` : ''} aria-hidden="true" focusable="false">${body}</svg>`;
 }
 // The tab bar (the kit's tabBar) takes the inner markup of a 24 px stroke icon.
 export const inner = name => PATHS[name][1];
