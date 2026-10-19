@@ -91,7 +91,7 @@ export function mountHome(panel, api) {
   const mineSlot = h('div', { class: 'recent-slot' });
   const tile = (ic, title, go) => h('button', { class: 'sq', type: 'button', onclick: go }, [h('span', { class: 'sq-cover tile', html: icon(ic) }), h('b', { text: title })]);
   const quick = shelfOf('quick', W('快速做歌', 'Make'), [
-    tile('mic', W('即興', 'Jam'), () => api.go('jam', true)),
+    tile('grid', W('即興', 'Jam'), () => api.go('jam', true)),
     tile('dice', W('做一批歌', 'Make songs'), () => api.go('make', true)),
     tile('grid', W('樂器', 'Studio'), () => api.go('studio'))
   ]);

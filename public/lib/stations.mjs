@@ -49,7 +49,8 @@ export function homeRows(taste = {}) {
   const fresh = id => !forYou.includes(id);
   return [
     { key: 'for-you', ids: forYou },
-    { key: 'moods', ids: Object.keys(MOODS) },
+    // (隨機 is the hero's own station: not again as a mood.)
+    { key: 'moods', ids: Object.keys(MOODS).filter(id => id !== 'all') },
     { key: 'genres', ids: STYLE_ORDER.map(s => `style:${s}`).filter(fresh) },
     { key: 'tempo', ids: Object.keys(TEMPOS).map(t => `tempo:${t}`) },
     { key: 'liked', ids: liked.map(([s]) => `style:${s}`).filter(fresh) }

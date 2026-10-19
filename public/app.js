@@ -1063,7 +1063,7 @@ function songRow(song, { lib: inLib = false, list = null } = {}) {
   sectionTimes(info.plan, info.bpm || bpm).forEach((s, k) => {
     const label = name(SECTION_NAMES, s.type);
     const em = en ? label.length * 0.66 : label.length;
-    bar.append(h('button', { type: 'button', class: 'sec', 'data-k': String(k), style: { flex: String(s.bars), background: `var(--${s.type})`, '--k': String(k) }, 'aria-label': label, text: labelFits(s.bars, total, width, em) ? label : '' }));
+    bar.append(h('button', { type: 'button', class: `sec t-${s.type}`, 'data-k': String(k), style: { flex: String(s.bars), background: `var(--${s.type})`, '--k': String(k) }, 'aria-label': label, text: labelFits(s.bars, total, width, em) ? label : '' }));
     holdable(bar.lastChild, () => seekBar(song, s.bar), () => loopSection(song, s.bar));
   });
   li.append(h('div', { class: 'line' }, [play, h('div', { class: 'what' }, [h('span', { class: 'name', text: song.name }), h('span', { class: 'info' }, what.flatMap((w, i) => [...(i ? [' · '] : []), h('span', { text: w })]))]), heart, more]), bar);
