@@ -57,7 +57,7 @@ export function contrast(a, b) {
 
 // The next song's spec: { seed, mood, style }. `recent` is what played
 // lately, oldest first (specs, or just their grooves). The groove: one of
-// the mood's, none of the last six (fewer in a small mood), never of the
+// the mood's, none of the last six (fewer in a small mood: its size less five), never of the
 // last one's kind or family, one not heard for longest when it can, and
 // one whose tempo can jump from the last. Then the seed: the first of a few
 // drawn from `seed` whose song differs from the last in tempo (15 BPM or a
@@ -71,21 +71,28 @@ export function radioPick(mood, recent = [], seed = Math.floor(Math.random() * 1
   const was = prev && STYLES.includes(prev.style) ? radioSpec(prev.seed, MOODS[prev.mood] || /^style:/.test(prev.mood) ? prev.mood : 'all', prev.style) : null;
   const last = past.at(-1);
   const keep = (pool, ok) => (pool.filter(ok).length ? pool.filter(ok) : pool);
-  let pool = styles.filter(s => !past.slice(-Math.min(6, Math.max(1, styles.length - 2))).includes(s));
+  let pool = styles.filter(s => !past.slice(-Math.min(6, Math.max(1, styles.length - 5))).includes(s));
   if (!pool.length) pool = styles.filter(s => s !== last);
   if (!pool.length) pool = styles;
   if (last) pool = keep(pool, s => SOUND[s] !== SOUND[last] && !FAMILY[last]?.includes(s) && !FAMILY[s]?.includes(last));
-  if (was) pool = keep(pool, s => BAND[s].bpm[0] <= was.bpm - 15 || BAND[s].bpm[1] >= was.bpm + 15 || tempoJump(BAND[s].bpm[0], was.bpm) || tempoJump(BAND[s].bpm[1], was.bpm));
+  if (was) {
+    const jumps = s => tempoJump(BAND[s].bpm[0], was.bpm) || tempoJump(BAND[s].bpm[1], was.bpm);
+    // (No groove left that can jump from the last tempo: look again further back in the mood's grooves, the tempo first.)
+    if (!pool.some(jumps)) pool = keep(styles.filter(s => s !== last && !past.slice(-2).includes(s) && jumps(s)), () => true);
+    pool = keep(pool, jumps);
+  }
   pool = keep(pool, s => !past.includes(s));
   const style = R.choice(pool);
   const out = s => ({ seed: s, mood: MOODS[mood] || /^style:/.test(mood) ? mood : 'all', style });
   if (!was) return out(seed);
   let best = null;
-  for (let k = 0; k < 40; k++) {
+  // (The tempo jump and a new key or mode count most: they are what a listener hears first.)
+  for (let k = 0; k < 120; k++) {
     const s = k ? R.int(0, 1e9 - 1) : seed;
-    const score = contrast(radioSpec(s, out(s).mood, style), was).filter(Boolean).length;
+    const c = contrast(radioSpec(s, out(s).mood, style), was);
+    const score = c.filter(Boolean).length + (c[0] ? 10 : 0) + (c[1] || c[2] ? 10 : 0);
     if (!best || score > best.score) best = { s, score };
-    if (score === 6) break;
+    if (score === 26) break;
   }
   return out(best.s);
 }

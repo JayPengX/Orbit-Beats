@@ -69,7 +69,13 @@ export function voice(inst, midi = 36, sr = 48000, hold = 0.25) {
   const env = (t, d) => Math.exp(-t / d);
   const noise = noiseOf(inst.length * 7919 + midi);
   let x;
-  if (DRUM_VOICES[inst]) x = DRUM_VOICES[inst](sr, noise);
+  if (DRUM_VOICES[inst]) {
+    x = DRUM_VOICES[inst](sr, noise);
+    // (A noisy hit never goes over full scale, whatever its seed.)
+    let top = 0;
+    for (let i = 0; i < x.length; i++) top = Math.max(top, Math.abs(x[i]));
+    if (top > 0.95) for (let i = 0; i < x.length; i++) x[i] *= 0.95 / top;
+  }
   else if (NOTE_VOICES[inst]) {
     // (The newer notes: each its own loop, then brought to its own loudness, whatever the pitch.)
     x = len(hold + RELEASE[inst]);
