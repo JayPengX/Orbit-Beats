@@ -8,7 +8,7 @@
 // AudioContext, whose clock judges every tap.
 // api: { make (lib/maker.mjs), audio() (the page's AudioContext), quiet(), title(seed), keep(item)?, kept(id)? }
 
-import { h, segmented, tick } from './ui.mjs';
+import { h, segmented } from './ui.mjs';
 import { icon } from './icons.mjs';
 import { W, en } from './lang.mjs';
 import { radioSpec, MOODS } from './radio.mjs';
@@ -30,6 +30,7 @@ const CSS = `
 .gm.in { opacity: 1; transform: none; }
 .gm[hidden] { display: none; }
 body.gm-open:has(.gm.in) { overflow: hidden; }
+body.gm-open:has(.gm.in) > :not(.gm) { visibility: hidden; }
 .gm *, .gm *::before, .gm *::after { box-sizing: border-box; }
 .gm-bg { position: absolute; inset: -80px; width: calc(100% + 160px); height: calc(100% + 160px); object-fit: cover; filter: blur(70px) saturate(1.7) brightness(.55); transform: translateZ(0); transition: opacity .6s; pointer-events: none; }
 .gm-shade { position: absolute; inset: 0; background: radial-gradient(120% 70% at 50% 0%, rgba(0,0,0,0) 0%, rgba(6,6,11,.55) 60%, rgba(6,6,11,.92) 100%); pointer-events: none; }
@@ -77,17 +78,19 @@ body.gm-open:has(.gm.in) { overflow: hidden; }
 .gm-row-go { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); }
 .gm-row-go svg { width: 16px; height: 16px; margin-left: 2px; }
 .gm-stage { touch-action: none; }
-.gm-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.gm-stage canvas, .gm-glow { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.gm-glow { opacity: .35; pointer-events: none; will-change: opacity; }
+.gm:has(.gm-stage:not([hidden])) > .gm-bg, .gm:has(.gm-stage:not([hidden])) > .gm-shade { display: none; }
 .gm-hud { position: absolute; left: 0; right: 0; top: 0; padding: max(8px, env(safe-area-inset-top)) 12px 0; display: flex; align-items: center; gap: 10px; pointer-events: none; }
 .gm-hud > * { pointer-events: auto; }
-.gm-pause { flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%; background: rgba(255,255,255,.12); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); color: #fff; display: grid; place-items: center; touch-action: manipulation; }
+.gm-pause { flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%; background: rgba(255,255,255,.14); color: #fff; display: grid; place-items: center; touch-action: manipulation; }
 .gm-pause svg { width: 20px; height: 20px; }
 .gm-meter { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .gm-meter-t { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .gm-meter-t b { flex: 1; min-width: 0; font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gm-score { flex: none; font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 .gm-prog { height: 4px; border-radius: 2px; background: rgba(255,255,255,.14); overflow: hidden; }
-.gm-prog i { display: block; height: 100%; width: 0; border-radius: 2px; background: linear-gradient(90deg, var(--gm-a, #ff5fa2), var(--gm-b, #5ee2ff)); }
+.gm-prog i { display: block; height: 100%; width: 100%; transform: scaleX(0); transform-origin: 0 50%; will-change: transform; border-radius: 2px; background: linear-gradient(90deg, var(--gm-a, #ff5fa2), var(--gm-b, #5ee2ff)); }
 .gm-load { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 18px; text-align: center; transition: opacity .35s; }
 .gm-load[hidden] { display: none; }
 .gm-load img { width: 168px; height: 168px; border-radius: 24px; box-shadow: 0 20px 50px rgba(0,0,0,.5); animation: gm-breathe 1.1s ease-in-out infinite alternate; }
@@ -251,8 +254,12 @@ export function mountGame(host, api) {
   }
 
   // ---- The stage ----
+  // Three layers, so a frame redraws only what moves: the road and everything still (drawn once a
+  // song), a glow on the beat (its opacity only), and the notes, sparks and words (one canvas).
+  const back = h('canvas', { class: 'gm-back', 'aria-hidden': 'true' });
+  const glowEl = h('i', { class: 'gm-glow', 'aria-hidden': 'true' });
   const canvas = h('canvas', { 'aria-hidden': 'true' });
-  const cx2 = canvas.getContext('2d', { alpha: true, desynchronized: true });
+  const cx2 = canvas.getContext('2d');
   const scoreEl = h('span', { class: 'gm-score', text: '0' });
   const titleEl = h('b');
   const progEl = h('i');
@@ -279,7 +286,7 @@ export function mountGame(host, api) {
       ])
     ])
   ]);
-  stage.append(canvas, h('div', { class: 'gm-hud' }, [pauseBtn, h('div', { class: 'gm-meter' }, [h('div', { class: 'gm-meter-t' }, [titleEl, scoreEl]), h('div', { class: 'gm-prog' }, [progEl])])]), load, menuEl);
+  stage.append(back, glowEl, canvas, h('div', { class: 'gm-hud' }, [pauseBtn, h('div', { class: 'gm-meter' }, [h('div', { class: 'gm-meter-t' }, [titleEl, scoreEl]), h('div', { class: 'gm-prog' }, [progEl])])]), load, menuEl);
 
   // Geometry: the highway's lanes at the hit line, and how far up it runs.
   let Wd = 0;
@@ -290,8 +297,7 @@ export function mountGame(host, api) {
     dpr = Math.min(2, globalThis.devicePixelRatio || 1);
     Wd = stage.clientWidth || innerWidth;
     Ht = stage.clientHeight || innerHeight;
-    canvas.width = Math.round(Wd * dpr);
-    canvas.height = Math.round(Ht * dpr);
+    for (const c of [back, canvas]) (c.width = Math.round(Wd * dpr)), (c.height = Math.round(Ht * dpr));
     const lane = Math.min((Wd - 20) / LANES, 104);
     const hitY = Ht - Math.max(118, Ht * 0.19);
     const topY = Ht * 0.16;
@@ -305,43 +311,153 @@ export function mountGame(host, api) {
     return { s, y: geo.vy + (geo.hitY - geo.vy) * s };
   };
   const laneX = (lane, s) => geo.cx + (lane - (LANES - 1) / 2) * geo.lane * s;
+  const sprite = (w, hh, draw) => {
+    const o = document.createElement('canvas');
+    o.width = w;
+    o.height = hh;
+    draw(o.getContext('2d'));
+    return o;
+  };
 
-  // Each lane's note, drawn once: a glowing gem in the lane's colour.
+  // Each lane's note, drawn once: a glowing gem in the lane's colour; its spark, a soft dot.
   let sprites = [];
+  let dots = [];
   let tint = [];
+  let hues = [];
   function paint(it) {
     const pal = coverPalette({ seed: it.seed, style: it.style, mood: it.mood, key: it.key, bpm: it.bpm });
     const [a, b] = pal.hues;
-    const hues = [a, (a + b) / 2 + (Math.abs(a - b) > 180 ? 180 : 0), b, b + 40];
-    tint = hues.map(x => `hsl(${Math.round(x) % 360} 95% 64%)`);
+    hues = [a, (a + b) / 2 + (Math.abs(a - b) > 180 ? 180 : 0), b, b + 40].map(x => Math.round(x) % 360);
+    tint = hues.map(x => `hsl(${x} 95% 64%)`);
     root.style.setProperty('--gm-a', tint[0]);
     root.style.setProperty('--gm-b', tint[3]);
-    sprites = tint.map((c, k) => {
-      const w = 220;
-      const hh = 104;
-      const o = document.createElement('canvas');
-      o.width = w;
-      o.height = hh;
-      const g = o.getContext('2d');
-      g.shadowColor = c;
-      g.shadowBlur = 22;
-      const x0 = 24;
-      const y0 = 24;
-      const ww = w - 48;
-      const h2 = hh - 48;
-      const grad = g.createLinearGradient(0, y0, 0, y0 + h2);
-      grad.addColorStop(0, '#fff');
-      grad.addColorStop(0.35, c);
-      grad.addColorStop(1, `hsl(${Math.round(hues[k]) % 360} 90% 42%)`);
-      g.fillStyle = grad;
-      rounded(g, x0, y0, ww, h2, h2 / 2);
-      g.fill();
+    glowEl.style.background = `radial-gradient(70% 55% at 50% 12%, hsl(${hues[0]} 95% 55% / .55), hsl(${hues[2]} 95% 50% / .18) 55%, transparent 80%)`;
+    sprites = tint.map((c, k) =>
+      sprite(220, 104, g => {
+        g.shadowColor = c;
+        g.shadowBlur = 22;
+        const grad = g.createLinearGradient(0, 24, 0, 80);
+        grad.addColorStop(0, '#fff');
+        grad.addColorStop(0.35, c);
+        grad.addColorStop(1, `hsl(${hues[k]} 90% 42%)`);
+        g.fillStyle = grad;
+        rounded(g, 24, 24, 172, 56, 28);
+        g.fill();
+        g.shadowBlur = 0;
+        g.fillStyle = 'rgba(255,255,255,.75)';
+        rounded(g, 38, 29, 144, 6, 3);
+        g.fill();
+      })
+    );
+    dots = [...tint, '#fff'].map(c =>
+      sprite(32, 32, g => {
+        const r = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+        r.addColorStop(0, '#fff');
+        r.addColorStop(0.25, c);
+        r.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = r;
+        g.fillRect(0, 0, 32, 32);
+      })
+    );
+  }
+  // What doesn't move, drawn once a song (and again on a turn of the phone): the song's cover as a
+  // soft wash, the road, its lanes and lit edges, the hit line and its pads. Then the moving
+  // layer's colours, made once (a frame only fills with them).
+  let still = null;
+  function drawBack(it, cover = null) {
+    const g = back.getContext('2d');
+    const { lane: LW, hitY, cx } = geo;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.fillStyle = '#06060b';
+    g.fillRect(0, 0, Wd, Ht);
+    if (cover) {
+      // (Drawn tiny, then stretched: a blur for free.)
+      const tiny = sprite(12, 12, x => x.drawImage(cover, 0, 0, 12, 12));
+      g.globalAlpha = 0.5;
+      g.imageSmoothingQuality = 'high';
+      g.drawImage(tiny, -Wd * 0.2, -Ht * 0.1, Wd * 1.4, Ht * 1.2);
+      g.globalAlpha = 1;
+    }
+    const shade = g.createLinearGradient(0, 0, 0, Ht);
+    shade.addColorStop(0, 'rgba(6,6,11,.25)');
+    shade.addColorStop(0.55, 'rgba(6,6,11,.7)');
+    shade.addColorStop(1, 'rgba(6,6,11,.96)');
+    g.fillStyle = shade;
+    g.fillRect(0, 0, Wd, Ht);
+    const ap = 1;
+    const far = proj(ap, ap);
+    const near = proj(-0.24, ap);
+    const half = (LW * LANES) / 2;
+    const quad = (x0a, x0b, x1a, x1b) => {
+      g.beginPath();
+      g.moveTo(x0a, far.y);
+      g.lineTo(x0b, far.y);
+      g.lineTo(x1b, near.y);
+      g.lineTo(x1a, near.y);
+      g.closePath();
+    };
+    quad(cx - half * far.s, cx + half * far.s, cx - half * near.s, cx + half * near.s);
+    const road = g.createLinearGradient(0, far.y, 0, near.y);
+    road.addColorStop(0, 'rgba(10,10,20,0)');
+    road.addColorStop(0.35, 'rgba(14,14,26,.72)');
+    road.addColorStop(1, 'rgba(10,10,18,.92)');
+    g.fillStyle = road;
+    g.fill();
+    for (let k = 0; k <= LANES; k++) {
+      const edge = k === 0 || k === LANES;
+      const col = edge ? tint[k === 0 ? 0 : 3] : 'rgba(255,255,255,.16)';
+      const gr = g.createLinearGradient(0, far.y, 0, near.y);
+      gr.addColorStop(0, 'rgba(255,255,255,0)');
+      gr.addColorStop(0.5, col);
+      gr.addColorStop(1, col);
+      g.strokeStyle = gr;
+      g.lineWidth = edge ? 3 : 1;
+      if (edge) (g.shadowColor = col), (g.shadowBlur = 16);
+      g.beginPath();
+      g.moveTo(cx + (k - LANES / 2) * LW * far.s, far.y);
+      g.lineTo(cx + (k - LANES / 2) * LW * near.s, near.y);
+      g.stroke();
       g.shadowBlur = 0;
-      g.fillStyle = 'rgba(255,255,255,.75)';
-      rounded(g, x0 + 14, y0 + 5, ww - 28, 6, 3);
+    }
+    const lineG = g.createLinearGradient(cx - half, 0, cx + half, 0);
+    tint.forEach((c, k) => lineG.addColorStop(k / (LANES - 1), c));
+    g.fillStyle = lineG;
+    g.globalAlpha = 0.85;
+    g.fillRect(cx - half, hitY - 1.5, half * 2, 3);
+    g.globalAlpha = 1;
+    for (let k = 0; k < LANES; k++) {
+      const x = laneX(k, 1);
+      g.fillStyle = 'rgba(255,255,255,.06)';
+      rounded(g, x - LW * 0.42, hitY - 13, LW * 0.84, 26, 13);
       g.fill();
-      return o;
-    });
+      g.strokeStyle = tint[k];
+      g.globalAlpha = 0.55;
+      g.lineWidth = 2;
+      g.stroke();
+      g.globalAlpha = 1;
+    }
+    // The moving layer's fills, each made once.
+    const d = cx2;
+    const lit = col => {
+      const gr = d.createLinearGradient(0, far.y, 0, near.y);
+      gr.addColorStop(0, 'rgba(0,0,0,0)');
+      gr.addColorStop(1, col);
+      return gr;
+    };
+    const beam = col => {
+      const gr = d.createLinearGradient(0, hitY, 0, hitY - Ht * 0.42);
+      gr.addColorStop(0, col);
+      gr.addColorStop(1, 'rgba(0,0,0,0)');
+      return gr;
+    };
+    still = { far, near, half, lit: tint.map(lit), red: lit('#ff3b5c'), beam: tint.map(beam), lanes: Array.from({ length: LANES }, (_, k) => [0, 1].map(e => [cx + (k - LANES / 2 + e) * LW * far.s, cx + (k - LANES / 2 + e) * LW * near.s])) };
+  }
+  // The cover, for the wash (an SVG: decoded once, then the road drawn again over it).
+  function backFor(it) {
+    drawBack(it);
+    const img = new Image();
+    img.onload = () => R?.it === it && drawBack(it, img);
+    img.src = coverOf(it);
   }
 
   // ---- A round ----
@@ -356,10 +472,11 @@ export function mountGame(host, api) {
     show(stage);
     layout();
     paint(it);
+    backFor(it);
     bg.src = coverOf(it);
     titleEl.textContent = it.title;
     scoreEl.textContent = '0';
-    progEl.style.width = '0';
+    progEl.style.transform = 'scaleX(0)';
     loadImg.src = coverOf(it);
     loadT.textContent = it.title;
     loadS.textContent = W('正在做這一關…', 'Making the level…');
@@ -407,14 +524,14 @@ export function mountGame(host, api) {
       units: unitsOf(chart), tally: { perfect: 0, great: 0, good: 0, miss: 0 }, combo: 0, best: 0, shown: 0, fever: false,
       end: Math.min(buffer.duration, last + 1.6), pressed: new Array(LANES).fill(false), held: new Array(LANES).fill(null),
       sparks: [], rings: [], beams: new Array(LANES).fill(0), flash: new Array(LANES).fill(0), miss: new Array(LANES).fill(0),
-      pop: null, bump: 0, shake: 0, banner: null, stars: starsOf(), lastC: ctx.currentTime, lastP: performance.now(), paused: false, over: false, buzz: 0
+      pop: null, bump: 0, shake: 0, banner: null, stars: starsOf(), lastC: ctx.currentTime, lastP: performance.now(), paused: false, over: false
     };
     load.hidden = true;
     pauseBtn.hidden = false;
     cancelAnimationFrame(raf);
     raf = requestAnimationFrame(frame);
   }
-  const starsOf = () => Array.from({ length: reduced() ? 0 : 46 }, () => ({ x: (Math.random() < 0.5 ? -1 : 1) * (2.6 + Math.random() * 3.4), p: Math.random(), hue: Math.random() < 0.5 ? 0 : 3 }));
+  const starsOf = () => Array.from({ length: reduced() ? 0 : 32 }, () => ({ x: (Math.random() < 0.5 ? -1 : 1) * (2.6 + Math.random() * 3.4), p: Math.random(), hue: Math.random() < 0.5 ? 0 : 3 }));
   function stopRound() {
     cancelAnimationFrame(raf);
     if (R?.src) {
@@ -520,16 +637,19 @@ export function mountGame(host, api) {
     if (R.combo === FEVER && !R.fever) (R.fever = true), (R.banner = { text: W('火力全開', 'FEVER'), t: performance.now(), big: true });
     R.beams[lane] = 1;
     R.rings.push({ lane, t: performance.now(), g });
-    const n = reduced() ? 4 : g === 'perfect' ? 18 : 11;
+    // (Sparks from a pool of 96: the oldest give way.)
+    const n = reduced() ? 4 : g === 'perfect' ? 14 : 9;
     const x = laneX(lane, 1);
     for (let k = 0; k < n; k++) {
       const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.2;
       const v = 260 + Math.random() * 420;
-      R.sparks.push({ x, y: geo.hitY, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.45 + Math.random() * 0.35, age: 0, c: g === 'perfect' && k % 3 === 0 ? '#fff' : tint[lane], r: 1.6 + Math.random() * 2.4 });
+      let p = R.sparks.find(q => q.age >= q.life);
+      if (!p) {
+        if (R.sparks.length >= 96) p = R.sparks.reduce((o, q) => (q.age / q.life > o.age / o.life ? q : o));
+        else R.sparks.push((p = {}));
+      }
+      Object.assign(p, { x, y: geo.hitY, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 0.45 + Math.random() * 0.35, age: 0, c: g === 'perfect' && k % 3 === 0 ? LANES : lane, r: 1.6 + Math.random() * 2.4 });
     }
-    // (A tick in the hand on iOS, never more than one in 70 ms.)
-    const now = performance.now();
-    if (now - R.buzz > 70) (R.buzz = now), tick();
   }
   function miss(lane, tail = false) {
     R.tally.miss++;
@@ -592,10 +712,14 @@ export function mountGame(host, api) {
     draw(t, dt, performance.now());
     if (t > R.end && !R.over) finish();
   }
+  // A frame: only what moves. No blur, no shadows, no new gradients; the score and the bar
+  // touch the page at most ten times a second, and then only their text and a transform.
+  let paintAt = 0;
   function draw(t, dt, now) {
     const g = cx2;
     const { lane: LW, hitY, cx } = geo;
     const ap = R.ap;
+    const { far, near, half } = still;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, Wd, Ht);
     // (A miss shakes the stage, a little and briefly.)
@@ -603,127 +727,71 @@ export function mountGame(host, api) {
       g.translate((Math.random() - 0.5) * 8 * R.shake, (Math.random() - 0.5) * 6 * R.shake);
       R.shake = Math.max(0, R.shake - dt * 5);
     }
-    // The beat: a glow from the far end, on every beat, stronger on the bar's first.
+    // The beat: the glow behind, on every beat, stronger on the bar's first (its opacity only).
     const beat = t / R.spb;
     const ph = beat - Math.floor(beat);
-    const down1 = Math.floor(beat) % 4 === 0;
-    const pulse = t < 0 ? 0 : Math.exp(-ph * 5) * (down1 ? 1 : 0.6);
-    const glow = g.createRadialGradient(cx, geo.topY, 10, cx, geo.topY, Math.max(Wd, Ht) * 0.75);
-    glow.addColorStop(0, hsla(R.fever ? (now / 8) % 360 : null, 0.22 + 0.32 * pulse));
-    glow.addColorStop(1, 'rgba(0,0,0,0)');
-    g.globalCompositeOperation = 'lighter';
-    g.fillStyle = glow;
-    g.fillRect(0, 0, Wd, Ht);
+    const pulse = t < 0 ? 0 : Math.exp(-ph * 5) * (Math.floor(beat) % 4 === 0 ? 1 : 0.6);
+    const op = (0.35 + 0.65 * pulse * (R.fever ? 1 : 0.7)).toFixed(2);
+    if (glowEl.dataset.o !== op) (glowEl.dataset.o = op), (glowEl.style.opacity = op);
     // Stars streaming by, either side of the highway.
     for (const st of R.stars) {
       st.p -= (dt / ap) * 0.9 * (R.fever ? 1.8 : 1);
       if (st.p < -0.2) st.p += 1.2;
       const { s, y } = proj(st.p * ap, ap);
-      const x = cx + st.x * LW * s;
-      g.fillStyle = tint[st.hue];
       g.globalAlpha = Math.min(1, (1 - st.p) * 0.9) * 0.7;
-      g.fillRect(x - s, y - s * 5, s * 2, s * 10);
+      g.fillStyle = tint[st.hue];
+      g.fillRect(cx + st.x * LW * s - s, y - s * 5, s * 2, s * 10);
     }
-    g.globalAlpha = 1;
-    g.globalCompositeOperation = 'source-over';
-    // The highway.
-    const far = proj(ap, ap);
-    const near = proj(-0.24 * ap, ap);
-    const half = (LW * LANES) / 2;
-    g.beginPath();
-    g.moveTo(cx - half * far.s, far.y);
-    g.lineTo(cx + half * far.s, far.y);
-    g.lineTo(cx + half * near.s, near.y);
-    g.lineTo(cx - half * near.s, near.y);
-    g.closePath();
-    const road = g.createLinearGradient(0, far.y, 0, near.y);
-    road.addColorStop(0, 'rgba(10,10,20,0)');
-    road.addColorStop(0.35, 'rgba(14,14,26,.72)');
-    road.addColorStop(1, 'rgba(10,10,18,.92)');
-    g.fillStyle = road;
-    g.fill();
-    // Lanes lit while pressed, and their beams after a hit.
+    // Lanes lit while pressed, red on a miss.
     for (let k = 0; k < LANES; k++) {
       R.flash[k] = R.pressed[k] ? Math.max(R.flash[k], 0.45) : Math.max(0, R.flash[k] - dt * 4);
       R.beams[k] = Math.max(0, R.beams[k] - dt * 3.2);
       R.miss[k] = Math.max(0, R.miss[k] - dt * 3);
-      const a = Math.max(R.flash[k] * 0.35, R.beams[k] * 0.55);
-      if (a > 0.01) laneFill(g, k, far, near, tint[k], a);
-      if (R.miss[k] > 0.01) laneFill(g, k, far, near, '#ff3b5c', R.miss[k] * 0.35);
+      const a = Math.max(R.flash[k] * 0.35, R.beams[k] * 0.5);
+      if (a > 0.01) laneFill(g, k, still.lit[k], a);
+      if (R.miss[k] > 0.01) laneFill(g, k, still.red, R.miss[k] * 0.35);
     }
-    // Beat lines crossing the road: each beat, the bar's first brighter.
-    g.lineWidth = 1;
-    for (let b = Math.ceil((t - 0.24 * ap) / R.spb); b * R.spb < t + ap; b++) {
-      if (b < 0) continue;
-      const { s, y } = proj(b * R.spb - t, ap);
-      g.strokeStyle = b % 4 === 0 ? `rgba(255,255,255,${0.32 * s})` : `rgba(255,255,255,${0.1 * s})`;
-      g.lineWidth = b % 4 === 0 ? 2 * s : 1;
+    // Beat lines crossing the road: each beat, the bar's first brighter (two strokes in all).
+    for (const bar of [false, true]) {
       g.beginPath();
-      g.moveTo(cx - half * s, y);
-      g.lineTo(cx + half * s, y);
+      for (let b = Math.max(0, Math.ceil((t - 0.24 * ap) / R.spb)); b * R.spb < t + ap; b++) {
+        if ((b % 4 === 0) !== bar) continue;
+        const { s, y } = proj(b * R.spb - t, ap);
+        g.moveTo(cx - half * s, y);
+        g.lineTo(cx + half * s, y);
+      }
+      g.globalAlpha = bar ? 0.3 : 0.1;
+      g.strokeStyle = '#fff';
+      g.lineWidth = bar ? 2 : 1;
       g.stroke();
     }
-    // Lane lines, and the road's two edges in its colours (all colours in the fever).
-    for (let k = 0; k <= LANES; k++) {
-      const edge = k === 0 || k === LANES;
-      const x0 = cx + (k - LANES / 2) * LW * far.s;
-      const x1 = cx + (k - LANES / 2) * LW * near.s;
-      const gr = g.createLinearGradient(0, far.y, 0, near.y);
-      const col = edge ? (R.fever ? `hsl(${(now / 4 + k * 40) % 360} 95% 65%)` : tint[k === 0 ? 0 : 3]) : 'rgba(255,255,255,.16)';
-      gr.addColorStop(0, 'rgba(255,255,255,0)');
-      gr.addColorStop(0.5, col);
-      gr.addColorStop(1, col);
-      g.strokeStyle = gr;
-      g.lineWidth = edge ? 2.5 + pulse * 2 : 1;
-      if (edge) (g.shadowColor = col), (g.shadowBlur = 12 + pulse * 10);
-      g.beginPath();
-      g.moveTo(x0, far.y);
-      g.lineTo(x1, near.y);
-      g.stroke();
-      g.shadowBlur = 0;
-    }
-    // The hit line, and each lane's pad on it.
-    const lineG = g.createLinearGradient(cx - half, 0, cx + half, 0);
-    tint.forEach((c, k) => lineG.addColorStop(k / (LANES - 1), c));
-    g.fillStyle = lineG;
-    g.globalAlpha = 0.85;
-    g.fillRect(cx - half, hitY - 1.5, half * 2, 3);
-    g.globalAlpha = 1;
+    // The pads lit while pressed.
     for (let k = 0; k < LANES; k++) {
-      const x = laneX(k, 1);
-      const on = R.flash[k];
-      g.fillStyle = `rgba(255,255,255,${0.06 + on * 0.25})`;
-      rounded(g, x - LW * 0.42, hitY - 13, LW * 0.84, 26, 13);
+      if (R.flash[k] < 0.02) continue;
+      g.globalAlpha = R.flash[k] * 0.5;
+      g.fillStyle = tint[k];
+      rounded(g, laneX(k, 1) - LW * 0.42, hitY - 13, LW * 0.84, 26, 13);
       g.fill();
-      g.strokeStyle = tint[k];
-      g.globalAlpha = 0.5 + on * 0.5;
-      g.lineWidth = 2;
-      g.stroke();
-      g.globalAlpha = 1;
     }
+    g.globalAlpha = 1;
     // The combo, under the notes (they're what you watch).
     R.bump = Math.max(0, R.bump - dt * 6);
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
     if (R.combo >= 3) {
-      g.textAlign = 'center';
-      g.textBaseline = 'middle';
-      const sc = 1 + R.bump * 0.18;
-      g.globalAlpha = 0.6;
-      text(g, String(R.combo), cx, Ht * 0.34, 72 * sc, R.fever ? `hsl(${(now / 6) % 360} 95% 70%)` : '#fff', 900, R.fever ? 26 : 12);
-      text(g, W('連擊', 'COMBO'), cx, Ht * 0.34 + 48, 13, 'rgba(255,255,255,.8)', 800, 0);
+      g.globalAlpha = 0.55;
+      text(g, String(R.combo), cx, Ht * 0.34, 72 * (1 + R.bump * 0.18), R.fever ? `hsl(${Math.round(now / 6) % 360} 95% 72%)` : '#fff', 900);
+      text(g, W('連擊', 'COMBO'), cx, Ht * 0.34 + 48, 13, 'rgba(255,255,255,.8)', 800);
       g.globalAlpha = 1;
     }
-    // Holds' trails, then the notes, far first.
+    // Holds' trails, then the notes.
     for (let k = 0; k < LANES; k++) {
       const ns = R.byLane[k];
       for (let j = Math.max(0, R.next[k] - 2); j < ns.length; j++) {
         const n = ns[j];
         if (n.t - t > ap) break;
-        if (!n.end || (n.st === 2 && (n.end ?? n.t) < t)) continue;
-        if (n.st === 2) continue;
-        const a = proj(Math.max(n.st === 1 ? 0 : -0.24 * ap, n.t - t), ap);
-        const b = proj(Math.min(ap, n.end - t), ap);
-        const live = n.st === 1;
-        trail(g, k, a, b, tint[k], live ? 0.75 : 0.38);
+        if (!n.end || n.st === 2) continue;
+        trail(g, k, proj(Math.max(n.st === 1 ? 0 : -0.24 * ap, n.t - t), ap), proj(Math.min(ap, n.end - t), ap), tint[k], n.st === 1 ? 0.7 : 0.35);
       }
     }
     for (let k = 0; k < LANES; k++) {
@@ -732,7 +800,7 @@ export function mountGame(host, api) {
         const n = ns[j];
         const d = n.t - t;
         if (d > ap) break;
-        if (n.st === 2 || n.st === 1 || d < -0.24 * ap) continue;
+        if (n.st || d < -0.24 * ap) continue;
         const { s, y } = proj(d, ap);
         const w = LW * s * 1.18;
         const hh = (w * 104) / 220;
@@ -740,29 +808,26 @@ export function mountGame(host, api) {
         g.drawImage(sprites[k], laneX(k, s) - w / 2, y - hh / 2, w, hh);
       }
     }
-    g.globalAlpha = 1;
-    // Sparks and rings.
+    // Sparks, rings and beams, added light.
     g.globalCompositeOperation = 'lighter';
-    for (let k = R.sparks.length - 1; k >= 0; k--) {
+    let live = 0;
+    for (let k = 0; k < R.sparks.length; k++) {
       const p = R.sparks[k];
+      if (p.age >= p.life) continue;
+      live++;
       p.age += dt;
-      if (p.age > p.life) {
-        R.sparks.splice(k, 1);
-        continue;
-      }
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.vy += 900 * dt;
-      p.vx *= 0.985;
-      g.globalAlpha = 1 - p.age / p.life;
-      g.fillStyle = p.c;
-      g.beginPath();
-      g.arc(p.x, p.y, p.r * (1 - (p.age / p.life) * 0.5), 0, Math.PI * 2);
-      g.fill();
+      const f = Math.max(0, 1 - p.age / p.life);
+      const r = p.r * (2.2 + f * 2.4);
+      g.globalAlpha = f;
+      g.drawImage(dots[p.c], p.x - r, p.y - r, r * 2, r * 2);
     }
+    if (!live) R.sparks.length = 0;
     for (let k = R.rings.length - 1; k >= 0; k--) {
       const r = R.rings[k];
-      const a = (now - r.t) / 380;
+      const a = Math.max(0, (now - r.t) / 380);
       if (a >= 1) {
         R.rings.splice(k, 1);
         continue;
@@ -775,85 +840,71 @@ export function mountGame(host, api) {
       g.ellipse(laneX(r.lane, 1), hitY, LW * (0.3 + e * 0.6), LW * (0.12 + e * 0.24), 0, 0, Math.PI * 2);
       g.stroke();
     }
-    // Beams up the lane from a hit or a hold.
     for (let k = 0; k < LANES; k++) {
       if (R.beams[k] < 0.02) continue;
-      const x = laneX(k, 1);
-      const bm = g.createLinearGradient(0, hitY, 0, hitY - Ht * 0.42);
-      bm.addColorStop(0, tint[k]);
-      bm.addColorStop(1, 'rgba(0,0,0,0)');
-      g.globalAlpha = R.beams[k] * 0.55;
-      g.fillStyle = bm;
-      g.fillRect(x - LW * 0.4, hitY - Ht * 0.42, LW * 0.8, Ht * 0.42);
+      g.globalAlpha = R.beams[k] * 0.5;
+      g.fillStyle = still.beam[k];
+      g.fillRect(laneX(k, 1) - LW * 0.4, hitY - Ht * 0.42, LW * 0.8, Ht * 0.42);
     }
     g.globalAlpha = 1;
     g.globalCompositeOperation = 'source-over';
-    // Words: the countdown, the section, the fever, the grade of the last tap, the combo.
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
+    // Words: the countdown, the section, the fever, the grade of the last tap.
     if (t < 0) {
       const left = -t;
       const n = Math.ceil(left / (LEAD / 3));
       const f = 1 - (left % (LEAD / 3)) / (LEAD / 3);
       if (n <= 3) {
         g.globalAlpha = 1 - f * 0.7;
-        text(g, String(n), cx, Ht * 0.4, 110 * (1.25 - f * 0.25), '#fff', 900, 30);
+        text(g, String(n), cx, Ht * 0.4, 110 * (1.25 - f * 0.25), '#fff', 900);
       }
-      g.globalAlpha = 1;
     } else if (t < 0.6) {
       g.globalAlpha = 1 - t / 0.6;
-      text(g, W('開始！', 'GO!'), cx, Ht * 0.4, 84 * (1 + t * 0.5), '#fff', 900, 30);
-      g.globalAlpha = 1;
+      text(g, W('開始！', 'GO!'), cx, Ht * 0.4, 84 * (1 + t * 0.5), '#fff', 900);
     }
+    g.globalAlpha = 1;
     for (const mk of R.marks) if (!mk.shown && t >= mk.t) (mk.shown = true), (R.banner = { text: mk.text, t: now });
     if (R.banner) {
       const a = (now - R.banner.t) / (R.banner.big ? 1300 : 1100);
       if (a >= 1) R.banner = null;
       else {
         const x = cx + (a < 0.18 ? (1 - a / 0.18) * Wd * 0.6 : a > 0.82 ? -((a - 0.82) / 0.18) * Wd * 0.6 : 0);
-        g.globalAlpha = a < 0.18 ? a / 0.18 : a > 0.82 ? 1 - (a - 0.82) / 0.18 : 1;
-        if (R.banner.big) {
-          const gr = g.createLinearGradient(x - 120, 0, x + 120, 0);
-          gr.addColorStop(0, '#ff5fa2');
-          gr.addColorStop(0.5, '#ffd76a');
-          gr.addColorStop(1, '#5ee2ff');
-          text(g, R.banner.text, x, Ht * 0.25, 46, gr, 900, 24);
-        } else text(g, R.banner.text, x, Ht * 0.25, 26, 'rgba(255,255,255,.92)', 800, 14);
+        g.globalAlpha = Math.max(0, a < 0.18 ? a / 0.18 : a > 0.82 ? 1 - (a - 0.82) / 0.18 : 1);
+        if (R.banner.big) text(g, R.banner.text, x, Ht * 0.25, 46, '#ffd76a', 900);
+        else text(g, R.banner.text, x, Ht * 0.25, 26, 'rgba(255,255,255,.92)', 800);
         g.globalAlpha = 1;
       }
     }
     if (R.pop) {
-      const a = (now - R.pop.t) / 520;
+      const a = Math.max(0, (now - R.pop.t) / 520);
       if (a >= 1) R.pop = null;
       else {
         const sc = a < 0.12 ? 1.35 - (a / 0.12) * 0.35 : 1;
         g.globalAlpha = a > 0.65 ? 1 - (a - 0.65) / 0.35 : 1;
         const y = hitY - Ht * 0.16 - a * 10;
-        text(g, name(GRADE_NAMES, R.pop.g), cx, y, 34 * sc, GRADE_TINT[R.pop.g], 900, 18);
-        if (R.pop.early) text(g, R.pop.early < 0 ? W('早', 'EARLY') : W('晚', 'LATE'), cx, y + 30, 13, 'rgba(255,255,255,.7)', 700, 0);
+        text(g, name(GRADE_NAMES, R.pop.g), cx, y, 34 * sc, GRADE_TINT[R.pop.g], 900);
+        if (R.pop.early) text(g, R.pop.early < 0 ? W('早', 'EARLY') : W('晚', 'LATE'), cx, y + 30, 13, 'rgba(255,255,255,.7)', 700);
         g.globalAlpha = 1;
       }
     }
-    // The score, counting up to what it is; how far into the song.
+    // The score, counting up to what it is; how far into the song (ten times a second).
     const sc = scoreOf({ ...R.tally, combo: R.best }, R.units).score;
     R.shown += (sc - R.shown) * Math.min(1, dt * 10);
-    const shownNow = Math.round(R.shown);
-    if (scoreEl.dataset.v !== String(shownNow)) (scoreEl.dataset.v = String(shownNow)), (scoreEl.textContent = shownNow.toLocaleString());
-    progEl.style.width = `${Math.max(0, Math.min(100, (t / R.end) * 100))}%`;
+    if (now - paintAt > 100) {
+      paintAt = now;
+      const v = String(Math.round(R.shown));
+      if (scoreEl.dataset.v !== v) (scoreEl.dataset.v = v), (scoreEl.textContent = Number(v).toLocaleString());
+      progEl.style.transform = `scaleX(${Math.max(0, Math.min(1, t / R.end)).toFixed(3)})`;
+    }
   }
-  function laneFill(g, k, far, near, col, a) {
-    const LW = geo.lane;
-    const x0 = (s, d) => geo.cx + (k - LANES / 2 + d) * LW * s;
-    const gr = g.createLinearGradient(0, far.y, 0, near.y);
-    gr.addColorStop(0, 'rgba(0,0,0,0)');
-    gr.addColorStop(1, col);
+  function laneFill(g, k, fill, a) {
+    const [[x0f, x0n], [x1f, x1n]] = still.lanes[k];
     g.globalAlpha = a;
-    g.fillStyle = gr;
+    g.fillStyle = fill;
     g.beginPath();
-    g.moveTo(x0(far.s, 0), far.y);
-    g.lineTo(x0(far.s, 1), far.y);
-    g.lineTo(x0(near.s, 1), near.y);
-    g.lineTo(x0(near.s, 0), near.y);
+    g.moveTo(x0f, still.far.y);
+    g.lineTo(x1f, still.far.y);
+    g.lineTo(x1n, still.near.y);
+    g.lineTo(x0n, still.near.y);
     g.fill();
     g.globalAlpha = 1;
   }
@@ -861,10 +912,7 @@ export function mountGame(host, api) {
     const LW = geo.lane;
     const w = 0.3;
     g.globalAlpha = alpha;
-    const gr = g.createLinearGradient(0, b.y, 0, a.y);
-    gr.addColorStop(0, 'rgba(255,255,255,.1)');
-    gr.addColorStop(1, col);
-    g.fillStyle = gr;
+    g.fillStyle = col;
     g.beginPath();
     g.moveTo(laneX(k, b.s) - LW * w * b.s, b.y);
     g.lineTo(laneX(k, b.s) + LW * w * b.s, b.y);
@@ -880,13 +928,7 @@ export function mountGame(host, api) {
     g.stroke();
     g.globalAlpha = 1;
   }
-  const hsla = (hue, a) => {
-    if (hue == null) {
-      const c = tint[0] || 'hsl(300 95% 64%)';
-      return c.replace('hsl(', 'hsla(').replace(')', ` / ${a})`).replace('% 64%', '% 55%');
-    }
-    return `hsla(${Math.round(hue)} 95% 55% / ${a})`;
-  };
+
 
   // ---- Pause, and the end ----
   function pause() {
@@ -1022,7 +1064,7 @@ export function mountGame(host, api) {
       history.replaceState(null, '', hashWas && hashWas !== '#game' ? hashWas : '#create');
     } catch {}
   }
-  const onResize = () => !stage.hidden && layout();
+  const onResize = () => !stage.hidden && R?.it && (layout(), backFor(R.it));
   return { open, close, get open_() {
     return !root.hidden;
   } };
@@ -1038,10 +1080,8 @@ function rounded(g, x, y, w, hh, r) {
   g.arcTo(x, y, x + w, y, r);
   g.closePath();
 }
-function text(g, s, x, y, size, fill, weight = 800, glow = 0) {
+function text(g, s, x, y, size, fill, weight = 800) {
   g.font = `${weight} ${Math.round(size)}px -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang TC", "Noto Sans TC", sans-serif`;
-  if (glow) (g.shadowColor = typeof fill === 'string' ? fill : '#fff'), (g.shadowBlur = glow);
   g.fillStyle = fill;
   g.fillText(s, x, y);
-  g.shadowBlur = 0;
 }
