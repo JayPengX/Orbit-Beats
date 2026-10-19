@@ -6,7 +6,7 @@
 // plays the voices live (from the same hits, `stepHits`), the tests render
 // them.
 //
-//   voice(inst, midi, sr, hold) -> Float32Array (one hit or note, ringing out)
+//   voice(inst, midi, sr, hold, vel, variant) -> Float32Array (one hit or note, ringing out; vel 0..1 how hard, variant 0|1 which take)
 //   renderClip(clip, sr, bpm) -> { sr, L, R } (exactly its bars long)
 //   drumPattern(style, seed, bars), melody(key, inst, seed, bars) (自動編: a start written for you)
 
@@ -64,13 +64,20 @@ const TAU = 2 * Math.PI;
 
 // One hit or note: a drum (midi only for the 808's pitch) or an
 // instrument's note, held `hold` seconds (the notes), then ringing out.
-export function voice(inst, midi = 36, sr = 48000, hold = 0.25) {
+// `vel` (0 to 1): how hard it is struck, the harder the brighter (the level
+// is the clip's gain, not this); `variant` (0 or 1): which of two takes, with
+// its own noise, phase and a few cents' pitch, so a repeated note is never
+// bit for bit the last one.
+export function voice(inst, midi = 36, sr = 48000, hold = 0.25, vel = 0.7, variant = 0) {
   const len = s => new Float32Array(Math.max(1, Math.round(s * sr)));
   const env = (t, d) => Math.exp(-t / d);
-  const noise = noiseOf(inst.length * 7919 + midi);
+  const v = variant ? 1 : 0;
+  const o = { vel: Math.min(1, Math.max(0, vel)), v, ph: v ? 1.9 : 0 };
+  const noise = noiseOf(inst.length * 7919 + midi + v * 104729);
+  const det = v ? 2 ** ((midi % 2 ? 3 : -3) / 1200) : 1;
   let x;
   if (DRUM_VOICES[inst]) {
-    x = DRUM_VOICES[inst](sr, noise);
+    x = DRUM_VOICES[inst](sr, noise, o);
     // (A noisy hit never goes over full scale, whatever its seed.)
     let top = 0;
     for (let i = 0; i < x.length; i++) top = Math.max(top, Math.abs(x[i]));
@@ -79,31 +86,21 @@ export function voice(inst, midi = 36, sr = 48000, hold = 0.25) {
   else if (NOTE_VOICES[inst]) {
     // (The newer notes: each its own loop, then brought to its own loudness, whatever the pitch.)
     x = len(hold + RELEASE[inst]);
-    NOTE_VOICES[inst](x, hz(midi), sr, hold, noise);
+    NOTE_VOICES[inst](x, hz(midi) * det, sr, hold, noise, o);
     let peak = 0;
     for (let i = 0; i < x.length; i++) peak = Math.max(peak, Math.abs(x[i]));
     const g = peak > 1e-9 ? PEAK[inst] / peak : 0;
     for (let i = 0; i < x.length; i++) x[i] *= g;
   } else
   switch (inst) {
-    case 'kick': {
-      x = len(0.5);
-      let ph = 0;
-      for (let i = 0; i < x.length; i++) {
-        const t = i / sr;
-        ph += (TAU * (46 + 120 * env(t, 0.035))) / sr;
-        x[i] = Math.tanh(1.6 * Math.sin(ph) * env(t, 0.16)) * 0.85 + (i < sr * 0.004 ? noise() * 0.12 : 0);
-      }
-      break;
-    }
     case 'sub': {
       x = len(1.2);
       let ph = 0;
-      const f = hz(midi);
+      const f = hz(midi) * det;
       for (let i = 0; i < x.length; i++) {
         const t = i / sr;
         ph += (TAU * f * (1 + 1.2 * env(t, 0.02))) / sr;
-        x[i] = Math.tanh(1.3 * Math.sin(ph)) * 0.75 * env(t, 0.45) * Math.min(1, t / 0.002);
+        x[i] = Math.tanh(2.1 * (Math.sin(ph) + 0.25 * Math.sin(2 * ph))) * 0.7 * env(t, 0.45) * Math.min(1, t / 0.002);
       }
       break;
     }
@@ -129,25 +126,6 @@ export function voice(inst, midi = 36, sr = 48000, hold = 0.25) {
       }
       break;
     }
-    case 'hat':
-    case 'open':
-    case 'crash':
-    case 'ride': {
-      const shape = { hat: [0.09, 0.018, 0.45, 0.12, 317], open: [0.45, 0.11, 0.45, 0.12, 317], crash: [1.6, 0.45, 0.4, 0.1, 289], ride: [1.1, 0.35, 0.12, 0.22, 523] }[inst];
-      const [secs, d, hiss, ping, base] = shape;
-      x = len(secs);
-      let p = 0;
-      for (let i = 0; i < x.length; i++) {
-        const t = i / sr;
-        const w = noise();
-        const hi = w - p;
-        p = w;
-        // Metallic: squares at a cymbal's odd ratios under the noise.
-        const metal = [3.0, 4.16, 5.43, 6.79].reduce((s, r) => s + Math.sign(Math.sin(TAU * base * r * t)), 0) / 4;
-        x[i] = (hiss * hi + ping * metal) * env(t, d) * Math.min(1, t / 0.0008);
-      }
-      break;
-    }
     case 'rim': {
       x = len(0.08);
       for (let i = 0; i < x.length; i++) {
@@ -166,18 +144,6 @@ export function voice(inst, midi = 36, sr = 48000, hold = 0.25) {
         const t = i / sr;
         ph += (TAU * (f0 + drop * env(t, 0.03))) / sr;
         x[i] = 0.7 * Math.sin(ph) * env(t, d) + (i < sr * 0.003 ? noise() * 0.1 : 0);
-      }
-      break;
-    }
-    case 'shaker': {
-      x = len(0.14);
-      let p = 0;
-      for (let i = 0; i < x.length; i++) {
-        const t = i / sr;
-        const w = noise();
-        const hi = w - p;
-        p = w;
-        x[i] = 0.4 * hi * Math.min(1, t / 0.012) * env(t, 0.035);
       }
       break;
     }
@@ -210,8 +176,8 @@ export function voice(inst, midi = 36, sr = 48000, hold = 0.25) {
     }
     default: {
       // The notes: held `hold`, then each instrument's own release.
-      const f = hz(midi);
-      const rel = { keys: 0.5, pluck: 0.3, bass: 0.18, lead: 0.15, pad: 0.8, bell: 1.4, organ: 0.12, strings: 0.6, brass: 0.2, guitar: 0.6, subbass: 0.12, vox: 0.3 }[inst] ?? 0.3;
+      const f = hz(midi) * det;
+      const rel = { bell: 1.4, organ: 0.12, brass: 0.2, guitar: 0.6, vox: 0.3 }[inst] ?? 0.3;
       x = len(hold + rel);
       let ph = 0;
       let lp = 0;
@@ -221,38 +187,12 @@ export function voice(inst, midi = 36, sr = 48000, hold = 0.25) {
       for (let i = 0; i < x.length; i++) {
         const t = i / sr;
         const gate = t < hold ? 1 : env(t - hold, rel / 3);
-        const vib = inst === 'vox' || inst === 'strings' ? 1 + 0.004 * Math.sin(TAU * 5.2 * t) * Math.min(1, t / 0.3) : 1;
+        const vib = inst === 'vox' ? 1 + 0.004 * Math.sin(TAU * 5.2 * t) * Math.min(1, t / 0.3) : 1;
         ph += (TAU * f * vib) / sr;
         let y;
-        if (inst === 'keys') {
-          // An electric piano: a sine, its bell-ish second partial dying fast.
-          y = (Math.sin(ph) + 0.35 * Math.sin(2 * ph) * env(t, 0.25) + 0.15 * Math.sin(3 * ph + Math.sin(ph)) * env(t, 0.08)) * env(t, 1.2) * Math.min(1, t / 0.004);
-          y *= 0.32;
-        } else if (inst === 'pluck') {
-          y = 0.34 * (Math.sin(ph) + 0.5 * Math.sin(2 * ph) + 0.25 * Math.sin(3 * ph)) * env(t, 0.22) * Math.min(1, t / 0.003);
-        } else if (inst === 'bass') {
-          // A saw through a closing low-pass.
-          let saw = 0;
-          for (let k = 1; k <= 8; k++) saw += Math.sin(k * ph) / k;
-          lp += (0.08 + 0.4 * env(t, 0.06)) * (saw - lp);
-          y = 0.42 * lp * Math.min(1, t / 0.003);
-        } else if (inst === 'lead') {
-          // Two squares a little apart.
-          const sq = q => Math.sign(Math.sin(q)) * 0.5 + Math.sin(q) * 0.5;
-          y = 0.15 * (sq(ph) + sq(ph * 1.006)) * Math.min(1, t / 0.006);
-        } else if (inst === 'pad') {
-          let saw = 0;
-          for (let k = 1; k <= 6; k++) saw += (Math.sin(k * ph) + Math.sin(k * ph * 1.004)) / k;
-          y = 0.12 * saw * Math.min(1, t / 0.12);
-        } else if (inst === 'organ') {
+        if (inst === 'organ') {
           // Drawbars: the note, its octave, twelfth, and two octaves up.
           y = 0.16 * (Math.sin(ph) + 0.8 * Math.sin(2 * ph) + 0.5 * Math.sin(3 * ph) + 0.4 * Math.sin(4 * ph) + 0.2 * Math.sin(8 * ph)) * Math.min(1, t / 0.008);
-        } else if (inst === 'strings') {
-          // Three saws a little apart, a slow bow, a darker top.
-          let saw = 0;
-          for (let k = 1; k <= 7; k++) saw += (Math.sin(k * ph) + Math.sin(k * ph * 1.003) + Math.sin(k * ph * 0.997)) / (k * k ** 0.3);
-          lp += 0.18 * (saw - lp);
-          y = 0.1 * lp * Math.min(1, t / 0.15);
         } else if (inst === 'brass') {
           // A saw whose brightness swells at the start and settles.
           let saw = 0;
@@ -265,8 +205,6 @@ export function voice(inst, midi = 36, sr = 48000, hold = 0.25) {
           const v = ks[j];
           ks[j] = 0.996 * 0.5 * (v + prev);
           y = 1.4 * v;
-        } else if (inst === 'subbass') {
-          y = 0.5 * Math.tanh(1.4 * Math.sin(ph)) * Math.min(1, t / 0.004);
         } else if (inst === 'vox') {
           // A sung "ah": a saw through the vowel's two formants.
           let saw = 0;
@@ -348,7 +286,9 @@ export function chordOf(midi, key) {
 
 // What sounds on step s of a clip: [{ inst, midi, len (16ths), gain }],
 // and how late the step is played (a 16th's share: its swing).
-export function stepHits(clip, s) {
+// (`vel`, how hard it is struck, only for renderClip: a soft hit is darker, an accent brighter.)
+const VELOCITY = [0.7, 0.7, 1, 0.38];
+function hitList(clip, s) {
   const out = [];
   if (clip.kind === 'drums') {
     for (const d of ALL_DRUMS) {
@@ -356,32 +296,48 @@ export function stepHits(clip, s) {
       if (!v) continue;
       // (Off-beat hats a little softer: a hand's accents; then the hit's level.)
       const gain = (d === 'hat' && s % 2 ? 0.7 : 1) * levelGain(v);
-      out.push({ inst: d, midi: d === 'sub' ? clip.pitch || 33 : 36, len: 1, gain });
+      out.push({ inst: d, midi: d === 'sub' ? clip.pitch || 33 : 36, len: 1, gain, vel: VELOCITY[v] ?? 0.7 });
     }
   } else
     for (const n of clip.notes)
-      if (n.step === s) for (const m of n.chord ? chordOf(n.midi, clip.key) : [n.midi]) out.push({ inst: clip.inst, midi: m, len: n.len || 1, gain: (n.chord ? 0.62 : 1) * levelGain(n.lv || 1) });
+      if (n.step === s) for (const m of n.chord ? chordOf(n.midi, clip.key) : [n.midi]) out.push({ inst: clip.inst, midi: m, len: n.len || 1, gain: (n.chord ? 0.62 : 1) * levelGain(n.lv || 1), vel: VELOCITY[n.lv || 1] ?? 0.7 });
   return out;
 }
+export const stepHits = (clip, s) => hitList(clip, s).map(({ vel, ...h }) => h);
 // (A swung clip, `shuffle`: its off-beat eighths late too, by that share of a 16th, as engine.mjs's SHUFFLE.)
 export const swingOf = (clip, s) => (s % 2 ? clip.swing || 0 : 0) + (s % 4 === 2 ? clip.shuffle || 0 : 0);
 
-// The notes rendered lately (a note is the same each time: a clip's own, and the next clip's).
+// The notes rendered lately (a note is the same each time it is asked for the same way: its pitch, length,
+// how hard and which take).
 const VOICES = new Map();
+let voiceSamples = 0;
+const VOICE_BUDGET = 12e6;   // (samples kept: about 48 MB; a song's own notes are a few hundred)
 // A clip as a piece: exactly its bars long (a loop of them), with a phone
 // mic's faint noise floor all through, so splitting keeps it whole.
+// A note that comes again in the clip takes the other of its two takes, so a repeat is never bit for bit the last.
 export function renderClip(clip, sr = 48000, bpm = 120) {
   const B = (60 / bpm) * sr;
   const n = Math.round(clip.bars * 4 * B);
   const L = new Float32Array(n);
   const cache = VOICES;
-  if (cache.size > 400) cache.clear();   // (a song's own notes are a couple of hundred)
+  if (voiceSamples > VOICE_BUDGET) {
+    cache.clear();
+    voiceSamples = 0;
+  }
+  const seen = new Map();
   for (let s = 0; s < STEPS * clip.bars; s++) {
     const a = Math.round(((s + swingOf(clip, s)) / 4) * B);
-    for (const { inst, midi, len, gain } of stepHits(clip, s)) {
+    for (const { inst, midi, len, gain, vel } of hitList(clip, s)) {
       const hold = clip.kind === 'drums' ? 0.25 : (len / 4) * (60 / bpm);
-      const key = `${sr}|${inst}|${midi}|${hold}`;
-      if (!cache.has(key)) cache.set(key, voice(inst, midi, sr, hold));
+      const again = `${inst}|${midi}|${hold}|${vel}`;
+      const take = (seen.get(again) || 0) % 2;
+      seen.set(again, take + 1);
+      const key = `${sr}|${again}|${take}`;
+      if (!cache.has(key)) {
+        const v = voice(inst, midi, sr, hold, vel, take);
+        cache.set(key, v);
+        voiceSamples += v.length;
+      }
       const x = cache.get(key);
       for (let k = 0, j = a; k < x.length && j < n; k++, j++) L[j] += x[k] * gain;
     }

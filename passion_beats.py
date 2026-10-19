@@ -23,6 +23,7 @@ import argparse, datetime, os, random, sys
 import numpy as np
 from scipy.io import wavfile
 from scipy.signal import lfilter
+from scipy.linalg import hadamard
 
 sr = 48000
 B = 60 / 120 * sr   # samples per beat, once the tempo is known
@@ -623,12 +624,17 @@ class Song:
 
 # ---- The mixer (the same steps as public/lib/mix.mjs; see the README) ----
 # Each piece plays on its bus (drums, hats, bass, the riffs and phrases as
-# keys), each bus its level; the riffs into an echo (a dotted eighth left, an
-# eighth right) and a room, the snare a little of the room too; the bass and
-# the riffs ducking under the kick (the pump); the riffs opening up through
-# the intro, rising out of the way over a pre-hook, muffled in a break; the
-# hats a little to one side. Then one loudness, held under -1 dBFS by a
-# limiter that looks ahead, so nothing clips whatever the format.
+# keys), each bus its level; the drums and the bass glued by a 2:1 compressor
+# and kept clear of the sub (a phone's speaker plays their harmonics, not the
+# bottom octave); the riffs brightened at the top, set wide (the middle stays
+# put, so a mono speaker hears them as they were), and put into an echo (a
+# dotted eighth left, an eighth right) and a room; the snare and hats a little
+# of the room too, the kick and bass none; the bass and the riffs ducking under
+# the kick (the pump); the riffs opening up through the intro, rising out of
+# the way over a pre-hook, muffled in a break; the hats a little to one side.
+# Then the whole song brought to one loudness (an RMS, not a peak), warmed by
+# a soft saturation and held under -1 dBFS by a limiter that looks ahead, so
+# nothing clips whatever the format.
 
 BUSES = ['drums','hats','bass','keys']
 BUS_OF = dict(riff='keys',phrase='keys',bass='bass',hat='hats',tick='hats',fill='drums',kick='drums',sub='drums',snare='drums',roll='drums')
@@ -636,6 +642,7 @@ MIX = dict(on=True,drums=0,hats=-2,bass=-1,keys=-1,reverb=0.25,delay=0.2,pump=0.
 LIMITS = dict(drums=(-24,6),hats=(-24,6),bass=(-24,6),keys=(-24,6),reverb=(0,1),delay=(0,1),pump=(0,1),width=(0,1))
 db_gain = lambda d: 10 ** (d / 20)
 CEILING = db_gain(-1)
+LOUDNESS = -13   # the song's RMS (dBFS) after the master
 BLOCK = 256   # a sweep's cutoff moves by blocks
 
 def mix_of(m):   # any mixer as a whole one: every number in its range, what's missing as it opens
@@ -681,22 +688,33 @@ def comb(x, d, fb):   # y[n] = x[n-d] + fb y[n-d]: an echo every d samples, each
         e = min(len(x), k + d); y[k:e] = x[k - d:e - d] + fb * y[k - d:e - d]
     return y
 
-def allpass(x, d, g):   # y[n] = -g x[n] + x[n-d] + g y[n-d]: smears without colouring
-    y = -g * x
-    for k in range(d, len(x), d):
-        e = min(len(x), k + d); y[k:e] += x[k - d:e - d] + g * y[k - d:e - d]
-    return y
-
+FDN = [1031, 1327, 1621, 1913, 2203, 2503, 2791, 3137]   # the room's eight delays (samples at 44.1 kHz)
+FDN_FEED, FDN_DAMP, FDN_OUT = 0.85, 6000, 0.45
+H8 = hadamard(8).astype(np.float64)
 def room(send):
-    """A room (Schroeder's: four combs side by side, fb 0.82, a quarter each,
-    then two all-passes in a row, g 0.5) from a mono send, a little different
-    each side. -> L, R"""
-    k = sr / 44100
-    def side(spread):
-        v = sum(comb(send, jround((d + spread) * k), 0.82) for d in (1116, 1188, 1277, 1356)) * 0.25
-        for d in (556, 441): v = allpass(v, jround((d + spread) * k), 0.5)
-        return v
-    return side(0), side(23)
+    """The room: an 8-line feedback delay network (Jot's: eight delays of 23 to 71
+    ms, fed back through a Hadamard matrix at 0.85, each line darkened by a
+    one-pole low-pass at 6 kHz as it goes round, so the highs die first). The mono
+    send enters through a stereo pre-delay (20 ms on the even lines, 27 ms on the
+    odd) and the two sides are taken from different mixes of the lines. Worked a
+    block of the shortest delay at a time (a line's output is what it wrote one
+    delay ago, so a block never needs its own). -> L, R"""
+    n = len(send); k = sr / 44100
+    d = [max(2, jround(v * k)) for v in FDN]; blk = min(d)
+    c = coef(FDN_DAMP); g = FDN_FEED * np.sqrt(1 / 8); o = FDN_OUT * np.sqrt(1 / 8)
+    pre = lambda ms: np.r_[np.zeros(jround(ms * sr)), send][:n]
+    ins = [pre(0.02), pre(0.027)]
+    sl = np.array([1, 1, -1, -1, 1, 1, -1, -1.]); sr_ = np.array([1, -1, -1, 1, 1, -1, -1, 1.])
+    hist = [np.zeros(di) for di in d]; dark = np.zeros(8); L = np.zeros(n); R = np.zeros(n)
+    for s in range(0, n, blk):
+        m = min(blk, n - s)
+        Y = np.stack([h[:m] for h in hist])   # what each line wrote one delay ago
+        L[s:s + m] = o * (sl @ Y); R[s:s + m] = o * (sr_ @ Y)
+        F = (H8 @ Y) * g
+        for i in range(8):
+            lp = lowpass(F[i], c, dark[i]); dark[i] = lp[-1]
+            hist[i] = np.concatenate([hist[i][m:], lp + ins[i & 1][s:s + m]])
+    return L, R
 
 def duck(n, kicks, depth):   # a bus's gain: 1, dipping by `depth` at each kick and back over half a beat
     g = np.ones(n)
@@ -722,11 +740,47 @@ def limit_gain(L, R, ceiling=CEILING):
     b0 = np.clip(np.floor(c), 0, nb - 1).astype(int); b1 = np.minimum(nb - 1, b0 + 1); f = np.clip(c - b0, 0, 1)
     return np.minimum(G[b0] + (G[b1] - G[b0]) * f, raw[np.arange(n) // blk])
 
-def mixdown(place, n, plan, kicks, m, stems=False):
+GLUE_BLOCK = 4096
+def glue(bL, bR, ratio=2, atk=0.01, rel=0.12, knee=6, over=3):
+    """The glue: a 2:1 compressor on a bus (L and R together), in place. Its level
+    detector is the greater of two smoothed powers (10 ms and 120 ms: quick to rise,
+    slow to let go), read every fourth sample; the threshold sits 3 dB over the bus's
+    own average (over where it plays), a soft knee 6 dB wide, the gain worked every 16
+    samples and eased between. -> the gain that brings the bus back to the power it had."""
+    n = len(bL)
+    if n == 0: return 1.0
+    p4 = bL[::4] ** 2 + bR[::4] ** 2
+    per = GLUE_BLOCK // 4; nb = -(-n // GLUE_BLOCK)
+    pad = np.zeros(nb * per); pad[:len(p4)] = p4; pb = pad.reshape(nb, per).sum(1) / (2 * per)
+    top = pb.max()
+    if not top > 0: return 1.0
+    thr = 10 * np.log10(pb[pb > 0.05 * top].mean()) + over
+    cA = 1 - np.exp(-4 / (atk * sr)); cR = 1 - np.exp(-4 / (rel * sr))
+    q = p4 * 0.5
+    env = np.maximum(lowpass(q, cA), lowpass(q, cR))[::4]
+    o = 10 * np.log10(env + 1e-20) - thr; slope = 1 - 1 / ratio
+    gr = np.where(2 * o < -knee, 0, np.where(2 * np.abs(o) <= knee, slope * (o + knee / 2) ** 2 / (2 * knee), slope * o))
+    gb = 10 ** (-gr / 20); gb = np.r_[gb, gb[-1]]
+    j = np.arange(n); k = j >> 4; g = gb[k] + (gb[k + 1] - gb[k]) * ((j & 15) / 16)
+    before = (bL ** 2 + bR ** 2).sum(); bL *= g; bR *= g; after = (bL ** 2 + bR ** 2).sum()
+    return np.sqrt(before / after) if after > 0 else 1.0
+
+def widen(bL, bR, amount):
+    """Set wide: a copy of what is above 300 Hz of the middle, 11 ms late and 19 ms late
+    (the second the other way up), added to the left and taken from the right. The sum of
+    the two sides is still the middle, so a mono speaker hears the riffs as they were."""
+    if not amount: return
+    n = len(bL); d1, d2 = jround(0.011 * sr), jround(0.019 * sr)
+    mid = (bL + bR) * 0.5; h = mid - lowpass(mid, coef(300)); s = np.zeros(n)
+    if d1 < n: s[d1:] += 0.7 * h[:n - d1]
+    if d2 < n: s[d2:] -= 0.5 * h[:n - d2]
+    bL += amount * s; bR -= amount * s
+
+def mix_buses(place, n, plan, kicks, m, stems=False):
     """`place(bus, L, R)` sums a bus's hits into L and R and says whether it had
-    any; `kicks`: where each kick and 808 starts; `plan`: the sections. ->
-    L, R, {stem: (L, R)} (the buses and 'fx', the echo's and room's), and how
-    far past full scale the loudest moment went before it was brought down (dB)."""
+    any; `kicks`: where each kick and 808 starts; `plan`: the sections. The buses,
+    mixed: their levels, tone, glue, width, echo, the room and the fade, no loudness
+    yet. -> L, R, {stem: (L, R)} (the buses and 'fx', the echo's and room's)"""
     L = np.zeros(n); R = np.zeros(n); out = {}
     send = np.zeros(n) if m['reverb'] else None   # into the room, mono
     bar = lambda k: jround(k * 4 * B)
@@ -749,13 +803,25 @@ def mixdown(place, n, plan, kicks, m, stems=False):
             if pump is None: pump = duck(n, kicks, 1)   # the full dip, scaled for each bus
             g = 1 - depth * (1 - pump)
         bL *= left * g; bR *= gain * g
-        if send is not None:   # the riffs to the room; the drums' top (the snare), from the left, as the page does
-            if name == 'keys': send += (bL + bR) * 0.25 * m['reverb']
-            elif name == 'drums': send += one_pole(bL, 300, 'hp') * 0.2 * m['reverb']
-        if name == 'keys' and m['delay']:   # the echo: the riffs as they were, darkened at 3 kHz
-            dark = one_pole((bL + bR) / 2, 3000); amt = m['delay'] * 0.45
+        keys, rhythm = name == 'keys', name in ('drums', 'bass')
+        if send is not None:   # the riffs and hats to the room; the drums' top (the snare, not the kick's thump), from the left
+            if keys: send += (bL + bR) * 0.75 * m['reverb']
+            elif name == 'hats': send += (bL + bR) * 0.3 * m['reverb']
+            elif name == 'drums': send += (bL - lowpass(lowpass(bL, coef(500)), coef(500))) * 0.6 * m['reverb']
+        echo = (bL + bR) / 2 if keys and m['delay'] else None   # the riffs as they were, for the echo
+        if rhythm:   # the tone: some of what is under 100 / 90 Hz taken out of the middle, the rumble under 30 Hz gone
+            mid = (bL + bR) * 0.5; side = bL - mid
+            w = mid - (0.25 if name == 'drums' else 0.3) * lowpass(mid, coef(100 if name == 'drums' else 90))
+            w = w - lowpass(w, coef(30)); bL, bR = w + side, w - side
+        elif keys:   # +2.5 dB over 3 kHz
+            c = coef(3000); bL = bL + 0.334 * (bL - lowpass(bL, c)); bR = bR + 0.334 * (bR - lowpass(bR, c))
+        back = glue(bL, bR) if rhythm else 1
+        if keys: widen(bL, bR, 1.2 * m['width'])
+        if echo is not None:   # the echo: darkened at 3 kHz
+            dark = one_pole(echo, 3000); amt = m['delay'] * 0.45
             bL += comb(dark, max(1, jround(0.75 * B)), 0.35) * amt
             bR += comb(dark, max(1, jround(0.5 * B)), 0.35) * amt
+        bL *= back; bR *= back
         L += bL; R += bR
         if stems: out[name] = (bL, bR)
     if send is not None:
@@ -770,13 +836,37 @@ def mixdown(place, n, plan, kicks, m, stems=False):
             _, a, b = o; j = np.arange(a, n)
             env = np.where(j >= b, 0, np.cos((j - a) / max(1, b - a) * (np.pi / 2)) ** 2)
             for x in [L, R] + [x for s in out.values() for x in s]: x[a:] *= env
-    # one loudness: the loudest moment 3 dB past the ceiling, then held under it
+    return L, R, out
+
+def loudness(L, R):
+    """The mean power (per side) after a 100 Hz high-pass, over the 0.4 s blocks within 10 dB of the average."""
+    n = len(L); blk = max(1, jround(0.4 * sr)); nb = -(-n // blk); c = coef(100)
+    pad = np.zeros(nb * blk); pad[:n] = (L - lowpass(L, c)) ** 2 + (R - lowpass(R, c)) ** 2
+    pb = pad.reshape(nb, blk).sum(1) / (2 * blk) if nb else pad
+    allm = pb.sum() / (nb or 1); act = pb[pb > 0.1 * allm]
+    return act.mean() if len(act) else 0.0
+
+SAT = 1 / 1.3 ** 2   # the soft saturation: a sample's gain is 1 / sqrt(1 + (a / 1.3)^2) of the louder side's size
+
+def master(L, R, out):
+    """The song brought to one loudness (its RMS to LOUDNESS, the loudest moment never
+    more than 8 dB past the ceiling, the limiter's most), then a soft saturation, then
+    held under the ceiling; the stems get the same gains. In place. -> how far past
+    full scale the loudest moment went at that loudness, before the limiter (dB)."""
+    n = len(L)
     peak = max(np.abs(L).max(), np.abs(R).max()) if n else 0
-    makeup = CEILING * np.sqrt(2) / peak if peak > 0 else 1
+    pw = loudness(L, R)
+    makeup = min(np.sqrt(db_gain(LOUDNESS) ** 2 / pw), CEILING * 2.5 / peak) if peak > 0 and pw > 0 else 1
     L *= makeup; R *= makeup
+    sat = 1 / np.sqrt(1 + np.maximum(np.abs(L), np.abs(R)) ** 2 * SAT); L *= sat; R *= sat
     g = limit_gain(L, R); L *= g; R *= g
-    for x in [x for s in out.values() for x in s]: x *= makeup * g
-    return L, R, out, (20 * np.log10(peak) if peak > 0 else -np.inf)
+    for x in [x for s in out.values() for x in s]: x *= makeup * sat * g
+    return 20 * np.log10(peak * makeup) if peak > 0 else -np.inf
+
+def mixdown(place, n, plan, kicks, m, stems=False):
+    """The buses mixed, then the master. -> L, R, {stem: (L, R)}, over (dB, the master's)"""
+    L, R, out = mix_buses(place, n, plan, kicks, m, stems)
+    return L, R, out, master(L, R, out)
 
 def render(s, roles, plan, m, stems=False):
     """The hits summed and mixed (m: the mixer, None for the pieces exactly as

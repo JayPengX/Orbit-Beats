@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MIX, BUSES, BUS_OF, STEMS, CEILING, mixOf, dbGain, mixdown, limitGain, duck, comb, allpass, room, onePole, sweep } from '../public/lib/mix.mjs';
+import { MIX, BUSES, BUS_OF, STEMS, CEILING, LOUDNESS, mixOf, dbGain, mixdown, mixBuses, master, limitGain, duck, room, glue, widen, loudness, onePole, sweep } from '../public/lib/mix.mjs';
 import { ROLES, STYLES, makeSong, demoRecording, splitPieces, analyzeRecording } from '../public/engine.mjs';
 
 const rec = demoRecording();
@@ -79,26 +79,108 @@ test('the pump: a dip of the depth asked at each kick, back over half a beat, ki
   for (const v of g) assert.ok(v >= 0.4 - 1e-6 && v <= 1);
 });
 
-test('the echo and the room: comb, all-pass and room are the sums they say', () => {
-  const imp = new Float32Array(20); imp[0] = 1;
-  const c = comb(imp, 3, 0.5);
-  assert.deepEqual([c[0], c[3], c[6], c[9], c[4]], [0, 1, 0.5, 0.25, 0]);
-  const a = allpass(imp, 4, 0.5);
-  assert.ok(Math.abs(a[0] + 0.5) < 1e-7 && Math.abs(a[4] - 0.75) < 1e-7 && Math.abs(a[8] - 0.375) < 1e-7);
-  // room() in one pass equals the combs and all-passes one after another (at 44.1 kHz, no rounding of the delays).
-  const sr = 44100, send = Float32Array.from({ length: 6000 }, (_, j) => (j < 300 ? Math.sin(j / 5) : 0));
-  const r = room(send, sr);
-  for (const [side, spread] of [['L', 0], ['R', 23]]) {
-    const combs = [1116, 1188, 1277, 1356].map(d => comb(send, d + spread, 0.82));
-    const sum = combs[0].map((_, j) => (combs[0][j] + combs[1][j] + combs[2][j] + combs[3][j]) * 0.25);
-    const want = allpass(allpass(sum, 556 + spread, 0.5), 441 + spread, 0.5);
-    assert.ok(maxDiff(r[side], want) < 1e-5, side);
-  }
-  assert.ok(peakOf(r.L) > 0.01, 'it rings');
+test('the room: silent until the pre-delay, then rings and dies away, the sides unlike, steady however long it runs', () => {
+  const sr = 32000;
+  const imp = new Float32Array(sr * 6); imp[0] = 1;
+  const r = room(imp, sr);
+  assert.equal(r.L.length, imp.length);
+  const energy = (x, a, b) => { let e = 0; for (let j = Math.round(a * sr); j < Math.round(b * sr); j++) e += x[j] * x[j]; return e; };
+  assert.equal(energy(r.L, 0, 0.019), 0, 'nothing before the 20 ms pre-delay');
+  assert.ok(energy(r.L, 0.02, 0.3) > 0 && energy(r.R, 0.027, 0.3) > 0, 'it rings');
+  assert.ok(energy(r.L, 0.5, 1) > 30 * energy(r.L, 3.5, 4), 'and dies away: well over 30× less 3 s on');
+  assert.ok(energy(r.L, 0.5, 1) > 0 && energy(r.L, 3.5, 4) > 0, 'a tail, not a gate');
+  let dot = 0, ll = 0, rr = 0;
+  for (let j = 0; j < imp.length; j++) { dot += r.L[j] * r.R[j]; ll += r.L[j] ** 2; rr += r.R[j] ** 2; }
+  assert.ok(Math.abs(dot / Math.sqrt(ll * rr)) < 0.3, 'the two sides are not alike');
+  // Noise in for a minute: it neither grows without end nor goes quiet (a stable loop, the output a small share of the input).
+  let x = 99;
+  const rnd = () => ((x = (Math.imul(x, 1103515245) + 12345) >>> 0) / 4294967296) * 2 - 1;
+  const noise = Float32Array.from({ length: sr * 20 }, rnd);
+  const n = room(noise, sr);
+  assert.ok(n.L.every(Number.isFinite));
+  assert.ok(energy(n.L, 10, 20) < 3 * energy(n.L, 4, 14) && energy(n.L, 10, 20) > 0.3 * energy(n.L, 4, 14), 'level steady');
+  assert.ok(peakOf(n.L, n.R) < 4, 'no blow-up');
+  assert.ok(room(new Float32Array(5000), sr).L.every(v => v === 0), 'silence in, silence out');
   // One-pole: DC through the low-pass, none through the high-pass.
   const dc = new Float32Array(4000).fill(1);
   assert.ok(Math.abs(onePole(dc, 8000, 200)[3999] - 1) < 1e-6);
   assert.ok(Math.abs(onePole(dc, 8000, 200, 'hp')[3999]) < 1e-6);
+});
+
+test('the glue: loud stretches brought towards the quiet ones, the power kept, a steady tone and silence left as they were', () => {
+  const sr = 8000, n = 16 * sr;
+  // A tone that is 6× louder for a quarter of every second.
+  const L = Float32Array.from({ length: n }, (_, j) => Math.sin(j * 0.3) * (j % 8000 < 2000 ? 0.6 : 0.1));
+  const R = Float32Array.from(L);
+  const rms = (x, a, b) => Math.sqrt(x.subarray(a, b).reduce((e, v) => e + v * v, 0) / (b - a));
+  const ratio0 = rms(L, 24000, 25500) / rms(L, 26000, 27500);
+  const pow = x => x.reduce((e, v) => e + v * v, 0);
+  const e0 = pow(L);
+  const back = glue(L, R, sr);
+  const ratio1 = rms(L, 24000, 25500) / rms(L, 26000, 27500);
+  assert.ok(ratio1 < ratio0 * 0.95, `the loud stretch is nearer the quiet one: ${ratio0.toFixed(2)} -> ${ratio1.toFixed(2)}`);
+  assert.ok(back > 1, 'the bus is brought back up');
+  assert.ok(Math.abs((pow(L) * back * back) / e0 - 1) < 1e-3, 'to the power it had');
+  assert.deepEqual(L, R, 'both sides alike');
+  const steady = Float32Array.from({ length: n }, (_, j) => 0.2 * Math.sin(j * 0.3));
+  const s2 = Float32Array.from(steady);
+  assert.ok(Math.abs(glue(s2, Float32Array.from(steady), sr) - 1) < 0.01);
+  assert.ok(maxDiff(s2, steady) < 0.003);
+  assert.equal(glue(new Float32Array(1000), new Float32Array(1000), sr), 1);
+  assert.equal(glue(new Float32Array(0), new Float32Array(0), sr), 1);
+});
+
+test('width: the middle stays put (L + R unchanged), the sides unlike, the lows and the zero case untouched', () => {
+  const sr = 32000, n = sr * 2;
+  const tone = Float32Array.from({ length: n }, (_, j) => 0.3 * Math.sin(j * 0.07) + 0.2 * Math.sin(j * 0.9));
+  const L = Float32Array.from(tone), R = Float32Array.from(tone);
+  widen(L, R, sr, 0.5);
+  for (let j = 0; j < n; j++) assert.ok(Math.abs(L[j] + R[j] - 2 * tone[j]) < 1e-5);
+  let ll = 0, rr = 0, lr = 0;
+  for (let j = 0; j < n; j++) { ll += L[j] ** 2; rr += R[j] ** 2; lr += L[j] * R[j]; }
+  assert.ok(lr / Math.sqrt(ll * rr) < 0.9, 'a wide image');
+  const A = Float32Array.from(tone), B = Float32Array.from(tone);
+  widen(A, B, sr, 0);
+  assert.deepEqual(A, tone);
+  // 80 Hz and 3.2 kHz: the sides differ far less at 80 Hz (the width starts at 300 Hz).
+  const side = hz => {
+    const t = Float32Array.from({ length: n }, (_, j) => Math.sin((2 * Math.PI * hz * j) / sr));
+    const a = Float32Array.from(t), b = Float32Array.from(t);
+    widen(a, b, sr, 1);
+    let e = 0;
+    for (let j = 2000; j < n; j++) e += (a[j] - b[j]) ** 2;
+    return e;
+  };
+  assert.ok(side(80) < 0.3 * side(3200), 'the lows stay in the middle');
+});
+
+test('loudness: the power after a 100 Hz high-pass, over the stretches that play only', () => {
+  const sr = 8000, n = 20 * sr;
+  const sine = (hz, a) => Float32Array.from({ length: n }, (_, j) => a * Math.sin((2 * Math.PI * hz * j) / sr));
+  const L = sine(1000, 0.25);
+  assert.ok(loudness(L, L, sr) > 0.88 * 0.25 ** 2 / 2 && loudness(L, L, sr) < 0.25 ** 2 / 2, 'a sine: A²/2, less what the high-pass takes');
+  assert.ok(loudness(sine(30, 0.25), sine(30, 0.25), sr) < 0.2 * loudness(L, L, sr), 'the bottom octave hardly counts');
+  // Half of it silent: the same loudness (the quiet stretch is gated out).
+  const half = Float32Array.from(L, (v, j) => (j < n / 2 ? v : 0));
+  assert.ok(Math.abs(loudness(half, half, sr) / loudness(L, L, sr) - 1) < 0.05);
+  assert.equal(loudness(new Float32Array(0), new Float32Array(0), sr), 0);
+});
+
+test('the master: the loudness it is told, the stems summing to the mix, a quiet song not pushed past the ceiling', () => {
+  const sr = 8000, n = 30 * sr;
+  const song = a => ({ L: Float32Array.from({ length: n }, (_, j) => a * Math.sin(j * 0.2) * (j % 4000 < 200 ? 3 : 1)), R: Float32Array.from({ length: n }, (_, j) => a * Math.sin(j * 0.2 + 1) * (j % 4000 < 200 ? 3 : 1)) });
+  for (const a of [0.002, 0.05, 0.4]) {
+    const s = song(a);
+    const stems = { x: { L: Float32Array.from(s.L, v => v * 0.6), R: Float32Array.from(s.R, v => v * 0.6) }, y: { L: Float32Array.from(s.L, v => v * 0.4), R: Float32Array.from(s.R, v => v * 0.4) } };
+    const over = master({ ...s, stems }, sr);
+    assert.ok(peakOf(s.L, s.R) <= CEILING + 1e-6, 'under the ceiling');
+    const sum = sumStems(stems, n);
+    assert.ok(maxDiff(sum.L, s.L) < 1e-5 && maxDiff(sum.R, s.R) < 1e-5, 'stems still sum');
+    const db = 10 * Math.log10(loudness(s.L, s.R, sr));
+    assert.ok(db < LOUDNESS + 0.8 && db > LOUDNESS - 4.5, `loudness ${db.toFixed(1)}`);
+    assert.ok(over > -1 && over < 6.5, `over ${over}`);
+  }
+  assert.equal(master({ L: new Float32Array(10), R: new Float32Array(10) }, sr), -Infinity);
 });
 
 test('a sweep changes only its stretch and the fades either side', () => {
@@ -154,62 +236,79 @@ test('nothing placed: silence, no NaN, over is -Infinity', () => {
   assert.deepEqual(Object.keys(out.stems), ['fx']);
 });
 
-// The keys alone, a loud click in the verse setting the loudness, so two
-// mixes that differ only in the swept stretches are otherwise sample for sample alike.
+// The keys alone, a steady tone: two mixes that differ only in the swept stretches are otherwise sample for sample alike
+// (before the master, whose loudness follows what is in the song).
 const keysOnly = (name, L, R) => {
   if (name !== 'keys') return false;
   for (let j = 0; j < 10 * BAR; j++) { const v = 0.1 * Math.sin((2 * Math.PI * 200 * j) / sr); L[j] += v; R[j] += v; }
-  L[3 * BAR] += 1; R[3 * BAR] += 1;
   return true;
 };
 const dry = { reverb: 0, delay: 0, pump: 0 };
 
 test('sweeps only where they belong: the intro, the pre-hook, the break; fade only the outro', () => {
-  const on = mixdown(keysOnly, { sr, B, n: N, plan: PLAN, mix: { ...dry, sweep: true } });
-  const off = mixdown(keysOnly, { sr, B, n: N, plan: PLAN, mix: { ...dry, sweep: false } });
+  const still = { ...dry, width: 0 };
+  const on = mixBuses(keysOnly, { sr, B, n: N, plan: PLAN, mix: { ...still, sweep: true } });
+  const off = mixBuses(keysOnly, { sr, B, n: N, plan: PLAN, mix: { ...still, sweep: false } });
   const edge = 512;
-  const swept = PLAN.filter(([t]) => ['intro', 'pre', 'break'].includes(t)).map(([, b, n]) => [b * BAR - edge, (b + n) * BAR + edge]);
+  const swept = PLAN.filter(([t]) => ['intro', 'pre', 'break'].includes(t)).map(([, b, n]) => [b * BAR - edge, (b + n) * BAR + edge + 8]);   // (the keys' top shelf rings a few samples)
   const inSwept = j => swept.some(([a, b]) => j >= a && j < b);
   for (let j = 0; j < N; j++) if (!inSwept(j)) assert.equal(on.L[j], off.L[j], `unswept sample ${j}`);
   for (const [a, b] of swept) assert.ok(maxDiff(on.L.subarray(a + edge, b - edge), off.L.subarray(a + edge, b - edge)) > 0.01, `swept ${a}`);
   // No plan: no sweeps at all.
-  const none = mixdown(keysOnly, { sr, B, n: N, plan: [], mix: { ...dry, sweep: true } });
+  const none = mixBuses(keysOnly, { sr, B, n: N, plan: [], mix: { ...still, sweep: true } });
   assert.deepEqual(none.L, off.L);
   // The fade: the same up to the outro, nothing after its last bar, and down through it.
-  const faded = mixdown(keysOnly, { sr, B, n: N, plan: PLAN, mix: { ...dry, sweep: false, fade: true } });
+  const faded = mixBuses(keysOnly, { sr, B, n: N, plan: PLAN, mix: { ...still, sweep: false, fade: true } });
   for (let j = 0; j < 8 * BAR; j++) assert.equal(faded.L[j], off.L[j]);
   for (let j = 10 * BAR; j < N; j++) assert.equal(faded.L[j], 0);
   assert.ok(peakOf(faded.L.subarray(9.5 * BAR, 10 * BAR)) < 0.2 * peakOf(off.L.subarray(9.5 * BAR, 10 * BAR)));
 });
 
-test('levels, the hats to one side, the pump and the echo do what they say', () => {
-  // Two clicks far from the loudest moment (where the limiter acts): their ratio is the levels'.
-  const clicks = (name, L, R) => {
-    if (name !== 'drums' && name !== 'keys' && name !== 'hats') return false;
-    const at = { drums: 1000, keys: 20000, hats: 40000 }[name];
-    if (name === 'drums') { L[60000] = R[60000] = 2; }   // the loudest, far off
-    L[at] += 0.5; R[at] += 0.5;
+test('levels, the hats to one side, the pump, the echo, the width and the room do what they say', () => {
+  const rms = (x, a, b) => Math.sqrt(x.subarray(a, b).reduce((e, v) => e + v * v, 0) / (b - a));
+  // A level in dB is a level: a low tone on the keys and on the hats (neither is touched but the keys' top).
+  const tone = (name, L, R) => {
+    if (name !== 'keys' && name !== 'hats') return false;
+    for (let j = 0; j < 30000; j++) { const v = 0.2 * Math.sin((2 * Math.PI * 150 * j) / sr); L[j] += v; R[j] += v; }
     return true;
   };
-  const mix = { ...dry, drums: 0, keys: -6, hats: 0, width: 1 };
-  const out = mixdown(clicks, { sr, B, n: 70000, mix, stems: true });
-  assert.ok(Math.abs(out.L[20000] / out.L[1000] - dbGain(-6)) < 1e-5, 'keys 6 dB under the drums');
-  assert.ok(Math.abs(out.L[40000] / out.R[40000] - 0.65) < 1e-5, 'the hats to the right');
-  assert.equal(mixdown(clicks, { sr, B, n: 70000, mix: { ...mix, width: 0 } }).L[40000], out.R[40000]);
-  // The pump: bass dips by its depth at a kick, keys by 0.6 of it, drums not at all.
-  const steady = (name, L, R) => { L.fill(0.1); R.fill(0.1); return name !== 'hats'; };
-  const p = mixdown(steady, { sr, B, n: 30000, kicks: [10000], mix: { ...dry, pump: 0.5 }, stems: true });
-  // (Against the drums at the same moment: the limiter's gain is the same for both.)
-  const ratio = s => (p.stems[s].L[10000] / p.stems.drums.L[10000]) / (p.stems[s].L[20000] / p.stems.drums.L[20000]);
-  assert.ok(Math.abs(ratio('bass') - 0.5) < 1e-4 && Math.abs(ratio('keys') - 0.7) < 1e-4, `${ratio('bass')} ${ratio('keys')}`);
-  assert.ok(Math.abs(p.stems.bass.L[20000] / p.stems.drums.L[20000] - dbGain(-1)) < 1e-5, 'bass at its level away from a kick');
+  const lv = mixBuses(tone, { sr, B, n: 30000, mix: { ...dry, keys: -6, hats: 0, width: 0 }, stems: true });
+  const dB = 20 * Math.log10(rms(lv.stems.keys.L, 5000, 25000) / rms(lv.stems.hats.L, 5000, 25000));
+  assert.ok(Math.abs(dB + 6) < 0.4, `keys 6 dB under the hats: ${dB.toFixed(2)}`);
+  // The hats to the right (wide), in the middle (narrow).
+  const click = (name, L, R) => { if (name !== 'hats') return false; L[1000] = R[1000] = 0.5; return true; };
+  const wide = mixBuses(click, { sr, B, n: 3000, mix: { ...dry, width: 1 } });
+  assert.ok(Math.abs(wide.L[1000] / wide.R[1000] - 0.65) < 1e-5, 'the hats to the right');
+  assert.equal(mixBuses(click, { sr, B, n: 3000, mix: { ...dry, width: 0 } }).L[1000], wide.R[1000]);
+  // The pump: the keys dip by 0.6 of the depth at a kick, the bass by all of it, the drums not at all (a tone the glue and tone leave alone).
+  const hum150 = (name, L, R) => { for (let j = 0; j < 30000; j++) { const v = 0.1 * Math.sin((2 * Math.PI * 150 * j) / sr); L[j] += v; R[j] += v; } return name !== 'hats'; };
+  const p = mixBuses(hum150, { sr, B, n: 30000, kicks: [10000], mix: { ...dry, pump: 0.5, width: 0 }, stems: true });
+  const dip = s => rms(p.stems[s].L, 10000, 10200) / rms(p.stems[s].L, 20000, 20200);
+  assert.ok(dip('keys') < 0.8 && dip('keys') > 0.6, `keys ${dip('keys').toFixed(2)}`);
+  assert.ok(dip('bass') < dip('keys') - 0.1, `bass ${dip('bass').toFixed(2)} dips more`);
+  assert.ok(Math.abs(dip('drums') - 1) < 0.1, `drums ${dip('drums').toFixed(2)} not at all`);
   // The echo: the keys again a dotted eighth later on the left, an eighth on the right.
   const imp = (name, L, R) => { if (name !== 'keys') return false; L[1000] = R[1000] = 1; return true; };
-  const e = mixdown(imp, { sr, B, n: 20000, mix: { ...dry, delay: 1 } });
+  const e = mixBuses(imp, { sr, B, n: 20000, mix: { ...dry, delay: 1 } });
   assert.ok(Math.abs(e.L[1000 + 1500]) > 0.01 && Math.abs(e.L[1000 + 1000]) < 1e-3, 'left: a dotted eighth');
   assert.ok(Math.abs(e.R[1000 + 1000]) > 0.01 && Math.abs(e.R[1000 + 1500]) < 1e-3, 'right: an eighth');
-  const noEcho = mixdown(imp, { sr, B, n: 20000, mix: dry });
-  assert.ok(peakOf(noEcho.L.subarray(1200)) < 1e-9);
+  const noEcho = mixBuses(imp, { sr, B, n: 20000, mix: dry });
+  assert.ok(peakOf(noEcho.L.subarray(1300)) < 1e-9 + 0, 'no echo, no tail');
+  // The width: the keys' sides differ, their sum is the middle; at width 0 they are one.
+  const hum = (name, L, R) => { if (name !== 'keys') return false; for (let j = 0; j < 20000; j++) L[j] = R[j] = 0.2 * Math.sin(j * 0.5) + 0.1 * Math.sin(j * 1.9); return true; };
+  const w1 = mixBuses(hum, { sr, B, n: 20000, mix: { ...dry, width: 1 } });
+  const w0 = mixBuses(hum, { sr, B, n: 20000, mix: { ...dry, width: 0 } });
+  assert.ok(maxDiff(w0.L, w0.R) < 1e-7, 'narrow: mono');
+  assert.ok(maxDiff(w1.L, w1.R) > 0.05, 'wide: apart');
+  for (let j = 0; j < 20000; j++) assert.ok(Math.abs(w1.L[j] + w1.R[j] - (w0.L[j] + w0.R[j])) < 1e-5, 'the sum is the same');
+  // The room: the snare-ish top and the hats are sent to it, the kick's thump and the bass are not.
+  const sendOf = bus => {
+    const place = (name, L, R) => { if (name !== bus) return false; for (let j = 0; j < 1600; j++) { const v = Math.sin((2 * Math.PI * (bus === 'drums' ? 60 : bus === 'bass' ? 60 : 3000) * j) / sr) * 0.5; L[j] += v; R[j] += v; } return true; };
+    return mixBuses(place, { sr, B, n: 20000, mix: { ...dry, reverb: 1 }, stems: true }).stems.fx;
+  };
+  assert.ok(peakOf(sendOf('hats').L) > 0.005 && peakOf(sendOf('keys').L) > 0.005, 'hats and keys reach the room');
+  assert.ok(peakOf(sendOf('bass').L) < 1e-6, 'the bass does not');
+  assert.ok(peakOf(sendOf('drums').L) < 0.3 * peakOf(sendOf('keys').L), 'nor does a kick');
 });
 
 test('every style, mixed: within the ceiling, its stems summing to it; the mixer off is the pieces as recorded', () => {

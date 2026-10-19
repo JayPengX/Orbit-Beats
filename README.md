@@ -132,9 +132,14 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 - **Drum styles:** four-on-floor, hip-hop, trap, half-time, broken, house,
   dembow, afrobeats, drill, boom bap, Jersey club, amapiano, lo-fi, funk,
   UK garage, drum & bass, reggae, phonk, baile, techno.
-- **Mix** (on by default, 更多設定): buses for drums, hats, bass and melody,
-  echo and room, sidechain pump, sweeps into hooks, a limiter at -1 dBFS;
-  stems add up to the mix. Off, the pieces play exactly as recorded.
+- **Mix** (on by default, 更多設定): buses for drums, hats, bass and melody;
+  the drums and bass glued (2:1) and kept off the sub, the melody brightened
+  and set wide (its middle stays put, so a mono speaker hears it as it was),
+  echo and an 8-line room (snare and hats sent to it, kick and bass not),
+  sidechain pump, sweeps into hooks; then the song brought to one RMS
+  (-13 dBFS), a soft saturation and a limiter at -1 dBFS; stems add up to the
+  mix. Off, the pieces play exactly as recorded. `passion_beats.py` does the
+  same steps, and `tests/mixparity.test.mjs` feeds both one input.
 - **Making** runs in a worker (`lib/maker.mjs`), so the page never stalls.
 - **Saved:**
   - On the phone: the last kit's sound and the kept songs.
@@ -172,6 +177,7 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 - **Next-song rule (`radioPick`):** no groove repeated within the last six (the mood's size less five in a small mood), a different family, a tempo jump of 15 BPM or a half/double feel, and a new key or mode, then new chords, lead and form. `tests/variety.test.mjs` checks 30 songs per mood.
 - **Inside a song (`lib/radio.mjs`, `makeSong`'s `arrange` and `varied`):** the verse's chords are one loop and the hook's another (another family, another lead, a bass to suit); a second verse plays other riffs; the last hook (when there are two) is lifted one to five semitones, with its own riffs, bass and 808; the drums are dressed per section (ghost ticks, a pushed or skipped kick, open ticks, a snare snap, and how a phrase ends: five touches, a different one for verses, hooks, the last hook and the bridge). The forms vary (an eight-bar intro, four-bar verses, a pre-hook now and then, a hook shown early, a break or bridge between pairs, the last hook doubled or cut short). All drawn from streams of their own, so the jam set's band (`radioKit(sp, sr)`) is as it was. `passion_beats.py --varied` plays the same drum touches.
 - **Last eight (`radioPick`, `MEMORY`):** besides the last song, the seed drawn is the one that repeats least of the last eight: chord loops (verse's and hook's, as families: a loop and its turns are one), keys, leads, chord instruments, forms, tempos and drum touches, what is near counting the most. `tests/variety2.test.mjs` checks it, and that sections differ.
+- **Core voices (`lib/voices.mjs`, `lib/synth.mjs`):** keys, rhodes, piano, pad, strings, pluck, lead, bass and sub are band-limited (PolyBLEP saws and pulses, sines) through filters that move with the note; the kick has a beater click; hats and cymbals are band-passed noise under the 808's six squares. `voice(inst, midi, sr, hold, vel, variant)`: a harder hit (`vel`, from the clip's level) is brighter, and a note that comes again in a clip takes the other of two takes (`variant`: its own noise, phase and a few cents), so no repeat is bit for bit the last. `tests/voices-core.test.mjs` holds the numbers.
 - **Loudness:** `node scripts/loudness.mjs [seed] [style,...]` renders 8 s of each groove's radio song and prints RMS and peak (nothing is written); a per-groove `mix` in `lib/radio.mjs` evens out the outliers.
 
 ## Files (`public/`)
@@ -184,7 +190,7 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 | `lib/sources.mjs` | Files to one rate, split on silence |
 | `lib/kits.mjs` | Fingerprint, the Pass payload, the phone's kit and songs |
 | `lib/synth.mjs`, `lib/studio.mjs` | Instruments and 自動編; the 樂器 tab |
-| `lib/mix.mjs` | The mixer, stems, limiter |
+| `lib/mix.mjs` | The mixer: buses, glue, width, room, the master (loudness, saturation, limiter), stems |
 | `lib/make.mjs`, `lib/maker.mjs`, `lib/maker.worker.mjs` | Making songs in a worker |
 | `lib/jam.mjs`, `lib/jamview.mjs` | 即興: timing, levels, choke; the pads |
 | `lib/library.mjs`, `lib/lists.mjs` | 資料庫: search, order, zip; playlists |
