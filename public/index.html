@@ -69,6 +69,8 @@
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
+/* (The page doesn't rubber-band or drag as a whole: a pull at the top or bottom stays put; lists inside still scroll.) */
+html, body { overscroll-behavior: none; }
 body {
   margin: 0; background: var(--bg); color: var(--text);
   font: 15px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
@@ -292,7 +294,7 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .st-lane.root .st-name span::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 4px; border-radius: 50%; background: currentColor; vertical-align: 1px; }
 .st-cells .cell {
   position: relative; height: 34px; min-width: 0; border: 0; padding: 0; background: none;
-  touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+  touch-action: pan-y; /* (a slide along the lane paints; only an up-down swipe scrolls) */ -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
 }
 .st-cells .cell::before {
   content: ""; position: absolute; inset: 2px 1.5px; border-radius: 6px;
