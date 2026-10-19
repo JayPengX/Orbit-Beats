@@ -75,7 +75,7 @@ function clash(sp, mem) {
   for (let d = 0; d < mem.length; d++) {
     const o = mem[mem.length - 1 - d];
     const w = d === 0 ? 4 : d < 3 ? 2 : 1;
-    if (m.fam === o.fam) c += 3 * w;
+    if (m.fam === o.fam) c += 4 * w;
     if (m.famB && (m.famB === o.famB || m.famB === o.fam)) c += 2 * w;
     if (d < 6 && m.tonic === o.tonic) c += 2 * w;
     if (d < 4 && m.lead === o.lead) c += 2 * w;
@@ -124,7 +124,7 @@ export function radioPick(mood, recent = [], seed = Math.floor(Math.random() * 1
   if (was) {
     const jumps = s => tempoJump(BAND[s].bpm[0], was.bpm) || tempoJump(BAND[s].bpm[1], was.bpm);
     // (No groove left that can jump from the last tempo: look again further back in the mood's grooves, the tempo first.)
-    if (!pool.some(jumps)) pool = keep(styles.filter(s => s !== last && !past.slice(-2).includes(s) && jumps(s)), () => true);
+    if (!pool.some(jumps)) pool = keep(keep(styles.filter(s => s !== last && !past.slice(-2).includes(s) && jumps(s)), s => !past.slice(-3).includes(s)), s => !FAMILY[last]?.includes(s) && !FAMILY[s]?.includes(last));
     pool = keep(pool, jumps);
   }
   // (A groove whose tempo is not where the last three were, when there is one.)
