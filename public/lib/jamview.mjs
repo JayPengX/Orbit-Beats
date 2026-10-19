@@ -324,14 +324,42 @@ export function mountJam(panel, api) {
   function paintIdle() {
     for (const [m, el] of tileEls) el.classList.toggle('idle', !running && drumMode === m);
   }
-  function paintSet() {
-    nameEl.textContent = name(STYLE_NAMES, set.style);
-    coverImg.src = setCover(set, sp.bpm);
+  function paintSet(s = set) {
+    nameEl.textContent = name(STYLE_NAMES, s.style);
+    coverImg.src = setCover(s, s === set ? sp.bpm : specOf(s).bpm);
   }
   // Another built-in set: what was playing goes on with it (the same pads'
   // loops, from its first bar), once it's made. (Changed during a take, the
   // take ends and plays as a song instead.)
-  function changeSet(next, { back = false } = {}) {
+  // (Playing, the next set is made first while this one plays on, then swapped
+  // in place: no stopped board, nothing dark, while the phone makes it.)
+  let pending = null;
+  function changeSet(next, opts = {}) {
+    const to = setOf(next);
+    pending = null;
+    dice.classList.remove('busy');
+    if (!running || !cur?.band || band?.id === `${to.seed}:${to.style}`) return swapSet(next, opts);
+    pending = to;
+    dice.classList.add('busy');
+    paintSet(to);
+    api.band(to).then(
+      b => {
+        if (pending !== to) return;
+        pending = null;
+        dice.classList.remove('busy');
+        band = { id: `${to.seed}:${to.style}`, pieces: b.pieces, roles: b.roles, sr: b.sr };
+        swapSet(next, opts);
+      },
+      () => {
+        if (pending !== to) return;
+        pending = null;
+        dice.classList.remove('busy');
+        paintSet();
+        toast(W('這組做不出來，換一組試試', 'Couldn’t make this set: try another'), { tone: 'bad' });
+      }
+    );
+  }
+  function swapSet(next, { back = false } = {}) {
     const was = (running || waiting) && (simple() || !jam.takes.length);
     const carry = was ? pads.filter(p => jam.loops.get(p.i)?.to === Infinity) : [];
     const before = { ...set };
@@ -353,7 +381,7 @@ export function mountJam(panel, api) {
     start();
     for (const p of carry) loopSet(p.i, true, 0);
     if (!running) for (const p of carry) hits.get(p.i)?.classList.add('wait');
-    shown = -1;
+    shown = -2;
   }
   // The grooves sheet (lib/genres.mjs): a tap makes a new set of it and the music goes on.
   const styleSheet = () => genreSheet({ selected: set.style, styles: SET_STYLES, onPick: st => changeSet({ seed: Math.floor(Math.random() * 1e9), style: st }) });
@@ -549,6 +577,7 @@ export function mountJam(panel, api) {
     }
     timer = setInterval(schedule, 25);
     schedule();
+    shown = -2;
     raf = requestAnimationFrame(paint);
     paintTransport();
     api.live?.(true, { title: W('即興', 'Jam'), stop });
@@ -666,6 +695,8 @@ export function mountJam(panel, api) {
     if (!running) return;
     const beat = beatNow();
     const at = beat < 0 ? -1 : Math.floor(beat);
+    // (Before the first beat, what starts on it is already lit: no dark board between ▶ and the music.)
+    const b0 = Math.max(0, beat);
     if (at !== shown) {
       const k = at < 0 ? -1 : at % 4;
       ringTo(k);
@@ -678,8 +709,8 @@ export function mountJam(panel, api) {
         const l = jam.loops.get(p.i);
         const pad = hits.get(p.i);
         if (!pad) continue;
-        const on = Boolean(l && beat >= l.from && beat < l.to);
-        const wait = Boolean(l && (beat < l.from || (l.to !== Infinity && beat < l.to)));
+        const on = Boolean(l && b0 >= l.from && b0 < l.to);
+        const wait = Boolean(l && (b0 < l.from || (l.to !== Infinity && b0 < l.to)));
         pad.classList.toggle('on', on);
         pad.classList.toggle('wait', wait);
         if (wait) waits.add(pad);
@@ -689,7 +720,7 @@ export function mountJam(panel, api) {
       for (const [m, el] of tileEls) {
         const lit = drumMode === m;
         const l = lit ? jam.loops.get(m === 'basic' ? 8 : 9) : null;
-        const wait = Boolean(l && beat < l.from);
+        const wait = Boolean(l && b0 < l.from);
         el.classList.toggle('on', lit);
         el.classList.toggle('wait', wait);
         if (wait) waits.add(el);

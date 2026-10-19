@@ -533,6 +533,9 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .jam-set .jam-beat i.on { background: var(--accent); }
 .jam-dice { background: var(--fill); color: var(--text); box-shadow: none; }
 .jam-dice svg, .jam-undo svg { width: 22px; height: 22px; }
+.jam-dice.busy svg { animation: jam-dice-spin .9s linear infinite; }
+@keyframes jam-dice-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .jam-dice.busy svg { animation: none; opacity: .5; } }
 .jam-undo { flex: none; width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--fill); color: var(--text); display: grid; place-items: center; touch-action: manipulation; }
 .jam-undo.ghost { visibility: hidden; }
 .jam-set .jam-src { flex: none; width: 84px; }
@@ -559,7 +562,7 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .jam-tile .lvl { display: none; }
 .jam-hits { display: flex; justify-content: space-between; gap: 8px; margin-top: 18px; }
 .jam-hit { position: relative; flex: none; width: clamp(56px, 17vw, 66px); aspect-ratio: 1; border: 0; border-radius: 50%; background: color-mix(in srgb, var(--c) 18%, var(--fill)); color: color-mix(in srgb, var(--c) 55%, var(--text)); font-size: clamp(11px, 3.3vw, 14px); font-weight: 700; display: grid; place-items: center; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; transition: background-color .08s, color .08s; }
-.jam-hit b { max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.jam-hit b { max-width: 84%; line-height: 1.15; text-align: center; overflow-wrap: anywhere; text-wrap: balance; pointer-events: none; }
 .jam-hit.hit { background: var(--c); color: var(--ink); }
 .jam-hit.muted { opacity: .4; }
 .jam-hit .lvl { display: none; }
@@ -608,7 +611,7 @@ body.lv-simple .jam-play:not(.on) { height: 52px; }
 .jam-takes-row::-webkit-scrollbar { display: none; }
 .jam-take { flex: none; width: 120px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 0; border: 0; background: none; color: var(--text); text-align: left; touch-action: manipulation; }
 .jam-take img { display: block; width: 120px; height: 120px; border-radius: 16px; object-fit: cover; margin-bottom: 4px; pointer-events: none; }
-.jam-take b { font-size: 14px; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.jam-take b { font-size: 14px; font-weight: 600; line-height: 1.25; max-width: 100%; overflow-wrap: anywhere; pointer-events: none; }
 .jam-take small { font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; pointer-events: none; }
 
 /* 樂器 簡單: the two parts as tabs. */
