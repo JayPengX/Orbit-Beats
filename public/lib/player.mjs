@@ -59,7 +59,7 @@ export function createPlayer(d) {
       const s = d.nowSong();
       const track = q.now?.id === s.id ? q.now : songTrack(s);
       const seconds = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : s.info?.seconds || 0;
-      return { source: 'song', track, cover: coverOfTrack(track), playing: !audio.paused, busy: false, t: audio.currentTime || 0, seconds, canSeek: true };
+      return { source: 'song', track, cover: coverOfTrack(track), playing: !audio.paused, busy: false, t: audio.currentTime || 0, seconds, canSeek: true, upTo: Math.min(seconds, reach()) };
     }
     if (active === 'radio') {
       const r = radio.state();
@@ -179,9 +179,22 @@ export function createPlayer(d) {
     set(r.q);
     await start(r.item);
   }
+  // How far the song can be moved to now: what the phone has of it (a kept song's
+  // sound still being read: no further than that, not into silence).
+  function reach() {
+    const r = audio.seekable;
+    let end = 0;
+    try {
+      for (let i = 0; i < (r?.length || 0); i++) end = Math.max(end, r.end(i));
+    } catch {}
+    return end;
+  }
   function seek(t) {
     const s = state();
-    if (s?.source === 'song') audio.currentTime = Math.max(0, Math.min(t, (s.seconds || t) - 0.3));
+    if (s?.source !== 'song') return;
+    const max = Math.min(s.seconds || t, s.upTo) - 0.3;
+    if (max <= 0) return;
+    audio.currentTime = Math.max(0, Math.min(t, max));
   }
   const shuffle = on => (set(Q.setShuffle(q, on === undefined ? !q.shuffle : on)), q.shuffle);
   const autoplay = on => (set(Q.setAutoplay(q, on === undefined ? !q.autoplay : on)), q.autoplay);
@@ -224,7 +237,7 @@ export function createPlayer(d) {
   // A song's end: on to the next (a repeat of one stays with the player's loop).
   const ended = () => forward({ auto: true });
   const attach = () => {
-    for (const ev of ['timeupdate', 'play', 'pause', 'loadedmetadata', 'seeked']) audio.addEventListener(ev, () => emit(ev === 'timeupdate' ? 'time' : 'state'));
+    for (const ev of ['timeupdate', 'play', 'pause', 'loadedmetadata', 'seeked', 'progress', 'durationchange']) audio.addEventListener(ev, () => emit(ev === 'timeupdate' ? 'time' : 'state'));
   };
   attach();
   // Closing the mini player.

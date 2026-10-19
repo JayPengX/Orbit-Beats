@@ -785,8 +785,9 @@ body.np-open .q-toast { bottom: auto; top: calc(max(10px, env(safe-area-inset-to
 .np-ico svg { width: 24px; height: 24px; }
 .np-ico.on { background: rgba(255,255,255,.22); }
 .np-ico[hidden] { display: none; }
-.np-bar { position: relative; height: 6px; margin-top: 18px; border-radius: 3px; background: rgba(255,255,255,.4); touch-action: none; cursor: pointer; }
+.np-bar { position: relative; height: 6px; margin-top: 18px; border-radius: 3px; background: rgba(255,255,255,.22); touch-action: none; cursor: pointer; }
 .np-bar::before { content: ""; position: absolute; inset: -14px 0; }
+.np-bar .np-reach { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 3px; background: rgba(255,255,255,.35); transition: width .3s; }
 .np-bar i { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 3px; background: #fff; }
 .np-bar:not(.still) i::after { content: ""; position: absolute; right: -7px; top: 50%; width: 14px; height: 14px; margin-top: -7px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
 .np-bar.still { cursor: default; }

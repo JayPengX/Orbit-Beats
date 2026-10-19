@@ -8,6 +8,7 @@
 // screen, the bar and the tab bar, keeps the app current and opening
 // offline; the Quadra Pass keeps the settings, each kit's tempo and roles
 // and the styles you keep (your taste); the sound never leaves the phone.
+import { banksFor } from './lib/sampleload.mjs';
 import { quadraSession, topActions, installGate, watchUpdates, keepOffline, tabBar, ask } from '#kit/quadra.mjs';
 import { h, sheet, menu, toast, toggle, empty } from './lib/ui.mjs';
 import * as ui from './lib/ui.mjs';
@@ -83,7 +84,7 @@ let bpm = 120; // as heard, then as set
 let print = ''; // the kit's fingerprint
 let songs = []; // this batch: { id, name, info, data, url, bits, recipe }
 let busy = false;
-const make = maker(new URL('./lib/maker.worker.mjs', import.meta.url));
+const make = maker(new URL('./lib/maker.worker.mjs', import.meta.url), { prep: banksFor });
 let kitSent = ''; // the kit the maker has: its print, tempo and roles
 
 // ---- What's kept: this phone's copy of the Pass's payload, and the Pass's ----
@@ -1242,6 +1243,7 @@ async function makeBatch(count = cfg().count) {
       const song = await makeOne(recipeOf({ seed: list[k].seed }), songTitle(list[k].seed));
       songs.push(song);
       rows.fill(k, songRow(song));
+      autoKeep(song);
       // (The first one plays as soon as it's made, unless something else already is; the rest follow it.)
       if (k === 0 && !P.state()?.playing) playRow(song);
       else P.relist(songs.map(x => P.track(x)));
@@ -1278,6 +1280,7 @@ async function bandBatch(count) {
       const song = await bandSong({ ...spec, seconds: settings.length });
       songs.push(song);
       rows.fill(k, songRow(song));
+      autoKeep(song);
       // (The first one plays as soon as it's made, unless something else already is; the rest follow it.)
       if (k === 0 && !P.state()?.playing) playRow(song);
       else P.relist(songs.map(x => P.track(x)));
@@ -1308,6 +1311,7 @@ async function another(from, recipe, title) {
   const at = songs.indexOf(from);
   if (at >= 0) songs.splice(at + 1, 0, song);
   else songs.unshift(song);
+  autoKeep(song);
   $('out').hidden = false;
   const row = songRow(song);
   const anchor = $('songs').querySelector(`.song[data-id="${CSS.escape(from.id)}"]`);
@@ -1320,28 +1324,53 @@ async function another(from, recipe, title) {
 }
 const baseTitle = song => song.name.split(' · ')[0];
 const nth = base => songs.filter(s => s.name.startsWith(`${base} · `)).length + 1;
-// A song's ⋯: what to play it after, where to put it, what to make from it, how to take it, and (in 資料庫) its name and the way out.
-// (Not 播放, 收藏 or 刪除 as a second 取消收藏: the row, the ♡ and the last red item are those.)
-function songMenu(song, anchor, inLib, list = null) {
-  const can = heard && song.recipe?.print === print;
-  const isJam = Boolean(song.recipe?.jam);
-  const t = P.track(song);
-  const info = song.info;
+// Every song's ⋯, wherever it's opened (a row, a cover, the radio, Now Playing):
+// the same actions in the same order, only those that can't apply left out.
+//   play · play next · play later | keep · add to playlist · (remove from this playlist) · share
+//   | rhythm game · remix · take a clip · (a variation · another groove · arrange: songs of your pieces)
+//   | download · (save as file · stems · MIDI) · (rename: kept)
+// x: a song (a row) or a track (a radio song, a queued one). np: opened from Now Playing (no 播放).
+function songSheet(x, anchor, { np = false, list = null, after = () => {} } = {}) {
+  const t = x.kind ? x : P.track(x);
+  const got = () => (x.kind ? songOfTrack(x) : x);
+  const song = got();
+  const isKept = lib.has(t.id);
+  const radio = song?.recipe?.radio || song?.info?.radio;
+  const seed = Number.isFinite(t.seed) ? t.seed : radio?.seed;
+  const style = t.style || radio?.style;
+  const can = Boolean(song && heard && song.recipe?.print === print && !song.recipe?.jam);
   const pro = settings.level === 'pro';
+  // (A radio song not made yet: made first, for what needs its sound.)
+  const sound = async () => got() || (t.kind === 'radio' ? (toast(W('準備中…', 'Getting it ready…'), { ms: 2000 }), bandSong({ seed: t.seed, mood: t.mood, style: t.style }).then(s => ({ ...s, name: t.title })).catch(() => null)) : null);
+  const keepIt = async () => {
+    await (t.kind === 'radio' && !song ? keepRadio({ id: t.id, title: t.title, spec: { seed: t.seed, mood: t.mood }, info: { style: t.style, bpm: t.bpm, key: t.key } }) : song && keepSong(song));
+    after();
+  };
   const groups = [
     [
+      ...(np ? [] : [{ label: W('播放', 'Play'), icon: 'play', onClick: () => (song && !x.kind ? playRow(song) : P.play(t)) }]),
       { label: W('插播', 'Play next'), icon: 'play_next', onClick: () => P.playNext(t) },
       { label: W('稍後播放', 'Play later'), icon: 'play_later', onClick: () => P.playLater(t) }
     ],
     [
-      ...(inLib ? [{ label: W('加到清單…', 'Add to playlist…'), icon: 'plus', onClick: () => lib.pickList(song) }] : []),
-      ...(inLib && list ? [{ label: W('從這個清單移除', 'Remove from this playlist'), icon: 'close', onClick: () => lib.unlist(list, song.id) }] : []),
-      { label: W('分享', 'Share'), icon: 'share', onClick: () => shareSong(song) }
+      { label: isKept ? W('從資料庫移除', 'Remove from Library') : W('收藏到資料庫', 'Keep in Library'), icon: isKept ? 'heart-fill' : 'heart', onClick: keepIt },
+      {
+        label: W('加到清單…', 'Add to playlist…'),
+        icon: 'plus',
+        onClick: async () => {
+          if (!lib.has(t.id)) await keepIt();
+          const k = lib.get(t.id);
+          if (k) lib.pickList(k);
+        }
+      },
+      ...(list && isKept ? [{ label: W('從這個清單移除', 'Remove from this playlist'), icon: 'close', onClick: () => lib.unlist(list, t.id) }] : []),
+      { label: W('分享', 'Share'), icon: 'share', onClick: async () => (await sound().then(s => s && shareSong(s))) }
     ],
     [
-      { label: W('重新混音', 'Remix'), icon: 'shuffle', onClick: () => remixOf(song) },
-      { label: W('取出片段', 'Take a clip'), icon: 'cut', onClick: () => clipOf(song) },
-      ...(can && !isJam
+      ...(Number.isFinite(seed) && style ? [{ label: W('玩節奏遊戲', 'Play the rhythm game'), icon: 'grid', onClick: () => game?.open({ seed, mood: t.mood || radio?.mood || 'all', style, title: t.title }) }] : []),
+      { label: W('重新混音', 'Remix'), icon: 'shuffle', onClick: () => remixOf(x) },
+      { label: W('取出片段', 'Take a clip'), icon: 'cut', onClick: () => clipOf(x) },
+      ...(can
         ? [
             { label: W('變奏一首', 'A variation'), icon: 'refresh', onClick: () => another(song, fromRecipe(song, { detail: Math.floor(Math.random() * 1e9) }), `${baseTitle(song)} · ${W('變奏', 'Var.')} ${nth(baseTitle(song))}`) },
             { label: W('換個鼓…', 'Another groove…'), icon: 'note', onClick: () => pickGroove(song) },
@@ -1350,18 +1379,20 @@ function songMenu(song, anchor, inLib, list = null) {
         : [])
     ],
     [
-      { label: W('下載', 'Download'), icon: 'download', onClick: () => downloadSong(song) },
-      ...(pro && !(song.recipe?.radio || song.recipe?.band) ? [{ label: W('存成檔案', 'Save as file'), icon: 'download', onClick: () => saveProject(song) }] : []),
+      { label: W('下載', 'Download'), icon: 'download', onClick: async () => (await sound().then(s => s && downloadSong(s))) },
+      ...(pro && song && !(song.recipe?.radio || song.recipe?.band) ? [{ label: W('存成檔案', 'Save as file'), icon: 'download', onClick: () => saveProject(song) }] : []),
       ...(can && shows(settings.level, 'make-stems') ? [{ label: W('下載分軌', 'Download stems'), icon: 'grid', onClick: () => stemsOf(song) }] : []),
       ...(can && shows(settings.level, 'make-midi') ? [{ label: W('匯出 MIDI', 'Export MIDI'), icon: 'note', onClick: () => midiOf(song) }] : []),
-      ...(inLib ? [{ label: W('重新命名', 'Rename'), icon: 'edit', onClick: () => renameKept(song) }] : [])
-    ],
-    inLib ? [{ label: W('從資料庫移除', 'Remove from Library'), icon: 'trash', danger: true, onClick: () => keepSong(song) }] : []
+      ...(isKept ? [{ label: W('重新命名', 'Rename'), icon: 'edit', onClick: () => renameKept(lib.get(t.id)) }] : [])
+    ]
   ];
   const items = groups.filter(g => g.length).flatMap((g, i) => (i ? ['divider', ...g] : g));
-  const sub = [timeText(info.seconds), info.style ? name(STYLE_NAMES, info.style) : W('即興', 'Jam')].filter(Boolean).join(' · ');
-  menu(anchor, items, { header: { cover: coverOfTrack(t), title: song.name, sub }, scrim: true });
+  const secs = song?.info?.seconds || t.seconds;
+  const st = song?.info?.style || t.style;
+  const sub = [secs ? timeText(secs) : '', st ? name(STYLE_NAMES, st) : W('即興', 'Jam')].filter(Boolean).join(' · ');
+  menu(anchor, items, { header: { cover: coverOfTrack(t), title: t.title, sub }, scrim: true });
 }
+const songMenu = (song, anchor, inLib, list = null) => songSheet(song, anchor, { list });
 // ---- 重新混音 and 取出片段 (lib/remix.mjs, lib/remixview.mjs) ----
 
 // What a remix starts from: a song (a row) or a track (a radio song, or a queued one). -> { base, kind, note } | null
@@ -1413,6 +1444,7 @@ async function makeRemix(base, choice, title, fromId) {
   const old = remixes.findIndex(s => s.id === song.id);
   if (old >= 0) remixes.splice(old, 1);
   remixes.unshift(song);
+  autoKeep(song);
   while (remixes.length > 12) {
     const o = remixes.pop();
     if (nowPlaying?.id !== o.id) URL.revokeObjectURL(o.url);
@@ -1775,6 +1807,36 @@ async function keepSong(song, { quiet = false } = {}) {
   tasteHint();
   quiet || toast(W('已存到資料庫', 'Kept in Library'));
 }
+// One rule for what's kept: a song you make is kept in 資料庫 as it's made
+// (做歌, 樂器, 即興, 重新混音, a variation); a radio song when you ♡ it. The
+// toast counts what was just kept, and 復原 takes those out again.
+let autoKept = [];
+let autoTimer = 0;
+async function autoKeep(song) {
+  if (lib.has(song.id)) return;
+  await keepSong(song, { quiet: true });
+  if (!lib.has(song.id)) return;
+  autoKept.push(song);
+  clearTimeout(autoTimer);
+  autoTimer = setTimeout(() => (autoKept = []), 6000);
+  const these = [...autoKept];
+  document.querySelector('.q-toast.auto-kept')?.remove();
+  const t = toast(these.length > 1 ? W(`已存 ${these.length} 首到資料庫`, `${these.length} kept in Library`) : W('已存到資料庫', 'Kept in Library'), { ms: 5000 });
+  t.classList?.add('auto-kept');
+  t.append?.(
+    h('button', {
+      type: 'button',
+      class: 'toast-undo',
+      text: W('復原', 'Undo'),
+      onclick: async () => {
+        t.remove();
+        autoKept = [];
+        for (const s of these) if (lib.has(s.id)) await keepSong(s, { quiet: true });
+        toast(W('已復原', 'Undone'));
+      }
+    })
+  );
+}
 // A song's WAV to hand over, at full quality: a batch's own; a kept one made
 // again from its recipe (聽's band, 即興's set, or the kit it was made on
 // when that's in) if it still sounds like what was kept; else the kept copy
@@ -2049,18 +2111,12 @@ async function jamSong(hits, beats, band, { keep: kept = false } = {}) {
     const when = `${at.getHours()}:${String(at.getMinutes()).padStart(2, '0')}`;
     const label = `${W('即興', 'Jam')}${band ? ` · ${name(STYLE_NAMES, band.style)}` : ''} ${when}`;
     const song = { id: recipeId(recipe), name: label, info, data: wav, url: URL.createObjectURL(new Blob([wav], { type: 'audio/wav' })), bits: cfg().bits, recipe };
-    if (kept) {
-      await keepSong(song, { quiet: true });
-      if (!lib.has(song.id)) return;
-      const t = toast(W('已存到資料庫', 'Kept in Library'), { ms: 5000 });
-      t.append(h('button', { type: 'button', class: 'toast-undo', text: W('復原', 'Undo'), onclick: async () => (t.remove(), await keepSong(song, { quiet: true }), toast(W('已復原', 'Undone'))) }));
-      return;
-    }
+    await autoKeep(song);
+    if (kept) return;
     songs.unshift(song);
     $('out').hidden = false;
     $('songs').prepend(songRow(song));
     $('zip').disabled = false;
-    toast(W(`已做好 ${clock((beats * 60) / bpm)}（在「做歌」）`, `Made ${clock((beats * 60) / bpm)} (in Create)`));
     playRow(song);
   } catch (e) {
     toast(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`), { tone: 'bad' });
@@ -2253,7 +2309,9 @@ async function boot() {
     sleep: anchor => radio.sleepMenu(anchor),
     sleeping: () => radio.sleeping(),
     // (A song of the radio's band, its own or kept: played as a level.)
-    game: t => (Number.isFinite(t?.seed) && t.style ? game?.open({ seed: t.seed, mood: t.mood || 'all', style: t.style, title: t.title }) : null)
+    game: t => (Number.isFinite(t?.seed) && t.style ? game?.open({ seed: t.seed, mood: t.mood || 'all', style: t.style, title: t.title }) : null),
+    // (Every song's ⋯ is the one sheet, songSheet.)
+    menu: (t, anchor, o) => songSheet(t, anchor, o)
   };
   game = mountGame(document.body, {
     make,
@@ -2313,7 +2371,7 @@ async function boot() {
     quiet: () => quiet({ keep: 'jam' }),
     styles: () => cfg().styles,
     // (The built-in set made in a worker of its own: not queued behind 聽's songs.)
-    band: set => (jamMake ||= maker(new URL('./lib/maker.worker.mjs', import.meta.url))).jamBand(set),
+    band: set => (jamMake ||= maker(new URL('./lib/maker.worker.mjs', import.meta.url), { prep: banksFor })).jamBand(set),
     simple,
     take: (hits, beats, band, opts) => jamSong(hits, beats, band, opts),
     takes: () =>

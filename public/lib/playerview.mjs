@@ -52,6 +52,7 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
   // ---- ⋯ ----
   // np: opened from Now Playing, where the song is already playing and ♡ and ✂ sit beside the ⋯.
   function trackMenu(track, anchor, { np = false } = {}) {
+    if (core.menu) return core.menu(track, anchor, { np, after: () => paint() });
     const kept = core.kept(track);
     const header = { cover: coverOfTrack(track), title: track.title, sub: subOf(track) };
     menu(
@@ -114,7 +115,9 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
     const heart = btn('np-ico', W('收藏', 'Keep'), () => P.state()?.track && core.toggleKeep(P.state().track).then(() => paint()));
     const more = btn('np-ico', W('更多', 'More'), e => P.state()?.track && trackMenu(P.state().track, e.currentTarget, { np: true }));
     const fill = h('i');
-    const bar = h('div', { class: 'np-bar', role: 'slider', 'aria-label': W('播放位置', 'Position'), tabindex: '0' }, [fill]);
+    // (How far it can be moved to: the part of the song the phone has.)
+    const reach = h('b', { class: 'np-reach' });
+    const bar = h('div', { class: 'np-bar', role: 'slider', 'aria-label': W('播放位置', 'Position'), tabindex: '0' }, [reach, fill]);
     const t0 = h('span', { text: '0:00' });
     const t1 = h('span', { text: '0:00' });
     const back = btn('np-skip', W('上一首', 'Back'), () => P.back());
@@ -149,7 +152,9 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
     // The position: a tap or drag along the bar (a song; the radio's is shown only).
     const at = ev => {
       const r = bar.getBoundingClientRect();
-      return Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+      const s = P.state();
+      const top = s?.seconds ? Math.min(1, (s.upTo ?? s.seconds) / s.seconds) : 1;
+      return Math.max(0, Math.min(top, (ev.clientX - r.left) / r.width));
     };
     bar.addEventListener('pointerdown', ev => {
       const s = P.state();
@@ -191,7 +196,7 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
       if (dy > 110) closeNow();
     });
     document.addEventListener('keydown', e => e.key === 'Escape' && np && !np.hidden && !document.querySelector('dialog[open]') && closeNow());
-    els = { bg, art, title, sub, heart, fill, t0, t1, play, loop, sleep, bar };
+    els = { bg, art, title, sub, heart, fill, reach, t0, t1, play, loop, sleep, bar };
   }
   let hideTimer = 0;
   function openNow() {
@@ -248,6 +253,7 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
     }
     if (drag) return;
     els.fill.style.width = s.seconds ? `${Math.min(100, (s.t / s.seconds) * 100)}%` : '0';
+    els.reach.style.width = s.canSeek && s.seconds ? `${Math.min(100, ((s.upTo ?? s.seconds) / s.seconds) * 100)}%` : '0';
     els.t0.textContent = clock(s.t);
     els.t1.textContent = s.seconds ? `-${clock(s.seconds - s.t)}` : '';
     els.bar.setAttribute('aria-valuenow', String(Math.round(s.t)));
