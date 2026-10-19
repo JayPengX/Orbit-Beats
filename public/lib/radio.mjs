@@ -857,7 +857,8 @@ function songKit(sp, sr, { lift = true } = {}) {
   const V = block(sp, rngOf(sp, 2), { maxNotes: 5, leadX: sp.lead });
   const tV1 = V.make({}), tV2 = V.make({ motif: tV1.motif, displace: true });
   tunes.verse1 = tV1.notes; tunes.verse2 = tV2.notes;
-  const verse1 = [sum(V.chords(sp.chords, 0, 0), ratio(V.mel(tV1, 0), 0.9)), sum(V.chords(sp.chords2, 1, 1), ratio(V.mel(tV1, 1), 0.9), arpAt(V.arp(sp.lead2, 1), 0.5))];
+  // (The first verse opens bare, the tune over a held bed alone, and its chords come in at its fifth bar: the song starts small and grows.)
+  const verse1 = [sum({ ...V.beds[0], g: 0.75, pan: -0.25 }, ratio(V.mel(tV1, 0), 0.9)), sum(V.chords(sp.chords2, 1, 1), ratio(V.mel(tV1, 1), 0.9), arpAt(V.arp(sp.lead2, 1), 0.5))];
   const verse2 = [sum(V.chords(sp.chords2, 1, 0), ratio(V.mel(tV2, 0), 0.9), arpAt(V.arp(sp.lead2, 0), 0.5)), sum(V.chords(sp.chords, 0, 1), ratio(V.mel(tV2, 1), 0.9))];
   const i0 = add(verse1[0], 'riff');
   const phrase1 = add(sum(V.mel(tV2, 0), ratio(V.beds[0], 1.1)), 'phrase');
