@@ -1,0 +1,54 @@
+// 首頁's stations, no DOM: a station is an id that stands for a filter on the
+// radio's songs ({ mood } | { styles: [...] } | { bpm: [lo, hi] }).
+//   'all' or a mood id   the radio's mood (lib/radio.mjs MOODS)
+//   'style:<id>'         one groove
+//   'tempo:slow|mid|fast' a range of tempos
+//   'taste'              the grooves you keep (♡), most kept first
+import { MOODS, stationStyles } from './radio.mjs';
+import { STYLE_ORDER } from './names.mjs';
+
+export const TEMPOS = {
+  slow: { zh: '慢', en: 'Slow', bpm: [60, 95] },
+  mid: { zh: '中', en: 'Medium', bpm: [95, 125] },
+  fast: { zh: '快', en: 'Fast', bpm: [125, 200] }
+};
+export const POPULAR = ['lofi', 'hiphop', 'house', 'kpop', 'citypop', 'jazz', 'afro', 'synthwave'];
+
+// The grooves you keep most, most first: [style, count].
+export const tasteList = (taste = {}, max = 6) =>
+  Object.entries(taste || {})
+    .filter(([s, n]) => STYLE_ORDER.includes(s) && n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, max);
+
+// A station's id as the radio takes it: { mood, styles?, bpm? } (the mood the one the songs are listed under).
+export function stationFilter(id, taste = {}) {
+  const s = String(id || 'all');
+  if (MOODS[s]) return { mood: s };
+  if (/^style:/.test(s)) return { mood: s };
+  if (/^tempo:/.test(s)) {
+    const t = TEMPOS[s.slice(6)];
+    return t ? { mood: 'all', bpm: t.bpm } : { mood: 'all' };
+  }
+  if (s === 'taste') {
+    const top = tasteList(taste, 4).map(([x]) => x);
+    return top.length ? { mood: 'all', styles: top } : { mood: 'all', styles: POPULAR };
+  }
+  return { mood: 'all' };
+}
+// An id that is a station, else 'all'.
+export const stationId = id => (id === 'taste' || MOODS[id] || /^style:[a-z]+$/.test(id) || /^tempo:(slow|mid|fast)$/.test(id) ? id : 'all');
+
+// The rows of 首頁: [{ key, ids: [station id] }].
+export function homeRows(taste = {}) {
+  const liked = tasteList(taste, 3);
+  const mine = liked.length ? ['taste', ...liked.map(([s]) => `style:${s}`)] : POPULAR.slice(0, 5).map(s => `style:${s}`);
+  return [
+    { key: 'for-you', ids: mine },
+    { key: 'moods', ids: Object.keys(MOODS) },
+    { key: 'genres', ids: STYLE_ORDER.map(s => `style:${s}`) },
+    { key: 'tempo', ids: Object.keys(TEMPOS).map(t => `tempo:${t}`) }
+  ];
+}
+// The grooves a station plays (for a card's cover and the tests).
+export const stationGrooves = (id, taste = {}) => stationStyles(stationFilter(id, taste));

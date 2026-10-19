@@ -31,6 +31,21 @@ export const MOODS = {
 // A mood's grooves, or one groove picked on its own (`style:<id>`).
 export const moodStyles = mood => (MOODS[mood] ? MOODS[mood].styles : STYLES.includes(String(mood).replace(/^style:/, '')) ? [String(mood).replace(/^style:/, '')] : STYLES);
 
+// A station: { mood?, styles?, bpm?: [lo, hi] } narrows the grooves to those in the mood, among
+// `styles`, and whose tempo range reaches [lo, hi]. Never empty: with none left, the styles asked for, else the mood's.
+export function stationStyles(st = {}) {
+  const base = st.mood ? moodStyles(st.mood) : STYLES;
+  const want = Array.isArray(st.styles) ? st.styles.filter(x => STYLES.includes(x)) : null;
+  let list = want ? base.filter(x => want.includes(x)) : base;
+  if (!list.length && want?.length) list = want;
+  if (Array.isArray(st.bpm)) {
+    const [lo, hi] = st.bpm;
+    const tempo = list.filter(x => BAND[x].bpm[1] >= lo && BAND[x].bpm[0] <= hi);
+    if (tempo.length) list = tempo;
+  }
+  return list.length ? list : base;
+}
+
 // The kinds of sound the grooves come in: two in a row are never of one kind
 // (not trap, then drill, then phonk).
 export const SOUND = {
@@ -63,8 +78,11 @@ export function contrast(a, b) {
 // drawn from `seed` whose song differs from the last in tempo (15 BPM or a
 // half / double-time feel), key, mode, chord and lead instruments and form,
 // else the one differing most. One groove asked for (`style:<id>`): always it.
-export function radioPick(mood, recent = [], seed = Math.floor(Math.random() * 1e9)) {
-  const styles = moodStyles(mood);
+export function radioPick(mood, recent = [], seed = Math.floor(Math.random() * 1e9), station = null) {
+  const styles = station ? stationStyles({ mood, ...station }) : moodStyles(mood);
+  // (A tempo station: a seed whose song falls in its range.)
+  const fits = station?.bpm ? (s, st) => { const b = radioSpec(s, outMood, st).bpm; return b >= station.bpm[0] && b <= station.bpm[1]; } : () => true;
+  const outMood = MOODS[mood] || /^style:/.test(mood) ? mood : 'all';
   const R = makeRng(seed);
   const past = recent.map(x => (typeof x === 'string' ? x : x?.style)).filter(Boolean);
   const prev = recent.length && typeof recent.at(-1) === 'object' && Number.isInteger(recent.at(-1).seed) ? recent.at(-1) : null;
@@ -83,12 +101,16 @@ export function radioPick(mood, recent = [], seed = Math.floor(Math.random() * 1
   }
   pool = keep(pool, s => !past.includes(s));
   const style = R.choice(pool);
-  const out = s => ({ seed: s, mood: MOODS[mood] || /^style:/.test(mood) ? mood : 'all', style });
-  if (!was) return out(seed);
+  const out = s => ({ seed: s, mood: outMood, style });
+  if (!was) {
+    for (let k = 0; k < 60 && !fits(seed, style); k++) seed = R.int(0, 1e9 - 1);
+    return out(seed);
+  }
   let best = null;
   // (The tempo jump and a new key or mode count most: they are what a listener hears first.)
   for (let k = 0; k < 120; k++) {
     const s = k ? R.int(0, 1e9 - 1) : seed;
+    if (!fits(s, style) && (best || k < 119)) continue;
     const c = contrast(radioSpec(s, out(s).mood, style), was);
     const score = c.filter(Boolean).length + (c[0] ? 10 : 0) + (c[1] || c[2] ? 10 : 0);
     if (!best || score > best.score) best = { s, score };
