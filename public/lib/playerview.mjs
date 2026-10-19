@@ -71,7 +71,7 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
     mini.hidden = !s || (!s.track && !s.busy);
     document.body.classList.toggle('playing', !mini.hidden);
     if (mini.hidden) return;
-    const title = s.track ? s.track.title : W('Orbit 電台', 'Orbit Radio');
+    const title = s.track ? s.track.title : W('電台', 'Radio');
     const sub = s.busy && !s.track ? W('調頻中…', 'Tuning in…') : s.busy ? W('調頻中…', 'Tuning in…') : subOf(s.track);
     const key = `${s.track?.id}|${title}|${sub}|${s.playing}|${s.busy}`;
     if (key !== shown) {
@@ -206,7 +206,7 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
       if (key !== npKey) {
         npKey = key;
         els.art.src = s.cover || '';
-        els.title.textContent = t ? t.title : W('Orbit 電台', 'Orbit Radio');
+        els.title.textContent = t ? t.title : W('電台', 'Radio');
         els.sub.textContent = s.busy ? W('調頻中…', 'Tuning in…') : subOf(t);
         np.classList.toggle('paused', !playing);
         els.play.innerHTML = icon(playing ? 'pause' : 'play');

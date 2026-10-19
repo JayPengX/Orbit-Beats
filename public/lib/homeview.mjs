@@ -56,9 +56,9 @@ export function mountHome(panel, api) {
     const idle = !s?.track;
     const cover = idle ? radio.idle().cover : s.cover;
     const playing = Boolean(s && (s.playing || s.busy));
-    const title = idle ? W('Orbit 電台', 'Orbit Radio') : s.track.title;
-    const sub = idle ? stationName(radio.station()) : s.busy ? W('調頻中…', 'Tuning in…') : subOf(s.track);
-    const kick = idle ? W('電台', 'Radio') : s.source === 'radio' ? W('Orbit 電台', 'Orbit Radio') : W('正在播放', 'Now playing');
+    const title = idle ? stationName(radio.station()) : s.track.title;
+    const sub = idle ? '' : s.busy ? W('調頻中…', 'Tuning in…') : subOf(s.track);
+    const kick = idle ? W('電台', 'Radio') : s.source === 'radio' ? W('電台', 'Radio') : W('正在播放', 'Now playing');
     const key = [cover?.length, title, sub, kick, playing].join('|');
     if (key === heroKey) return;
     heroKey = key;
@@ -97,8 +97,7 @@ export function mountHome(panel, api) {
     });
     recentRow.replaceChildren(shelf('recent', W('最近播放', 'Recently played'), nodes));
   }
-  const title = h('h1', { class: 'page-title', text: W('首頁', 'Home') });
-  panel.append(title, hero, ...drawRows(), recentRow);
+  panel.append(hero, ...drawRows(), recentRow);
   drawRecent();
   paintHero();
   // The station playing is marked.
