@@ -650,14 +650,19 @@ export function mountRadio(panel, api) {
   // ---- 睡眠定時 ----
   // 15, 30 or 60 minutes, or this song's end: the last ten seconds fade out
   // (the player's volume: iPhone keeps its own, so there it just stops on time), then it pauses.
-  let sleep = null; // { until } | { song, item, skipped }
+  let sleep = null; // { choice, until } | { choice, song, item, skipped }
   let sleepEvery = 0;
   function sleepMenu(sleepBtn) {
     const label = c => (c === 'song' ? W('這首結束', 'End of song') : W(`${c} 分鐘`, `${c} min`));
-    menu(sleepBtn, [...SLEEP_CHOICES.map(c => ({ label: label(c), onClick: () => setSleep(c) })), ...(sleep ? ['divider', { label: W('關閉定時', 'Turn off'), onClick: () => setSleep(null) }] : [])]).el.classList.add('radio-menu');
+    const on = sleep?.choice;
+    menu(
+      sleepBtn,
+      [...SLEEP_CHOICES.map(c => ({ label: label(c), check: c === on, onClick: () => setSleep(c) })), ...(sleep ? ['divider', { label: W('關閉', 'Off'), icon: 'close', onClick: () => setSleep(null) }] : [])],
+      { header: { title: W('睡眠定時', 'Sleep timer'), sub: sleep ? (sleepShown && !sleep.song ? W(`剩 ${sleepShown}`, `${sleepShown} left`) : W('這首結束後停止', 'Stops after this song')) : '' }, scrim: true }
+    ).el.classList.add('radio-menu');
   }
   function setSleep(c) {
-    sleep = c ? { ...sleepSet(c), item: cur } : null;
+    sleep = c ? { ...sleepSet(c), choice: c, item: cur } : null;
     clearInterval(sleepEvery);
     if (sleep) sleepEvery = setInterval(sleepTick, 500);
     else if (audio.volume !== 1) audio.volume = 1;

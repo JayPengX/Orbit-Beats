@@ -160,6 +160,8 @@ export function createPlayer(d) {
       if (active === 'radio') return radio.skip();
       active = 'radio';
       d.quiet?.();
+      // (Autoplay: the list ran out, so the radio is the station from here.)
+      if (q.station?.kind !== 'radio') set(Q.setStation(q, { kind: 'radio', id: radio.station() }));
       radio.start();
       return emit('state');
     }
@@ -181,6 +183,8 @@ export function createPlayer(d) {
     const s = state();
     if (s?.source === 'song') audio.currentTime = Math.max(0, Math.min(t, (s.seconds || t) - 0.3));
   }
+  const shuffle = on => (set(Q.setShuffle(q, on === undefined ? !q.shuffle : on)), q.shuffle);
+  const autoplay = on => (set(Q.setAutoplay(q, on === undefined ? !q.autoplay : on)), q.autoplay);
   function cycleLoop() {
     set(Q.cycleLoop(q));
     audio.loop = q.loop === 'one' && active === 'song';
@@ -251,6 +255,8 @@ export function createPlayer(d) {
     back,
     seek,
     cycleLoop,
+    shuffle,
+    autoplay,
     ended,
     close,
     // A song started outside (the player of a song row): it is what plays.
@@ -263,7 +269,8 @@ export function createPlayer(d) {
     relist: list => {
       if (q.station?.kind !== 'list' || !list.some(x => x.id === q.now?.id)) return;
       if (!q.station.items.every(x => list.some(y => y.id === x.id))) return;
-      set(Q.setStation(q, Q.listStation(list, q.now.id)));
+      const next = Q.setStation(q, Q.listStation(list, q.now.id));
+      set(q.shuffle ? Q.setShuffle({ ...next, shuffle: false }, true) : next);
     },
     upNextRadio: () => (q.station?.kind === 'radio' ? radio.upcoming() : []),
     stationNext: () => Q.stationNext(q),
