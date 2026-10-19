@@ -689,7 +689,7 @@ body.lv-simple #pieces .piece .more { width: 28px; height: 28px; }
 .hero-play:active { transform: scale(.92); }
 .shelf { margin: 0 0 22px; }
 .shelf h2 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -.01em; }
-.rail { display: flex; gap: 14px; margin: 0 -16px; padding: 12px 16px 14px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scroll-padding: 0 16px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.rail { position: relative; display: flex; gap: 14px; margin: 0 -16px; padding: 12px 16px 14px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scroll-padding: 0 16px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .rail::-webkit-scrollbar { display: none; }
 .sq { flex: none; width: 136px; padding: 0; border: 0; background: none; color: var(--text); text-align: left; scroll-snap-align: start; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; user-select: none; }
 .sq-cover { position: relative; display: block; width: 136px; height: 136px; border-radius: 14px; overflow: hidden; background: var(--fill); box-shadow: 0 8px 18px rgba(0,0,0,.16), 0 1px 3px rgba(0,0,0,.1); transition: transform var(--q-dur-snappy) var(--q-spring-snappy); }
@@ -707,7 +707,9 @@ body.lv-simple #pieces .piece .more { width: 28px; height: 28px; }
 .sq-more svg { width: 18px; height: 18px; }
 .sq.lg, .sq.lg .sq-cover { width: 172px; }
 .sq.lg .sq-cover { height: 172px; border-radius: 16px; }
-.sq.st b { position: absolute; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* (The name for VoiceOver only, kept inside its card: placed against the page, a far card's name pushed the page wide, so it scrolled sideways into blank.) */
+.sq.st { position: relative; }
+.sq.st b { position: absolute; left: 0; top: 0; width: 1px; height: 1px; margin: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .sq.wide { width: 100%; }
 .sq.wide .sq-cover { width: 100%; height: 148px; border-radius: 18px; }
 .sq.wide .sq-cover img { object-position: 50% 100%; }
