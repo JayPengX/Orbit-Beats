@@ -169,7 +169,7 @@ export function libraryView({ panel, row, goMake, zip, play, cover = () => '', s
       cell({ icon: icon('note'), title: W('歌曲', 'Songs'), value: has ? songs.length : '', chevron: has, onClick: has ? () => ((kind = null), go('songs')) : null })
     ]);
     rows.classList.toggle('lib-dim', !has);
-    const top = ui.navTitle?.(W('資料庫', 'Library')) ?? h('h1', { class: 'sr-only', text: W('資料庫', 'Library') });
+    const top = ui.navTitle(W('資料庫', 'Library'));
     // The kept songs by where they came from, and everything else kept on this phone: only what there is.
     const counts = Object.fromEntries(KINDS.map(k => [k, songs.filter(s => songKind(s) === k).length]));
     const kinds = KINDS.filter(k => counts[k]).map(k => cell({ icon: icon(KIND_ICONS[k]), title: name(KIND_NAMES, k), value: counts[k], chevron: true, onClick: () => ((kind = k), go('songs')) }));

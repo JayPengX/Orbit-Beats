@@ -260,7 +260,7 @@ let game = null;
     h('span', { class: 'hub-game-t' }, [h('b', { text: W('節奏遊戲', 'Rhythm game') }), h('span', { text: W('跟著每首歌的節拍點', 'Tap along to any song') })]),
     h('span', { class: 'hub-game-go', html: icon('play') })
   ]);
-  $('panel-create').append(ui.navTitle?.(W('創作', 'Create')) ?? '', hero, play, h('div', { class: 'hub-pair' }, [half('studio', 'grid', W('樂器', 'Studio')), half('make', 'note', W('做歌', 'Songs'), badge)]), shelf);
+  $('panel-create').append(ui.navTitle(W('創作', 'Create')), hero, play, h('div', { class: 'hub-pair' }, [half('studio', 'grid', W('樂器', 'Studio')), half('make', 'note', W('做歌', 'Songs'), badge)]), shelf);
 }
 
 // ---- Settings (做歌) ----
@@ -2283,7 +2283,7 @@ const appSettings = () => h('div', {}, [h('h3', { class: 'q-sheet-h', text: W('�
 const BUILD = document.querySelector('meta[name="build-version"]')?.content || 'dev';
 window.__fxStarted = true;
 const gated = installGate('beats', lang);
-watchUpdates({ current: BUILD, key: 'orbitBeats', cachePrefix: 'beats-', busy: () => busy || Boolean(recorder) || !audio.paused || Boolean(radio?.playing()) || Boolean(studio?.playing()) || Boolean(jam?.playing()) || Boolean(document.querySelector('.q-sheet, dialog[open]')) });
+watchUpdates({ current: BUILD, key: 'orbitBeats', cachePrefix: 'beats-' });
 topActions(q, { help: helpSheet, extra: appSettings });
 
 // Everything drawn before the loading screen lifts: the settings, the last
@@ -2438,7 +2438,7 @@ async function boot() {
   home?.refresh();
   // (A newer deploy is loaded behind the loading screen, never over the app once it shows: the kit's
   // boot check says false while it reloads to one. Still here after 8 s: the app opens as it is.)
-  if (!((await kit.updateChecked?.()) ?? true)) await new Promise(r => setTimeout(r, 8000));
+  if (!(await kit.updateChecked())) await new Promise(r => setTimeout(r, 8000));
   $('loading').hidden = true;
   setTimeout(() => slimLibrary().catch(() => {}), 4000);
   const first = await q.start().catch(() => null);
