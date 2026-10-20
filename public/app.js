@@ -2294,6 +2294,8 @@ async function boot() {
   radio = mountRadio(null, {
     // (The radio's own worker: a song tapped can drop what it's making ahead, never a batch being made in 做歌.)
     make: maker(new URL('./lib/maker.worker.mjs', import.meta.url), { prep: banksFor }),
+    // (And one for a song's opening alone, started now and idle till a tap: never a worker to start, nor one busy, then.)
+    quick: maker(new URL('./lib/maker.worker.mjs', import.meta.url), { prep: banksFor }),
     quiet: () => quiet({ keep: 'radio' }),
     title: seed => songTitle(seed),
     keep: item => keepRadio(item),

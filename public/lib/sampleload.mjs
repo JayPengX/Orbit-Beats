@@ -4,7 +4,7 @@
 // makes a song with it, once. A note that can't be fetched or read leaves
 // the instrument on its made voice.
 import { SAMPLED, sampleNotes, sampleUrl, specInsts, useBanks, DRUM_KITS, drumUrl, kitBanks } from './samples.mjs';
-import { radioSpec, REMIX_KEYS } from './radio.mjs';
+import { radioSpec, REMIX_KEYS, bedFor } from './radio.mjs';
 import { specOf, setOf } from './jamset.mjs';
 
 const RATE = 32000;
@@ -73,10 +73,14 @@ export function loadBank(inst) {
   return loading.get(inst);
 }
 // The instruments a call to the maker will play: a radio song's spec, a jam set, a recipe of either.
-function radioInsts(spec) {
+// (A song's opening, lib/radio.mjs radioIntro: only the few it plays, its arpeggio, chords, bed and hats,
+// so it's made in a moment even on the app's first song, while the rest are still being read.)
+const OPENING_DRUMS = /:(hat|open|shaker|tamb)$/;
+function radioInsts(spec, opening = false) {
   if (!spec || !Number.isFinite(spec.seed)) return [];
   const sp = radioSpec(spec.seed, spec.mood || 'all', spec.style || null);
   for (const k of REMIX_KEYS) if (spec[k] != null) sp[k] = spec[k];
+  if (opening) return [...new Set([sp.lead2, sp.chords2, bedFor(sp.style)])].filter(i => i && SAMPLED[i]).concat(kitBanks(sp.style).filter(d => OPENING_DRUMS.test(d)));
   return [...specInsts(sp), ...kitBanks(sp.style)];
 }
 const setInsts = set => {
@@ -85,7 +89,8 @@ const setInsts = set => {
 };
 export function instsOf(fn, args) {
   try {
-    if (fn === 'radio' || fn === 'radioStart' || fn === 'radioWav' || fn === 'game') return radioInsts(args[0]);
+    if (fn === 'radioStart') return radioInsts(args[0], true);
+    if (fn === 'radio' || fn === 'radioWav' || fn === 'game') return radioInsts(args[0]);
     if (fn === 'jamBand') return setInsts(args[0]);
     if (fn === 'song' || fn === 'stems' || fn === 'clip' || fn === 'midi') {
       const r = args[0];

@@ -56,12 +56,23 @@ export function maker(url, { limit = 90000, prep = null } = {}) {
     });
   let last = null;
   const sent = new Set();
+  // A fresh worker now, what this one held let go (its instruments): for one used now and then.
+  function reset() {
+    if (!worker || waiting.size) return false;
+    worker.terminate();
+    sent.clear();
+    line = Promise.resolve();
+    open();
+    return true;
+  }
   function restart() {
     if (!worker || !waiting.size) return false;
     const dropped = [...waiting.values()];
     waiting.clear();
     worker.terminate();
     sent.clear();
+    // (Nor behind the instruments being read for what was dropped: the next call's own go first.)
+    line = Promise.resolve();
     open();
     if (worker && last) call('setKit', last).catch(() => {});
     for (const w of dropped) (clearTimeout(w.timer), w.reject(new Error('cancelled')));
@@ -77,11 +88,13 @@ export function maker(url, { limit = 90000, prep = null } = {}) {
         if (b) call('setSamples', b).catch(() => {});
         return { p: call(fn, ...args) };
       });
-    line = posted.then(() => {}, () => {});
+    // (A song's opening, the music someone's waiting on: nothing else read or made until it's out.)
+    line = fn === 'radioStart' ? posted.then(o => o.p).then(() => {}, () => {}) : posted.then(() => {}, () => {});
     return posted.then(o => o.p);
   };
   return {
     restart,
+    reset,
     busy: () => waiting.size > 0,
     setKit: k => ((last = k), ask('setKit', k)),
     song: (recipe, bits) => ask('song', recipe, bits),

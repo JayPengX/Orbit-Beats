@@ -23,7 +23,7 @@ import { icon } from './icons.mjs';
 import { stationFilter, stationId, stationName } from './stations.mjs';
 import { NOTE_NAMES } from '../engine.mjs';
 import { MOODS, RADIO_SR, RADIO_V, radioPick, radioQueue, stationStyles } from './radio.mjs';
-import { heardKey, heardHas, heardItem, keepHeard } from './heard.mjs';
+import { heardKey, heardHas, heardHasNow, heardHead, heardItem, keepHeard } from './heard.mjs';
 import { FRAME, CODECS, bytesOf, tapeInit, tapeSegment, tapeFragment, tapeFeed, wavPcm, pickStream, timescaleOf, audioData } from './tape.mjs';
 import { STYLE_NAMES, STYLE_ORDER, name } from './names.mjs';
 import { W } from './lang.mjs';
@@ -78,11 +78,18 @@ export function mountRadio(panel, api) {
     return s;
   };
   // Two ahead of the one playing (on the tape, one already laid down counts); one more as soon as one is used.
+  // (A tap's song starting: the next one's instruments, read and handed to the maker, wait a moment,
+  // so they don't hold up the first notes. Over once the music plays, or after 1.5 s at most.)
+  let starting = 0;
+  const tapped = () => ((starting = Date.now()), setTimeout(fill, 1600));
+  const started = () => new Promise(done => (function wait() { starting && Date.now() - starting < 1500 ? setTimeout(wait, 50) : done(); })());
   function fill() {
+    if (starting && Date.now() - starting < 1500) return;
+    starting = 0;
     // (Before play: one, so the first tap plays at once; playing: two.)
     if (looking || q.busy || q.ready.length + (upcoming() ? 1 : 0) >= (want ? 2 : 1) || fails >= 3) return;
     // (Before play, 今日精選's songs come first: they're what a tap on 首頁 most often wants.)
-    if (!want && (preparing || (prepWant.length && prepared.size < 3))) return;
+    if (!want && (preparing || (prepWant.length && prepared.size < 3) || keptFor(mood))) return;
     const s = spec();
     const after = q.ready.at(-1)?.id || upcoming()?.id || cur?.id || null;
     const gen = q.gen;
@@ -130,9 +137,12 @@ export function mountRadio(panel, api) {
     const g = q.gen;
     opening = null;
     exact.unshift(s);
-    api.make
-      .radioStart?.(s)
+    const m = api.quick || api.make;
+    if (api.quick?.busy()) api.quick.restart();
+    m.radioStart?.(s)
       .then(v => {
+        // (Its worker let go of the opening's instruments a while after: a fresh one waits for the next tap.)
+        if (api.quick) setTimeout(() => api.quick.reset?.(), 5000);
         if (g !== q.gen) return;
         const item = dress({ ...v, spec: s, title: api.title(s.seed), url: null });
         if (taped) item.pcm = wavPcm(v.wav);
@@ -155,19 +165,57 @@ export function mountRadio(panel, api) {
     prepNext();
   }
   function prepNext() {
-    if (preparing || q.busy || want || !prepWant.length || prepared.size >= 3) return;
+    if (preparing || q.busy) return;
+    if (want || !prepWant.length || prepared.size >= 3) return nextAhead();
     const e = prepWant.shift();
     const mine = (preparing = {});
-    api.make
-      .radio(e, null)
+    // (Kept on the phone from an earlier opening: played from there, nothing made.)
+    heardHas(heardKey(e))
+      .then(has => (has || preparing !== mine ? null : api.make.radio(e, null)))
       .then(v => {
+        if (!v) return;
         const item = dress({ ...v, spec: e, title: api.title(e.seed), url: null });
-        if (taped) item.pcm = wavPcm(v.wav);
+        const pcm = wavPcm(v.wav);
+        if (taped) item.pcm = pcm;
         else (item.url = URL.createObjectURL(new Blob([v.wav], { type: 'audio/wav' }))), delete item.wav;
         prepared.set(prepKey(e), item);
+        // (Once kept on the phone, let go here: a tap plays it from there just as soon, the memory freed.)
+        keepHeard(heardKey(e), item, pcm, RADIO_SR, RADIO_V, 'ready').then(ok => ok && prepared.get(prepKey(e)) === item && (prepared.delete(prepKey(e)), drop(item)));
       })
       .catch(() => {})
       .finally(() => preparing === mine && ((preparing = false), setTimeout(() => (prepWant.length ? prepNext() : fill()), 300)));
+  }
+  // The next song of 隨機電台 and 為你電台, made when nothing else is (nothing playing, or the songs
+  // ahead all made) and kept on the phone (lib/heard.mjs): a tap on either, even the app's first, plays
+  // from there at once. Once heard, another is made.
+  // localStorage 'orbit-beats-next': { station: { seed, mood, style } }.
+  const HOME = ['all', 'taste'];
+  let nexts = {};
+  try {
+    nexts = JSON.parse(localStorage.getItem('orbit-beats-next')) || {};
+  } catch {}
+  const saveNexts = () => {
+    try {
+      localStorage.setItem('orbit-beats-next', JSON.stringify(nexts));
+    } catch {}
+  };
+  const keptFor = id => (nexts[id] && heardHasNow(heardKey(nexts[id])) ? nexts[id] : null);
+  heardHas('').then(prepNext);
+  function nextAhead() {
+    const id = HOME.find(i => !keptFor(i));
+    if (!id || preparing || q.busy || looking || starting || document.visibilityState === 'hidden') return;
+    if (want && q.ready.length + (upcoming() ? 1 : 0) < 2) return;
+    const f = stationFilter(id, api.taste?.());
+    const s = radioPick(f.mood, last, Math.floor(Math.random() * 1e9), f.styles || f.bpm ? f : null);
+    const mine = (preparing = {});
+    api.make
+      .radio(s, null)
+      .then(v => {
+        const e = { seed: s.seed, mood: s.mood || 'all', style: v.info.style };
+        return keepHeard(heardKey(e), v, wavPcm(v.wav), RADIO_SR, RADIO_V, 'ready').then(() => heardHasNow(heardKey(e)) && ((nexts[id] = e), saveNexts()));
+      })
+      .catch(() => {})
+      .finally(() => preparing === mine && ((preparing = false), setTimeout(prepNext, 300)));
   }
   const urlOf = it => (it.url ||= URL.createObjectURL(new Blob([it.wav], { type: 'audio/wav' })));
   const drop = it => it && it !== cur && !tape?.marks.some(m => m.item === it) && !q.ready.includes(it) && (it.url && URL.revokeObjectURL(it.url), (it.url = null), (it.pcm = null), (it.wav = null));
@@ -212,7 +260,7 @@ export function mountRadio(panel, api) {
   const SR = RADIO_SR;
   // The stream: FLAC as it is, or AAC / Opus packed on the phone (WebCodecs).
   // Times on it: `time`, `base` in its clock (ts a second), `inTime` in samples.
-  function openTape(choice) {
+  function openTape(choice, warm = false) {
     const MS = globalThis.ManagedMediaSource || globalThis.MediaSource;
     const ms = new MS();
     const c = choice.codec;
@@ -222,6 +270,7 @@ export function mountRadio(panel, api) {
         output: (chunk, meta) => {
           if (tape !== t) return;
           if (meta?.decoderConfig?.description && !t.desc) t.desc = meta.decoderConfig.description;
+          if (t.warming) return;
           let data = new Uint8Array(chunk.byteLength);
           chunk.copyTo(data);
           // (AAC in ADTS after all: its header off, the frame as MP4 holds it.)
@@ -234,6 +283,22 @@ export function mountRadio(panel, api) {
         error: e => tape === t && toFiles(`encoder: ${e?.message || e}`)
       });
       t.enc.configure(t.config);
+      // (Opened ahead of the first tap: a moment of silence through the encoder for what the stream is,
+      // so the music's first notes go straight on; the silence itself let go.)
+      if (warm) {
+        t.warming = true;
+        t.enc.encode(audioData(new Int16Array(2 * 2048), SR, 0));
+        t.enc.flush().then(
+          () => {
+            if (tape !== t || !t.warming) return;
+            t.warming = false;
+            t.enc.reset();
+            t.enc.configure(t.config);
+            pump();
+          },
+          () => tape === t && t.warming && ((t.warming = false), pump())
+        );
+      }
     }
     // (iOS's Managed Media Source plays only with AirPlay off for it.)
     audio.disableRemotePlayback = true;
@@ -273,12 +338,12 @@ export function mountRadio(panel, api) {
         t.time = t.base = Math.round(at * t.ts);
         t.inTime = Math.round(at * SR);
         t.marks = t.marks.filter(m => m.t < at);
-        if (t.enc) t.enc.reset(), t.enc.configure(t.config), (t.pending = []);
+        if (t.enc) t.enc.reset(), t.enc.configure(t.config), (t.pending = []), (t.warming = false);
         return t.sb.remove(at, Infinity);
       }
       // (What the stream is, first: for AAC and Opus, once the encoder has said.)
       if (!t.inited) {
-        if (t.enc && !t.pending.length) return feedEncoder(t);
+        if (t.enc && !t.desc && !t.pending.length) return feedEncoder(t);
         t.inited = true;
         t.stage = 'init';
         return t.sb.appendBuffer(tapeInit(SR, { codec: t.codec, description: t.desc }));
@@ -314,6 +379,8 @@ export function mountRadio(panel, api) {
   // The next n samples off the songs, their marks kept. -> { pcm } | null
   function take(t, n) {
     if (!t.feed.item && !q.ready.length) return null;
+    // (The stream opened ahead of the first tap: nothing on it until the music's asked for.)
+    if (!want && !t.marks.length) return null;
     const { pcm, marks } = t.feed.take(n, () => q.ready.length > 0, () => q.ready.shift() || null);
     for (const m of marks) t.marks.push({ t: (t.inTime + m.at) / SR, item: m.item, from: m.from / SR });
     t.inTime += n;
@@ -322,9 +389,10 @@ export function mountRadio(panel, api) {
   }
   // AAC / Opus: the next samples to the encoder (its frames come back to pump), never more than a few seconds ahead of what's out.
   function feedEncoder(t) {
-    if (t.enc.state !== 'configured' || t.enc.encodeQueueSize > 1 || t.inTime / SR - t.time / t.ts > 6) return;
+    if (t.warming || t.enc.state !== 'configured' || t.enc.encodeQueueSize > 1 || t.inTime / SR - t.time / t.ts > 6) return;
     const at = t.inTime;
-    const got = take(t, CHUNK * FRAME);
+    // (The first stretch a fifth as long: out of the encoder and playing that much sooner.)
+    const got = take(t, (t.time === t.base && t.inTime / SR - t.time / t.ts < 1 ? CHUNK / 4 : CHUNK) * FRAME);
     if (got) t.enc.encode(audioData(got.pcm, SR, at));
   }
   // The stretch playing: which song and where in it. -> { item, at (s) } | null
@@ -465,13 +533,15 @@ export function mountRadio(panel, api) {
         codec = p.codec;
         choice = p;
         note(p.path, p.reason);
+        // (The stream opened now, silent, so the first tap has only the music to wait for.)
+        if (taped && !tape) openOr(true);
       })
       .catch(e => note('files', `couldn't tell: ${e?.message || e}`));
 
   // (The stream opened, or files if it can't be: the songs made so far get their files.)
-  function openOr() {
+  function openOr(warm = false) {
     try {
-      tape = openTape(choice);
+      tape = openTape(choice, warm);
       return true;
     } catch (e) {
       taped = false;
@@ -482,6 +552,10 @@ export function mountRadio(panel, api) {
 
   // ---- Play, pause, next, the mood ----
   function start() {
+    // (Nothing made yet and the station's next song kept on the phone: that, at once.)
+    const kept = !cur && !q.ready.length && !looking && !exact.length ? keptFor(mood) : null;
+    if (kept) return playSpec(kept);
+    if (!cur) tapped();
     api.quiet();
     want = true;
     retried = 0;
@@ -513,6 +587,7 @@ export function mountRadio(panel, api) {
     audio.pause();
     paint();
     claim();
+    setTimeout(prepNext, 3000);
   }
   function skip() {
     if (!want) return start();
@@ -534,6 +609,10 @@ export function mountRadio(panel, api) {
     mood = id;
     api.setMood(id);
     emit('station');
+    tapped();
+    // (Its next song kept on the phone: played from there, at once.)
+    const kept = keptFor(id);
+    if (kept) return playSpec(kept), paintNext();
     // What was made for the old mood goes; the next one is this mood's, and plays as soon as it's made.
     const old = q.ready;
     q.ready = [];
@@ -552,21 +631,39 @@ export function mountRadio(panel, api) {
   }
   // One exact song again ({ seed, mood, style }): made from its spec like any other, then played from the next cut.
   function playSpec(e) {
+    tapped();
     exact.length = 0;
     const ready = prepared.get(prepKey(e));
     prepared.delete(prepKey(e));
-    // (Heard lately: its kept sound, back in a moment, rather than made again; else made, first.)
-    const mine = (looking = ready ? null : {});
+    // (Heard lately: its kept sound, back in a moment, rather than made again; else made, first.
+    // Known not to be kept: its opening made at once, nothing looked for.)
+    const spec = { seed: e.seed, mood: e.mood || 'all', style: e.style };
+    const key = heardKey(spec);
+    const miss = !ready && heardHasNow(key) === false;
+    const mine = (looking = ready || miss ? null : {});
     if (mine) {
-      const spec = { seed: e.seed, mood: e.mood || 'all', style: e.style };
-      heardHas(heardKey(spec))
-        .then(has => (has ? heardItem(heardKey(spec), RADIO_V) : null))
+      let head = null;
+      heardHas(key)
+        // (On the stream: its first bars at once, then the rest once unpacked, at its fifth bar.)
+        .then(has => (has && taped ? heardHead(key, RADIO_V, RADIO_SR).then(h => ((head = h), has)) : has))
+        .then(has => {
+          if (looking !== mine) return null;
+          if (head) {
+            const item = dress({ ...head, spec, title: api.title(spec.seed), url: null, kept: true });
+            opening = { id: item.id, length: head.length };
+            q.ready.unshift(item);
+            arrived();
+          }
+          // (Unpacked once its first bars play, not in their way.)
+          return has ? (head ? started() : Promise.resolve()).then(() => heardItem(key, RADIO_V)) : null;
+        })
         .then(hit => {
           if (looking !== mine) return hit && URL.revokeObjectURL(hit.url);
           looking = null;
-          if (!hit) return rush(spec), fill();
+          if (!hit) return head ? ((exact.length = 0), exact.push(spec), fill()) : (rush(spec), fill());
           const item = dress({ ...hit, spec, title: api.title(spec.seed), kept: true });
           if (!taped) item.pcm = null;
+          if (opening?.id === item.id) (item.start = opening.length), (opening = null);
           q.ready.unshift(item);
           arrived();
         });
@@ -578,6 +675,7 @@ export function mountRadio(panel, api) {
     for (const it of old) drop(it), unart(it);
     q.gen++;
     q.skip = Boolean(cur);
+    if (miss) rush(spec);
     if (!want) start();
     else if (ready) advance();
     else fill();
@@ -591,6 +689,8 @@ export function mountRadio(panel, api) {
       unart(heard);
       heard = cur;
       if (cur) remember(cur);
+      // (A station's kept next song, heard now: another made for next time.)
+      if (cur && !cur.quick) for (const id of HOME) if (nexts[id] && heardKey(nexts[id]) === heardKey({ ...cur.spec, style: cur.info.style })) delete nexts[id], saveNexts();
       // (Kept small for 最近播放, while the screen is on: a tap on it later plays at once.)
       if (cur?.pcm && !cur.kept && !cur.quick && document.visibilityState === 'visible') keepHeard(heardKey({ ...cur.spec, style: cur.info.style }), cur, cur.pcm, RADIO_SR, RADIO_V);
       emit('song');
@@ -689,7 +789,7 @@ export function mountRadio(panel, api) {
     if (document.visibilityState === 'hidden') resume('still stopped by the phone');
   }, 5000);
   for (const ev of ['pageshow', 'focus']) addEventListener(ev, () => resume(ev));
-  audio.addEventListener('playing', () => ((retried = 0), (held = 0)));
+  audio.addEventListener('playing', () => ((retried = 0), (held = 0), starting && ((starting = 0), fill())));
   // (Every few seconds: the stream topped up, and a stall, time not moving with music ahead, caught.)
   setInterval(() => {
     if (!tape || !want) return;

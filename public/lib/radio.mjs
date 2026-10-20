@@ -497,7 +497,7 @@ export function radioSpec(seed, mood = 'all', style = null) {
   return sp;
 }
 // The soft held chords under a riff: a synth pad for the electronic grooves, recorded strings for a band's.
-const bedFor = style => (STYLE_KIT[style] === 'acoustic' || STYLE_KIT[style] === 'lofi' ? 'strings' : 'pad');
+export const bedFor = style => (STYLE_KIT[style] === 'acoustic' || STYLE_KIT[style] === 'lofi' ? 'strings' : 'pad');
 // (What an arpeggio sounds right on: plucked or struck, so each note speaks at once.)
 const ARPY = new Set(['pluck', 'bell', 'keys', 'guitar', 'piano', 'rhodes', 'vibes', 'marimba', 'kalimba', 'harp', 'nylon', 'glass', 'musicbox', 'clav', 'steel', 'banjo', 'guzheng', 'pizz', 'sitar', 'chip']);
 

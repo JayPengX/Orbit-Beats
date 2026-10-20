@@ -1,12 +1,15 @@
 // 最近播放's sound, kept a while: the last few radio songs that played,
 // packed small (lib/pack.mjs, about a tenth of the WAV), so a tap on one in
-// 最近播放 plays at once instead of being made again. On this phone only,
+// 最近播放 plays at once instead of being made again. And the few made ahead
+// (今日精選's first ones, and the next song of 隨機電台 and 為你電台; kind 'ready'):
+// kept too, so the app opened again plays them at once, before a single
+// instrument is read. On this phone only,
 // never sent anywhere; a song made by an older engine (RADIO_V) is made again.
 import { packPcm, keptAudio } from './pack.mjs';
 
 const DB = 'orbit-beats-heard';
 const STORE = 'songs';
-const KEEP = 8;
+const KEEP = { heard: 8, ready: 6 };
 export const heardKey = e => `${e.seed}:${e.mood || 'all'}:${e.style}`;
 function open() {
   return new Promise((resolve, reject) => {
@@ -36,21 +39,41 @@ let keys = null;
 let loading = null;
 const loadKeys = () => (loading ||= run('readonly', s => s.getAllKeys()).then(k => (keys = new Set(k)), () => (keys = new Set())));
 export const heardHas = async key => (await loadKeys()).has(key);
-// A song that just started: packed and kept (its samples: 16-bit L R interleaved). The oldest beyond KEEP let go.
-// item: { id, info, seconds, hold }. Never throws.
-export async function keepHeard(key, item, pcm, sr, v) {
+// The same, at once: null until the keys are read (heardHas reads them).
+export const heardHasNow = key => (keys ? keys.has(key) : null);
+// A song that just started (or was made ahead: kind 'ready'): packed and kept (its samples: 16-bit L R
+// interleaved). The oldest of its kind beyond KEEP let go. item: { id, info, seconds, hold }. -> kept? Never throws.
+export async function keepHeard(key, item, pcm, sr, v, kind = 'heard') {
   try {
-    if ((await loadKeys()).has(key)) return;
+    if ((await loadKeys()).has(key)) return true;
     const packed = await packPcm(pcm, sr);
-    if (!packed) return;
-    const rec = { key, at: Date.now(), v, id: item.id, info: item.info, seconds: item.seconds, hold: item.hold, ...packed };
+    if (!packed) return false;
+    // (Its first four bars as they are, read back in a moment: they play while the rest is unpacked.)
+    const bars = item.info?.bpm ? Math.round(((16 * 60) / item.info.bpm) * sr) : 8 * sr;
+    const head = pcm.slice(0, Math.min(pcm.length, bars * 2));
+    const rec = { key, kind, at: Date.now(), v, id: item.id, info: item.info, seconds: item.seconds, hold: item.hold, head, headSr: sr, ...packed };
     await run('readwrite', s => s.put(rec));
     keys.add(key);
     const all = (await run('readonly', s => s.getAll())) || [];
-    const old = all.sort((a, b) => b.at - a.at).slice(KEEP);
+    const old = all.filter(r => (r.kind || 'heard') === kind).sort((a, b) => b.at - a.at).slice(KEEP[kind]);
     if (old.length) await run('readwrite', s => old.forEach(r => s.delete(r.key)));
     for (const r of old) keys.delete(r.key);
-  } catch {}
+    return keys.has(key);
+  } catch {
+    return false;
+  }
+}
+// A kept song's first four bars, back at once (unpacking it whole takes a second or two on a phone):
+// { item fields of an opening (quick, held round until the rest is here), pcm } | null.
+export async function heardHead(key, v, sr) {
+  try {
+    const rec = await run('readonly', s => s.get(key));
+    if (!rec || rec.v !== v || !rec.head?.length || rec.headSr !== sr) return null;
+    const len = rec.head.length / 2 / sr;
+    return { id: rec.id, info: rec.info, seconds: rec.seconds, hold: { from: 0, to: len }, length: len, quick: true, pcm: rec.head };
+  } catch {
+    return null;
+  }
 }
 // A kept song back: { item fields, url (the packed file), pcm (16-bit L R interleaved) } | null.
 export async function heardItem(key, v) {

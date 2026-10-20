@@ -846,8 +846,11 @@ export function mountJam(panel, api) {
     true
   );
   draw();
-  // (The built-in set made while the app opens, so it's there when the tab is.)
-  setTimeout(() => usingBand() && makeBand(), 500);
+  // (The built-in set made a while after the app opens, so it's there when the tab is; never while
+  // music is starting or playing, when reading its instruments would hold the song up. The tab
+  // opened makes it then.)
+  const warm = () => (navigator.mediaSession?.playbackState === 'playing' ? setTimeout(warm, 15000) : usingBand() && makeBand());
+  setTimeout(warm, 8000);
   return {
     // The kit, its tempo or its roles changed: the pads follow (and anything playing stops).
     kit() {
