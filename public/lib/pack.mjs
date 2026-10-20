@@ -36,8 +36,6 @@ export const mbText = bytes => {
   const mb = Math.max(0, bytes) / 1e6;
   return `${mb.toFixed(mb < 10 ? 1 : 0)} MB`;
 };
-// How big a song is in each form (bytes, about): the WAV, mono, packed.
-export const sizeOf = (seconds, form, { sr = 48000, bitrate = 160000 } = {}) => Math.round(form === 'wav' ? 44 + seconds * sr * 4 : form === 'mono' ? 44 + seconds * sr * 2 : (seconds * bitrate) / 8 + 1500 + seconds * 60);
 
 // ---- The .m4a ----
 // One audio track: frames [{ data, dur }] (dur in the track's clock, sr or

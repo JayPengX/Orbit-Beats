@@ -2,7 +2,7 @@
 // a clip is the right length for its bars at the tempo, and not silent.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { STYLES, parseWav } from '../public/engine.mjs';
+import { parseWav } from '../public/engine.mjs';
 import { remix, surprise, remixId, remixTitle, kindOfRecipe, baseOf, radioBase, bandBase, lengthStep, speedStep, clipSpan, partOf, retime, remixNow, bpmAfter } from '../public/lib/remix.mjs';
 import { radioSpec, radioSong, RING_BARS } from '../public/lib/radio.mjs';
 import * as make from '../public/lib/make.mjs';

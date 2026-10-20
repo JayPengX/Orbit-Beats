@@ -133,9 +133,12 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
   hook → outro. The same riff set per
   section type, energy building to the last hook, fills at phrase ends,
   and a clean ending.
-- **Drum styles:** four-on-floor, hip-hop, trap, half-time, broken, house,
-  dembow, afrobeats, drill, boom bap, Jersey club, amapiano, lo-fi, funk,
-  UK garage, drum & bass, reggae, phonk, baile, techno.
+- **Grooves (49, `STYLES` in `engine.mjs`, mirrored in `passion_beats.py`):**
+  the first twenty are the drum styles (four-on-floor, hip-hop, trap, house,
+  drill, lo-fi, techno…); the rest are the genres (jazz swing, bossa nova,
+  salsa, rock, city pop, K-pop, synthwave, chiptune, dubstep, trance, blues,
+  country…). Each has a Chinese and an English name (`lib/names.mjs`) and a
+  cover.
 - **Mix** (on by default, 更多設定): buses for drums, hats, bass and melody;
   the drums and bass glued (2:1) and kept off the sub, the melody brightened
   and set wide (its middle stays put, so a mono speaker hears it as it was),
@@ -172,17 +175,15 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 - The guided first song is retired (聽 is the way in now).
 - `engine.mjs` and `passion_beats.py` stay in step.
 
-## Sounds added for variety
+## Sounds and the radio
 
-- **Grooves (49 in all; 29 new):** jazz swing, bossa nova, samba, salsa, rock, pop-punk, metal, city pop, K-pop, synthwave, disco, gospel, neo-soul, ballad, ambient, cinematic, chiptune, kizomba, highlife, cumbia, bhangra, dubstep, footwork, jungle, trance, hardstyle, Chinese, blues, country. Each is in `engine.mjs` and mirrored in `passion_beats.py`, with a Chinese and an English name (`lib/names.mjs`) and a cover.
-- **Instruments (42 in all; 30 new, `lib/voices.mjs`):** piano, Rhodes, clavinet, vibes, marimba, kalimba, music box, glass bell, steel drum, harp, nylon guitar, banjo, guzheng, sitar, pizzicato, erhu, sax, flute, harmonica, accordion, choir, supersaw, chip, chip bass, 808 glide, upright bass, acid bass, Reese bass, distorted guitar, slap bass.
-- **Drums (32 in all; 16 new lanes):** timbale, cajon, tabla, clave, tambourine, guiro, agogo, dhol; brush, rock kick and snare, hard kick, 8-bit kick, snare and hat, gong. Each has its own General MIDI note.
-- **聽 moods:** Pop, Jazz and World join the four.
+- **Instruments (42, `lib/voices.mjs`), beyond the core voices:** piano, Rhodes, clavinet, vibes, marimba, kalimba, music box, glass bell, steel drum, harp, nylon guitar, banjo, guzheng, sitar, pizzicato, erhu, sax, flute, harmonica, accordion, choir, supersaw, chip, chip bass, 808 glide, upright bass, acid bass, Reese bass, distorted guitar, slap bass.
+- **Drum lanes (32):** timbale, cajon, tabla, clave, tambourine, guiro, agogo, dhol; brush, rock kick and snare, hard kick, 8-bit kick, snare and hat, gong. Each has its own General MIDI note.
 - **Next-song rule (`radioPick`):** no groove repeated within the last six (the mood's size less five in a small mood), a different family, a tempo jump of 15 BPM or a half/double feel, and a new key or mode, then new chords, lead and form. `tests/variety.test.mjs` checks 30 songs per mood.
 - **Inside a song (`lib/radio.mjs`, `makeSong`'s `arrange` and `varied`):** the verse's chords are one loop and the hook's another (another family, another lead, a bass to suit); a second verse plays other riffs; the last hook (when there are two) is lifted one to five semitones, with its own riffs, bass and 808; the drums are dressed per section (ghost ticks, a pushed or skipped kick, open ticks, a snare snap, and how a phrase ends: five touches, a different one for verses, hooks, the last hook and the bridge). The forms vary (an eight-bar intro, four-bar verses, a pre-hook now and then, a hook shown early, a break or bridge between pairs, the last hook doubled or cut short). All drawn from streams of their own, so the jam set's band (`radioKit(sp, sr)`) is as it was. `passion_beats.py --varied` plays the same drum touches.
 - **Last eight (`radioPick`, `MEMORY`):** besides the last song, the seed drawn is the one that repeats least of the last eight: chord loops (verse's and hook's, as families: a loop and its turns are one), keys, leads, chord instruments, forms, tempos and drum touches, what is near counting the most. `tests/variety2.test.mjs` checks it, and that sections differ.
 - **Core voices (`lib/voices.mjs`, `lib/synth.mjs`):** keys, rhodes, piano, pad, strings, pluck, lead, bass and sub are band-limited (PolyBLEP saws and pulses, sines) through filters that move with the note; the kick has a beater click; hats and cymbals are band-passed noise under the 808's six squares. `voice(inst, midi, sr, hold, vel, variant)`: a harder hit (`vel`, from the clip's level) is brighter, and a note that comes again in a clip takes the other of two takes (`variant`: its own noise, phase and a few cents), so no repeat is bit for bit the last. `tests/voices-core.test.mjs` holds the numbers.
-- **Recorded instruments (`lib/samples.mjs`, `lib/sampleload.mjs`, `public/samples/`):** the instruments that are real ones play recordings, not oscillators: 32 of them (piano, both electric pianos, clavinet, organ, vibes, marimba, kalimba, music box, celesta, tubular bells, steel drum, harp, nylon, clean and distorted guitar, banjo, koto for 古箏, sitar, strings, pizzicato, violin for 二胡, brass, alto sax, flute, harmonica, accordion, choir, oohs, finger, upright and slap bass) from the MusyngKite soundfont (CC BY-SA 3.0, `public/samples/mk/`, `node scripts/samples.mjs --sf=MusyngKite`), with the FluidR3 GM soundfont (Frank Wen, CC BY 3.0, `public/samples/<inst>/`, `node scripts/samples.mjs`) kept beside it: `SAMPLE_SET` in `lib/samples.mjs` picks which plays. Both credited in the ? sheet; a note every major third. The drums are recorded kits by groove (`STYLE_KIT`): a real acoustic kit (Virtuosity Drums' middle mic; its lo-fi mic for lo-fi and boom bap), a real TR-808 (Michael Fischer) for trap, drill and hip-hop, an electronic kit (Sonic Pi) for house, techno and the rest, and recorded hand percussion everywhere, three hit strengths with two takes each, all CC0 (`node scripts/drums.mjs`, macOS). The page fetches only what a song plays, decodes it once (32 kHz mono), and hands it to the workers before the song is made (`maker(url, { prep })`); `sw.js` keeps the files. With none in (offline the first time, the tests), the made voices play, each recording brought to the made voice's loudness so the mix holds. Synths, 8-bit, the 808 bass and pads stay made. `node scripts/listen.mjs [n] [dir] [--style=a,b] [--made]` writes songs to WAV both ways (macOS).
+- **Recorded instruments (`lib/samples.mjs`, `lib/sampleload.mjs`, `public/samples/`):** the instruments that are real ones play recordings, not oscillators: 32 of them (piano, both electric pianos, clavinet, organ, vibes, marimba, kalimba, music box, celesta, tubular bells, steel drum, harp, nylon, clean and distorted guitar, banjo, koto for 古箏, sitar, strings, pizzicato, violin for 二胡, brass, alto sax, flute, harmonica, accordion, choir, oohs, finger, upright and slap bass) from the MusyngKite soundfont (CC BY-SA 3.0, `public/samples/mk/`, `node scripts/samples.mjs`), credited in the ? sheet; a note every major third. The drums are recorded kits by groove (`STYLE_KIT`): a real acoustic kit (Virtuosity Drums' middle mic; its lo-fi mic for lo-fi and boom bap), a real TR-808 (Michael Fischer) for trap, drill and hip-hop, an electronic kit (Sonic Pi) for house, techno and the rest, and recorded hand percussion everywhere, three hit strengths with two takes each, all CC0 (`node scripts/drums.mjs`, macOS). The page fetches only what a song plays, decodes it once (32 kHz mono), and hands it to the workers before the song is made (`maker(url, { prep })`); `sw.js` keeps the files. With none in (offline the first time, the tests), the made voices play, each recording brought to the made voice's loudness so the mix holds. Synths, 8-bit, the 808 bass and pads stay made. `node scripts/listen.mjs [n] [dir] [--style=a,b] [--made]` writes songs to WAV both ways (macOS).
 - **Loudness:** `node scripts/loudness.mjs [seed] [style,...]` renders 8 s of each groove's radio song and prints RMS and peak (nothing is written); a per-groove `mix` in `lib/radio.mjs` evens out the outliers.
 
 ## Files (`public/`)
@@ -199,8 +200,6 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 | `lib/make.mjs`, `lib/maker.mjs`, `lib/maker.worker.mjs` | Making songs in a worker |
 | `lib/jam.mjs`, `lib/jamview.mjs` | 即興: timing, levels, choke; the pads |
 | `lib/library.mjs`, `lib/lists.mjs` | 資料庫: search, order, zip; playlists |
-| `lib/jam.mjs`, `lib/jamview.mjs` | 即興: timing; the pads |
-| `lib/library.mjs` | 資料庫: search, order, zip |
 | `lib/sections.mjs` | 做歌: section times and the playing section |
 | `lib/radio.mjs`, `lib/radioview.mjs` | 聽: songs out of nothing, the join between them; its screen and player |
 | `lib/cover.mjs`, `lib/listen.mjs` | 聽's covers; its sleep timer and recently played |
@@ -209,6 +208,12 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
 | `lib/pack.mjs` | 資料庫's songs kept small: the .m4a, packing, 資料庫瘦身's rule, telling a song made again from another |
 | `lib/project.mjs` | 存成檔案 / 打開檔案: a song's settings (no sound) as a versioned `.orbitbeats.json` |
 | `lib/midi.mjs`, `lib/tap.mjs`, `lib/download.mjs`, `lib/names.mjs` | MIDI files, tap tempo, saving, names |
+| `lib/samples.mjs`, `lib/sampleload.mjs`, `lib/voices.mjs` | Recorded instruments and drum kits: which notes, fetched and decoded; the added voices |
+| `lib/game.mjs`, `lib/gameview.mjs` | 節奏遊戲: a song's chart, the stage |
+| `lib/homeview.mjs`, `lib/stations.mjs`, `lib/genres.mjs` | 首頁 shelves; stations as filters on the radio; the genre picker |
+| `lib/heard.mjs`, `lib/queue.mjs`, `lib/player.mjs`, `lib/playerview.mjs` | 最近播放's kept sound; the play queue; the one player; the mini bar and Now Playing |
+| `lib/remix.mjs`, `lib/remixview.mjs`, `lib/kitops.mjs`, `lib/jamset.mjs` | 重新混音 and 取出片段; kits taken apart and kept by name; 即興's built-in set |
+| `lib/icons.mjs`, `lib/ui.mjs`, `lib/length.mjs`, `lib/lang.mjs` | Icons; the kit's UI with this app's changes; song length in words; language |
 
 ## Run and test
 

@@ -18,24 +18,17 @@
 // sound), the card tinted with its colour, the lock screen showing the same
 // cover; 最近播放, and 睡眠定時 (lib/listen.mjs).
 
-import { h, toast, menu } from './ui.mjs';
-import { icon } from './icons.mjs';
+import { toast, menu } from './ui.mjs';
 import { stationFilter, stationId, stationName } from './stations.mjs';
-import { NOTE_NAMES } from '../engine.mjs';
 import { MOODS, RADIO_SR, RADIO_V, radioPick, radioQueue, stationStyles } from './radio.mjs';
 import { heardKey, heardHas, heardHasNow, heardHead, heardItem, keepHeard } from './heard.mjs';
 import { FRAME, CODECS, bytesOf, tapeInit, tapeSegment, tapeFragment, tapeFeed, wavPcm, pickStream, timescaleOf, audioData } from './tape.mjs';
-import { STYLE_NAMES, STYLE_ORDER, name } from './names.mjs';
+import { STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
 import { coverSvg, coverUrl, coverPalette } from './cover.mjs';
-import { SLEEP_CHOICES, sleepSet, sleepLeft, sleepGain, sleepDone, sleepClock, RECENT_KEY, recentAdd, recentEntry, recentParse, recentItem } from './listen.mjs';
+import { SLEEP_CHOICES, sleepSet, sleepLeft, sleepGain, sleepDone, sleepClock, RECENT_KEY, recentAdd, recentEntry, recentParse } from './listen.mjs';
 
-const keyName = k => (k ? `${NOTE_NAMES[k.tonic]} ${k.minor ? W('小調', 'minor') : W('大調', 'major')}` : '');
 const moodOf = m => (MOODS[m] ? stationName(m) : '');
-const moodName = stationName;
-// The words over a cover: its groove and tempo.
-const coverLabel = (style, bpm) => `${name(STYLE_NAMES, style)} · ${bpm} BPM`;
-const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s) % 60).padStart(2, '0')}`;
 // A half second of silence: played on the first tap, it lets the page start the music once it's made (iOS's rule).
 function hush() {
   const n = 8000;
@@ -543,7 +536,6 @@ export function mountRadio(panel, api) {
   // Which way this phone plays (decided once, as the screen opens), kept for a look:
   // localStorage 'orbit-beats-radio-path' ('stream: …' or 'files: …'), and on 聽 with ?debug.
   let taped = false;
-  let codec = null;
   let choice = null;
   function note(path, reason) {
     try {
@@ -554,20 +546,12 @@ export function mountRadio(panel, api) {
   let forced = null;
   try {
     forced = localStorage.getItem('orbit-beats-radio');
-    // (Once: 'files' set by the app itself when the phone paused the stream; that's no
-    // reason to stay on files, so phones it was set on go back to the stream.)
-    if (forced === 'files' && !localStorage.getItem('orbit-beats-radio-unstuck')) {
-      localStorage.removeItem('orbit-beats-radio');
-      forced = null;
-    }
-    localStorage.setItem('orbit-beats-radio-unstuck', '1');
   } catch {}
   if (forced === 'files') note('files', "set to files on this phone ('orbit-beats-radio')");
   else
     pickStream(RADIO_SR, { codecs: CODECS.some(c => c.codec === forced) ? CODECS.filter(c => c.codec === forced) : CODECS })
       .then(p => {
         taped = p.path === 'stream';
-        codec = p.codec;
         choice = p;
         note(p.path, p.reason);
         // (The stream opened now, silent, so the first tap has only the music to wait for.)
@@ -758,7 +742,6 @@ export function mountRadio(panel, api) {
   };
   function paintTime() {
     if (!cur) return;
-    const t = songTime();
     emit('time');
   }
   const session = () => ({
@@ -969,7 +952,6 @@ export function mountRadio(panel, api) {
     paintSleep();
   }
   let sleepShown = '';
-  const sleepText = () => sleepShown;
   function paintSleep(left = Infinity) {
     const txt = !sleep ? '' : sleep.song ? W('這首', 'Song') : sleepClock(left);
     if (txt === sleepShown) return;

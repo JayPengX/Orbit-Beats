@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MIX, BUSES, BUS_OF, STEMS, CEILING, LOUDNESS, mixOf, dbGain, mixdown, mixBuses, master, limitGain, duck, room, glue, widen, loudness, onePole, sweep } from '../public/lib/mix.mjs';
+import { MIX, BUSES, BUS_OF, STEMS, CEILING, LOUDNESS, mixOf, dbGain, mixdown, mixBuses, master, limitGain, duck, room, glue, widen, loudness, sweep } from '../public/lib/mix.mjs';
 import { ROLES, STYLES, makeSong, demoRecording, splitPieces, analyzeRecording } from '../public/engine.mjs';
 
 const rec = demoRecording();
@@ -101,10 +101,6 @@ test('the room: silent until the pre-delay, then rings and dies away, the sides 
   assert.ok(energy(n.L, 10, 20) < 3 * energy(n.L, 4, 14) && energy(n.L, 10, 20) > 0.3 * energy(n.L, 4, 14), 'level steady');
   assert.ok(peakOf(n.L, n.R) < 4, 'no blow-up');
   assert.ok(room(new Float32Array(5000), sr).L.every(v => v === 0), 'silence in, silence out');
-  // One-pole: DC through the low-pass, none through the high-pass.
-  const dc = new Float32Array(4000).fill(1);
-  assert.ok(Math.abs(onePole(dc, 8000, 200)[3999] - 1) < 1e-6);
-  assert.ok(Math.abs(onePole(dc, 8000, 200, 'hp')[3999]) < 1e-6);
 });
 
 test('the glue: loud stretches brought towards the quiet ones, the power kept, a steady tone and silence left as they were', () => {

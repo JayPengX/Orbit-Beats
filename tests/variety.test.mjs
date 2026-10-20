@@ -9,8 +9,6 @@ import { STYLE_NAMES, STYLE_ORDER } from '../public/lib/names.mjs';
 import { MOODS, BAND_STYLES, radioSpec, radioKit, radioPick } from '../public/lib/radio.mjs';
 
 const peak = x => x.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
-const rms = x => Math.sqrt(x.reduce((s, v) => s + v * v, 0) / Math.max(1, x.length));
-
 test('every style: a groove, a band and all the radio kit\'s parts sound at three seeds', () => {
   assert.deepEqual([...BAND_STYLES].sort(), [...STYLES].sort(), 'a band for every style');
   assert.deepEqual([...GROOVE_STYLES].sort(), [...STYLES].sort(), 'a groove for every style');

@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { coverPalette, coverSvg, coverRng, coverCount, STYLE_ART } from '../public/lib/cover.mjs';
-import { sleepSet, sleepLeft, sleepGain, sleepDone, sleepClock, SLEEP_FADE, recentAdd, recentEntry, recentParse, recentItem, RECENT_MAX } from '../public/lib/listen.mjs';
+import { sleepSet, sleepLeft, sleepGain, sleepDone, sleepClock, SLEEP_FADE, recentAdd, recentEntry, recentParse, RECENT_MAX } from '../public/lib/listen.mjs';
 import { STYLES } from '../public/engine.mjs';
 
 const song = { seed: 123456, style: 'afro', mood: 'groove', key: { tonic: 7, minor: true }, bpm: 104, title: '霓虹脈搏', label: 'Afro · 104 BPM' };
@@ -116,6 +116,4 @@ test('recently played: newest first, once each, twenty at most, read back safely
   assert.deepEqual(recentParse('nope'), []);
   assert.deepEqual(recentParse('{"a":1}'), []);
   assert.equal(recentParse(JSON.stringify([{ seed: 'x' }, list[0]])).length, 1);
-  // (As the ♡ takes it: the same id the radio keeps it under.)
-  assert.equal(recentItem(list[0]).id, 'radio:9:all:trap');
 });

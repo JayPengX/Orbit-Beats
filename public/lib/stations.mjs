@@ -4,7 +4,7 @@
 //   'style:<id>'         one groove
 //   'tempo:slow|mid|fast' a range of tempos
 //   'taste'              the grooves you keep (♡), most kept first
-import { MOODS, stationStyles, radioPick, radioSpec } from './radio.mjs';
+import { MOODS, radioPick, radioSpec } from './radio.mjs';
 import { STYLE_ORDER, STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
 
@@ -79,8 +79,6 @@ export function nowStation(hour) {
   if (hour >= 17 && hour < 22) return { id: 'groove', part: ['傍晚', 'Evening'] };
   return { id: 'style:ambient', part: ['深夜', 'Late night'] };
 }
-// The grooves a station plays (for a card's cover and the tests).
-export const stationGrooves = (id, taste = {}) => stationStyles(stationFilter(id, taste));
 // A station's name in the reader's language.
 export function stationName(id) {
   const s = String(id || 'all');

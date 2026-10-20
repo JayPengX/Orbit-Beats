@@ -8,7 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { SAMPLED, sampleNotes, specInsts, useBanks, DRUM_KITS, kitBanks, noteName, sampleDir } from '../public/lib/samples.mjs';
+import { SAMPLED, sampleNotes, specInsts, useBanks, DRUM_KITS, kitBanks, noteName, SAMPLE_DIR } from '../public/lib/samples.mjs';
 import { radioSong, radioSpec, radioPick } from '../public/lib/radio.mjs';
 import { encodeWav } from '../public/engine.mjs';
 
@@ -36,7 +36,7 @@ function readF32(file) {
 function bank(inst) {
   const notes = sampleNotes(inst).map(m => {
     const f = join(tmp, `${inst}-${m}.wav`);
-    let src = new URL(`../public/${sampleDir()}${inst}/${m}.mp3`, import.meta.url).pathname;
+    let src = new URL(`../public/${SAMPLE_DIR}${inst}/${m}.mp3`, import.meta.url).pathname;
     if (sf) {
       src = join(tmp, `${sf}-${inst}-${m}.mp3`);
       execFileSync('curl', ['-sf', '-o', src, `https://gleitz.github.io/midi-js-soundfonts/${sf}/${SAMPLED[inst][0]}-mp3/${noteName(m)}.mp3`]);

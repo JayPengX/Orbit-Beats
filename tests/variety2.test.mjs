@@ -15,8 +15,6 @@ const specsOf = (mood, n = 40, from = 3) => {
   }
   return out;
 };
-const picks = specs => specs.map(s => s.pick);
-
 test('a seed makes the same song: the spec, the pick, the plan and the sound', () => {
   assert.deepEqual(radioSpec(77, 'all', 'funk'), radioSpec(77, 'all', 'funk'));
   const a = specsOf('all', 12), b = specsOf('all', 12);

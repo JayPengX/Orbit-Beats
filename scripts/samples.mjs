@@ -1,20 +1,19 @@
 // Fetches the recorded instruments (lib/samples.mjs) into public/samples:
-// each instrument's notes a major third apart, as the FluidR3 GM soundfont
-// has them (gleitz/midi-js-soundfonts, CC BY 3.0, Frank Wen). Run once; the
-// files are kept in the repo. `node scripts/samples.mjs [inst ...] [--sf=MusyngKite] [--again]`
-// (--sf: another of the sets' soundfonts; --again: fetch over the files there.)
+// each instrument's notes a major third apart, as the MusyngKite soundfont
+// has them (gleitz/midi-js-soundfonts, CC BY-SA 3.0). Run once; the files are
+// kept in the repo. `node scripts/samples.mjs [inst ...] [--again]`
+// (--again: fetch over the files there.)
 import { mkdir, writeFile, stat } from 'node:fs/promises';
 import { SAMPLED, sampleNotes, noteName } from '../public/lib/samples.mjs';
 
 const args = process.argv.slice(2);
-const sf = (args.find(a => a.startsWith('--sf=')) || '--sf=FluidR3_GM').slice(5);
 const again = args.includes('--again');
-const BASE = `https://gleitz.github.io/midi-js-soundfonts/${sf}/`;
+const BASE = `https://gleitz.github.io/midi-js-soundfonts/MusyngKite/`;
 const want = args.filter(a => !a.startsWith('--'));
 let bytes = 0;
 for (const [inst, [gm]] of Object.entries(SAMPLED)) {
   if (want.length && !want.includes(inst)) continue;
-  const dir = new URL(`../public/samples/${sf === 'MusyngKite' ? 'mk/' : ''}${inst}/`, import.meta.url);
+  const dir = new URL(`../public/samples/mk/${inst}/`, import.meta.url);
   await mkdir(dir, { recursive: true });
   for (const m of sampleNotes(inst)) {
     const file = new URL(`${m}.mp3`, dir);

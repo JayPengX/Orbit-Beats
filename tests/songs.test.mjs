@@ -12,7 +12,7 @@ const pieces = splitPieces(rec);
 const analysis = analyzeRecording(pieces, rec.sr);
 const roles = analysis.roles;
 const kit = drumKit(roles);
-const bpm = 125, B = (60 / bpm) * rec.sr;
+const bpm = 125;
 
 test('forty-nine grooves, each its family led by itself, every relative a groove; the studio writes each', () => {
   assert.equal(STYLES.length, 49);

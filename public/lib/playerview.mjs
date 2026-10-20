@@ -1,7 +1,7 @@
 // The player's screens: the mini bar over the tab bar, Now Playing (a full
 // screen sheet), the queue sheet and a song's ⋯ menu. They draw lib/player.mjs's
 // state; the sound is not here.
-import { h, sheet, menu, toast } from './ui.mjs';
+import { h, sheet, menu } from './ui.mjs';
 import { icon } from './icons.mjs';
 import { STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';

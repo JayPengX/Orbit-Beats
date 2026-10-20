@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dropPieces, snapOf, rolesBack, undoStack, freeName, namedKit, kitFrom, renamed, without, newestFirst, MOST_NAMED } from '../public/lib/kitops.mjs';
+import { dropPieces, snapOf, rolesBack, undoStack, freeName, namedKit, kitFrom } from '../public/lib/kitops.mjs';
 
 const f = n => new Float32Array(n);
 const kit = () => {
@@ -48,10 +48,4 @@ test('kits kept by name: free names, the record, renaming, deleting, newest firs
   mono.sources[0].R = mono.sources[0].L;
   const back = kitFrom(namedKit({ id: 'm', name: 'm', sources: [{ name: 'm', sr: 1, L: mono.sources[0].L, R: mono.sources[0].L }], roles: [], edited: [], bpm: 80 }));
   assert.equal(back.sources[0].R, back.sources[0].L);
-  const list = [{ id: 'a', name: 'A', at: 1 }, { id: 'b', name: 'B', at: 2 }];
-  assert.equal(renamed(list, 'a', ' Z ')[0].name, 'Z');
-  assert.equal(renamed(list, 'a', '  ')[0].name, 'A');
-  assert.deepEqual(without(list, 'a').map(x => x.id), ['b']);
-  assert.deepEqual(newestFirst(list).map(x => x.id), ['b', 'a']);
-  assert.equal(newestFirst(Array.from({ length: 50 }, (_, i) => ({ id: i, at: i }))).length, MOST_NAMED);
 });

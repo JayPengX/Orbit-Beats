@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { radioPick, radioSpec, stationStyles, MOODS } from '../public/lib/radio.mjs';
 import { STYLES } from '../public/engine.mjs';
-import { stationFilter, stationId, homeRows, tasteList, TEMPOS, POPULAR, stationGrooves, dailyPicks, nowStation, dayKey } from '../public/lib/stations.mjs';
+import { stationFilter, stationId, homeRows, tasteList, TEMPOS, POPULAR, dailyPicks, nowStation, dayKey } from '../public/lib/stations.mjs';
 
 test('a station filter narrows the grooves, never to none', () => {
   assert.deepEqual(stationStyles({ mood: 'chill', styles: ['lofi', 'trap', 'jazz'] }).sort(), ['lofi']);
@@ -62,7 +62,6 @@ test('station ids become filters', () => {
   assert.equal(stationId('tempo:zzz'), 'all');
   assert.equal(stationId('style:lofi'), 'style:lofi');
   assert.equal(stationId(undefined), 'all');
-  assert.ok(stationGrooves('tempo:slow').includes('lofi'));
 });
 
 test('the home rows: your taste, moods, eight grooves to browse', () => {

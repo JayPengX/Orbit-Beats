@@ -69,17 +69,6 @@ export function sweep(x, sr, { kind = 'lp', a, b, f0, f1, edge = 512, poles = 2 
     }
   }
 }
-// A fixed one-pole low- or high-pass over all of x, into a new array.
-export function onePole(x, sr, hz, kind = 'lp') {
-  const c = coef(hz, sr);
-  const out = new Float32Array(x.length);
-  let s = 0;
-  for (let j = 0; j < x.length; j++) {
-    s += c * (x[j] - s);
-    out[j] = kind === 'lp' ? s : x[j] - s;
-  }
-  return out;
-}
 
 // ---- Tone: shelves, the wide keys, the glue ----
 
@@ -267,7 +256,7 @@ export function limitGain(L, R, sr, ceiling = CEILING) {
 
 // The echo, added into x: what `src` had d samples ago (darkened by a
 // one-pole low-pass at 3 kHz) plus fb of the echo then, `amount` of it.
-// The same as comb(onePole(src, sr, 3000), d, fb) · amount, with no copy.
+// The same as comb(a one-pole low-pass of src at 3 kHz, d, fb) · amount, with no copy.
 function echoInto(x, src, sr, d, fb, amount) {
   const c = coef(3000, sr);
   const ring = new Float32Array(d);   // y[n - d] … y[n - 1], where y = dark[n - d] + fb · y[n - d]

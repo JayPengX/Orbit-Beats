@@ -44,7 +44,6 @@ export function undoStack(most = 5) {
 
 // ---- Kits kept by name ----
 
-export const MOST_NAMED = 30;
 // A name not taken yet: "Kit", "Kit 2", "Kit 3"…
 export function freeName(base, taken) {
   const names = new Set(taken.map(x => x.toLowerCase()));
@@ -71,7 +70,3 @@ export const kitFrom = kept => ({
   bpm: kept.bpm,
   set: kept.roles || {}
 });
-export const renamed = (list, id, name) => list.map(k => (k.id === id ? { ...k, name: String(name).trim().slice(0, 40) || k.name } : k));
-export const without = (list, id) => list.filter(k => k.id !== id);
-// The newest first, the oldest let go past MOST_NAMED.
-export const newestFirst = list => [...list].sort((a, b) => b.at - a.at).slice(0, MOST_NAMED);

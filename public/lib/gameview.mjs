@@ -893,7 +893,7 @@ export function mountGame(host, api) {
     const g = cx2;
     const { lane: LW, hitY, cx } = geo;
     const ap = R.ap;
-    const { far, near, half } = still;
+    const { half } = still;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, Wd, Ht);
     // (A miss shakes the stage, a little and briefly.)

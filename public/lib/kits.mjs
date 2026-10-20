@@ -188,7 +188,9 @@ export const swapSong = (id, fields) =>
       const g = s.get(id);
       g.onsuccess = () => {
         if (g.result) {
-          const { wav: _, bits: __, ...rest } = g.result;
+          const rest = { ...g.result };
+          delete rest.wav;
+          delete rest.bits;
           out.result = { ...rest, ...fields };
           s.put(out.result);
         }

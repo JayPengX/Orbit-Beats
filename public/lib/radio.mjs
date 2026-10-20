@@ -872,9 +872,9 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
   const hum = h => ({ ...V.harm(tV2, h, 'vox', -7), g: 0.3, pan: -0.3 });
   const verse2 = [sum(V.chords(sp.chords2, 1, 0), ratio(V.mel(tV2, 0), 0.9), arpAt(V.arp(sp.lead2, 0), 0.5), hum(0)), sum(V.chords(sp.chords, 0, 1), ratio(V.mel(tV2, 1), 0.9), hum(1))];
   const i0 = add(verse1[0], 'riff');
-  const phrase1 = add(sum(V.mel(tV2, 0), ratio(V.beds[0], 1.1)), 'phrase');
+  add(sum(V.mel(tV2, 0), ratio(V.beds[0], 1.1)), 'phrase');
   const vBass = [V.bass(0), V.bass(1)];
-  const b0 = add(vBass[0], 'bass');
+  add(vBass[0], 'bass');
   // The hats: three of six, each four bars with levels, a hit left out and a turn at the end.
   const hats = (band.hats || sp.hatsPick.map(i => HATS[i])).map(lanes => hatPiece(lanes, sp, H, clip));
   add(hats[0], 'hat');

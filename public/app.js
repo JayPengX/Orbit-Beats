@@ -14,7 +14,7 @@ import * as kit from '#kit/quadra.mjs';
 import { h, sheet, menu, toast, toggle, empty } from './lib/ui.mjs';
 import * as ui from './lib/ui.mjs';
 import { sectionTimes, sectionIndex, labelFits } from './lib/sections.mjs';
-import { STYLES, SECTIONS, ROLES, MIN_BARS, makeRng, NOTE_NAMES, keyOf, pieceChroma, parseWav, analyzeRecording, guessRole, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
+import { STYLES, SECTIONS, ROLES, makeRng, NOTE_NAMES, keyOf, pieceChroma, parseWav, analyzeRecording, guessRole, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
 import { atRate, splitAll, baseName } from './lib/sources.mjs';
 import { fingerprint, decode, encode, merge, keptSettings, settingsOf, DEFAULTS, kitEntry, saveLast, loadLast, liked, saveSong, deleteSong, getSong, swapSong, dropTemps, tempId, renameSong, forgetLast, saveNamed, deleteNamed, listNamed, renameNamed } from './lib/kits.mjs';
 import { dropPieces, snapOf, rolesBack, undoStack, namedKit, kitFrom, freeName } from './lib/kitops.mjs';
@@ -45,14 +45,12 @@ import { mountHome, songShelf, shelfOf, sqCard, stationCover } from './lib/homev
 import { remix, surprise, remixId, remixTitle, kindOfRecipe, baseOf, radioBase, bandBase, remixNow, retime, clipSpan, partOf } from './lib/remix.mjs';
 import { remixSheet, clipSheet, PART_NAMES } from './lib/remixview.mjs';
 import { coverSvg, coverUrl } from './lib/cover.mjs';
-import { stationId } from './lib/stations.mjs';
 import * as Q from './lib/queue.mjs';
 import { LENGTH_MIN, LENGTH_MAX, LENGTH_STEP, LENGTH_PRESETS, clampLength, clock, kitLength } from './lib/length.mjs';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const MAX_SONGS = 30;
-const MAX_BARS = 64;
 // A key as words: "A 小調", "E♭ major".
 const keyName = k => (k ? `${NOTE_NAMES[k.tonic]} ${k.minor ? W('小調', 'minor') : W('大調', 'major')}` : '');
 // Each song's title, from its seed: two words that go together (霓虹夜行, Neon Drive).
@@ -101,13 +99,6 @@ let kept = decode(
     }
   })()
 );
-// (Passion Beats' settings, from before Orbit, carried over once.)
-if (!kept.settings) {
-  try {
-    const old = JSON.parse(localStorage.getItem('passion-beats') || 'null');
-    if (old) kept.settings = keptSettings(old, 1);
-  } catch {}
-}
 let settings = settingsOf(kept.settings, DEFAULTS);
 const simple = () => settings.level !== 'pro';
 // What songs are made on: Advanced's settings, or Simple's own fixed ones (lib/easy.mjs), never mixed.
@@ -1210,7 +1201,8 @@ async function makeOne(recipe, title) {
   const { info, wav } = await make.song(recipe, bits);
   // (Kept with the groove it got instead of the taste it leaned on: made again, for its stems or
   // a variation, it's the same song whatever the taste is by then.)
-  const { weights: _, ...rest } = recipe;
+  const rest = { ...recipe };
+  delete rest.weights;
   const made = rest.jam ? rest : { ...rest, style: info.style };
   return { id: recipeId(made), name: title, info, data: wav, url: URL.createObjectURL(new Blob([wav], { type: 'audio/wav' })), bits, recipe: made };
 }
@@ -2082,7 +2074,9 @@ async function slimOne(rec) {
   if (small.form !== to) return 0;
   if (PACKED.includes(small.form) && !(await playsWhole(small.sound, small.sr, small.seconds))) return 0;
   const temp = tempId(rec.id);
-  const { wav: _, bits: __, ...rest } = rec;
+  const rest = { ...rec };
+  delete rest.wav;
+  delete rest.bits;
   await saveSong({ ...rest, id: temp, sound: small.sound, form: small.form, sr: small.sr, seconds: small.seconds });
   const back = await getSong(temp);
   if (!back?.sound || !(await sameBytes(back.sound, small.sound))) {
@@ -2270,8 +2264,7 @@ function helpSheet() {
     body: [
       h('div', { class: 'card sheet-card tours' }, cards),
       h('div', { class: 'card sheet-card' }, [row(W('名詞小辭典', 'Music words'), () => wordsSheet()), row(W('完整說明', 'The full guide'), () => (s.close(), kitQ.openHelp ? kitQ.openHelp(q) : (location.hash = 'help=beats')))]),
-      // (The recorded instruments' credit: both sets ask for it, lib/samples.mjs SAMPLE_SET.)
-      h('p', { class: 'sheet-credit', text: W('樂器錄音：MusyngKite 音色庫（CC BY-SA 3.0）與 FluidR3 GM 音色庫（Frank Wen，CC BY 3.0），經 gleitz/midi-js-soundfonts。鼓組：Virtuosity Drums（Versilian Studios、Karoryfer Samples）、Michael Fischer 的 TR-808、Sonic Pi（CC0）。', 'Recorded instruments: the MusyngKite soundfont (CC BY-SA 3.0) and the FluidR3 GM soundfont (Frank Wen, CC BY 3.0), via gleitz/midi-js-soundfonts. Drums: Virtuosity Drums (Versilian Studios, Karoryfer Samples), the TR-808 by Michael Fischer, Sonic Pi (CC0).') })
+      h('p', { class: 'sheet-credit', text: W('樂器錄音：MusyngKite 音色庫（CC BY-SA 3.0），經 gleitz/midi-js-soundfonts。鼓組：Virtuosity Drums（Versilian Studios、Karoryfer Samples）、Michael Fischer 的 TR-808、Sonic Pi（CC0）。', 'Recorded instruments: the MusyngKite soundfont (CC BY-SA 3.0), via gleitz/midi-js-soundfonts. Drums: Virtuosity Drums (Versilian Studios, Karoryfer Samples), the TR-808 by Michael Fischer, Sonic Pi (CC0).') })
     ]
   });
 }

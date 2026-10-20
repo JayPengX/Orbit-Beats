@@ -57,5 +57,3 @@ export function recentParse(text, max = RECENT_MAX) {
   }
 }
 
-// An entry as the radio's ♡ takes it (app.js keepRadio): its spec and info.
-export const recentItem = e => ({ id: `radio:${e.seed}:${e.mood}:${e.style}`, spec: { seed: e.seed, mood: e.mood }, info: { style: e.style, bpm: e.bpm, key: e.key } });

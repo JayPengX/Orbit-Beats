@@ -8,7 +8,6 @@ import { h, sheet, cell, list as group, menu, toast } from './ui.mjs';
 import * as ui from './ui.mjs';
 import { ask } from '#kit/quadra.mjs';
 import { listSongs } from './kits.mjs';
-import { soundOf, mbText } from './pack.mjs';
 import { listsOf, makeList, renameList, deleteList, addTo, removeFrom, dropSong, songsOf } from './lists.mjs';
 import { STYLE_NAMES, name } from './names.mjs';
 import { W, en, lang } from './lang.mjs';

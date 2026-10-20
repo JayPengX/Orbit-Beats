@@ -6,7 +6,6 @@ import { h } from './ui.mjs';
 import { icon } from './icons.mjs';
 import { genreSheet } from './genres.mjs';
 import { W } from './lang.mjs';
-import { STYLE_NAMES, STYLE_ORDER, name } from './names.mjs';
 import { MOODS, stationStyles } from './radio.mjs';
 import { stationFilter, stationName, homeRows, dailyPicks, dayKey, nowStation, tasteList } from './stations.mjs';
 import { coverSvg, coverUrl } from './cover.mjs';

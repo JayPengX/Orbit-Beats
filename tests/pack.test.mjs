@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { m4a, slimTo, kindOf, builtIn, formOf, soundOf, mbText, sizeOf, monoWav, sameSong, envelope } from '../public/lib/pack.mjs';
+import { m4a, slimTo, kindOf, builtIn, formOf, soundOf, mbText, monoWav, sameSong, envelope } from '../public/lib/pack.mjs';
 import { parseWav } from '../public/engine.mjs';
 
 // The boxes of an MP4, with where each starts: { type, at, size, body }.
@@ -134,13 +134,7 @@ test('which kept songs are packed: WAVs where the phone packs; built-in ones mon
   assert.equal(slimTo({ id: 'x', recipe: mine }, 'aac'), null, 'nothing to pack');
 });
 
-test('the sizes: a 1:35 song is 18 MB as a 48 kHz WAV and under 2.5 MB packed; the words for them', () => {
-  const wav = sizeOf(95, 'wav', { sr: 48000 });
-  const aac = sizeOf(95, 'aac', { bitrate: 192000 });
-  assert.ok(wav > 18e6 && wav < 18.5e6);
-  assert.ok(aac < 2.5e6 && aac > 1.5e6);
-  assert.ok(wav / aac > 7);
-  assert.equal(sizeOf(95, 'mono', { sr: 32000 }), 44 + 95 * 32000 * 2);
+test('the words for sizes', () => {
   assert.equal(mbText(85.4e6), '85 MB');
   assert.equal(mbText(1.94e6), '1.9 MB');
   assert.equal(mbText(-5), '0.0 MB');

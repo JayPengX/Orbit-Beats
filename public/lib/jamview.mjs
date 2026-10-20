@@ -11,7 +11,7 @@
 // 做歌. A long press on a pad: its level, mute and choke (kept per kit on
 // this phone, by the kit's fingerprint; the built-in set's as one).
 import { h, segmented, sheet, toggle, toast } from './ui.mjs';
-import { STYLES, NOTE_NAMES, drumKit, grooveHits, loopBeats } from '../engine.mjs';
+import { STYLES, drumKit, grooveHits, loopBeats } from '../engine.mjs';
 import { Jam, GRIDS, PAD, padsOf, padOf, gainOf, chokeKey, withPads, trimTake, nextBar } from './jam.mjs';
 import { coverSvg, coverUrl } from './cover.mjs';
 import { clock } from './length.mjs';
