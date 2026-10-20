@@ -28,6 +28,17 @@ const RULES = {
   hard: { grid: 0.25, gap: 0.15, hold: 1, two: 0.35 },
   expert: { grid: 0.25, gap: 0.1, hold: 1, two: 0.7 }
 };
+// Played with two thumbs: the left one on lanes 0 and 1, the right on 2 and 3. Each level: the least
+// time between two notes for one thumb (s), and the most notes in any one second.
+export const thumbOf = lane => (lane < LANES / 2 ? 0 : 1);
+export const THUMBS = {
+  easy: { same: 0.5, dense: 3 },
+  normal: { same: 0.32, dense: 5 },
+  hard: { same: 0.22, dense: 7 },
+  expert: { same: 0.17, dense: 9 }
+};
+// After a hold lets go, the time before that thumb taps again (s).
+export const LIFT = 0.15;
 // What leads in each section: the hook sings, the verse drums, the quiet ones hold.
 const LEADS = {
   hook: { lead: 5, kick: 4, snare: 3.5, chord: 2, tick: 1 },
@@ -100,9 +111,11 @@ function rng(seed) {
 }
 
 // A level's chart. -> { notes: [{ t, lane, end? }], bpm, seconds, level }
-// (end: a hold's end, in seconds. Notes in time order; no two at once in a lane, none inside a hold.)
+// (end: a hold's end, in seconds. Notes in time order; playable with two thumbs: at most one note a thumb
+// at a time, nothing for a thumb while it holds, each thumb's notes far enough apart, and a level's density.)
 export function chartOf(song, level = 'normal', seed = 1) {
   const L = RULES[level] || RULES.normal;
+  const T = THUMBS[level] || THUMBS.normal;
   const spb = 60 / song.bpm;
   const R = rng(seed ^ (LEVELS.indexOf(level) + 1) * 0x9e3779b1);
   const all = sounds(song);
@@ -126,10 +139,27 @@ export function chartOf(song, level = 'normal', seed = 1) {
   let last = -1;
   let lastLane = -1;
   let side = 0;
-  const free = new Array(LANES).fill(-1); // when each lane is free again (a hold's end)
+  // Each thumb: when it last tapped, and when its hold lets go. A thumb is free for a note once both are far enough behind.
+  const thumbs = [0, 1].map(() => ({ t: -9, end: -9 }));
+  const ready = (lane, t) => {
+    const h = thumbs[thumbOf(lane)];
+    return t - h.t >= T.same - 1e-6 && t - h.end >= LIFT - 1e-6;
+  };
+  // (Never more than a level's notes in any one second.)
+  const room = t => {
+    let k = notes.length;
+    while (k && notes[k - 1].t > t - 1 + 1e-6) k--;
+    return notes.length - k < T.dense;
+  };
+  const place = n => {
+    notes.push(n);
+    const h = thumbs[thumbOf(n.lane)];
+    h.t = n.t;
+    h.end = n.end ?? n.t;
+  };
   for (const g of [...slots.keys()].sort((a, b) => a - b)) {
     const [x, ...others] = slots.get(g).sort((a, b) => b.w - a.w || a.t - b.t);
-    if (x.t - last < L.gap) continue;
+    if (x.t - last < L.gap || !room(x.t)) continue;
     // Easy: only the strong beats of a section (each one, and every other beat in the busy ones).
     if (level === 'easy' && x.sec !== 'break' && x.sec !== 'intro' && x.sec !== 'outro' && g % 2 && x.kind !== 'lead') continue;
     let lane;
@@ -140,23 +170,23 @@ export function chartOf(song, level = 'normal', seed = 1) {
     if (x.kind === 'kick' || x.kind === 'snare') side++;
     // (No jack: the same lane again too soon steps aside, the way the tune moves.)
     if (lane === lastLane && x.t - last < 0.3) lane = lane === 0 ? 1 : lane === LANES - 1 ? LANES - 2 : lane + (R() < 0.5 ? -1 : 1);
-    if (free[lane] > x.t - L.gap) lane = free.findIndex(f => f <= x.t - L.gap);
+    // (Its thumb still busy: the other thumb takes it, on its nearer lane; both busy, no note.)
+    if (!ready(lane, x.t)) lane = (lane < 2 ? [2, 3] : [1, 0]).find(k => k !== lastLane && ready(k, x.t)) ?? -1;
     if (lane < 0) continue;
     const n = { t: round(x.t), lane };
     const melodic = x.kind === 'lead' || x.kind === 'chord';
     if (melodic && x.len >= L.hold && x.len * spb >= 0.45) {
       n.end = round(x.t + x.len * spb * 0.85);
-      free[lane] = n.end;
       // (Easy and normal: one thing at a time, so nothing starts inside a hold.)
       if (level === 'easy' || level === 'normal') last = n.end;
     }
-    notes.push(n);
+    place(n);
     if (!n.end || level === 'hard' || level === 'expert') last = x.t;
     lastLane = lane;
-    // Two at once: a hook's or a verse's downbeat where another sound lands too.
-    if (L.two && !n.end && others.length && x.beat % 4 === 0 && (x.sec === 'hook' || (level === 'expert' && x.sec === 'verse')) && R() < L.two) {
-      const o = (lane < 2 ? [3, 2] : [0, 1]).find(k => free[k] <= x.t - L.gap);
-      if (o != null) notes.push({ t: n.t, lane: o });
+    // Two at once: a hook's or a verse's downbeat where another sound lands too, one note a thumb.
+    if (L.two && !n.end && others.length && x.beat % 4 === 0 && (x.sec === 'hook' || (level === 'expert' && x.sec === 'verse')) && R() < L.two && room(x.t)) {
+      const o = (lane < 2 ? [3, 2] : [0, 1]).find(k => ready(k, x.t));
+      if (o != null) place({ t: n.t, lane: o });
     }
   }
   return { notes, bpm: song.bpm, seconds: song.seconds, level };

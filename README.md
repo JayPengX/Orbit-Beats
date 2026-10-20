@@ -99,7 +99,11 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
   - **節奏遊戲** (Rhythm game; `lib/game.mjs`, `lib/gameview.mjs`): every
     radio song is a level. Its chart comes from the song's own notes
     (`radioSong` returns the engine's hits and each riff's melody and chords),
-    so every tap lands on a sound; a long chord is a hold. Four lanes, four
+    so every tap lands on a sound; a long chord is a hold. Every chart is
+    playable with two thumbs (left on lanes 1-2, right on 3-4): at most one
+    note per thumb at a time, nothing for a thumb while it holds, a level's
+    least gap between one thumb's notes and most notes a second
+    (`tests/playable.test.mjs` checks 16 songs). Four lanes, four
     levels (簡單 普通 困難 專家), judged 完美 ±45 ms, 很好 ±90, 不錯 ±135,
     scored to 1,000,000 (S+ to D); 火力全開 from 50 combo. A full-screen
     canvas stage on the page's AudioContext clock; 時間校正 in the pause menu
