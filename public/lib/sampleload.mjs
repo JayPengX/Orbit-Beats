@@ -21,13 +21,13 @@ async function decode(buf) {
     p?.then?.(ok, no);
   });
   const L = a.getChannelData(0);
-  // (Both sides averaged when it came in stereo; kept no longer than the notes need.)
+  // (Both sides averaged when it came in stereo; kept no longer than the notes need, and as 16-bit
+  // samples: half the memory of floats, on the page and in every worker it's handed to, which on a
+  // phone is what keeps the app from being closed in the background.)
   const n = Math.min(L.length, Math.round(MAX_SECONDS * a.sampleRate));
-  const x = new Float32Array(n);
-  if (a.numberOfChannels > 1) {
-    const R = a.getChannelData(1);
-    for (let i = 0; i < n; i++) x[i] = 0.5 * (L[i] + R[i]);
-  } else x.set(L.subarray(0, n));
+  const x = new Int16Array(n);
+  const R = a.numberOfChannels > 1 ? a.getChannelData(1) : L;
+  for (let i = 0; i < n; i++) x[i] = Math.max(-32768, Math.min(32767, Math.round(16384 * (L[i] + R[i]))));
   return { x, sr: a.sampleRate };
 }
 const fetchDecode = url => fetch(url).then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status))))).then(decode);

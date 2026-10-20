@@ -79,6 +79,8 @@ export function playSample(bank, midi, sr, hold, vel = 0.7, variant = 0, release
   const cents = variant ? (midi % 2 ? 4 : -4) : 0;
   const rate = 2 ** ((midi - near.midi + cents / 100) / 12) * (bank.sr / sr);
   const x = near.x;
+  // (Kept as 16-bit samples (lib/sampleload.mjs), or floats.)
+  const S = x instanceof Int16Array ? 1 / 32768 : 1;
   const from = variant ? Math.round(0.0015 * bank.sr) : 0;
   const ring = RINGS.has(bank.inst);
   // (Struck: as long as it rings, up to the hold and a long tail; held: the hold and its release.)
@@ -100,7 +102,7 @@ export function playSample(bank, midi, sr, hold, vel = 0.7, variant = 0, release
     // (Catmull-Rom between b and c.)
     const v = b + 0.5 * t * (c - a + t * (2 * a - 5 * b + 4 * c - d + t * (3 * (b - c) + d - a)));
     if (i >= h) g *= k;
-    out[i] = v * g * (i < fadeIn ? i / fadeIn : 1);
+    out[i] = v * S * g * (i < fadeIn ? i / fadeIn : 1);
     p += rate;
   }
   // (The last moment eased to nothing: no click where the recording or the note ends.)
@@ -190,11 +192,12 @@ export function playDrum(bank, sr, vel = 0.7, variant = 0) {
   const rate = bank.sr / sr;
   const n = Math.max(1, Math.floor((x0.length - 2) / rate));
   const out = new Float32Array(n);
+  const S = x0 instanceof Int16Array ? 1 / 32768 : 1;
   for (let i = 0; i < n; i++) {
     const p = i * rate;
     const j = Math.floor(p);
     const t = p - j;
-    out[i] = x0[j] + t * ((x0[j + 1] ?? x0[j]) - x0[j]);
+    out[i] = S * (x0[j] + t * ((x0[j + 1] ?? x0[j]) - x0[j]));
   }
   const ease = Math.min(n, Math.round(0.02 * sr));
   for (let i = 0; i < ease; i++) out[n - 1 - i] *= i / ease;
