@@ -939,6 +939,19 @@ function songKit(sp, sr, { lift = true } = {}) {
     at(sum(HX.chords(sp.chords, 1, 0), ratio(HX.mel(tH2, 0), 0.9), arpAt(HX.arp(sp.lead2, 0), 0.6), third(tH2, 0, 0.38)), 'riff'),
     at(sum(HX.chords(sp.chordsC, 0, 1), ratio(HX.mel(tH2, 1), 0.9), arpAt(HX.arp(sp.lead2, 1), 0.7), third(tH2, 1, 0.38)), 'riff')
   ];
+  // (Its third time a third variant: the tune's motif answered low then high, a choir a sixth under it and the arpeggio held back.)
+  const tH3 = HX.make({ motif: tH1.motif, displace: true, up: [2, 3, 6, 7] });
+  tunes.hook3 = tH3.notes;
+  const sixth = (t, h, g) => ({ ...HX.harm(t, h, 'choir', -5), g, pan: -0.3 });
+  parts.hook3 = [
+    at(sum(HX.chords(sp.chordsC, 0, 0), ratio(HX.mel(tH3, 0), 0.9), sixth(tH3, 0, 0.32), arpAt(HX.arp(sp.lead2, 1), 0.45)), 'riff'),
+    at(sum(HX.chords(sp.chords2, 1, 1), ratio(HX.mel(tH3, 1), 0.9), sixth(tH3, 1, 0.32), third(tH3, 1, 0.3)), 'riff')
+  ];
+  // The outro: the hook's chords and the first half of its tune, softly, over its pad: the song ends on what it is known by.
+  parts.outro = [
+    at(sum(ratio(HX.chords(sp.chords2, 0, 0), 0.7), ratio(HX.mel(tH1, 0), 0.6), ratio(HX.beds[0], 0.9)), 'riff'),
+    at(sum(ratio(HX.chords(sp.chords, 1, 1), 0.6), ratio(HX.beds[1], 0.9), arpAt(HX.arp(sp.lead2, 1), 0.4)), 'riff')
+  ];
   parts.layer = at(sum(arpAt(HX.arp(sp.lead2, 0), 0.8), ratio(HX.beds[0], 0.2)), 'riff');
   // (Its bass follows the hook's chords only when they are not the verse's.)
   if (sp.progB) parts.hookBass = [0, 1].map(h => at(HX.bass(h), 'bass'));
@@ -1147,7 +1160,7 @@ function shape(song, bpm) {
 export const PART_LIST = ['drums', 'bass', 'melody'];
 const PART_ROLES = { drums: ['hat', 'fill', 'kick', 'snare', 'tick', 'roll'], bass: ['bass', 'sub'], melody: ['riff', 'phrase'] };
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
-export const RADIO_V = 11;
+export const RADIO_V = 12;
 export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
   const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);

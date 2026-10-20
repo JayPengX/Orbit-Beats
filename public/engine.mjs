@@ -663,7 +663,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   // (An arrangement by hand: the hook's own bass, the lifted hook's riffs, bass and 808 and the layer are theirs alone, never drawn for any other section.)
   const P = arrange || {};
   if (arrange) {
-    const own = new Set([...(P.lift || []), ...(P.hookBass || []), ...(P.liftBass || []), ...(P.hook2 || []), ...(P.bridgeBass || []), P.liftSub, P.layer, P.crash, P.swell].filter(x => x != null));
+    const own = new Set([...(P.lift || []), ...(P.hookBass || []), ...(P.liftBass || []), ...(P.hook2 || []), ...(P.hook3 || []), ...(P.outro || []), ...(P.bridgeBass || []), P.liftSub, P.layer, P.crash, P.swell].filter(x => x != null));
     for (const x of ROLES) pool[x] = pool[x].filter(i => !own.has(i));
   }
   const riffs = pool.riff.length ? pool.riff : pool.phrase, phrases = pool.phrase.length ? pool.phrase : riffs;
@@ -768,7 +768,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
       hookNo++;
       const lifted = hooks > 1 && hookNo === hooks && P.lift?.length > 0;   // (the last hook, a key higher)
       const own = lifted ? P.liftBass : P.hookBass;
-      riff(b, L, lifted ? P.lift : hookNo > 1 && P.hook2?.length ? P.hook2 : hookSet); bass(b, L, 0, own?.length ? own : null);
+      riff(b, L, lifted ? P.lift : hookNo > 2 && P.hook3?.length ? P.hook3 : hookNo > 1 && P.hook2?.length ? P.hook2 : hookSet); bass(b, L, 0, own?.length ? own : null);
       s.drums(hookStyle, b, L, lifted && P.liftSub != null ? { ...kit, sub: P.liftSub } : kit, dress && (hookNo === hooks ? dress.last : dress.hook)); if (arrange && L === 8 && hookHat2 != null) s.loop(hookHat, b, 4), s.loop(hookHat2, b + 4, 4);   // (an arranged song's hook: its hats change halfway)
       else s.loop(hookHat, b, L);
       if (layerFits && !lifted && (hookLayer || hookNo === hooks)) riff(b, L, [layer]);
@@ -779,7 +779,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
       riff(b, L, bridgeSet); s.drums('half', b, L, kit, dress?.bridge);
       if (R.random() < 0.5) bass(b, L, 0, P.bridgeBass?.length ? P.bridgeBass : null);
     } else if (t === 'outro') {   // the intro's riff again, winding down
-      riff(b, L, introSet);
+      riff(b, L, P.outro?.length ? P.outro : introSet);   // (an arranged song's own outro: its hook's tune, softly)
       if (R.random() < 0.6) s.drums(style, b, Math.floor(L / 2), kit);
       s.loop(verseHat, b, L);
     }
