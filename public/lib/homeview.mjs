@@ -110,7 +110,7 @@ export function mountHome(panel, api) {
   // The hero: the top pick. Its ▶ starts that song; playing, it is ❚❚.
   const heroImg = h('img', { class: 'hero-cover', alt: '', draggable: 'false' });
   const heroKick = h('small', { class: 'hero-kick' });
-  const heroTitle = h('b', { class: 'hero-title' });
+  const heroTitle = h('b', { class: 'hero-title q-fit' });
   const heroSub = h('span', { class: 'hero-sub' });
   const heroPlay = h('button', { class: 'hero-play', type: 'button' });
   const top = () => pickTracks()[0];
