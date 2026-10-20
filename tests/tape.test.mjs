@@ -66,6 +66,16 @@ test('the tape plays one song into the next with nothing between, the hook again
   const three = take(100);
   assert.deepEqual(three.marks.map(m => [m.at, m.item === a, m.from]), [[0, true, 0]]);
   assert.deepEqual([...three.pcm], [...a.pcm.subarray(0, 200)]);
+  // A song after its own opening (`start`): the opening round until it's made, then the song from its start on.
+  const open = song(10000, i => (i % 300) + 1, { from: 0, to: 10000 / RADIO_SR });
+  const whole = { ...song(40000, i => -((i % 700) + 1)), start: 20000 / RADIO_SR };
+  feed.cut(open);
+  const five = take(25000);
+  assert.deepEqual(five.marks.map(m => [m.at, m.item === open, m.from]), [[0, true, 0], [10000, true, 0], [20000, true, 0]]);
+  queue.push(whole);
+  const six = take(10000);
+  assert.deepEqual(six.marks.map(m => [m.at, m.item === whole, m.from]), [[5000, true, 20000]]);
+  assert.deepEqual([...six.pcm.subarray(10000)], [...whole.pcm.subarray(40000, 50000)]);
   // A drag on the bar: a from its sample 12000 on, marked as from there.
   feed.cut(a, 12000);
   const four = take(100);

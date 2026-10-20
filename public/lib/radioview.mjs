@@ -93,6 +93,8 @@ export function mountRadio(panel, api) {
         q.busy = false;
         fails = 0;
         const item = dress({ ...v, spec: s, title: api.title(s.seed), url: null });
+        // (Its opening already playing, made first: the song comes in after it, at its own fifth bar.)
+        if (opening?.id === item.id) (item.start = opening.length), (opening = null);
         if (gen === q.gen) {
           // (Files: the next one's file made now, long before it's needed; the stream: its samples.)
           if (taped) item.pcm = wavPcm(v.wav);
@@ -121,6 +123,26 @@ export function mountRadio(panel, api) {
     prepNext();
   }
   let looking = null; // a song tapped being looked for among those kept from 最近播放 (nothing else made meanwhile)
+  // A song wanted now and not made yet: its opening (four bars, made in a fraction of the time) plays first,
+  // round again if need be, while the song is made; the song comes in after it (fill, item.start).
+  let opening = null; // { id, length (s) } of the opening playing for the song being made
+  function rush(s) {
+    const g = q.gen;
+    opening = null;
+    exact.unshift(s);
+    api.make
+      .radioStart?.(s)
+      .then(v => {
+        if (g !== q.gen) return;
+        const item = dress({ ...v, spec: s, title: api.title(s.seed), url: null });
+        if (taped) item.pcm = wavPcm(v.wav);
+        else (item.url = URL.createObjectURL(new Blob([v.wav], { type: 'audio/wav' }))), delete item.wav;
+        opening = { id: item.id, length: v.length };
+        q.ready.unshift(item);
+        arrived();
+      })
+      .catch(() => {});
+  }
   // Songs made before they're asked for (今日精選's first ones): a tap on one plays at once.
   // Made only while nothing else is being made and the radio isn't playing; a few at most.
   const prepared = new Map(); // `${seed}:${mood}:${style}` -> item
@@ -166,6 +188,8 @@ export function mountRadio(panel, api) {
     cur = item;
     audio.loop = false;
     audio.src = item.url || urlOf(item);
+    // (A song after its own opening: from its fifth bar.)
+    if (item.start) audio.addEventListener('loadedmetadata', () => (audio.currentTime = item.start), { once: true });
     if (want) audio.play().catch(() => retry());
     if (was) setTimeout(() => drop(was), 4000);
     paint();
@@ -329,7 +353,7 @@ export function mountRadio(panel, api) {
   // second of it. On the tape, what was laid down after here goes and the song is laid down again from there.
   let jump = null; // { at (s in the song), t (on the tape, when it lands) }: shown until it lands
   function seek(sec) {
-    if (!cur) return;
+    if (!cur || cur.quick) return;
     const s = Math.max(0, Math.min(sec, cur.seconds - 0.5));
     if (!tape) {
       audio.currentTime = s;
@@ -519,6 +543,9 @@ export function mountRadio(panel, api) {
     exact.length = 0;
     looking = null;
     q.skip = Boolean(cur);
+    // (This station's first song: what was being made for the old one dropped, and its opening first.)
+    if ((q.busy || preparing) && api.make.restart?.()) (q.busy = false), (preparing = false);
+    rush(spec());
     if (!want) start();
     else fill();
     paintNext();
@@ -537,7 +564,7 @@ export function mountRadio(panel, api) {
         .then(hit => {
           if (looking !== mine) return hit && URL.revokeObjectURL(hit.url);
           looking = null;
-          if (!hit) return exact.push(spec), fill();
+          if (!hit) return rush(spec), fill();
           const item = dress({ ...hit, spec, title: api.title(spec.seed), kept: true });
           if (!taped) item.pcm = null;
           q.ready.unshift(item);
@@ -565,7 +592,7 @@ export function mountRadio(panel, api) {
       heard = cur;
       if (cur) remember(cur);
       // (Kept small for 最近播放, while the screen is on: a tap on it later plays at once.)
-      if (cur?.pcm && !cur.kept && document.visibilityState === 'visible') keepHeard(heardKey({ ...cur.spec, style: cur.info.style }), cur, cur.pcm, RADIO_SR, RADIO_V);
+      if (cur?.pcm && !cur.kept && !cur.quick && document.visibilityState === 'visible') keepHeard(heardKey({ ...cur.spec, style: cur.info.style }), cur, cur.pcm, RADIO_SR, RADIO_V);
       emit('song');
     }
     emit('state');
@@ -820,7 +847,7 @@ export function mountRadio(panel, api) {
     playSpec,
     station: () => mood,
     // Now: the song playing (or null), and whether the radio is asked for.
-    state: () => ({ cur: track(cur), cover: cur ? cur.cover : null, want, playing: want && !audio.paused && Boolean(cur), busy: want && !cur, t: cur ? songTime() : 0, seconds: cur ? cur.seconds : 0, station: mood }),
+    state: () => ({ cur: track(cur), cover: cur ? cur.cover : null, want, playing: want && !audio.paused && Boolean(cur), busy: want && !cur, t: cur ? songTime() : 0, seconds: cur ? cur.seconds : 0, station: mood, opening: Boolean(cur?.quick) }),
     upcoming: () => upList().map(it => ({ ...track(it), cover: it.cover })),
     // The station's own cover before any song (a hero with nothing playing).
     idle: () => idleCover(),

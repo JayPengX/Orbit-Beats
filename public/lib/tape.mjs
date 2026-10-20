@@ -211,7 +211,9 @@ export function wavPcm(wav) {
 //   take(n, next) -> { pcm: Int16Array (n samples, stereo), marks: [{ at, item, from }] }
 //   (next(): the song to follow, or null if none is made yet; marks: where
 //   on the stretch a song starts or jumps, `from` the song's sample there.)
+// (A song that comes in after its own opening, already played (lib/radio.mjs radioIntro): from `start` seconds.)
 export function tapeFeed(sr) {
+  const startOf = it => (it?.start ? Math.round(it.start * sr) : 0);
   let item = null; // { pcm, hold: { from, to } (seconds), ... }
   let pos = 0;
   let fresh = false;
@@ -235,9 +237,9 @@ export function tapeFeed(sr) {
       while (o < n) {
         if (!item) {
           item = next();
-          pos = 0;
+          pos = startOf(item);
           if (!item) break;
-          marks.push({ at: o, item, from: 0 });
+          marks.push({ at: o, item, from: pos });
         }
         const len = item.pcm.length / 2;
         const from = item.hold ? Math.round(item.hold.from * sr) : 0;
@@ -250,7 +252,7 @@ export function tapeFeed(sr) {
         pos += m;
         if (pos < end) continue;
         const after = end === len ? next() : null;
-        if (after) item = after, (pos = 0);
+        if (after) item = after, (pos = startOf(after));
         else pos = end === len && !(to > from) ? 0 : from;
         marks.push({ at: o, item, from: pos });
       }

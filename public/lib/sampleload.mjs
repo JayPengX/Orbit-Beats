@@ -85,7 +85,7 @@ const setInsts = set => {
 };
 export function instsOf(fn, args) {
   try {
-    if (fn === 'radio' || fn === 'radioWav' || fn === 'game') return radioInsts(args[0]);
+    if (fn === 'radio' || fn === 'radioStart' || fn === 'radioWav' || fn === 'game') return radioInsts(args[0]);
     if (fn === 'jamBand') return setInsts(args[0]);
     if (fn === 'song' || fn === 'stems' || fn === 'clip' || fn === 'midi') {
       const r = args[0];

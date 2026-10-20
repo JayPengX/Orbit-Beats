@@ -88,6 +88,7 @@ export function maker(url, { limit = 90000, prep = null } = {}) {
     stems: (recipe, bits, opts) => ask('stems', recipe, bits, opts),
     midi: (recipe, opts) => ask('midi', recipe, opts),
     radio: (spec, after) => ask('radio', spec, after),
+    radioStart: spec => ask('radioStart', spec),
     radioWav: spec => ask('radioWav', spec),
     game: spec => ask('game', spec),
     clip: (recipe, k, part) => ask('clip', recipe, k, part),

@@ -16,7 +16,7 @@ import { withKit, STYLE_KIT, SAMPLED } from './samples.mjs';
 import { makeSong, makeRng, analyzeRecording, dressOf, STYLES, FAMILY, SHUFFLE } from '../engine.mjs';
 import { voice, renderClip, emptyDrums } from './synth.mjs';
 import { noted } from './game.mjs';
-import { mixOf } from './mix.mjs';
+import { mixOf, mixBuses } from './mix.mjs';
 
 export const RADIO_SR = 32000;
 
@@ -809,7 +809,7 @@ function hatPiece(lanes, sp, H, clip) {
 
 // The song's band, for a song of the radio: the pieces, their roles and `parts`, which pieces each section plays. Every riff, phrase and bass piece is four bars
 // (the engine plays an eight-bar part as two of them, one after the other). tests/phrases.test.mjs reads `tunes`.
-function songKit(sp, sr, { lift = true } = {}) {
+function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
   const band = BAND[sp.style];
   const comp = COMP[band.comp];
   const lines = LINES[band.line];
@@ -862,6 +862,8 @@ function songKit(sp, sr, { lift = true } = {}) {
   // ---- base: the pieces the engine hears first, one of each role (the rest are cousins of these) ----
   // The verse: chords with the lead, then the second time through its own variant of the tune.
   const V = block(sp, rngOf(sp, 2), { maxNotes: 5, leadX: sp.lead });
+  // (Its opening alone, made in a moment, so the song can start while the rest is made: lib/radio.mjs radioIntro.)
+  if (introOnly) return { intro: sum(V.arp(sp.lead2, 0), ratio(V.beds[0], 1.3), ratio(V.chords(sp.chords2, 1, 0), 0.9)), hat: hatPiece((band.hats || sp.hatsPick.map(i => HATS[i]))[0], sp, H, clip) };
   const tV1 = V.make({}), tV2 = V.make({ motif: tV1.motif, displace: true });
   tunes.verse1 = tV1.notes; tunes.verse2 = tV2.notes;
   // (The first verse opens bare, the tune over a held bed alone, and its chords come in at its fifth bar: the song starts small and grows.)
@@ -1009,8 +1011,8 @@ export function radioKit(sp, sr = RADIO_SR, opts = {}) {
   // (Its drums from the groove's recorded kit, when its hits are here: lib/samples.mjs.)
   return withKit(sp.style, () => kitOf(sp, sr, opts));
 }
-function kitOf(sp, sr, { song = false, lift = true } = {}) {
-  if (song) return songKit(sp, sr, { lift });
+function kitOf(sp, sr, { song = false, lift = true, introOnly = false } = {}) {
+  if (song) return songKit(sp, sr, { lift, introOnly });
   const R = makeRng(sp.seed ^ 0x68e31da4);
   const band = BAND[sp.style];
   const clip = c => noted(renderClip(c, sr, sp.bpm), { clip: c });
@@ -1203,6 +1205,31 @@ export function radioSong(spec, sr = RADIO_SR, stems = false) {
   // engine that made it; a song kept from before RADIO_V is cut from its own sound, not made again.)
   // (`events`, `roles` and each piece's `tune`: what plays when, for the game's charts.)
   return { audio: song.audio, stems: song.stems, events: song.events, roles, tunes: pieces.map(p => p.tune || null), info: { ...song.info, key: sp.key, mood, radio: { seed, mood, style: sp.style, ...Object.fromEntries(over), ...(asked ? { seconds: spec.seconds } : {}), ...(shift ? { shift } : {}), ...(mute.length ? { mute } : {}), ...(fade ? { fade } : {}), v: RADIO_V } } };
+}
+
+// A song's opening, four bars, made in a fraction of the time the song takes: its arpeggio over its pad and
+// chords, its first hats, opening up as the song's intro does, at about the intro's level. The radio plays
+// it (round again if need be) while the song is made, and the song comes in after it at its own fifth bar
+// (`start`). Only for a song as it is (no remix). -> { audio, info, bars, seconds (the whole song's, about) }
+export function radioIntro(spec, sr = RADIO_SR) {
+  const { seed, mood = 'all', style = null } = spec;
+  const sp = radioSpec(seed, mood, style);
+  const plan = radioPlan(makeRng(seed ^ 0x1b873593), sp.bpm, sp.seconds, false);
+  const { intro, hat } = radioKit(sp, sr, { song: true, introOnly: true });
+  const B = (60 / sp.bpm) * sr, n = Math.round(16 * B);
+  const into = (x, bL, bR, g = 1) => {
+    for (let i = 0; i < n; i++) (bL[i] += x.L[i % x.L.length] * g), (bR[i] += x.R[i % x.R.length] * g);
+    return true;
+  };
+  const { L, R } = mixBuses((bus, bL, bR) => (bus === 'keys' ? into(intro, bL, bR) : bus === 'hats' ? into(hat, bL, bR) : false), { sr, B, n, plan: [['intro', 0, 4]], mix: mixOf({ ...MIXES[mood], ...BAND[sp.style].mix }) });
+  // (At about the level a song's intro plays at: its RMS -18 dB, never past -1 dB.)
+  let e = 0, peak = 0;
+  for (let i = 0; i < n; i++) (e += (L[i] * L[i] + R[i] * R[i]) / 2), (peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i])));
+  const rms = Math.sqrt(e / n);
+  const g = rms > 0 ? Math.min(10 ** (-18 / 20) / rms, 0.89 / peak) : 1;
+  for (let i = 0; i < n; i++) (L[i] *= g), (R[i] *= g);
+  const bars = plan.reduce((a, [, b]) => a + b, 0);
+  return { audio: { sr, L, R }, bars: 4, seconds: (bars * 240) / sp.bpm, info: { style: sp.style, bpm: sp.bpm, key: sp.key, mood, plan, radio: { seed, mood, style: sp.style, v: RADIO_V } } };
 }
 
 // Where the song is cut for the next one to come in: just before its last

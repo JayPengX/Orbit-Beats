@@ -65,7 +65,7 @@ export function createPlayer(d) {
       const r = radio.state();
       const track = r.cur && (!q.now || q.now.id === r.cur.id || q.now.kind !== 'radio') ? r.cur : q.now?.kind === 'radio' ? q.now : r.cur;
       const same = r.cur && track && r.cur.id === track.id;
-      return { source: 'radio', track, cover: same ? r.cover : track ? coverOfTrack(track) : radio.idle().cover, playing: r.playing, busy: r.busy || Boolean(track && !same), t: same ? r.t : 0, seconds: same ? r.seconds : 0, canSeek: Boolean(same && r.seconds), upTo: same ? r.seconds : 0, station: r.station, want: r.want };
+      return { source: 'radio', track, cover: same ? r.cover : track ? coverOfTrack(track) : radio.idle().cover, playing: r.playing, busy: r.busy || Boolean(track && !same), t: same ? r.t : 0, seconds: same ? r.seconds : 0, canSeek: Boolean(same && r.seconds && !r.opening), upTo: same ? r.seconds : 0, station: r.station, want: r.want };
     }
     return null;
   }

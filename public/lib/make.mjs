@@ -6,7 +6,7 @@
 
 import { makeSong, renderEvents, encodeWav, zipParts, loopBeats } from '../engine.mjs';
 import { midiFile, songTracks } from './midi.mjs';
-import { radioSong, cutOf, segment, holdOf, radioKit, RADIO_SR } from './radio.mjs';
+import { radioSong, radioIntro, cutOf, segment, holdOf, radioKit, RADIO_SR } from './radio.mjs';
 import { retime, clipSpan, partOf } from './remix.mjs';
 import { specOf, setOf } from './jamset.mjs';
 import { fromOffsets } from './jam.mjs';
@@ -114,6 +114,13 @@ export function radio(spec, after = null) {
   tails.set(id, seg.tail);
   while (tails.size > 6) tails.delete(tails.keys().next().value);
   return { id, info, wav: encodeWav({ sr: audio.sr, L: seg.L, R: seg.R }, 16), seconds: seg.L.length / audio.sr, hold: holdOf(info) };
+}
+// A song's opening, to play while the song is made (lib/radio.mjs radioIntro): round again until it is.
+// -> { id, info, wav, seconds (the song's, about), hold, quick: true }
+export function radioStart(spec) {
+  const { audio, info, seconds } = radioIntro(spec);
+  const len = audio.L.length / audio.sr;
+  return { id: radioId(info.radio), info, wav: encodeWav(audio, 16), seconds, hold: { from: 0, to: len }, length: len, quick: true };
 }
 // A radio song whole, to keep (歌單) or to list (簡單's 隨機做一批). -> { info, wav }
 export function radioWav(spec) {
