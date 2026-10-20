@@ -35,13 +35,20 @@ const ROW_NAMES = { 'for-you': ['為你推薦', 'For you'], moods: ['心情', 'M
 export const sqCard = (cover, title, sub, props = {}, cls = 'sq') =>
   h('button', { class: cls, type: 'button', ...props }, [h('span', { class: 'sq-cover' }, [h('img', { alt: '', src: cover, loading: 'lazy', decoding: 'async', draggable: 'false' })]), h('b', { text: title }), sub ? h('small', { text: sub }) : null]);
 export const shelfOf = (key, title, nodes) => h('section', { class: 'shelf', 'data-row': key }, [h('h2', { text: title }), h('div', { class: 'rail' }, nodes)]);
-// Kept songs as covers in a shelf (empty: nothing). api: { P, trackMenu }
+// A song's card tapped: it plays; already playing, Now Playing opens (paused: it goes on).
+export function tapTrack(api, t) {
+  const s = api.P.state();
+  if (s?.track?.id !== t.id) return api.P.play(t);
+  if (!(s.playing || s.busy)) return api.P.toggle();
+  return api.openNow ? api.openNow() : null;
+}
+// Kept songs as covers in a shelf (empty: nothing). api: { P, trackMenu, openNow? }
 export function songShelf(api, key, title, songs) {
   if (!songs.length) return null;
   const { P } = api;
   return shelfOf(key, title, songs.map(song => {
     const t = P.track(song);
-    const c = sqCard(coverOfTrack(t), t.title, subOf(t), { 'data-id': t.id, onclick: () => P.play(t) });
+    const c = sqCard(coverOfTrack(t), t.title, subOf(t), { 'data-id': t.id, onclick: () => tapTrack(api, t) });
     c.querySelector('.sq-cover').append(h('span', { class: 'sq-more', role: 'button', tabindex: '0', 'aria-label': W('更多', 'More'), html: icon('more'), onclick: e => (e.stopPropagation(), api.trackMenu(t, e.currentTarget)) }));
     onLong(c, () => api.trackMenu(t, c.querySelector('.sq-cover')));
     return c;
@@ -140,7 +147,7 @@ export function mountHome(panel, api) {
   const mineSlot = h('div', { class: 'recent-slot' });
   function drawPicks() {
     const nodes = pickTracks().slice(1).map(({ e, t }) => {
-      const c = card(radio.coverOf(e), t.title, subOf(t), { 'data-id': t.id, 'data-pick': t.id, onclick: () => P.play(t) }, 'sq lg');
+      const c = card(radio.coverOf(e), t.title, subOf(t), { 'data-id': t.id, 'data-pick': t.id, onclick: () => tapTrack(api, t) }, 'sq lg');
       c.querySelector('.sq-cover').append(more(t, c));
       onLong(c, () => api.trackMenu(t, c.querySelector('.sq-cover')));
       return c;
@@ -180,7 +187,7 @@ export function mountHome(panel, api) {
     recentSlot.replaceChildren();
     if (list.length) {
       const nodes = list.map(t => {
-        const c = card(radio.coverOf(t), t.title, subOf(t), { 'data-id': t.id, onclick: () => P.play(t) });
+        const c = card(radio.coverOf(t), t.title, subOf(t), { 'data-id': t.id, onclick: () => tapTrack(api, t) });
         c.querySelector('.sq-cover').append(more(t, c));
         onLong(c, () => api.trackMenu(t, c.querySelector('.sq-cover')));
         return c;

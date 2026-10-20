@@ -240,7 +240,7 @@ let game = null;
     cover.src = setCover(set, specOf(set).bpm);
     badge.textContent = String(pieces.length);
     badge.hidden = !pieces.length;
-    const mine = songShelf({ P, trackMenu: (t, a) => trackMenuOf(t, a) }, 'mine', W('你的歌', 'Your songs'), mineFirst());
+    const mine = songShelf({ P, trackMenu: (t, a) => trackMenuOf(t, a), openNow: () => openNowOf() }, 'mine', W('你的歌', 'Your songs'), mineFirst());
     const sets = shelfOf('jam-sets', W('即興組合', 'Jam sets'), JAM_SETS.map(x => card(setCover(x, specOf(x).bpm), name(STYLE_NAMES, x.style), speedText(specOf(x).bpm), () => openJam(x))));
     shelf.replaceChildren(...(mine ? [mine] : [shelfOf('start', W('從這裡開始', 'Start here'), starters())]), sets);
   };
@@ -1611,6 +1611,7 @@ let wantLoop = null; // a section to loop in the song about to play (held from i
 let P = null; // lib/player.mjs, made in boot
 let home = null;
 let trackMenuOf = () => {};
+let openNowOf = () => {}; // (Now Playing, once the player's screens are up)
 async function urlOf(song) {
   if (song.url) return song.url;
   // (The kept record as it is now: 資料庫瘦身 may have packed it since its row was drawn.)
@@ -2359,6 +2360,7 @@ async function boot() {
   });
   const view = mountPlayerView(P, core, { mini: $('player') });
   trackMenuOf = view.trackMenu;
+  openNowOf = view.openNow;
   home = mountHome($('panel-home'), {
     P,
     radio,

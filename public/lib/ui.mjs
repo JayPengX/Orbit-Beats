@@ -39,6 +39,7 @@ export function menu(anchor, items, opts = {}) {
 // (An icon given as an SVG string is drawn, not shown as text.)
 export function empty(o = {}) {
   const el = kitEmpty({ ...o, icon: String(o.icon || '').startsWith('<svg') ? '' : o.icon });
-  if (String(o.icon || '').startsWith('<svg')) el.prepend(h('span', { class: 'q-empty-icon', 'aria-hidden': 'true', html: o.icon }));
+  // (In the kit's accent tile, as the kit's own icons are.)
+  if (String(o.icon || '').startsWith('<svg')) el.prepend(h('span', { class: 'q-tile q-empty-tile', 'aria-hidden': 'true', html: o.icon }));
   return el;
 }

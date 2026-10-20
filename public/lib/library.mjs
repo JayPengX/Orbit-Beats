@@ -202,7 +202,7 @@ export function libraryView({ panel, row, goMake, zip, play, cover = () => '', s
       ...[top,
       rows,
       ...sections,
-      nodes.length ? h('section', { class: 'lib-shelf' }, [h('h2', { text: W('最近播放', 'Recently played') }), h('ol', { class: 'lib-recs' }, nodes)]) : null,
+      nodes.length ? h('section', { class: 'lib-shelf' }, [h('h2', { text: W('最近播放', 'Recently played') }), h('ol', { class: 'lib-recs' }, nodes)]) : ui.empty({ icon: icon('heart'), title: W('還沒有收藏的歌', 'No songs kept yet'), body: W('聽到喜歡的歌按愛心，或做一首歌，就會在這裡。', 'Tap the heart on a song you like, or make one: it shows up here.') }),
       h('div', { class: 'lib-actions' }, [
         h('button', { class: 'primary', type: 'button', html: `${icon('radio')}<span>${W('聽電台', 'Listen to Radio')}</span>`, onclick: goListen }),
         h('button', { class: 'secondary', type: 'button', html: `${icon('create')}<span>${W('去做歌', 'Make songs')}</span>`, onclick: goMake })
