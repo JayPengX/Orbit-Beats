@@ -3,7 +3,7 @@
 // 最近播放 plays at once instead of being made again. And the few made ahead
 // (今日精選's first ones, and the next song of 隨機電台 and 為你電台; kind 'ready'):
 // kept too, so the app opened again plays them at once, before a single
-// instrument is read. And the openings (four bars, kind 'opening', key 'o:…')
+// instrument is read. And the openings (eight bars, kind 'opening', key 'o:…')
 // of every other song and station on 首頁: a tap on any plays its opening at
 // once while the song is made. On this phone only,
 // never sent anywhere; a song made by an older engine (RADIO_V) is made again.
@@ -51,7 +51,7 @@ export async function keepHeard(key, item, pcm, sr, v, kind = 'heard') {
     const packed = await packPcm(pcm, sr);
     if (!packed) return false;
     // (Its first four bars as they are, read back in a moment: they play while the rest is unpacked.)
-    // (An opening is four bars itself, and small packed: none.)
+    // (An opening is eight bars itself, and small packed: none.)
     const bars = item.info?.bpm ? Math.round(((16 * 60) / item.info.bpm) * sr) : 8 * sr;
     const head = kind === 'opening' ? null : pcm.slice(0, Math.min(pcm.length, bars * 2));
     const rec = { key, kind, at: Date.now(), v, id: item.id, info: item.info, seconds: item.seconds, hold: item.hold, quick: Boolean(item.quick), length: item.length, whole: item.seconds, head, headSr: sr, ...packed };
@@ -73,7 +73,7 @@ export async function heardHead(key, v, sr) {
     const rec = await run('readonly', s => s.get(key));
     if (!rec || rec.v !== v || !rec.head?.length || rec.headSr !== sr) return null;
     const len = rec.head.length / 2 / sr;
-    return { id: rec.id, info: rec.info, seconds: rec.seconds, hold: { from: 0, to: len }, length: len, quick: true, pcm: rec.head };
+    return { id: rec.id, info: rec.info, seconds: rec.seconds, hold: { from: len / 2, to: len }, length: len, quick: true, pcm: rec.head };
   } catch {
     return null;
   }

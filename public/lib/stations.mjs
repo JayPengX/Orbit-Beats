@@ -58,12 +58,12 @@ const dayHash = s => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) 
 export const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 // 今日精選: n songs for a day, each { seed, mood, style, bpm, key, seconds }: the same all day, another
 // tomorrow. Each differs from the one before (the radio's own rule), and with something kept, every
-// other one is of the grooves you keep.
-export function dailyPicks(day, taste = {}, n = 8) {
+// other one is of the grooves you keep. (`from`: the first of them, worked out already: the rest follow on.)
+export function dailyPicks(day, taste = {}, n = 8, from = []) {
   const f = stationFilter('taste', taste);
   const mine = tasteList(taste, 1).length > 0;
-  const out = [];
-  for (let i = 0; i < n; i++) {
+  const out = from.slice(0, n);
+  for (let i = out.length; i < n; i++) {
     const seed = dayHash(`${day}:${i}`) % 1e9;
     const st = mine && i % 2 === 1 ? f : null;
     const p = radioPick('all', out, seed, st);

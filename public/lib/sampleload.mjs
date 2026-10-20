@@ -12,14 +12,41 @@ const BASE = new URL('../', import.meta.url).href;
 const loading = new Map(); // inst -> Promise<bank | null>
 const MAX_SECONDS = 3.2;
 
+// (One decoder for every note, not one made per note; and the notes decoded a few at a time, a pause
+// between each: a song's instruments are a hundred notes and more, and all at once they held the page's
+// thread for seconds, the home screen unable to scroll while a song was got ready behind it.)
+let ctx = null;
+const ready = [];
+let reading = 0;
+const READ_AT_ONCE = 2;
+const pause = () => new Promise(ok => setTimeout(ok, 0));
+// (And none while a finger is on the screen or the page is scrolling: the next note waits for a quiet moment.)
+let touched = 0;
+const QUIET_MS = 400;
+if (globalThis.document?.addEventListener) for (const type of ['touchstart', 'touchmove', 'scroll', 'wheel', 'pointerdown']) document.addEventListener(type, () => (touched = performance.now()), { capture: true, passive: true });
+const quiet = () => {
+  const left = touched + QUIET_MS - performance.now();
+  return left > 0 ? new Promise(ok => setTimeout(ok, left)).then(quiet) : Promise.resolve();
+};
+function turn() {
+  if (reading >= READ_AT_ONCE) return new Promise(ok => ready.push(ok)).then(quiet);
+  reading++;
+  return quiet();
+}
+function done() {
+  const next = ready.shift();
+  if (next) next();
+  else reading--;
+}
 async function decode(buf) {
   const C = globalThis.OfflineAudioContext || globalThis.webkitOfflineAudioContext;
   if (!C) throw new Error('no decoder');
-  const ctx = new C(1, 1, RATE);
+  ctx ||= new C(1, 1, RATE);
   const a = await new Promise((ok, no) => {
     const p = ctx.decodeAudioData(buf, ok, no);
     p?.then?.(ok, no);
   });
+  await pause();
   const L = a.getChannelData(0);
   // (Both sides averaged when it came in stereo; kept no longer than the notes need, and as 16-bit
   // samples: half the memory of floats, on the page and in every worker it's handed to, which on a
@@ -30,7 +57,11 @@ async function decode(buf) {
   for (let i = 0; i < n; i++) x[i] = Math.max(-32768, Math.min(32767, Math.round(16384 * (L[i] + R[i]))));
   return { x, sr: a.sampleRate };
 }
-const fetchDecode = url => fetch(url).then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status))))).then(decode);
+// (Fetched all at once, as before: only the decoding waits its turn.)
+const fetchDecode = url =>
+  fetch(url)
+    .then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+    .then(buf => turn().then(() => decode(buf).finally(() => pause().then(done))));
 // One drum of a kit ('drum:<kit>:<drum>'): its takes. -> { inst, sr, takes: [[x, x], …] } | null
 function loadDrum(name) {
   const [, kit, drum] = name.split(':');
@@ -55,12 +86,7 @@ export function loadBank(inst) {
     loading.set(
       inst,
       Promise.all(
-        sampleNotes(inst).map(m =>
-          fetch(sampleUrl(BASE, inst, m))
-            .then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
-            .then(decode)
-            .then(d => ({ midi: m, ...d }))
-        )
+        sampleNotes(inst).map(m => fetchDecode(sampleUrl(BASE, inst, m)).then(d => ({ midi: m, ...d })))
       ).then(
         notes => {
           const bank = { inst, sr: notes[0].sr, notes: notes.map(({ midi, x }) => ({ midi, x })) };

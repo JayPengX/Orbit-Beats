@@ -120,7 +120,8 @@ export function radio(spec, after = null) {
 export function radioStart(spec) {
   const { audio, info, seconds } = radioIntro(spec);
   const len = audio.L.length / audio.sr;
-  return { id: radioId(info.radio), info, wav: encodeWav(audio, 16), seconds, hold: { from: 0, to: len }, length: len, quick: true };
+  // (Gone round only if the song still isn't made: from its second half, never back to its first notes.)
+  return { id: radioId(info.radio), info, wav: encodeWav(audio, 16), seconds, hold: { from: len / 2, to: len }, length: len, quick: true };
 }
 // A radio song whole, to keep (歌單) or to list (簡單's 隨機做一批). -> { info, wav }
 export function radioWav(spec) {

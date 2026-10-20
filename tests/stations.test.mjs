@@ -78,6 +78,8 @@ test('今日精選: a day gives the same songs, each differing from the one befo
   const a = dailyPicks('2026-10-19', {});
   assert.equal(a.length, 8);
   assert.deepEqual(a, dailyPicks('2026-10-19', {}));
+  // (The first three now, the rest a moment later (lib/homeview.mjs): the same eight.)
+  assert.deepEqual(a, dailyPicks('2026-10-19', {}, 8, dailyPicks('2026-10-19', {}, 3)));
   assert.notDeepEqual(a.map(x => x.seed), dailyPicks('2026-10-20', {}).map(x => x.seed));
   for (const [i, x] of a.entries()) {
     assert.ok(Number.isInteger(x.seed) && STYLES.includes(x.style) && x.mood === 'all' && x.bpm > 40 && x.key && x.seconds > 0);

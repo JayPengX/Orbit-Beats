@@ -49,21 +49,44 @@ export function songShelf(api, key, title, songs) {
 }
 
 // api: { P, radio, taste() -> { style: n }, trackMenu(track, anchor), openNow(), songs(), go(tab, run) }
+const PICKS_KEY = 'orbit-beats-picks';
 export function mountHome(panel, api) {
   const { P, radio } = api;
   const card = sqCard;
-  const station = (id, cls = 'lg') => card(stationCover(id, api.taste()), stationName(id), '', { 'data-station': id, onclick: () => P.station(id) }, `sq st ${cls}`);
+  // (The station already playing: Now Playing opens, rather than nothing.)
+  const tune = id => P.station(id) === false && api.openNow();
+  // (A station's art carries its name: the name is the button's label, not a line under it.)
+  const stCard = (cover, title, props, cls) => h('button', { class: cls, type: 'button', 'aria-label': title, ...props }, [h('span', { class: 'sq-cover' }, [h('img', { alt: '', src: cover, loading: 'lazy', decoding: 'async', draggable: 'false' })])]);
+  const station = (id, cls = 'lg') => stCard(stationCover(id, api.taste()), stationName(id), { 'data-station': id, onclick: () => tune(id) }, `sq st ${cls}`);
   const shelf = shelfOf;
   const more = (t, c) => h('span', { class: 'sq-more', role: 'button', tabindex: '0', 'aria-label': W('更多', 'More'), html: icon('more'), onclick: e => (e.stopPropagation(), api.trackMenu(t, c.querySelector('.sq-cover'))) });
 
   // 今日精選: the day's songs, and the hero is the first of them.
+  // (Worked out once a day and kept on the phone: working them out held the screen a moment as it opened.)
+  const keptPicks = (day, taste) => {
+    const k = `${document.querySelector('meta[name="build-version"]')?.content || ''}|${day}|${JSON.stringify(taste || {})}`;
+    try {
+      const was = JSON.parse(localStorage.getItem(PICKS_KEY) || 'null');
+      if (was?.k === k && Array.isArray(was.picks) && was.picks.length) return was.picks;
+    } catch {}
+    // (A new day: the hero and the two cards on the screen first, the rest a moment later.)
+    const got = dailyPicks(day, taste, 3);
+    setTimeout(() => {
+      const all = dailyPicks(day, taste, 8, got);
+      try {
+        localStorage.setItem(PICKS_KEY, JSON.stringify({ k, picks: all }));
+      } catch {}
+      if (picks.length && picks[0].e === got[0]) (picks = [...picks, ...all.slice(got.length).map(e => ({ e, t: radio.trackOf(e) }))]), drawPicks(), paintOn();
+    }, 0);
+    return got;
+  };
   let picks = [];
   let picksKey = '';
   const pickTracks = () => {
     const key = `${dayKey()}|${tasteList(api.taste(), 1).map(x => x[0])}`;
     if (key !== picksKey) {
       picksKey = key;
-      picks = dailyPicks(dayKey(), api.taste()).map(e => ({ e, t: radio.trackOf(e) }));
+      picks = keptPicks(dayKey(), api.taste()).map(e => ({ e, t: radio.trackOf(e) }));
       // (The hero and the next pick made ahead, just after the screen opens: a tap plays at once.)
       const first = picks.slice(0, 2).map(p => p.e);
       setTimeout(() => radio.prep?.(first), 300);
@@ -126,13 +149,13 @@ export function mountHome(panel, api) {
   }
   function drawNow() {
     const n = nowStation(new Date().getHours());
-    const c = card(stationCover(n.id, api.taste()), stationName(n.id), '', { 'data-station': n.id, onclick: () => P.station(n.id) }, 'sq st wide');
+    const c = stCard(stationCover(n.id, api.taste()), stationName(n.id), { 'data-station': n.id, onclick: () => tune(n.id) }, 'sq st wide');
     c.querySelector('.sq-cover').append(h('span', { class: 'sq-tag', text: W(...n.part) }));
     nowSlot.replaceChildren(shelf('now', W('適合現在', 'Right now'), [c]));
   }
   const browse = () => {
     const ids = homeRows(api.taste()).find(r => r.key === 'genres').ids;
-    const all = h('button', { class: 'sq st sm all', type: 'button', onclick: () => genreSheet({ title: W('全部類型', 'All genres'), onPick: g => api.P.station(`style:${g}`) }) }, [h('span', { class: 'sq-cover tile', html: icon('grid') }), h('b', { text: W('全部類型', 'All genres') })]);
+    const all = h('button', { class: 'sq st sm all', type: 'button', 'aria-label': W('全部類型', 'All genres'), onclick: () => genreSheet({ title: W('全部類型', 'All genres'), onPick: g => api.P.station(`style:${g}`) }) }, [h('span', { class: 'sq-cover tile', html: icon('grid') })]);
     const el = shelf('genres', W(...ROW_NAMES.genres), [...ids.map(id => station(id, 'sm')), all]);
     el.querySelector('.rail').classList.add('rail-grid');
     return el;
@@ -173,7 +196,7 @@ export function mountHome(panel, api) {
     return [picksSlot, nowSlot, recentSlot, slots['for-you'], mineSlot, slots.moods, slots.genres].filter(Boolean);
   };
   // Two radios always one tap away under the hero: 隨機電台 (any groove) and 為你電台 (what you keep).
-  const radioPill = (id, ic, label) => h('button', { class: 'home-radio', type: 'button', 'data-station': id, onclick: () => P.station(id) }, [h('span', { class: 'hr-ic', html: icon(ic) }), h('span', { text: label })]);
+  const radioPill = (id, ic, label) => h('button', { class: 'home-radio', type: 'button', 'data-station': id, onclick: () => tune(id) }, [h('span', { class: 'hr-ic', html: icon(ic) }), h('span', { text: label })]);
   const radios = h('div', { class: 'home-radios' }, [radioPill('all', 'shuffle', W('隨機電台', 'Shuffle Radio')), radioPill('taste', 'radio', W('為你電台', 'Your Radio'))]);
   const drawAll = () => {
     drawPicks();
@@ -189,7 +212,11 @@ export function mountHome(panel, api) {
     const s = P.state();
     const on = s?.source === 'radio' ? radio.station() : '';
     const live = Boolean(s?.playing || s?.busy);
-    for (const b of panel.querySelectorAll('[data-station]')) b.classList.toggle('on', b.dataset.station === on && live);
+    for (const b of panel.querySelectorAll('[data-station]')) {
+      const lit = b.dataset.station === on && live;
+      b.classList.toggle('on', lit);
+      b.setAttribute('aria-pressed', String(lit));
+    }
     const id = playingId();
     for (const b of panel.querySelectorAll('[data-pick]')) b.classList.toggle('on', b.dataset.pick === id);
   }

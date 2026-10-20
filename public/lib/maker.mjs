@@ -7,6 +7,9 @@
 // calls go out in the order asked either way.
 // `restart()`: what's being made is dropped (its calls reject with 'cancelled') and a fresh worker
 // takes the next call at once: a song tapped never waits behind one made ahead.
+// A bank's samples copied (the page keeps its own for the next worker), and the copies' buffers.
+const copyBank = b => ({ ...b, ...(b.notes && { notes: b.notes.map(n => ({ ...n, x: n.x.slice() })) }), ...(b.takes && { takes: b.takes.map(t => t.map(x => x.slice())) }) });
+const buffersOf = b => [...(b.notes || []).map(n => n.x.buffer), ...(b.takes || []).flat().map(x => x.buffer)];
 export function maker(url, { limit = 90000, prep = null } = {}) {
   let worker = null;
   let local = null;
@@ -45,14 +48,15 @@ export function maker(url, { limit = 90000, prep = null } = {}) {
     worker = null;
     for (const w of pending) (clearTimeout(w.timer), w.retry());
   }
-  const call = (fn, ...args) =>
+  const call = (fn, ...args) => send(fn, args);
+  const send = (fn, args, moved = []) =>
     new Promise((resolve, reject) => {
       // (A call that throws on the page rejects: never left waiting.)
       const onPage = () => fallback().then(m => m[fn](...args)).then(resolve, reject);
       if (!worker) return onPage();
       const id = ++n;
       waiting.set(id, { resolve, reject, timer: setTimeout(giveUp, limit), retry: () => (fn === 'setKit' ? onPage() : last ? fallback().then(m => (m.setKit(last), m[fn](...args))).then(resolve, reject) : onPage()) });
-      worker.postMessage({ id, fn, args });
+      worker.postMessage({ id, fn, args }, moved);
     });
   let last = null;
   const sent = new Set();
@@ -84,8 +88,14 @@ export function maker(url, { limit = 90000, prep = null } = {}) {
     const posted = line
       .then(() => prep(fn, args, sent))
       .catch(() => null)
-      .then(b => {
-        if (b) call('setSamples', b).catch(() => {});
+      .then(async b => {
+        // (Each instrument on its own, its notes copied and moved rather than cloned in one message:
+        // a song's instruments are tens of megabytes, and cloning them held the page for a second.)
+        for (const [k, bank] of Object.entries(b || {})) {
+          const copy = copyBank(bank);
+          send('setSamples', [{ [k]: copy }], buffersOf(copy)).catch(() => {});
+          await new Promise(ok => setTimeout(ok, 0));
+        }
         return { p: call(fn, ...args) };
       });
     // (A song's opening, the music someone's waiting on: nothing else read or made until it's out.)

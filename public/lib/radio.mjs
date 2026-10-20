@@ -1207,16 +1207,18 @@ export function radioSong(spec, sr = RADIO_SR, stems = false) {
   return { audio: song.audio, stems: song.stems, events: song.events, roles, tunes: pieces.map(p => p.tune || null), info: { ...song.info, key: sp.key, mood, radio: { seed, mood, style: sp.style, ...Object.fromEntries(over), ...(asked ? { seconds: spec.seconds } : {}), ...(shift ? { shift } : {}), ...(mute.length ? { mute } : {}), ...(fade ? { fade } : {}), v: RADIO_V } } };
 }
 
-// A song's opening, four bars, made in a fraction of the time the song takes: its arpeggio over its pad and
+// A song's opening, eight bars, made in a fraction of the time the song takes: its arpeggio over its pad and
 // chords, its first hats, opening up as the song's intro does, at about the intro's level. The radio plays
-// it (round again if need be) while the song is made, and the song comes in after it at its own fifth bar
+// it (round again if need be) while the song is made, and the song comes in after it at its own ninth bar
 // (`start`). Only for a song as it is (no remix). -> { audio, info, bars, seconds (the whole song's, about) }
+export const OPENING_BARS = 8;
 export function radioIntro(spec, sr = RADIO_SR) {
   const { seed, mood = 'all', style = null } = spec;
   const sp = radioSpec(seed, mood, style);
   const plan = radioPlan(makeRng(seed ^ 0x1b873593), sp.bpm, sp.seconds, false);
   const { intro, hat } = radioKit(sp, sr, { song: true, introOnly: true });
-  const B = (60 / sp.bpm) * sr, n = Math.round(16 * B);
+  // (Eight bars: long enough on a phone for the song to be made behind it, so it seldom has to go round.)
+  const B = (60 / sp.bpm) * sr, n = Math.round(OPENING_BARS * 4 * B);
   const into = (x, bL, bR, g = 1) => {
     for (let i = 0; i < n; i++) (bL[i] += x.L[i % x.L.length] * g), (bR[i] += x.R[i % x.R.length] * g);
     return true;
@@ -1229,7 +1231,7 @@ export function radioIntro(spec, sr = RADIO_SR) {
   const g = rms > 0 ? Math.min(10 ** (-18 / 20) / rms, 0.89 / peak) : 1;
   for (let i = 0; i < n; i++) (L[i] *= g), (R[i] *= g);
   const bars = plan.reduce((a, [, b]) => a + b, 0);
-  return { audio: { sr, L, R }, bars: 4, seconds: (bars * 240) / sp.bpm, info: { style: sp.style, bpm: sp.bpm, key: sp.key, mood, plan, radio: { seed, mood, style: sp.style, v: RADIO_V } } };
+  return { audio: { sr, L, R }, bars: OPENING_BARS, seconds: (bars * 240) / sp.bpm, info: { style: sp.style, bpm: sp.bpm, key: sp.key, mood, plan, radio: { seed, mood, style: sp.style, v: RADIO_V } } };
 }
 
 // Where the song is cut for the next one to come in: just before its last
