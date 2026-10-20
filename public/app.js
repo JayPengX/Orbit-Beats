@@ -1800,7 +1800,7 @@ function claimSession(o) {
   if (!ms) return;
   sessionMeta(o);
   const { play, pause } = o;
-  for (const [action, fn] of [['play', play], ['pause', pause], ['previoustrack', () => P.back()], ['nexttrack', () => P.forward()]])
+  for (const [action, fn] of [['play', play], ['pause', pause], ['previoustrack', () => P.back()], ['nexttrack', () => P.forward()], ['seekto', e => Number.isFinite(e?.seekTime) && P.seek(e.seekTime)]])
     try {
       ms.setActionHandler(action, fn);
     } catch {}
@@ -2292,7 +2292,8 @@ topActions(q, { help: helpSheet, extra: appSettings });
 async function boot() {
   showSettings();
   radio = mountRadio(null, {
-    make,
+    // (The radio's own worker: a song tapped can drop what it's making ahead, never a batch being made in 做歌.)
+    make: maker(new URL('./lib/maker.worker.mjs', import.meta.url), { prep: banksFor }),
     quiet: () => quiet({ keep: 'radio' }),
     title: seed => songTitle(seed),
     keep: item => keepRadio(item),

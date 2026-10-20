@@ -219,10 +219,10 @@ export function tapeFeed(sr) {
     get item() {
       return item;
     },
-    // Start this song now (⏭, a mood changed): the next take begins with it.
-    cut(to) {
+    // Start this song now (⏭, a mood changed), from its sample `from` (0, or where a drag on the bar put it): the next take begins with it.
+    cut(to, from = 0) {
       item = to;
-      pos = 0;
+      pos = from;
       fresh = true;
     },
     // n samples on; ready(): is a song made to follow; next(): that song, taken.
@@ -230,7 +230,7 @@ export function tapeFeed(sr) {
       const pcm = new Int16Array(n * 2);
       const marks = [];
       let o = 0;
-      if (item && fresh) marks.push({ at: 0, item, from: 0 });
+      if (item && fresh) marks.push({ at: 0, item, from: pos });
       fresh = false;
       while (o < n) {
         if (!item) {

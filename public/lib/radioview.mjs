@@ -22,7 +22,8 @@ import { h, toast, menu } from './ui.mjs';
 import { icon } from './icons.mjs';
 import { stationFilter, stationId, stationName } from './stations.mjs';
 import { NOTE_NAMES } from '../engine.mjs';
-import { MOODS, RADIO_SR, radioPick, radioQueue, stationStyles } from './radio.mjs';
+import { MOODS, RADIO_SR, RADIO_V, radioPick, radioQueue, stationStyles } from './radio.mjs';
+import { heardKey, heardHas, heardItem, keepHeard } from './heard.mjs';
 import { FRAME, CODECS, bytesOf, tapeInit, tapeSegment, tapeFragment, tapeFeed, wavPcm, pickStream, timescaleOf, audioData } from './tape.mjs';
 import { STYLE_NAMES, STYLE_ORDER, name } from './names.mjs';
 import { W } from './lang.mjs';
@@ -79,7 +80,7 @@ export function mountRadio(panel, api) {
   // Two ahead of the one playing (on the tape, one already laid down counts); one more as soon as one is used.
   function fill() {
     // (Before play: one, so the first tap plays at once; playing: two.)
-    if (q.busy || q.ready.length + (upcoming() ? 1 : 0) >= (want ? 2 : 1) || fails >= 3) return;
+    if (looking || q.busy || q.ready.length + (upcoming() ? 1 : 0) >= (want ? 2 : 1) || fails >= 3) return;
     // (Before play, 今日精選's songs come first: they're what a tap on 首頁 most often wants.)
     if (!want && (preparing || (prepWant.length && prepared.size < 3))) return;
     const s = spec();
@@ -98,14 +99,11 @@ export function mountRadio(panel, api) {
           else (item.url = URL.createObjectURL(new Blob([v.wav], { type: 'audio/wav' }))), delete item.wav;
           q.ready.push(item);
         }
-        if (want && tape && !cur) pump();
-        else if (want && (!cur || q.skip)) advance();
-        else if (tape) pump();
-        paintNext();
-        fill();
-        prepNext();
+        arrived();
       })
-      .catch(() => {
+      .catch(e => {
+        // (Dropped for a song tapped: not a failure; what's made next is already asked for.)
+        if (e?.message === 'cancelled') return;
         q.busy = false;
         fails++;
         paintNext();
@@ -113,6 +111,16 @@ export function mountRadio(panel, api) {
         else if (want && !cur) toast(W('音樂做不出來，再按一次播放試試', "Couldn't make the music: tap play again"), { tone: 'bad' });
       });
   }
+  // A song ready (made, or kept from 最近播放): on the stream, or played now when it's wanted.
+  function arrived() {
+    if (want && tape && !cur) pump();
+    else if (want && (!cur || q.skip)) advance();
+    else if (tape) pump();
+    paintNext();
+    fill();
+    prepNext();
+  }
+  let looking = null; // a song tapped being looked for among those kept from 最近播放 (nothing else made meanwhile)
   // Songs made before they're asked for (今日精選's first ones): a tap on one plays at once.
   // Made only while nothing else is being made and the radio isn't playing; a few at most.
   const prepared = new Map(); // `${seed}:${mood}:${style}` -> item
@@ -127,7 +135,7 @@ export function mountRadio(panel, api) {
   function prepNext() {
     if (preparing || q.busy || want || !prepWant.length || prepared.size >= 3) return;
     const e = prepWant.shift();
-    preparing = true;
+    const mine = (preparing = {});
     api.make
       .radio(e, null)
       .then(v => {
@@ -137,7 +145,7 @@ export function mountRadio(panel, api) {
         prepared.set(prepKey(e), item);
       })
       .catch(() => {})
-      .finally(() => ((preparing = false), setTimeout(() => (prepWant.length ? prepNext() : fill()), 300)));
+      .finally(() => preparing === mine && ((preparing = false), setTimeout(() => (prepWant.length ? prepNext() : fill()), 300)));
   }
   const urlOf = it => (it.url ||= URL.createObjectURL(new Blob([it.wav], { type: 'audio/wav' })));
   const drop = it => it && it !== cur && !tape?.marks.some(m => m.item === it) && !q.ready.includes(it) && (it.url && URL.revokeObjectURL(it.url), (it.url = null), (it.pcm = null), (it.wav = null));
@@ -308,13 +316,33 @@ export function mountRadio(panel, api) {
     const now = audio.currentTime;
     return tape.marks.find(m => m.t > now && m.item !== cur)?.item || null;
   }
-  function cutTo(item) {
+  function cutTo(item, from = 0) {
     const t = tape;
-    t.feed.cut(item);
+    t.feed.cut(item, from);
     // (At the first whole frame a quarter second on, or where the stream ends if sooner.)
     const k = Math.ceil(((audio.currentTime + 0.25) * t.ts - t.base) / t.fr);
-    t.cut = Math.min(t.time, t.base + Math.max(0, k) * t.fr) / t.ts;
+    const at = (t.cut = Math.min(t.time, t.base + Math.max(0, k) * t.fr) / t.ts);
     pump();
+    return at;
+  }
+  // The song playing, from `sec` on (a drag on the bar, the lock screen's slider): the whole song is here, made, so any
+  // second of it. On the tape, what was laid down after here goes and the song is laid down again from there.
+  let jump = null; // { at (s in the song), t (on the tape, when it lands) }: shown until it lands
+  function seek(sec) {
+    if (!cur) return;
+    const s = Math.max(0, Math.min(sec, cur.seconds - 0.5));
+    if (!tape) {
+      audio.currentTime = s;
+      return void (paintTime(), claim());
+    }
+    if (!cur.pcm) return;
+    const t = tape;
+    // (A song laid down after this one, not heard yet, goes back in line.)
+    const later = [...new Set([...t.marks.filter(m => m.t > audio.currentTime && m.item !== cur).map(m => m.item), t.feed.item].filter(it => it && it !== cur))];
+    q.ready.unshift(...later.filter(it => !q.ready.includes(it)));
+    jump = { at: s, t: cutTo(cur, Math.round(s * SR)) };
+    paintTime();
+    claim();
   }
   // The tape stopped working (a phone that won't take it, a stall): on with the songs file by file, from where it was.
   function toFiles(why) {
@@ -489,6 +517,7 @@ export function mountRadio(panel, api) {
     q.gen++;
     last = [];
     exact.length = 0;
+    looking = null;
     q.skip = Boolean(cur);
     if (!want) start();
     else fill();
@@ -499,7 +528,24 @@ export function mountRadio(panel, api) {
     exact.length = 0;
     const ready = prepared.get(prepKey(e));
     prepared.delete(prepKey(e));
-    if (!ready) exact.push({ seed: e.seed, mood: e.mood, style: e.style });
+    // (Heard lately: its kept sound, back in a moment, rather than made again; else made, first.)
+    const mine = (looking = ready ? null : {});
+    if (mine) {
+      const spec = { seed: e.seed, mood: e.mood || 'all', style: e.style };
+      heardHas(heardKey(spec))
+        .then(has => (has ? heardItem(heardKey(spec), RADIO_V) : null))
+        .then(hit => {
+          if (looking !== mine) return hit && URL.revokeObjectURL(hit.url);
+          looking = null;
+          if (!hit) return exact.push(spec), fill();
+          const item = dress({ ...hit, spec, title: api.title(spec.seed), kept: true });
+          if (!taped) item.pcm = null;
+          q.ready.unshift(item);
+          arrived();
+        });
+    }
+    // (Not made yet: whatever is being made ahead is dropped, so this one is made now, not after it.)
+    if (!ready && (q.busy || preparing) && api.make.restart?.()) (q.busy = false), (preparing = false);
     const old = q.ready;
     q.ready = ready ? [ready] : [];
     for (const it of old) drop(it), unart(it);
@@ -518,12 +564,18 @@ export function mountRadio(panel, api) {
       unart(heard);
       heard = cur;
       if (cur) remember(cur);
+      // (Kept small for 最近播放, while the screen is on: a tap on it later plays at once.)
+      if (cur?.pcm && !cur.kept && document.visibilityState === 'visible') keepHeard(heardKey({ ...cur.spec, style: cur.info.style }), cur, cur.pcm, RADIO_SR, RADIO_V);
       emit('song');
     }
     emit('state');
   }
   const paintNext = () => emit('next');
-  const songTime = () => (tape ? onTape()?.at ?? 0 : audio.currentTime || 0);
+  const songTime = () => {
+    if (jump && tape && audio.currentTime < jump.t) return jump.at;
+    jump = null;
+    return tape ? onTape()?.at ?? 0 : audio.currentTime || 0;
+  };
   function paintTime() {
     if (!cur) return;
     const t = songTime();
@@ -622,8 +674,13 @@ export function mountRadio(panel, api) {
     if (tape.stuck >= 5) toFiles(ahead() > 1 ? 'stalled' : 'nothing came out');
   }, 1000);
   // Back on the screen after a call or Siri: the music was asked for, so it goes on.
+  // (Off the screen: the songs made for 今日精選's taps let go, a few dozen MB, so the phone keeps the
+  // page (and the music) rather than closing it to free memory; they're made again once it's back.)
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') resume('back on the screen');
+    if (document.visibilityState === 'visible') return resume('back on the screen'), setTimeout(prepNext, 1500);
+    for (const [k, it] of prepared) drop(it), prepWant.some(x => prepKey(x) === k) || prepWant.unshift(it.spec);
+    prepWant.splice(3);
+    prepared.clear();
   });
 
   // ---- The cover, the beat, the tint ----
@@ -758,6 +815,7 @@ export function mountRadio(panel, api) {
     // ▶ / ❚❚ on the radio as it is.
     toggle: () => (want && !audio.paused ? pause() : start()),
     skip,
+    seek,
     pick,
     playSpec,
     station: () => mood,

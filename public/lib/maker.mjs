@@ -5,18 +5,21 @@
 // `prep(fn, args, sent)`: what the worker needs first (the recorded
 // instruments a song plays, lib/sampleload.mjs), handed over before the call;
 // calls go out in the order asked either way.
+// `restart()`: what's being made is dropped (its calls reject with 'cancelled') and a fresh worker
+// takes the next call at once: a song tapped never waits behind one made ahead.
 export function maker(url, { limit = 90000, prep = null } = {}) {
   let worker = null;
   let local = null;
-  try {
-    worker = new Worker(url, { type: 'module' });
-  } catch {
-    worker = null;
-  }
   let n = 0;
   const waiting = new Map();
   const fallback = async () => (local ||= await import('./make.mjs'));
-  if (worker) {
+  function open() {
+    try {
+      worker = new Worker(url, { type: 'module' });
+    } catch {
+      worker = null;
+    }
+    if (!worker) return;
     worker.onmessage = e => {
       const w = waiting.get(e.data.id);
       if (!w) return;
@@ -33,6 +36,7 @@ export function maker(url, { limit = 90000, prep = null } = {}) {
       giveUp();
     };
   }
+  open();
   function giveUp() {
     if (!worker) return;
     const pending = [...waiting.values()];
@@ -52,6 +56,17 @@ export function maker(url, { limit = 90000, prep = null } = {}) {
     });
   let last = null;
   const sent = new Set();
+  function restart() {
+    if (!worker || !waiting.size) return false;
+    const dropped = [...waiting.values()];
+    waiting.clear();
+    worker.terminate();
+    sent.clear();
+    open();
+    if (worker && last) call('setKit', last).catch(() => {});
+    for (const w of dropped) (clearTimeout(w.timer), w.reject(new Error('cancelled')));
+    return true;
+  }
   let line = Promise.resolve();
   const ask = (fn, ...args) => {
     if (!prep) return call(fn, ...args);
@@ -66,6 +81,8 @@ export function maker(url, { limit = 90000, prep = null } = {}) {
     return posted.then(o => o.p);
   };
   return {
+    restart,
+    busy: () => waiting.size > 0,
     setKit: k => ((last = k), ask('setKit', k)),
     song: (recipe, bits) => ask('song', recipe, bits),
     stems: (recipe, bits, opts) => ask('stems', recipe, bits, opts),

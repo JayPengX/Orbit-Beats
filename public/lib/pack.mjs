@@ -142,7 +142,8 @@ export function sameSong(a, b) {
 const configOf = (codec, sr, bitrate) => ({ codec: codec === 'aac' ? 'mp4a.40.2' : 'opus', sampleRate: sr, numberOfChannels: 2, bitrate, ...(codec === 'aac' && { aac: { format: 'aac' } }) });
 const BLOCK = 8192;
 // A song through the phone's AudioEncoder. -> { frames: [{ data, dur }], description }
-export async function encodePcm({ sr, L, R = L }, { codec, bitrate }, env = globalThis) {
+// (`pcm`: 16-bit L R interleaved in place of L and R, read a block at a time: no whole float copy of a long song.)
+export async function encodePcm({ sr, L, R = L, pcm = null }, { codec, bitrate }, env = globalThis) {
   const ts = timescaleOf(codec, sr);
   const frames = [];
   let description = null;
@@ -158,11 +159,12 @@ export async function encodePcm({ sr, L, R = L }, { codec, bitrate }, env = glob
     error: e => (error = e)
   });
   encoder.configure(configOf(codec, sr, bitrate));
-  for (let at = 0; at < L.length; at += BLOCK) {
-    const m = Math.min(BLOCK, L.length - at);
+  const total = pcm ? pcm.length / 2 : L.length;
+  for (let at = 0; at < total; at += BLOCK) {
+    const m = Math.min(BLOCK, total - at);
     const d = new Float32Array(m * 2);
-    d.set(L.subarray(at, at + m));
-    d.set(R.subarray(at, at + m), m);
+    if (pcm) for (let i = 0; i < m; i++) (d[i] = pcm[(at + i) * 2] / 32768), (d[m + i] = pcm[(at + i) * 2 + 1] / 32768);
+    else d.set(L.subarray(at, at + m)), d.set(R.subarray(at, at + m), m);
     const data = new env.AudioData({ format: 'f32-planar', sampleRate: sr, numberOfFrames: m, numberOfChannels: 2, timestamp: Math.round((at / sr) * 1e6), data: d });
     encoder.encode(data);
     data.close();
@@ -173,7 +175,7 @@ export async function encodePcm({ sr, L, R = L }, { codec, bitrate }, env = glob
   encoder.close();
   if (error) throw error;
   const got = frames.reduce((a, f) => a + f.dur, 0);
-  if (got < (L.length * ts) / sr - ts * 0.05) throw new Error('the encoder left out the end');
+  if (got < (total * ts) / sr - ts * 0.05) throw new Error('the encoder left out the end');
   return { frames, description };
 }
 // A file's sound, decoded at `sr`. -> AudioBuffer
@@ -243,6 +245,16 @@ export async function packSong(wav, { built = false } = {}, env = globalThis) {
   }
   if (built) return { sound: new Blob([monoWav(audio)], { type: 'audio/wav' }), form: 'mono', sr: audio.sr, seconds };
   return { sound: new Blob([encodeWav(audio, 16)], { type: 'audio/wav' }), form: 'wav', sr: audio.sr, seconds };
+}
+// 16-bit stereo samples (L R interleaved, the radio's) packed, or null where the phone can't. -> { sound, form, sr, seconds } | null
+export async function packPcm(pcm, sr, env = globalThis) {
+  const way = await packWay(sr, env);
+  if (!way) return null;
+  const bitrate = BITRATE[way.codec].built;
+  const { frames, description } = await encodePcm({ sr, pcm }, { codec: way.codec, bitrate }, env);
+  const n = pcm.length / 2;
+  const length = Math.round((n * timescaleOf(way.codec, sr)) / sr);
+  return { sound: new Blob(m4a({ codec: way.codec, sr, description, bitrate, frames, skip: way.skip, length }), { type: 'audio/mp4' }), form: way.codec, sr, seconds: n / sr };
 }
 // A packed copy plays back whole: decoded, as long as the song (a quarter second either way).
 export async function playsWhole(sound, sr, seconds, env = globalThis) {

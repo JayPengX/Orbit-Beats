@@ -65,7 +65,7 @@ export function createPlayer(d) {
       const r = radio.state();
       const track = r.cur && (!q.now || q.now.id === r.cur.id || q.now.kind !== 'radio') ? r.cur : q.now?.kind === 'radio' ? q.now : r.cur;
       const same = r.cur && track && r.cur.id === track.id;
-      return { source: 'radio', track, cover: same ? r.cover : track ? coverOfTrack(track) : radio.idle().cover, playing: r.playing, busy: r.busy || Boolean(track && !same), t: same ? r.t : 0, seconds: same ? r.seconds : 0, canSeek: false, station: r.station, want: r.want };
+      return { source: 'radio', track, cover: same ? r.cover : track ? coverOfTrack(track) : radio.idle().cover, playing: r.playing, busy: r.busy || Boolean(track && !same), t: same ? r.t : 0, seconds: same ? r.seconds : 0, canSeek: Boolean(same && r.seconds), upTo: same ? r.seconds : 0, station: r.station, want: r.want };
     }
     return null;
   }
@@ -191,6 +191,11 @@ export function createPlayer(d) {
   }
   function seek(t) {
     const s = state();
+    // (A radio song is made whole before it plays: anywhere in it.)
+    if (s?.source === 'radio') {
+      if (s.canSeek) radio.seek?.(t);
+      return emit('time');
+    }
     if (s?.source !== 'song') return;
     const max = Math.min(s.seconds || t, s.upTo) - 0.3;
     if (max <= 0) return;

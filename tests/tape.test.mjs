@@ -66,6 +66,11 @@ test('the tape plays one song into the next with nothing between, the hook again
   const three = take(100);
   assert.deepEqual(three.marks.map(m => [m.at, m.item === a, m.from]), [[0, true, 0]]);
   assert.deepEqual([...three.pcm], [...a.pcm.subarray(0, 200)]);
+  // A drag on the bar: a from its sample 12000 on, marked as from there.
+  feed.cut(a, 12000);
+  const four = take(100);
+  assert.deepEqual(four.marks.map(m => [m.at, m.item === a, m.from]), [[0, true, 12000]]);
+  assert.deepEqual([...four.pcm], [...a.pcm.subarray(24000, 24200)]);
 });
 
 test('two radio songs on the tape come back sample for sample, as MP4 a player can read', () => {

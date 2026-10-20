@@ -149,7 +149,7 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
       h('div', { class: 'np-extra' }, [loop, sleep, ...(core.clip ? [cut] : []), queue])
     ]);
     npHost.append(np);
-    // The position: a tap or drag along the bar (a song; the radio's is shown only).
+    // The position: a tap or drag along the bar (a song, or the radio's song: it's made whole before it plays).
     const at = ev => {
       const r = bar.getBoundingClientRect();
       const s = P.state();
