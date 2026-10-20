@@ -640,9 +640,10 @@ const slotsOf = (prog, turned) => turned.map((t, i) => [{ at: 0, deg: prog[i % 4
 const chordAt = (slots, bar, step) => slots[bar].filter(x => x.at <= step).at(-1).deg;
 
 // A chord's notes: close, drop-2 (the second from the top an octave down) or open (the root an octave down). A distorted guitar: root, fifth, octave.
-function voicing(sp, inst, deg, kind) {
+// `sus`: the third held up a step (a sus4), which the chord's second half lets down.
+function voicing(sp, inst, deg, kind, sus = false) {
   if (inst === 'distgtr') return [0, 4, 7].map(x => noteOf(sp, deg + x, LOW[inst]));
-  const shape = [0, 2, 4, ...(sp.sevenths ? [6] : []), ...(sp.ninths ? [8] : [])];
+  const shape = [0, sus ? 3 : 2, 4, ...(sp.sevenths && !sus ? [6] : []), ...(sp.ninths ? [8] : [])];
   const close = shape.map(x => LOW[inst] + 3 + ((((noteOf(sp, deg + x, LOW[inst]) - LOW[inst] - 3) % 12) + 12) % 12)).sort((a, b) => a - b);
   if (kind === 1 && close.length > 2) close[close.length - 2] -= 12;
   else if (kind === 2) close[0] -= 12;
@@ -658,7 +659,7 @@ function chordNotes(sp, inst, slots, from, pats, kinds, D, shift = 0) {
       const slot = sl.length > 1 && s >= sl[1].at ? sl[1] : sl[0];
       const len = Math.max(1, Math.min(l, (slot === sl[0] && sl.length > 1 ? sl[1].at : 16) - s));
       const g = (s === 0 ? 1 : 0.86) * (0.92 + 0.16 * D.random()), dt = (D.random() - 0.5) * 0.006;
-      for (const midi of voicing(sp, inst, slot.deg, kinds[b])) notes.push({ step: b * 16 + s, midi: midi + shift, len, lv: 3, g, dt });
+      for (const midi of voicing(sp, inst, slot.deg, kinds[b], slot.sus)) notes.push({ step: b * 16 + s, midi: midi + shift, len, lv: 3, g, dt });
     }
   });
   return notes;
@@ -828,6 +829,8 @@ function songKit(sp, sr, { lift = true } = {}) {
     const slots = slotsOf(spX.prog, turns(K, band.comp, spX.prog));
     // (The eighth bar turns round to the fifth chord halfway through: the section closes and leans into the next.)
     if (slots[7].length === 1 && slots[7][0].deg % 7 !== 4 && band.comp !== 'power' && band.comp !== 'chug') slots[7] = [slots[7][0], { at: 8, deg: 4 }];
+    // (A part of its own holds its fourth bar's chord suspended for half the bar and lets it down: the question's end leans.)
+    if (own && slots[3].length === 1) slots[3] = [{ ...slots[3][0], sus: true }, { at: 8, deg: slots[3][0].deg }];
     const plain = slotsOf(spX.prog, Array(8).fill(null));
     // (The soft pad under a riff is voiced another way each half, so it is not the same in every piece.)
     const beds = [0, 1].map(half => clip(notesClip(bedOf, spX, chordNotes(spX, bedOf, plain, half * 4, Array(4).fill(COMP.held[0]), [0, 1, 2, 1].map(x => (half ? (x + 1) % 3 : x)), D, oct))));
@@ -1170,7 +1173,7 @@ function shape(song, bpm) {
 export const PART_LIST = ['drums', 'bass', 'melody'];
 const PART_ROLES = { drums: ['hat', 'fill', 'kick', 'snare', 'tick', 'roll'], bass: ['bass', 'sub'], melody: ['riff', 'phrase'] };
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
-export const RADIO_V = 13;
+export const RADIO_V = 14;
 export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
   const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);
