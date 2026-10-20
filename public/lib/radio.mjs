@@ -952,6 +952,16 @@ function songKit(sp, sr, { lift = true } = {}) {
     at(sum(ratio(HX.chords(sp.chords2, 0, 0), 0.7), ratio(HX.mel(tH1, 0), 0.6), ratio(HX.beds[0], 0.9)), 'riff'),
     at(sum(ratio(HX.chords(sp.chords, 1, 1), 0.6), ratio(HX.beds[1], 0.9), arpAt(HX.arp(sp.lead2, 1), 0.4)), 'riff')
   ];
+  // The pre-hook: chords of its own climbing to the fifth chord (IV IV V V, or the like), the verse's lead rising over them, so the hook arrives.
+  {
+    const P = rngOf(sp, 7);
+    const minor = sp.key.minor;
+    const progP = P.choice(minor ? [[5, 5, 6, 6], [3, 3, 4, 4], [5, 6, 3, 4], [3, 5, 6, 6]] : [[3, 3, 4, 4], [5, 3, 4, 4], [1, 3, 4, 4], [3, 5, 3, 4]]);
+    const Pb = block({ ...sp, prog: progP }, P, { maxNotes: 4, leadX: sp.lead, bass: false });
+    const tP = Pb.make({ up: [2, 3] });
+    tunes.pre = tP.notes;
+    parts.pre = [at(sum(Pb.chords(sp.chords2, 0, 0), ratio(Pb.mel(tP, 0), 0.85), arpAt(Pb.arp(sp.lead2, 0), 0.55), ratio(Pb.beds[0], 0.5)), 'riff')];
+  }
   parts.layer = at(sum(arpAt(HX.arp(sp.lead2, 0), 0.8), ratio(HX.beds[0], 0.2)), 'riff');
   // (Its bass follows the hook's chords only when they are not the verse's.)
   if (sp.progB) parts.hookBass = [0, 1].map(h => at(HX.bass(h), 'bass'));
@@ -1160,7 +1170,7 @@ function shape(song, bpm) {
 export const PART_LIST = ['drums', 'bass', 'melody'];
 const PART_ROLES = { drums: ['hat', 'fill', 'kick', 'snare', 'tick', 'roll'], bass: ['bass', 'sub'], melody: ['riff', 'phrase'] };
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
-export const RADIO_V = 12;
+export const RADIO_V = 13;
 export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
   const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);

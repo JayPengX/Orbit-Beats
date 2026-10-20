@@ -240,7 +240,7 @@ test('nothing placed: silence, no NaN, over is -Infinity', () => {
 // (before the master, whose loudness follows what is in the song).
 const keysOnly = (name, L, R) => {
   if (name !== 'keys') return false;
-  for (let j = 0; j < 10 * BAR; j++) { const v = 0.1 * Math.sin((2 * Math.PI * 200 * j) / sr); L[j] += v; R[j] += v; }
+  for (let j = 0; j < 10 * BAR; j++) { const v = 0.1 * Math.sin((2 * Math.PI * 1000 * j) / sr); L[j] += v; R[j] += v; }
   return true;
 };
 const dry = { reverb: 0, delay: 0, pump: 0 };
@@ -252,7 +252,8 @@ test('sweeps only where they belong: the intro, the pre-hook, the break; fade on
   const edge = 512;
   const swept = PLAN.filter(([t]) => ['intro', 'pre', 'break'].includes(t)).map(([, b, n]) => [b * BAR - edge, (b + n) * BAR + edge + 8]);   // (the keys' top shelf rings a few samples)
   const inSwept = j => swept.some(([a, b]) => j >= a && j < b);
-  for (let j = 0; j < N; j++) if (!inSwept(j)) assert.equal(on.L[j], off.L[j], `unswept sample ${j}`);
+  // (The keys' low cut remembers a little of a swept stretch after it: a few thousandths of a dB, no more.)
+  for (let j = 0; j < N; j++) if (!inSwept(j)) assert.ok(Math.abs(on.L[j] - off.L[j]) < 1e-4, `unswept sample ${j}`);
   for (const [a, b] of swept) assert.ok(maxDiff(on.L.subarray(a + edge, b - edge), off.L.subarray(a + edge, b - edge)) > 0.01, `swept ${a}`);
   // No plan: no sweeps at all.
   const none = mixBuses(keysOnly, { sr, B, n: N, plan: [], mix: { ...still, sweep: true } });
@@ -266,15 +267,18 @@ test('sweeps only where they belong: the intro, the pre-hook, the break; fade on
 
 test('levels, the hats to one side, the pump, the echo, the width and the room do what they say', () => {
   const rms = (x, a, b) => Math.sqrt(x.subarray(a, b).reduce((e, v) => e + v * v, 0) / (b - a));
-  // A level in dB is a level: a low tone on the keys and on the hats (neither is touched but the keys' top).
+  // A level in dB is a level: a tone on the keys and on the hats, each bus 6 dB down against itself at 0 (the keys' tone is theirs either way).
   const tone = (name, L, R) => {
     if (name !== 'keys' && name !== 'hats') return false;
     for (let j = 0; j < 30000; j++) { const v = 0.2 * Math.sin((2 * Math.PI * 150 * j) / sr); L[j] += v; R[j] += v; }
     return true;
   };
-  const lv = mixBuses(tone, { sr, B, n: 30000, mix: { ...dry, keys: -6, hats: 0, width: 0 }, stems: true });
-  const dB = 20 * Math.log10(rms(lv.stems.keys.L, 5000, 25000) / rms(lv.stems.hats.L, 5000, 25000));
-  assert.ok(Math.abs(dB + 6) < 0.4, `keys 6 dB under the hats: ${dB.toFixed(2)}`);
+  const lv = mixBuses(tone, { sr, B, n: 30000, mix: { ...dry, keys: -6, hats: -6, width: 0 }, stems: true });
+  const lv0 = mixBuses(tone, { sr, B, n: 30000, mix: { ...dry, keys: 0, hats: 0, width: 0 }, stems: true });
+  for (const bus of ['keys', 'hats']) {
+    const dB = 20 * Math.log10(rms(lv.stems[bus].L, 5000, 25000) / rms(lv0.stems[bus].L, 5000, 25000));
+    assert.ok(Math.abs(dB + 6) < 0.05, `${bus} 6 dB down: ${dB.toFixed(2)}`);
+  }
   // The hats to the right (wide), in the middle (narrow).
   const click = (name, L, R) => { if (name !== 'hats') return false; L[1000] = R[1000] = 0.5; return true; };
   const wide = mixBuses(click, { sr, B, n: 3000, mix: { ...dry, width: 1 } });

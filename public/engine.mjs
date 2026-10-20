@@ -663,7 +663,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   // (An arrangement by hand: the hook's own bass, the lifted hook's riffs, bass and 808 and the layer are theirs alone, never drawn for any other section.)
   const P = arrange || {};
   if (arrange) {
-    const own = new Set([...(P.lift || []), ...(P.hookBass || []), ...(P.liftBass || []), ...(P.hook2 || []), ...(P.hook3 || []), ...(P.outro || []), ...(P.bridgeBass || []), P.liftSub, P.layer, P.crash, P.swell].filter(x => x != null));
+    const own = new Set([...(P.lift || []), ...(P.hookBass || []), ...(P.liftBass || []), ...(P.hook2 || []), ...(P.hook3 || []), ...(P.outro || []), ...(P.pre || []), ...(P.bridgeBass || []), P.liftSub, P.layer, P.crash, P.swell].filter(x => x != null));
     for (const x of ROLES) pool[x] = pool[x].filter(i => !own.has(i));
   }
   const riffs = pool.riff.length ? pool.riff : pool.phrase, phrases = pool.phrase.length ? pool.phrase : riffs;
@@ -762,8 +762,8 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
       riff(b, L, verseNo > 1 && P.verse2?.length ? P.verse2 : verseSet); bass(b, L, verseNo === 1 ? Math.floor(L / 2) : 0);
       s.drums(style, b, L, kit, dress?.verse); s.loop(verseHat, b, L);
       if (R.random() < 0.4) s.phrases(b + L - Math.min(4, L), Math.min(4, L), phrases);   // (a verse under 4 bars: its own bars, never before the song)
-    } else if (t === 'pre') {   // the lift: the verse's riffs and hat, no kick, a riser into the hook
-      riff(b, L, verseSet); s.loop(verseHat, b, L); s.build(b, L, kit);
+    } else if (t === 'pre') {   // the lift: the verse's riffs (an arranged song's own chords climbing to the hook) and hat, no kick, a riser into the hook
+      riff(b, L, P.pre?.length ? P.pre : verseSet); s.loop(verseHat, b, L); s.build(b, L, kit);
     } else if (t === 'hook') {   // the last hook is the fullest
       hookNo++;
       const lifted = hooks > 1 && hookNo === hooks && P.lift?.length > 0;   // (the last hook, a key higher)

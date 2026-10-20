@@ -813,7 +813,9 @@ def mix_buses(place, n, plan, kicks, m, stems=False):
             mid = (bL + bR) * 0.5; side = bL - mid
             w = mid - (0.25 if name == 'drums' else 0.3) * lowpass(mid, coef(100 if name == 'drums' else 90))
             w = w - lowpass(w, coef(30)); bL, bR = w + side, w - side
-        elif keys:   # +2.5 dB over 3 kHz
+        elif keys:   # most of what is under 150 Hz taken out and a little of 150 to 500 (the bottom left to the bass and kick), +2.5 dB over 3 kHz
+            kL, kR = lowpass(bL, coef(150)), lowpass(bR, coef(150))
+            bL = bL - 0.6 * kL - 0.3 * (lowpass(bL, coef(500)) - kL); bR = bR - 0.6 * kR - 0.3 * (lowpass(bR, coef(500)) - kR)
             c = coef(3000); bL = bL + 0.334 * (bL - lowpass(bL, c)); bR = bR + 0.334 * (bR - lowpass(bR, c))
         back = glue(bL, bR) if rhythm else 1
         if keys: widen(bL, bR, 1.2 * m['width'])
@@ -899,14 +901,14 @@ def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arran
     riff or a phrase; what a missing role plays is left out (or played by the
     nearest role there is). mix: the mixer (None: the pieces exactly as
     recorded); stems: also each bus as its own WAV; arranged: a plan by hand;
-    arrange: {intro, verse, verse2, hook, hook2, bridge, bridgeBass, lift, hookBass, liftBass, liftSub, layer, crash, swell, hook3, outro}, pieces' numbers
+    arrange: {intro, verse, verse2, hook, hook2, bridge, bridgeBass, lift, hookBass, liftBass, liftSub, layer, crash, swell, hook3, outro, pre}, pieces' numbers
     in lists, which riffs each section plays in place of the seed's riff sets (a second verse, a hook
     of its own, a last hook lifted into another key with its own bass and 808); varied: dress the drums."""
     r=np.random.default_rng(seed); R=random.Random(seed)
     pool={x:[i for i in sorted(roles) if roles[i]==x] for x in ROLES}
     P=arrange or {}
     if arrange:   # an arrangement by hand: the hook's own bass, the lifted hook's riffs, bass and 808 and the layer are theirs alone, never drawn for any other section
-        own={x for x in [*(P.get('lift') or []),*(P.get('hookBass') or []),*(P.get('liftBass') or []),*(P.get('hook2') or []),*(P.get('hook3') or []),*(P.get('outro') or []),*(P.get('bridgeBass') or []),P.get('liftSub'),P.get('layer'),P.get('crash'),P.get('swell')] if x is not None}
+        own={x for x in [*(P.get('lift') or []),*(P.get('hookBass') or []),*(P.get('liftBass') or []),*(P.get('hook2') or []),*(P.get('hook3') or []),*(P.get('outro') or []),*(P.get('pre') or []),*(P.get('bridgeBass') or []),P.get('liftSub'),P.get('layer'),P.get('crash'),P.get('swell')] if x is not None}
         pool={x:[i for i in pool[x] if i not in own] for x in pool}
     riffs=pool['riff'] or pool['phrase']; phrases=pool['phrase'] or riffs
     def pick(xs,no=()):
@@ -985,8 +987,8 @@ def make(seed,path,styles,humanize,roles,loops,chroma,mix=None,stems=False,arran
             riff(b,L,P.get('verse2') if verse_no>1 and P.get('verse2') else verse_set); bass(b,L,L//2 if verse_no==1 else 0); s.drums(style,b,L,kit,dress and dress['verse']); s.loop(verse_hat,b,L)
             # (its last 4 bars, or all of a shorter verse arranged by hand: never into the bars before it)
             if R.random()<0.4: s.phrases(b+L-min(4,L),min(4,L),phrases)
-        elif t=='pre':   # the lift: the verse's riffs and hat, no kick, a riser into the hook
-            riff(b,L,verse_set); s.loop(verse_hat,b,L); s.build(b,L,kit)
+        elif t=='pre':   # the lift: the verse's riffs (an arranged song's own chords climbing to the hook) and hat, no kick, a riser into the hook
+            riff(b,L,P.get('pre') or verse_set); s.loop(verse_hat,b,L); s.build(b,L,kit)
         elif t=='hook':   # the last hook is the fullest
             hook_no+=1
             lifted=hooks>1 and hook_no==hooks and bool(P.get('lift'))   # (the last hook, a key higher)

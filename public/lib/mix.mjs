@@ -2,7 +2,7 @@
 // the grid, on by default. Each piece plays on its bus (drums, hats, bass,
 // the riffs and phrases as keys), each bus its level; the drums and the bass
 // glued by a 2:1 compressor and kept clear of the sub (a phone's speaker
-// plays their harmonics, not the bottom octave); the riffs brightened at the
+// plays their harmonics, not the bottom octave); the riffs cleared under 150 Hz and brightened at the
 // top, set wide (the middle stays put, so a mono speaker hears them as they
 // were), and put into an echo (a dotted eighth left, an eighth right) and a
 // room; the snare and hats a little of the room too, the kick and bass none;
@@ -403,13 +403,20 @@ export function mixBuses(place, { sr, B, n, plan = [], kicks = [], mix = MIX, st
         bR[j] = w - ql - side;
       }
     } else if (keys) {
-      let sl = 0, sr_ = 0;
+      // (And most of what is under 150 Hz taken out, and a little of 150 to 500: the riffs' low notes leave the bottom to the bass and kick, not a muddy pile.)
+      let sl = 0, sr_ = 0, kl = 0, kr = 0, ml = 0, mr = 0;
+      const cKeys = coef(150, sr), cMud = coef(500, sr);
       for (let j = 0; j < n; j++) {
         const g = p ? 1 - depth * (1 - p[j]) : 1;
-        const l = bL[j] * left * g;
-        const r = bR[j] * gain * g;
-        if (toRoom) send[j] += (l + r) * toRoom;
-        if (echo) echo[j] = (l + r) / 2;
+        const l0 = bL[j] * left * g;
+        const r0 = bR[j] * gain * g;
+        if (toRoom) send[j] += (l0 + r0) * toRoom;
+        if (echo) echo[j] = (l0 + r0) / 2;
+        kl += cKeys * (l0 - kl);
+        kr += cKeys * (r0 - kr);
+        ml += cMud * (l0 - ml);
+        mr += cMud * (r0 - mr);
+        const l = l0 - 0.6 * kl - 0.3 * (ml - kl), r = r0 - 0.6 * kr - 0.3 * (mr - kr);
         sl += cTop * (l - sl);
         sr_ += cTop * (r - sr_);
         bL[j] = l + 0.334 * (l - sl);
