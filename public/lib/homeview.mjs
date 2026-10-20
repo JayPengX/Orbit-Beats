@@ -68,6 +68,8 @@ export function mountHome(panel, api) {
       // (The hero and the next pick made ahead, just after the screen opens: a tap plays at once.)
       const first = picks.slice(0, 2).map(p => p.e);
       setTimeout(() => radio.prep?.(first), 300);
+      // (And every other song and station on the screen: their openings, kept, so a tap on any starts at once.)
+      setTimeout(() => radio.ahead?.({ songs: picks.slice(2).map(p => p.e), stations: [...panel.querySelectorAll('[data-station]')].map(n => n.dataset.station) }), 4000);
     }
     return picks;
   };

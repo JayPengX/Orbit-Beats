@@ -3,13 +3,15 @@
 // 最近播放 plays at once instead of being made again. And the few made ahead
 // (今日精選's first ones, and the next song of 隨機電台 and 為你電台; kind 'ready'):
 // kept too, so the app opened again plays them at once, before a single
-// instrument is read. On this phone only,
+// instrument is read. And the openings (four bars, kind 'opening', key 'o:…')
+// of every other song and station on 首頁: a tap on any plays its opening at
+// once while the song is made. On this phone only,
 // never sent anywhere; a song made by an older engine (RADIO_V) is made again.
 import { packPcm, keptAudio } from './pack.mjs';
 
 const DB = 'orbit-beats-heard';
 const STORE = 'songs';
-const KEEP = { heard: 8, ready: 6 };
+const KEEP = { heard: 8, ready: 6, opening: 40 };
 export const heardKey = e => `${e.seed}:${e.mood || 'all'}:${e.style}`;
 function open() {
   return new Promise((resolve, reject) => {
@@ -49,9 +51,10 @@ export async function keepHeard(key, item, pcm, sr, v, kind = 'heard') {
     const packed = await packPcm(pcm, sr);
     if (!packed) return false;
     // (Its first four bars as they are, read back in a moment: they play while the rest is unpacked.)
+    // (An opening is four bars itself, and small packed: none.)
     const bars = item.info?.bpm ? Math.round(((16 * 60) / item.info.bpm) * sr) : 8 * sr;
-    const head = pcm.slice(0, Math.min(pcm.length, bars * 2));
-    const rec = { key, kind, at: Date.now(), v, id: item.id, info: item.info, seconds: item.seconds, hold: item.hold, head, headSr: sr, ...packed };
+    const head = kind === 'opening' ? null : pcm.slice(0, Math.min(pcm.length, bars * 2));
+    const rec = { key, kind, at: Date.now(), v, id: item.id, info: item.info, seconds: item.seconds, hold: item.hold, quick: Boolean(item.quick), length: item.length, whole: item.seconds, head, headSr: sr, ...packed };
     await run('readwrite', s => s.put(rec));
     keys.add(key);
     const all = (await run('readonly', s => s.getAll())) || [];
@@ -87,7 +90,7 @@ export async function heardItem(key, v) {
       pcm[i * 2] = Math.max(-32768, Math.min(32767, Math.round(a.L[i] * 32767)));
       pcm[i * 2 + 1] = Math.max(-32768, Math.min(32767, Math.round(a.R[i] * 32767)));
     }
-    return { id: rec.id, info: rec.info, seconds: rec.seconds, hold: rec.hold, url: URL.createObjectURL(rec.sound), pcm };
+    return { id: rec.id, info: rec.info, seconds: rec.seconds, hold: rec.hold, ...(rec.quick && { quick: true, length: rec.length, seconds: rec.whole }), url: URL.createObjectURL(rec.sound), pcm };
   } catch {
     return null;
   }

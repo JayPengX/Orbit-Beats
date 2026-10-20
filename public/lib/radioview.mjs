@@ -199,11 +199,15 @@ export function mountRadio(panel, api) {
       localStorage.setItem('orbit-beats-next', JSON.stringify(nexts));
     } catch {}
   };
-  const keptFor = id => (nexts[id] && heardHasNow(heardKey(nexts[id])) ? nexts[id] : null);
+  const okey = e => `o:${heardKey(e)}`;
+  const keptFor = id => (nexts[id] && (heardHasNow(heardKey(nexts[id])) || heardHasNow(okey(nexts[id]))) ? nexts[id] : null);
   heardHas('').then(prepNext);
   function nextAhead() {
+    // (Not till what's kept is known.)
+    if (heardHasNow('') === null) return;
     const id = HOME.find(i => !keptFor(i));
-    if (!id || preparing || q.busy || looking || starting || document.visibilityState === 'hidden') return;
+    if (!id) return openAhead();
+    if (preparing || q.busy || looking || starting || document.visibilityState === 'hidden') return;
     if (want && q.ready.length + (upcoming() ? 1 : 0) < 2) return;
     const f = stationFilter(id, api.taste?.());
     const s = radioPick(f.mood, last, Math.floor(Math.random() * 1e9), f.styles || f.bpm ? f : null);
@@ -216,6 +220,39 @@ export function mountRadio(panel, api) {
       })
       .catch(() => {})
       .finally(() => preparing === mine && ((preparing = false), setTimeout(prepNext, 300)));
+  }
+  // The openings of the rest of 首頁 (lib/homeview.mjs radio.ahead()): its songs, and its stations' next songs,
+  // made one at a time on the opening's worker when nothing else is, and kept on the phone: a tap on any
+  // plays its opening at once, the song made while it plays.
+  const aheadSongs = [];
+  const aheadStations = [];
+  let opensMade = 0;
+  function openings({ songs = [], stations = [] } = {}) {
+    aheadSongs.splice(0, Infinity, ...songs.map(e => ({ seed: e.seed, mood: e.mood || 'all', style: e.style })));
+    aheadStations.splice(0, Infinity, ...new Set(stations.map(stationId)));
+    prepNext();
+  }
+  function openAhead() {
+    if (!api.quick || preparing || q.busy || looking || starting || document.visibilityState === 'hidden') return;
+    if (want && q.ready.length + (upcoming() ? 1 : 0) < 2) return;
+    const id = aheadStations.find(i => !HOME.includes(i) && !keptFor(i));
+    const song = id ? null : aheadSongs.find(e => !heardHasNow(heardKey(e)) && !heardHasNow(okey(e)));
+    // (All made: the worker let go of their instruments.)
+    if (!id && !song) return opensMade && ((opensMade = 0), api.quick.reset?.());
+    let s = song;
+    if (id) {
+      const f = stationFilter(id, api.taste?.());
+      s = radioPick(f.mood, last, Math.floor(Math.random() * 1e9), f.styles || f.bpm ? f : null);
+    }
+    const mine = (preparing = {});
+    api.quick
+      .radioStart(s)
+      .then(v => {
+        const e = song || { seed: s.seed, mood: s.mood || 'all', style: v.info.style };
+        return keepHeard(okey(e), v, wavPcm(v.wav), RADIO_SR, RADIO_V, 'opening').then(ok => ok && id && ((nexts[id] = e), saveNexts()));
+      })
+      .catch(() => {})
+      .finally(() => (opensMade++, preparing === mine && ((preparing = false), setTimeout(prepNext, 300))));
   }
   const urlOf = it => (it.url ||= URL.createObjectURL(new Blob([it.wav], { type: 'audio/wav' })));
   const drop = it => it && it !== cur && !tape?.marks.some(m => m.item === it) && !q.ready.includes(it) && (it.url && URL.revokeObjectURL(it.url), (it.url = null), (it.pcm = null), (it.wav = null));
@@ -639,9 +676,25 @@ export function mountRadio(panel, api) {
     // Known not to be kept: its opening made at once, nothing looked for.)
     const spec = { seed: e.seed, mood: e.mood || 'all', style: e.style };
     const key = heardKey(spec);
-    const miss = !ready && heardHasNow(key) === false;
+    const full = heardHasNow(key);
+    const open = !ready && full === false && heardHasNow(okey(spec));
+    const miss = !ready && full === false && !open;
     const mine = (looking = ready || miss ? null : {});
-    if (mine) {
+    // (Its opening kept: that at once, the song made while it plays, in at its fifth bar.)
+    if (mine && open)
+      heardItem(okey(spec), RADIO_V).then(o => {
+        if (looking !== mine) return o && URL.revokeObjectURL(o.url);
+        looking = null;
+        if (!o) return rush(spec), fill();
+        const item = dress({ ...o, spec, title: api.title(spec.seed), kept: true });
+        if (!taped) item.pcm = null;
+        opening = { id: item.id, length: o.length };
+        exact.length = 0;
+        exact.push(spec);
+        q.ready.unshift(item);
+        arrived();
+      });
+    else if (mine) {
       let head = null;
       heardHas(key)
         // (On the stream: its first bars at once, then the rest once unpacked, at its fifth bar.)
@@ -690,7 +743,7 @@ export function mountRadio(panel, api) {
       heard = cur;
       if (cur) remember(cur);
       // (A station's kept next song, heard now: another made for next time.)
-      if (cur && !cur.quick) for (const id of HOME) if (nexts[id] && heardKey(nexts[id]) === heardKey({ ...cur.spec, style: cur.info.style })) delete nexts[id], saveNexts();
+      if (cur && !cur.quick) for (const id of Object.keys(nexts)) if (nexts[id] && heardKey(nexts[id]) === heardKey({ ...cur.spec, style: cur.info.style })) delete nexts[id], saveNexts();
       // (Kept small for 最近播放, while the screen is on: a tap on it later plays at once.)
       if (cur?.pcm && !cur.kept && !cur.quick && document.visibilityState === 'visible') keepHeard(heardKey({ ...cur.spec, style: cur.info.style }), cur, cur.pcm, RADIO_SR, RADIO_V);
       emit('song');
@@ -934,6 +987,7 @@ export function mountRadio(panel, api) {
     warm: () => setTimeout(fill, 1500),
     // Songs to have ready before they're tapped ([{ seed, mood, style }]).
     prep,
+    ahead: openings,
     stop: () => want && pause(),
     playing: () => want && !audio.paused,
     refresh: () => emit('state'),
