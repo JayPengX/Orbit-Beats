@@ -863,7 +863,9 @@ function songKit(sp, sr, { lift = true } = {}) {
   tunes.verse1 = tV1.notes; tunes.verse2 = tV2.notes;
   // (The first verse opens bare, the tune over a held bed alone, and its chords come in at its fifth bar: the song starts small and grows.)
   const verse1 = [sum({ ...V.beds[0], g: 0.75, pan: -0.25 }, ratio(V.mel(tV1, 0), 0.9)), sum(V.chords(sp.chords2, 1, 1), ratio(V.mel(tV1, 1), 0.9), arpAt(V.arp(sp.lead2, 1), 0.5))];
-  const verse2 = [sum(V.chords(sp.chords2, 1, 0), ratio(V.mel(tV2, 0), 0.9), arpAt(V.arp(sp.lead2, 0), 0.5)), sum(V.chords(sp.chords, 0, 1), ratio(V.mel(tV2, 1), 0.9))];
+  // (The second verse comes back changed: voices humming its tune an octave under, to one side.)
+  const hum = h => ({ ...V.harm(tV2, h, 'vox', -7), g: 0.3, pan: -0.3 });
+  const verse2 = [sum(V.chords(sp.chords2, 1, 0), ratio(V.mel(tV2, 0), 0.9), arpAt(V.arp(sp.lead2, 0), 0.5), hum(0)), sum(V.chords(sp.chords, 0, 1), ratio(V.mel(tV2, 1), 0.9), hum(1))];
   const i0 = add(verse1[0], 'riff');
   const phrase1 = add(sum(V.mel(tV2, 0), ratio(V.beds[0], 1.1)), 'phrase');
   const vBass = [V.bass(0), V.bass(1)];
@@ -1145,7 +1147,7 @@ function shape(song, bpm) {
 export const PART_LIST = ['drums', 'bass', 'melody'];
 const PART_ROLES = { drums: ['hat', 'fill', 'kick', 'snare', 'tick', 'roll'], bass: ['bass', 'sub'], melody: ['riff', 'phrase'] };
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
-export const RADIO_V = 10;
+export const RADIO_V = 11;
 export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
   const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);
