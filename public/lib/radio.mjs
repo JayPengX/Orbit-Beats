@@ -16,7 +16,7 @@ import { withKit, STYLE_KIT, SAMPLED } from './samples.mjs';
 import { makeSong, makeRng, analyzeRecording, dressOf, STYLES, FAMILY, SHUFFLE } from '../engine.mjs';
 import { voice, renderClip, emptyDrums } from './synth.mjs';
 import { noted } from './game.mjs';
-import { mixOf, mixBuses } from './mix.mjs';
+import { MIX, mixOf, mixBuses } from './mix.mjs';
 
 export const RADIO_SR = 32000;
 
@@ -494,7 +494,55 @@ export function radioSpec(seed, mood = 'all', style = null) {
         sp[k] = fresh.length ? S.choice(fresh) : rest.length ? S.choice(rest) : pool.length ? S.choice(pool) : sp[k];
       }
   }
+  // A song's own way of playing its groove (V16): the chords comped and the bass played one of the groove's
+  // kindred ways, its hats changed a little, and now and then a mode of its own; a stream of its own, drawn last.
+  const W = makeRng(seed ^ 0x6b43a9b5);
+  const compKin = COMP_KIN[band.comp] || [];
+  sp.comp = compKin.length && W.random() < 0.45 ? W.choice(compKin) : band.comp;
+  const lineKin = LINE_KIN[band.line] || [];
+  sp.line = lineKin.length && W.random() < 0.45 ? W.choice(lineKin) : band.line;
+  sp.hatTwist = W.int(0, 1e9);
+  // (The soft bed under the riffs, in every song, not always the same pad: strings or voices too.)
+  sp.intro = W.choice(['arp', 'arp', 'comp', 'pad']);
+  // (The band's tone, a song's own: warmer, brighter or as it is.)
+  const t = W.random();
+  sp.tone = t < 0.35 ? { dark: Math.round(2200 + 4000 * W.random()) } : t < 0.65 ? { bright: Math.round((25 + 35 * W.random())) / 100 } : null;
+  sp.bed = bedFor(st) === 'strings' ? (W.random() < 0.65 ? 'strings' : 'choir') : W.choice(['pad', 'pad', 'strings', 'choir']);
+  // (A song's mode only: 即興's sets keep the groove's, so `songMode`, which radioSong and radioIntro play in.)
+  if (!band.modes && !sp.mode && W.random() < 0.22) sp.songMode = minor ? W.choice(['dorian', 'dorian', 'harm']) : 'mixo';
   return sp;
+}
+// A piece's tone for its song (sp.tone): `dark`, a gentle low-pass at that many Hz; `bright`, that much more of what's
+// over 2.5 kHz. Run round the piece twice, so its end flows into its start as the loop goes round. In place.
+function toned(x, tone, sr) {
+  if (!tone) return x;
+  const L = x.L, n = L.length;
+  const c = 1 - Math.exp((-2 * Math.PI * (tone.dark || 2500)) / sr);
+  let y = 0;
+  for (let i = 0; i < n; i++) y += c * (L[i] - y);
+  for (let i = 0; i < n; i++) {
+    y += c * (L[i] - y);
+    L[i] = tone.dark ? y : L[i] + tone.bright * (L[i] - y);
+  }
+  return x;
+}
+// The comping and bass rhythms that sit with each other, so a song may take a kindred one in place of its groove's own.
+const COMP_KIN = { held: ['pulse', 'gospel'], stab: ['stab8', 'strum', 'charleston'], stab8: ['stab', 'pulse', 'gate16'], pulse: ['held', 'stab8'], skank: ['stab'], strum: ['stab', 'pulse'], montuno: ['stab'], charleston: ['stab', 'held'], gospel: ['held', 'stab'] };
+const LINE_KIN = { off8: ['long', 'disco', 'hop'], long: ['whole', 'hop', 'off8'], hop: ['long', 'drop', 'funk'], afro: ['dembow', 'kizomba'], disco: ['funk', 'off8'], funk: ['disco', 'hop'], dembow: ['afro', 'cumbia'], drop: ['hop', 'long'], whole: ['long', 'off8'], cumbia: ['dembow'], kizomba: ['afro', 'long'] };
+// A groove's hat lanes changed for one song: a step or two added or left out, now and then another sound on a lane.
+const TWIN = { hat: ['shaker', 'tamb'], shaker: ['hat', 'tamb'], tamb: ['shaker'], ride: ['hat'], open: ['hat'] };
+function twistLanes(lanes, seed) {
+  const T = makeRng(seed);
+  return lanes.map(([d, steps, lv]) => {
+    let st = [...steps];
+    const r = T.random();
+    if (r < 0.3) {
+      const free = ALL16.filter(x => !st.includes(x) && x % 2 === 1);
+      for (let k = T.int(1, 2); k && free.length; k--) st.push(free.splice(T.int(0, free.length - 1), 1)[0]);
+    } else if (r < 0.5 && st.length > 3) st.splice(T.int(1, st.length - 1), 1);
+    const sound = TWIN[d] && T.random() < 0.2 ? T.choice(TWIN[d]) : d;
+    return lv == null ? [sound, st.sort((a, b) => a - b)] : [sound, st.sort((a, b) => a - b), lv];
+  });
 }
 // The soft held chords under a riff: a synth pad for the electronic grooves, recorded strings for a band's.
 export const bedFor = style => (STYLE_KIT[style] === 'acoustic' || STYLE_KIT[style] === 'lofi' ? 'strings' : 'pad');
@@ -811,9 +859,10 @@ function hatPiece(lanes, sp, H, clip) {
 // (the engine plays an eight-bar part as two of them, one after the other). tests/phrases.test.mjs reads `tunes`.
 function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
   const band = BAND[sp.style];
-  const comp = COMP[band.comp];
-  const lines = LINES[band.line];
-  const clip = c => noted(renderClip(c, sr, sp.bpm), { clip: c });   // (its notes ride along for the game)
+  const compName = sp.comp || band.comp;
+  const comp = COMP[compName];
+  const lines = LINES[sp.line || band.line];
+  const clip = c => noted(toned(renderClip(c, sr, sp.bpm), c.kind === 'drums' ? null : sp.tone, sr), { clip: c });   // (its notes ride along for the game)
   const D = rngOf(sp, 0), H = rngOf(sp, 1);
   const pieces = [];
   const roles = [];
@@ -824,17 +873,17 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
   };
   const tunes = {};
   // One set of chords with all its parts: its chords (an instrument, a comping pattern, a half), its arpeggio, its bed of pad, a bass and tunes.
-  const block = (spX, K, { catchy = false, maxNotes = 6, leadX, bass = true, oct = 0, own = false, bedOf = bedFor(sp.style) }) => {
+  const block = (spX, K, { catchy = false, maxNotes = 6, leadX, bass = true, oct = 0, own = false, bedOf = sp.bed || bedFor(sp.style) }) => {
     const pat = own ? comp.map(c => fresh(c, K)) : comp;
-    const slots = slotsOf(spX.prog, turns(K, band.comp, spX.prog));
+    const slots = slotsOf(spX.prog, turns(K, compName, spX.prog));
     // (The eighth bar turns round to the fifth chord halfway through: the section closes and leans into the next.)
-    if (slots[7].length === 1 && slots[7][0].deg % 7 !== 4 && band.comp !== 'power' && band.comp !== 'chug') slots[7] = [slots[7][0], { at: 8, deg: 4 }];
+    if (slots[7].length === 1 && slots[7][0].deg % 7 !== 4 && compName !== 'power' && compName !== 'chug') slots[7] = [slots[7][0], { at: 8, deg: 4 }];
     // (A part of its own holds its fourth bar's chord suspended for half the bar and lets it down: the question's end leans.)
     if (own && slots[3].length === 1) slots[3] = [{ ...slots[3][0], sus: true }, { at: 8, deg: slots[3][0].deg }];
     const plain = slotsOf(spX.prog, Array(8).fill(null));
     // (The soft pad under a riff is voiced another way each half, so it is not the same in every piece.)
     const beds = [0, 1].map(half => clip(notesClip(bedOf, spX, chordNotes(spX, bedOf, plain, half * 4, Array(4).fill(COMP.held[0]), [0, 1, 2, 1].map(x => (half ? (x + 1) % 3 : x)), D, oct))));
-    const under = (x, inst, half) => (band.comp === 'held' && HOLDS.has(inst) ? x : sum(x, { ...beds[half], g: 0.3 }));
+    const under = (x, inst, half) => (compName === 'held' && HOLDS.has(inst) ? x : sum(x, { ...beds[half], g: 0.3 }));
     const memo = new Map();
     const once = (key, make) => (memo.has(key) ? memo.get(key) : (memo.set(key, make()), memo.get(key)));
     const chords = (inst, primary, half) =>
@@ -863,7 +912,15 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
   // The verse: chords with the lead, then the second time through its own variant of the tune.
   const V = block(sp, rngOf(sp, 2), { maxNotes: 5, leadX: sp.lead });
   // (Its opening alone, made in a moment, so the song can start while the rest is made: lib/radio.mjs radioIntro.)
-  if (introOnly) return { intro: sum(V.arp(sp.lead2, 0), ratio(V.beds[0], 1.3), ratio(V.chords(sp.chords2, 1, 0), 0.9)), hat: hatPiece((band.hats || sp.hatsPick.map(i => HATS[i]))[0], sp, H, clip) };
+  // The intro (and the opening the radio plays while the song is made), one of three ways a song may open (V16): the
+  // arpeggio over a pad with the chords in, the chords comped over the pad, or the pad up front with the arpeggio soft to one side.
+  const introOf = half => {
+    const ch = half ? V.chords(sp.chords, 0, 1) : V.chords(sp.chords2, 1, 0);
+    if (sp.intro === 'comp') return sum(ratio(V.beds[half], 1.1), ch);
+    if (sp.intro === 'pad') return sum(ratio(V.beds[half], 1.5), arpAt(V.arp(sp.lead2, half), 0.45), ratio(ch, 0.5));
+    return sum(V.arp(sp.lead2, half), ratio(V.beds[half], 1.3), ratio(ch, 0.9));
+  };
+  if (introOnly) return { intro: introOf(0), hat: hatPiece(twistLanes((band.hats || sp.hatsPick.map(i => HATS[i]))[0], sp.hatTwist ?? 0), sp, H, clip) };
   const tV1 = V.make({}), tV2 = V.make({ motif: tV1.motif, displace: true });
   tunes.verse1 = tV1.notes; tunes.verse2 = tV2.notes;
   // (The first verse opens bare, the tune over a held bed alone, and its chords come in at its fifth bar: the song starts small and grows.)
@@ -876,7 +933,7 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
   const vBass = [V.bass(0), V.bass(1)];
   add(vBass[0], 'bass');
   // The hats: three of six, each four bars with levels, a hit left out and a turn at the end.
-  const hats = (band.hats || sp.hatsPick.map(i => HATS[i])).map(lanes => hatPiece(lanes, sp, H, clip));
+  const hats = (band.hats || sp.hatsPick.map(i => HATS[i])).map((lanes, k) => hatPiece(twistLanes(lanes, (sp.hatTwist ?? 0) + k), sp, H, clip));
   add(hats[0], 'hat');
   // The drums: the kit's (a kick, the heavy one with an 808 or a boom under it, the 808 or a last big hit), the snare, the tick.
   const k = sp.kit;
@@ -908,8 +965,8 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
   // ---- the rest ----
   const at = add;
   const parts = {};
-  // The intro: the arpeggio over a pad, then the chords come in. The verse's two parts; the verse again, its own.
-  parts.intro = [at(sum(V.arp(sp.lead2, 0), ratio(V.beds[0], 1.3), ratio(V.chords(sp.chords2, 1, 0), 0.9)), 'riff'), at(sum(V.arp(sp.lead2, 1), ratio(V.beds[1], 1.3), ratio(V.chords(sp.chords, 0, 1), 0.9)), 'riff')];
+  // The intro (introOf, above). The verse's two parts; the verse again, its own.
+  parts.intro = [at(introOf(0), 'riff'), at(introOf(1), 'riff')];
   parts.verse = [i0, at(verse1[1], 'riff')];
   parts.verse2 = verse2.map(p => at(p, 'riff'));
   at(sum(V.arp(sp.lead2, 1), ratio(V.beds[0], 1.1)), 'phrase');
@@ -1081,10 +1138,16 @@ export function radioPlan(R, bpm, seconds = 90, asked = false) {
 // and a break before the last hook, which may come twice. Every part is four or eight bars, so the loops stay on their chords.
 // (The intro is four bars: with eight the engine may open on the hats alone for four, and they fall quiet between hits.)
 // V verse, H hook, B bridge, K break (four bars); a pre-hook (four bars) may come before any hook that follows a verse.
-const SHAPES = ['VH', 'VHKH', 'VHBH', 'VHVH', 'VHBKH', 'VHKHBH', 'VHVHKH', 'VHKHVH', 'VHVHBH', 'VHVHKHH', 'VHVHBKH', 'VHVHBHH', 'VHKHVHH', 'VHVHBKHH'];
+const SHAPES = ['VH', 'VHKH', 'VHBH', 'VHVH', 'VHBKH', 'VHKHBH', 'VHVHKH', 'VHKHVH', 'VHVHBH', 'VHVHKHH', 'VHVHBKH', 'VHVHBHH', 'VHKHVHH', 'VHVHBKHH',
+  // (V16: more shapes, so songs don't share one: a hook first, two verses before the first hook, a bridge after the first hook, the break late.)
+  'HVHBH', 'HVHKHH', 'VVHBH', 'VVHVHKH', 'VHBVHH', 'VHVHHBH', 'VHHVHKH', 'HVHVHBKH', 'VVHBVHH', 'VHBHVHKH',
+  'VHVHBVHH', 'VHVHKVHBHH', 'HVHVHBVHH', 'VHVHBHKHH', 'VVHVHBKHH', 'VHKHVHBHH', 'HVHBVHKHH'];
 const SHAPE_BARS = { V: 8, H: 8, B: 8, K: 4 };
 export function formPlan(R, bars) {
   const names = { V: 'verse', H: 'hook', B: 'bridge', K: 'break' };
+  // Every shape that comes near the length wanted; a shape picked by chance among them (each shape as likely, whatever
+  // its ways of pre-hooks and outros), then one of its ways. (A long song with no bridge or break is left out.)
+  const near = new Map();
   let best = null;
   for (const shape of SHAPES) {
     const pairs = (shape.match(/VH/g) || []).length;
@@ -1092,10 +1155,17 @@ export function formPlan(R, bars) {
       for (const intro of [4])
         for (const outro of [4, 8]) {
           const total = intro + outro + [...shape].reduce((a, c) => a + SHAPE_BARS[c], 0) + 4 * [...Array(pairs).keys()].filter(k => pre & (1 << k)).length;
-          // (The closest to the bars wanted; a long song with no bridge or break is a worse one; chance picks between those within a few bars.)
-          const score = Math.abs(total - bars) + (outro === 8 ? 1.5 : 0) + (bars >= 40 && !/[BK]/.test(shape) ? 8 : 0) + (bars >= 56 && !shape.includes('B') ? 6 : 0) + R.random() * 8;
-          if (!best || score < best.score) best = { score, shape, pre, intro, outro };
+          const bad = (bars >= 40 && !/[BK]/.test(shape)) || (bars >= 56 && !shape.includes('B'));
+          if (total > 96) continue;
+          const way = { shape, pre, intro, outro };
+          const score = Math.abs(total - bars) + (outro === 8 ? 1.5 : 0) + (bad ? 8 : 0);
+          if (!best || score < best.score) best = { score, ...way };
+          if (!bad && total <= bars + 4 && total >= bars - Math.max(8, bars * 0.22)) (near.get(shape) || near.set(shape, []).get(shape)).push(way);
         }
+  }
+  if (near.size) {
+    const ways = R.choice([...near.values()]);
+    best = R.choice(ways);
   }
   const { shape, pre, intro, outro } = best;
   const body = [];
@@ -1146,6 +1216,14 @@ const MIXES = {
 export const REMIX_KEYS = ['bpm', 'lead', 'chords', 'chords2'];
 // The instruments a groove's band may play: { leads, chords }.
 export const bandSounds = style => ({ leads: [...(BAND[style]?.leads || [])], chords: [...(BAND[style]?.chords || [])] });
+// Each song mixed a little its own way (V16): the room, the echo, the pump, the width and the parts' levels moved
+// by its seed, from a stream of its own, around its groove's and mood's mix.
+function songMix(seed, m) {
+  const X = makeRng(seed ^ 0x7c5e2b11);
+  const by = (v, lo, hi) => v * (lo + (hi - lo) * X.random());
+  const db = (v, d) => v + (X.random() * 2 - 1) * d;
+  return { ...m, reverb: by(m.reverb, 0.6, 1.5), delay: by(m.delay, 0.4, 1.6), pump: by(m.pump, 0.6, 1.4), width: Math.min(1, by(m.width, 0.6, 1.6)), keys: db(m.keys, 2), bass: db(m.bass, 1.5), drums: db(m.drums, 1.5), hats: db(m.hats, 2.5) };
+}
 // The song's level by section, as a band plays it: the verses held back, the pre-hook rising into the hook, the hooks
 // full, the bridge between (a beat's glide at each change). On the mix and its stems alike.
 const LEVEL = { verse: 0.78, bridge: 0.86 };
@@ -1173,13 +1251,14 @@ function shape(song, bpm) {
 
 // The parts a remix may leave out, and the pieces each is.
 export const PART_LIST = ['drums', 'bass', 'melody'];
-const PART_ROLES = { drums: ['hat', 'fill', 'kick', 'snare', 'tick', 'roll'], bass: ['bass', 'sub'], melody: ['riff', 'phrase'] };
+const PART_ROLES = { drums: ['hat', 'fill', 'kick', 'snare', 'tick', 'roll', 'sub'], bass: ['bass', 'sub'], melody: ['riff', 'phrase'] };
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
-export const RADIO_V = 14;
+export const RADIO_V = 15;
 export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
   const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);
   const sp = Object.assign(radioSpec(seed, mood, style), Object.fromEntries(over));
+  if (sp.songMode) sp.mode = sp.songMode;
   // (A remix's key, parts and fade: `shift` semitones, the parts left out, the outro fading away.)
   const shift = Number.isFinite(spec.shift) ? Math.max(-6, Math.min(6, Math.round(spec.shift))) : 0;
   if (shift) sp.key = { ...sp.key, tonic: (sp.key.tonic + shift + 12) % 12 };
@@ -1198,7 +1277,7 @@ export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const played = quiet.size ? pieces.map((p, i) => (quiet.has(roles[i]) ? { L: new Float32Array(p.L.length), R: new Float32Array(p.L.length) } : p)) : pieces;
   const song = makeSong(played, sr, seed, {
     analysis, roles, bpm: sp.bpm, styles: moodStyles(mood), style: sp.style,
-    humanize: (MOODS[mood]?.humanize ?? 100) / 100, plan, mix: mixOf({ ...MIXES[mood], ...BAND[sp.style].mix, ...(mute.includes('drums') ? { pump: 0 } : {}), ...(fade ? { fade: true } : {}) }), stems, arrange, varied: sp.dress, key: sp.key
+    humanize: (MOODS[mood]?.humanize ?? 100) / 100, plan, mix: mixOf({ ...songMix(seed, { ...MIX, ...MIXES[mood], ...BAND[sp.style].mix }), ...(mute.includes('drums') ? { pump: 0 } : {}), ...(fade ? { fade: true } : {}) }), stems, arrange, varied: sp.dress, key: sp.key
   });
   shape(song, sp.bpm);
   // (A remix's own choices ride along in `radio`, so the song is made again as it was. `v`: the
@@ -1215,6 +1294,7 @@ export const OPENING_BARS = 8;
 export function radioIntro(spec, sr = RADIO_SR) {
   const { seed, mood = 'all', style = null } = spec;
   const sp = radioSpec(seed, mood, style);
+  if (sp.songMode) sp.mode = sp.songMode;
   const plan = radioPlan(makeRng(seed ^ 0x1b873593), sp.bpm, sp.seconds, false);
   const { intro, hat } = radioKit(sp, sr, { song: true, introOnly: true });
   // (Eight bars: long enough on a phone for the song to be made behind it, so it seldom has to go round.)

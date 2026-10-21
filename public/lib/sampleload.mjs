@@ -106,7 +106,7 @@ function radioInsts(spec, opening = false) {
   if (!spec || !Number.isFinite(spec.seed)) return [];
   const sp = radioSpec(spec.seed, spec.mood || 'all', spec.style || null);
   for (const k of REMIX_KEYS) if (spec[k] != null) sp[k] = spec[k];
-  if (opening) return [...new Set([sp.lead2, sp.chords2, bedFor(sp.style)])].filter(i => i && SAMPLED[i]).concat(kitBanks(sp.style).filter(d => OPENING_DRUMS.test(d)));
+  if (opening) return [...new Set([sp.lead2, sp.chords2, sp.bed || bedFor(sp.style)])].filter(i => i && SAMPLED[i]).concat(kitBanks(sp.style).filter(d => OPENING_DRUMS.test(d)));
   return [...specInsts(sp), ...kitBanks(sp.style)];
 }
 const setInsts = set => {

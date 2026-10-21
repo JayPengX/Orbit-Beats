@@ -118,3 +118,20 @@ test('without an arrangement or drum touches a song is the engine\'s own, as it 
   const c = makeSong(pieces, SR, 8, { roles, bpm: sp.bpm, style: 'house', humanize: 0, varied: true });
   assert.notEqual(sums(a.audio), sums(c.audio), 'varied drums are heard');
 });
+
+test('songs differ in shape and in how their groove is played (Jay 2026-10-21: "sound so alike")', () => {
+  const forms = {}, comps = new Set(), lines = new Set(), intros = new Set(), beds = new Set(), tones = new Set();
+  const N = 600;
+  for (let k = 0; k < N; k++) {
+    const sp = radioSpec(31 * k + 7, 'all', 'citypop');
+    const f = radioPlan(makeRng(sp.seed ^ 0x1b873593), sp.bpm, sp.seconds).map(([t, b]) => t[0] + b).join(' ');
+    forms[f] = (forms[f] || 0) + 1;
+    comps.add(sp.comp), lines.add(sp.line), intros.add(sp.intro), beds.add(sp.bed), tones.add(sp.tone ? Object.keys(sp.tone)[0] : 'as is');
+  }
+  // (Before: one form in three songs was the same.)
+  assert.ok(Math.max(...Object.values(forms)) < N * 0.08, `the commonest form ${Math.max(...Object.values(forms))} of ${N}`);
+  assert.ok(Object.keys(forms).length > 60, `${Object.keys(forms).length} forms`);
+  assert.ok(comps.size >= 3 && lines.size >= 3, `comping ${[...comps]}, bass ${[...lines]}`);
+  assert.equal(intros.size, 3);
+  assert.ok(beds.size >= 2 && tones.size === 3, `beds ${[...beds]}, tones ${[...tones]}`);
+});
