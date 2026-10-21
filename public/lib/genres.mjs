@@ -67,7 +67,7 @@ export function noteRecent(id) {
 // A genre's cover (the same look in every list).
 const covers = new Map();
 export function genreCover(style) {
-  if (!covers.has(style)) covers.set(style, coverUrl(coverSvg({ seed: 7, style, bpm: 110, text: false })));
+  if (!covers.has(style)) covers.set(style, coverUrl(coverSvg({ seed: 7, style, bpm: 110, text: false, groove: true })));
   return covers.get(style);
 }
 

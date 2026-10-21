@@ -1,10 +1,12 @@
 // 聽's covers: each song's own artwork, drawn from what the song is (its
 // seed, groove, mood, key and tempo), the same every time for the same song.
-// A groove has its colour and its shape, one of eighteen (rings, waves, a sun,
+// A groove has its colour and its shape, one of twenty-four (rings, waves, a sun,
 // shards, dots, Bauhaus arcs, a level meter's bars, 8-bit pixels, a retro grid,
 // diagonal stripes, a colour mesh, stars, mountains, a vinyl, halftone, ribbons,
-// orbits, a skyline), no two grooves of one mood sharing one; each seed sets the
-// shape's own place, turn and size, and often a second, fainter shape behind it;
+// orbits, a skyline, a spiral, zigzags, a checkerboard, petals, a prism, sun rays),
+// no two grooves of one mood sharing one; each seed sets the shape's own place,
+// turn and size, its framing (as it is, mirrored, in a disc, tiled four times),
+// sometimes a kindred shape in its place, and often a second, fainter one behind;
 // the mood and the key move the colour (minor cooler and darker, chill softer),
 // the tempo sets how many rings, waves or stripes. The title is set small in the
 // corner, as on a record sleeve; a station's cover has its name set large.
@@ -31,10 +33,10 @@ export const STYLE_ART = {
   lofi: [204, 'waves'], funk: [44, 'mesh'], garage: [172, 'stars'], dnb: [192, 'sun'], reggae: [128, 'stars'], phonk: [346, 'vinyl'],
   baile: [92, 'waves'], techno: [208, 'orbits'], jazz: [222, 'arcs'], bossa: [160, 'mountains'], samba: [58, 'orbits'], salsa: [8, 'ribbons'],
   rock: [0, 'bars'], punk: [312, 'dots'], metal: [240, 'mountains'], citypop: [300, 'sun'], kpop: [326, 'waves'], synthwave: [290, 'grid'],
-  disco: [270, 'vinyl'], gospel: [48, 'shards'], neosoul: [276, 'bars'], ballad: [200, 'mesh'], ambient: [186, 'rings'], cinematic: [226, 'stars'],
-  chiptune: [120, 'pixels'], kizomba: [330, 'halftone'], highlife: [40, 'pixels'], cumbia: [80, 'dots'], bhangra: [30, 'grid'], dubstep: [262, 'halftone'],
+  disco: [270, 'vinyl'], gospel: [48, 'shards'], neosoul: [276, 'bars'], ballad: [200, 'mesh'], ambient: [186, 'spiral'], cinematic: [226, 'prism'],
+  chiptune: [120, 'pixels'], kizomba: [330, 'petals'], highlife: [40, 'pixels'], cumbia: [80, 'zigzag'], bhangra: [30, 'grid'], dubstep: [262, 'checker'],
   footwork: [64, 'pixels'], jungle: [100, 'ribbons'], trance: [196, 'stripes'], hardstyle: [350, 'mesh'], chinese: [354, 'arcs'], blues: [214, 'stripes'],
-  country: [34, 'mountains']
+  country: [34, 'sunrays']
 };
 // What a mood does to the colour: saturation and lightness, a nudge of hue.
 const MOOD_TONE = { chill: [0.72, 6, -6], hype: [1, -6, 0], groove: [0.92, 0, 0], classic: [0.7, -2, 12], pop: [0.95, 4, 0], jazz: [0.65, -4, 8], world: [0.9, 2, 4] };
@@ -240,6 +242,71 @@ function shapes(shape, p, R, bpm) {
         x += w;
       }
     }
+  } else if (shape === 'spiral') {
+    // spiral: one line wound out from a point, dots along it.
+    const cx = R.range(200, 312);
+    const cy = R.range(200, 312);
+    const turns = coverCount(bpm, 3, 6, 26);
+    const dir = R.next() < 0.5 ? 1 : -1;
+    let d = `M${n1(cx)} ${n1(cy)}`;
+    for (let a = 0; a <= turns * Math.PI * 2; a += 0.2) {
+      const r = 6 + a * (230 / (turns * Math.PI * 2));
+      d += ` L${n1(cx + Math.cos(a * dir) * r)} ${n1(cy + Math.sin(a * dir) * r)}`;
+    }
+    out.push(`<path d="${d}" fill="none" stroke="${p.glow}" stroke-width="${n1(R.range(6, 14))}" stroke-linecap="round" opacity=".8"/>`);
+    out.push(`<circle cx="${n1(cx)}" cy="${n1(cy)}" r="${n1(R.range(16, 30))}" fill="${p.accent}"/>`);
+  } else if (shape === 'zigzag') {
+    // zigzag: chevron bands, one above the other.
+    const n = coverCount(bpm, 5, 9, 16);
+    const tooth = R.range(40, 80);
+    const rise = R.range(30, 60);
+    for (let i = 0; i < n; i++) {
+      const y = (i * 560) / n - 20;
+      let d = `M-20 ${n1(y)}`;
+      for (let x = -20, up = true; x <= 552; x += tooth, up = !up) d += ` L${n1(x)} ${n1(up ? y : y + rise)}`;
+      out.push(`<path d="${d}" fill="none" stroke="${[p.accent, p.glow, p.soft][i % 3]}" stroke-width="${n1(R.range(10, 22))}" stroke-linejoin="round" opacity="${n1(R.range(0.5, 0.9))}"/>`);
+    }
+  } else if (shape === 'checker') {
+    // checker: a board in perspective-free squares, some lifted out in colour.
+    const n = coverCount(bpm, 6, 10, 15);
+    const c = 512 / n;
+    for (let y = 0; y < n; y++)
+      for (let x = 0; x < n; x++) {
+        if ((x + y) % 2) continue;
+        const lit = R.next() < 0.18;
+        out.push(`<rect x="${n1(x * c)}" y="${n1(y * c)}" width="${n1(c)}" height="${n1(c)}" fill="${lit ? p.accent : p.bg1}" opacity="${lit ? '.9' : '.45'}"/>`);
+      }
+    out.push(`<circle cx="${n1(R.range(140, 372))}" cy="${n1(R.range(140, 372))}" r="${n1(R.range(70, 120))}" fill="${p.soft}" opacity=".8"/>`);
+  } else if (shape === 'petals') {
+    // petals: a flower of long leaves round a heart.
+    const cx = R.range(210, 302);
+    const cy = R.range(200, 300);
+    const n = coverCount(bpm, 6, 12, 12);
+    const len = R.range(150, 210);
+    const wid = R.range(36, 60);
+    const spin = R.range(0, 360);
+    for (let i = 0; i < n; i++) out.push(`<ellipse cx="${n1(cx)}" cy="${n1(cy - len / 2)}" rx="${n1(wid)}" ry="${n1(len / 2)}" fill="${i % 2 ? p.accent : p.glow}" opacity=".62" transform="rotate(${n1(spin + (i * 360) / n)} ${n1(cx)} ${n1(cy)})"/>`);
+    out.push(`<circle cx="${n1(cx)}" cy="${n1(cy)}" r="${n1(wid * 0.9)}" fill="${p.soft}"/>`);
+  } else if (shape === 'prism') {
+    // prism: a triangle, a white beam in, a fan of colour out.
+    const cx = R.range(200, 300);
+    const cy = R.range(220, 290);
+    const s = R.range(110, 150);
+    const n = coverCount(bpm, 4, 7, 20);
+    out.push(`<path d="M0 ${n1(cy + R.range(-60, 20))} L${n1(cx)} ${n1(cy)}" stroke="${p.soft}" stroke-width="7" opacity=".9"/>`);
+    for (let i = 0; i < n; i++) out.push(`<path d="M${n1(cx + s * 0.3)} ${n1(cy)} L560 ${n1(cy - 120 + (i * 260) / n)} L560 ${n1(cy - 120 + ((i + 1) * 260) / n)}Z" fill="hsl(${wrap(p.hue + i * (300 / n))} 85% 62%)" opacity=".72"/>`);
+    out.push(`<polygon points="${n1(cx)},${n1(cy - s)} ${n1(cx + s * 0.9)},${n1(cy + s * 0.6)} ${n1(cx - s * 0.9)},${n1(cy + s * 0.6)}" fill="${p.bg1}" stroke="${p.soft}" stroke-width="4" opacity=".92"/>`);
+  } else if (shape === 'sunrays') {
+    // sunrays: rays from a sun low on the edge, as on an old poster.
+    const cx = R.range(80, 432);
+    const cy = R.pick([470, 520]);
+    const n = coverCount(bpm, 10, 20, 7);
+    for (let i = 0; i < n; i += 2) {
+      const a0 = Math.PI + (i * Math.PI) / n;
+      const a1 = Math.PI + ((i + 1) * Math.PI) / n;
+      out.push(`<path d="M${n1(cx)} ${n1(cy)} L${n1(cx + Math.cos(a0) * 900)} ${n1(cy + Math.sin(a0) * 900)} L${n1(cx + Math.cos(a1) * 900)} ${n1(cy + Math.sin(a1) * 900)}Z" fill="${p.glow}" opacity=".32"/>`);
+    }
+    out.push(`<circle cx="${n1(cx)}" cy="${n1(cy)}" r="${n1(R.range(110, 160))}" fill="${p.accent}"/>`);
   } else {
     // arcs: a Bauhaus grid of quarter and half circles.
     const t = 128;
@@ -260,27 +327,52 @@ function shapes(shape, p, R, bpm) {
   return out.join('');
 }
 
-// The shape placed by the seed: turned, scaled and moved a little, often with a second shape,
-// fainter, behind it.
-const BEHIND = ['rings', 'dots', 'stripes', 'stars', 'orbits', 'halftone', 'waves'];
-function composed(p, R, bpm) {
+// The shape placed by the seed: turned, scaled and moved a little, framed one of four ways,
+// sometimes swapped for a kindred shape, often with a second shape, fainter, behind it.
+const BEHIND = ['rings', 'dots', 'stripes', 'stars', 'orbits', 'halftone', 'waves', 'zigzag', 'checker'];
+// Shapes that read alike, so a song may take its groove's kin and still look of its groove.
+const KIN = {
+  rings: ['spiral', 'orbits'], waves: ['ribbons', 'mountains'], sun: ['sunrays', 'grid'], shards: ['prism', 'stripes'], dots: ['halftone', 'stars'],
+  arcs: ['petals', 'checker'], bars: ['blocks', 'pixels'], pixels: ['checker', 'bars'], grid: ['sun', 'zigzag'], stripes: ['zigzag', 'shards'],
+  mesh: ['petals', 'waves'], stars: ['dots', 'orbits'], mountains: ['waves', 'sunrays'], vinyl: ['rings', 'spiral'], halftone: ['dots', 'checker'],
+  ribbons: ['waves', 'spiral'], orbits: ['rings', 'stars'], blocks: ['bars', 'pixels'], spiral: ['rings', 'vinyl'], zigzag: ['stripes', 'grid'],
+  checker: ['pixels', 'arcs'], petals: ['mesh', 'arcs'], prism: ['shards', 'sunrays'], sunrays: ['sun', 'prism']
+};
+export const FRAMES = ['plain', 'mirror', 'disc', 'tile'];
+// The frame a groove's own cover takes: the second groove with a shape is mirrored, the third
+// in a disc, so the grid of grooves never shows one picture twice.
+const styleFrame = {};
+{
+  const seen = {};
+  for (const [st, [, sh]] of Object.entries(STYLE_ART)) styleFrame[st] = FRAMES[(seen[sh] = (seen[sh] ?? -1) + 1) % FRAMES.length];
+}
+function framed(frame, body, p) {
+  if (frame === 'mirror') return `<defs><clipPath id="cl"><rect width="256" height="512"/></clipPath></defs><g clip-path="url(#cl)">${body}</g><g transform="translate(512 0) scale(-1 1)" clip-path="url(#cl)">${body}</g>`;
+  if (frame === 'disc') return `<defs><clipPath id="cd"><circle cx="256" cy="236" r="188"/></clipPath></defs><circle cx="256" cy="236" r="200" fill="#000" opacity=".22"/><g clip-path="url(#cd)"><rect width="512" height="512" fill="${p.bg1}" opacity=".55"/>${body}</g><circle cx="256" cy="236" r="188" fill="none" stroke="${p.soft}" stroke-width="3" opacity=".6"/>`;
+  if (frame === 'tile') return [0, 1, 2, 3].map(k => `<g transform="translate(${(k % 2) * 256} ${(k >> 1) * 256}) scale(.5) rotate(${k * 90} 256 256)">${body}</g>`).join('');
+  return body;
+}
+function composed(p, R, bpm, frame) {
   const turn = R.range(-14, 14);
   const k = R.range(1, 1.22);
   const dx = R.range(-34, 34);
   const dy = R.range(-34, 34);
+  const shape = frame != null ? p.shape : R.next() < 0.3 ? R.pick(KIN[p.shape] || [p.shape]) : p.shape;
   let behind = '';
   if (R.next() < 0.6) {
-    const kind = R.pick(BEHIND.filter(x => x !== p.shape));
+    const kind = R.pick(BEHIND.filter(x => x !== shape));
     const L = coverRng(Math.floor(R.next() * 1e9));
     behind = `<g opacity=".32" transform="translate(256 256) rotate(${n1(R.range(-60, 60))}) scale(${n1(R.range(1, 1.4))}) translate(-256 -256)">${shapes(kind, p, L, bpm)}</g>`;
   }
-  return behind + `<g transform="translate(${n1(256 + dx)} ${n1(256 + dy)}) rotate(${n1(turn)}) scale(${n1(k)}) translate(-256 -256)">${shapes(p.shape, p, R, bpm)}</g>`;
+  const f = frame === 'own' ? 'plain' : frame ?? R.pick(['plain', 'plain', 'mirror', 'disc', 'tile']);
+  return behind + framed(f, `<g transform="translate(${n1(256 + dx)} ${n1(256 + dy)}) rotate(${n1(turn)}) scale(${n1(k)}) translate(-256 -256)">${shapes(shape, p, R, bpm)}</g>`, p);
 }
 
 // The cover, 512 square. text: false leaves the words off (a thumbnail); station: true sets
-// the title large, as a station's art does.
+// the title large, as a station's art does. groove: true draws the groove's own cover (its shape,
+// in its groove's frame), the one the list of grooves shows.
 // -> an SVG string
-export function coverSvg({ seed = 0, style = 'four', mood = 'all', key = null, bpm = 110, title = '', label = '', text = true, station = false } = {}) {
+export function coverSvg({ seed = 0, style = 'four', mood = 'all', key = null, bpm = 110, title = '', label = '', text = true, station = false, groove = false } = {}) {
   const p = coverPalette({ seed, style, mood, key, bpm });
   const R = coverRng(seed);
   const ang = R.int(0, 3) * 45 + 20;
@@ -304,7 +396,7 @@ export function coverSvg({ seed = 0, style = 'four', mood = 'all', key = null, b
     `<radialGradient id="g" cx="${n1(glowAt[0])}" cy="${n1(glowAt[1])}" r=".75"><stop offset="0" stop-color="${p.glow}" stop-opacity=".55"/><stop offset="1" stop-color="${p.glow}" stop-opacity="0"/></radialGradient>` +
     `<linearGradient id="f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".42"/></linearGradient></defs>` +
     `<rect width="512" height="512" fill="url(#b)"/><rect width="512" height="512" fill="url(#g)"/>` +
-    composed(p, R, bpm) +
+    composed(p, R, bpm, groove ? styleFrame[style] || 'plain' : station ? 'own' : null) +
     words +
     `</svg>`
   );

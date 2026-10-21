@@ -53,12 +53,49 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': 
 const MAX_SONGS = 30;
 // A key as words: "A 小調", "E♭ major".
 const keyName = k => (k ? `${NOTE_NAMES[k.tonic]} ${k.minor ? W('小調', 'minor') : W('大調', 'major')}` : '');
-// Each song's title, from its seed: two words that go together (霓虹夜行, Neon Drive).
-const TITLE_A = [['霓虹', 'Neon'], ['午夜', 'Midnight'], ['潮汐', 'Tidal'], ['微光', 'Glow'], ['星塵', 'Stardust'], ['熱浪', 'Heatwave'], ['晨霧', 'Morning'], ['雨季', 'Rainy'], ['海風', 'Sea'], ['黃昏', 'Golden'], ['冷焰', 'Cold'], ['銀河', 'Galaxy'], ['街角', 'Corner'], ['迴旋', 'Spiral'], ['心跳', 'Heart'], ['低語', 'Whisper'], ['遠方', 'Faraway'], ['電光', 'Electric'], ['月色', 'Moonlit'], ['沙漠', 'Desert']];
-const TITLE_B = [['夜行', 'Drive'], ['漂流', 'Drift'], ['飛行', 'Flight'], ['狂想', 'Dream'], ['節拍', 'Groove'], ['之歌', 'Song'], ['派對', 'Party'], ['邊境', 'Border'], ['旅程', 'Journey'], ['迷宮', 'Maze'], ['訊號', 'Signal'], ['脈搏', 'Pulse'], ['花火', 'Sparks'], ['引擎', 'Engine'], ['浪潮', 'Waves'], ['序曲', 'Prelude'], ['回聲', 'Echo'], ['奔跑', 'Run'], ['慢舞', 'Sway'], ['密語', 'Secrets']];
+// Each song's title, from its seed: two words that go together (霓虹夜行, Neon Drive), or now
+// and then a whole phrase (別說晚安, Don't Say Goodnight). Over two thousand in all.
+const TITLE_A = [
+  ['霓虹', 'Neon'], ['午夜', 'Midnight'], ['潮汐', 'Tidal'], ['微光', 'Glow'], ['星塵', 'Stardust'], ['熱浪', 'Heatwave'], ['晨霧', 'Morning'], ['雨季', 'Rainy'],
+  ['海風', 'Sea'], ['黃昏', 'Golden'], ['冷焰', 'Cold'], ['銀河', 'Galaxy'], ['街角', 'Corner'], ['迴旋', 'Spiral'], ['心跳', 'Heart'], ['低語', 'Whisper'],
+  ['遠方', 'Faraway'], ['電光', 'Electric'], ['月色', 'Moonlit'], ['沙漠', 'Desert'], ['夏日', 'Summer'], ['冬夜', 'Winter'], ['琥珀', 'Amber'], ['紫色', 'Violet'],
+  ['玻璃', 'Glass'], ['天鵝絨', 'Velvet'], ['絲綢', 'Silk'], ['鉻金', 'Chrome'], ['極光', 'Aurora'], ['彗星', 'Comet'], ['城市', 'City'], ['屋頂', 'Rooftop'],
+  ['地鐵', 'Subway'], ['高速', 'Highway'], ['港口', 'Harbor'], ['島嶼', 'Island'], ['森林', 'Forest'], ['野火', 'Wildfire'], ['寂靜', 'Silent'], ['無重力', 'Weightless'],
+  ['秘密', 'Hidden'], ['失眠', 'Sleepless'], ['甜蜜', 'Sugar'], ['蜜桃', 'Peach'], ['檸檬', 'Lemon'], ['薄荷', 'Mint'], ['咖啡', 'Coffee'], ['日落', 'Sunset'],
+  ['破曉', 'Daybreak'], ['光速', 'Lightspeed'], ['磁浮', 'Magnetic'], ['數位', 'Digital'], ['類比', 'Analog'], ['復古', 'Retro'], ['永恆', 'Forever'], ['最後', 'Last']
+];
+const TITLE_B = [
+  ['夜行', 'Drive'], ['漂流', 'Drift'], ['飛行', 'Flight'], ['狂想', 'Dream'], ['節拍', 'Groove'], ['之歌', 'Song'], ['派對', 'Party'], ['邊境', 'Border'],
+  ['旅程', 'Journey'], ['迷宮', 'Maze'], ['訊號', 'Signal'], ['脈搏', 'Pulse'], ['花火', 'Sparks'], ['引擎', 'Engine'], ['浪潮', 'Waves'], ['序曲', 'Prelude'],
+  ['回聲', 'Echo'], ['奔跑', 'Run'], ['慢舞', 'Sway'], ['密語', 'Secrets'], ['電台', 'Radio'], ['來信', 'Letters'], ['禮物', 'Gift'], ['天空', 'Sky'],
+  ['燈塔', 'Lighthouse'], ['公路', 'Road'], ['碎片', 'Pieces'], ['倒影', 'Mirror'], ['花園', 'Garden'], ['宇宙', 'Cosmos'], ['列車', 'Express'], ['漫步', 'Stroll'],
+  ['戀曲', 'Romance'], ['藍調', 'Blues'], ['煙火', 'Fireworks'], ['熱線', 'Hotline'], ['日記', 'Diary'], ['明信片', 'Postcard'], ['樂園', 'Paradise'], ['之心', 'Heart'],
+  ['軌道', 'Orbit'], ['風暴', 'Storm'], ['雨滴', 'Raindrops'], ['氣泡', 'Bubbles'], ['霓光', 'Lights'], ['舞池', 'Dancefloor'], ['時差', 'Jetlag'], ['盡頭', 'Horizon'],
+  ['頻率', 'Frequency'], ['迴路', 'Circuit'], ['幻影', 'Mirage'], ['輪廓', 'Silhouette'], ['溫度', 'Fever'], ['速度', 'Velocity'], ['季節', 'Season'], ['約定', 'Promise']
+];
+const TITLE_WHOLE = [
+  ['別說晚安', "Don't Say Goodnight"], ['再一次就好', 'Just One More'], ['今晚不回家', 'Not Going Home'], ['把燈關掉', 'Lights Off'], ['等你下班', 'After Your Shift'],
+  ['三點半的雨', '3:30 Rain'], ['不要停', "Don't Stop"], ['最後一班車', 'Last Train'], ['想你的時候', 'When I Miss You'], ['夏天還沒走', 'Summer Stays'],
+  ['走路回家', 'Walking Home'], ['窗外的海', 'Sea Outside'], ['慢慢來', 'Take It Slow'], ['晚風吹過', 'Evening Breeze'], ['你的名字', 'Your Name'],
+  ['留一盞燈', 'Leave a Light On'], ['我們的歌', 'Our Song'], ['起飛前', 'Before Takeoff'], ['天亮以前', 'Before Dawn'], ['一起跳舞', 'Dance With Me'],
+  ['城市睡了', 'City Asleep'], ['沒有地圖', 'No Map'], ['十七歲', 'Seventeen'], ['星期五', 'Friday'], ['星期天早上', 'Sunday Morning'],
+  ['冰淇淋融化', 'Melting Ice Cream'], ['打開收音機', 'Turn the Radio On'], ['在路上', 'On the Road'], ['兩個人', 'Just Us Two'], ['不想長大', 'Never Grow Up'],
+  ['跟著節奏', 'Follow the Beat'], ['好天氣', 'Good Weather'], ['像風一樣', 'Like the Wind'], ['往南開', 'Driving South'], ['月亮代班', 'Moon on Duty'],
+  ['迷路也好', 'Lost Is Fine'], ['第一千次', 'The Thousandth Time'], ['我在這裡', "I'm Right Here"], ['雨停了', 'Rain Stopped'], ['回到原點', 'Back to Start'],
+  ['你先睡', 'You Sleep First'], ['偷偷喜歡', 'Secret Crush'], ['頂樓的風', 'Rooftop Wind'], ['熱帶低壓', 'Tropical Low'], ['加速前進', 'Full Speed'],
+  ['一路順風', 'Safe Travels'], ['半夜的麵', 'Midnight Noodles'], ['時間暫停', 'Time Stands Still'], ['重新開始', 'Start Over'], ['夢的另一邊', 'Other Side of a Dream']
+];
+// (The seed is mixed first, so neighbouring seeds don't share a word.)
 const songTitle = seed => {
-  const a = TITLE_A[seed % 20];
-  const b = TITLE_B[Math.floor(seed / 20) % 20];
+  let x = Math.imul((seed >>> 0) ^ 0x9e3779b9, 0x85ebca6b) >>> 0;
+  x = Math.imul(x ^ (x >>> 13), 0xc2b2ae35) >>> 0;
+  x = (x ^ (x >>> 16)) >>> 0;
+  if (x % 7 === 0) {
+    const w = TITLE_WHOLE[Math.floor(x / 7) % TITLE_WHOLE.length];
+    return en ? w[1] : w[0];
+  }
+  const a = TITLE_A[(x >>> 3) % TITLE_A.length];
+  const b = TITLE_B[(x >>> 11) % TITLE_B.length];
   return en ? `${a[1]} ${b[1]}` : `${a[0]}${b[0]}`;
 };
 const ICON = { play: icon('play'), pause: icon('pause'), heart: icon('heart'), hearted: icon('heart-fill'), more: icon('more') };
@@ -247,7 +284,7 @@ let game = null;
   const shelf = h('div', { class: 'hub-shelf' });
   // 節奏遊戲: every song a level (lib/gameview.mjs).
   const play = h('button', { class: 'hub-game', type: 'button', onclick: () => game?.open() }, [
-    h('span', { class: 'hub-game-lanes', 'aria-hidden': 'true' }, [0, 1, 2, 3].map(k => h('i', { style: { animationDelay: `${k * -0.37}s` } }))),
+    h('span', { class: 'hub-game-lanes', 'aria-hidden': 'true' }, ['22%', '58%', '12%', '40%'].map(y => h('i', { style: `--y: ${y}` }))),
     h('span', { class: 'hub-game-t' }, [h('b', { text: W('節奏遊戲', 'Rhythm game') }), h('span', { text: W('跟著每首歌的節拍點', 'Tap along to any song') })]),
     h('span', { class: 'hub-game-go', html: icon('play') })
   ]);
@@ -1729,12 +1766,17 @@ function paintPlayer() {
   if (nowPlaying) for (const li of rowsOf(nowPlaying.id)) li.querySelector('.plan')?.style.setProperty('--at', `${pct}%`);
 }
 // (A section looped is held by the frame, not timeupdate's quarter second.)
+// It runs only while a section loop plays, so an idle page never ticks.
+let watching = 0;
 function watchLoop() {
-  if (repeat === 'section' && loopAt && !audio.paused && audio.currentTime >= loopAt.to) audio.currentTime = loopAt.from;
-  requestAnimationFrame(watchLoop);
+  watching = 0;
+  if (repeat !== 'section' || !loopAt || audio.paused) return;
+  if (audio.currentTime >= loopAt.to) audio.currentTime = loopAt.from;
+  watching = requestAnimationFrame(watchLoop);
 }
-requestAnimationFrame(watchLoop);
+const watchSoon = () => { if (!watching) watching = requestAnimationFrame(watchLoop); };
 for (const ev of ['timeupdate', 'play', 'pause', 'loadedmetadata', 'seeked']) audio.addEventListener(ev, () => {
+  watchSoon();
   paintPlayer();
   if (nowPlaying) for (const li of rowsOf(nowPlaying.id)) markRow(li, true);
 });

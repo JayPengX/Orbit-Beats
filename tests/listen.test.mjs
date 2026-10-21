@@ -117,3 +117,17 @@ test('recently played: newest first, once each, twenty at most, read back safely
   assert.deepEqual(recentParse('{"a":1}'), []);
   assert.equal(recentParse(JSON.stringify([{ seed: 'x' }, list[0]])).length, 1);
 });
+
+test('covers: the list of grooves never shows one picture twice, and songs of one groove vary', () => {
+  const look = Object.keys(STYLE_ART).map(s => {
+    const svg = coverSvg({ seed: 7, style: s, text: false, groove: true });
+    return `${STYLE_ART[s][1]}:${/clip-path="url\(#c(.)/.exec(svg)?.[1] || (svg.match(/scale\(\.5\)/g)?.length === 4 ? 't' : 'p')}`;
+  });
+  assert.equal(new Set(look).size, look.length, look.join());
+  const frames = new Set();
+  for (let seed = 1; seed < 60; seed++) {
+    const svg = coverSvg({ seed, style: 'lofi', text: false });
+    frames.add(/clip-path="url\(#c(.)/.exec(svg)?.[1] || (/scale\(\.5\) rotate\(270/.test(svg) ? 't' : 'p'));
+  }
+  assert.ok(frames.size >= 3, [...frames].join());
+});
