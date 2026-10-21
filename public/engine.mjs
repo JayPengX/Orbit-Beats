@@ -202,13 +202,28 @@ class Song {
     for (let br = bar; br < bar + nbars; br++) {
       if (this.rest.has(br)) continue;
       const t = br * 4;
-      (GROOVES[dress?.style || style] || GROOVES.four)(this, t, k);
+      (GROOVES[dress?.style || style] || GROOVES.four)(dress?.feel || dress?.kicks ? this.felt(t, dress, k) : this, t, k);
+      for (const q of dress?.kicks || []) this.hit(k.kick, t + q, false, q % 1 ? 0.85 : 1);
       if (this.r.random() < 0.35 && !FULL_HATS.has(style))   // ticks between the hits
         for (const q of this.py.choice([[0.5], [1.5, 3.5], [0.5, 1.5, 2.5, 3.5]])) this.hit(k.tick, t + q);
       if (dress) this.dressed(style, br, br - bar, nbars, t, k, dress);
     }
   }
-  dressed(style, br, at, nbars, t, k, { flavors, turn, extra }) {   // a bar's own touches, none of them drawn (so a song's other choices stay put)
+  // (A radio song's feel, lib/radio.mjs songBeat: its groove's bar played at half time, the first half spread over the
+  // bar, or at double time, twice in the bar; and its own kick pattern in place of the groove's. A song made by
+  // passion_beats.py has neither.)
+  felt(t, { feel, kicks }, k) {
+    const shim = Object.create(this);
+    shim.hit = (i, beat, tight = false, g = null) => {
+      if (kicks && (i === k.kick || i === k.heavy)) return;
+      const q = beat - t;
+      if (feel === 'half') { if (q < 2 - 1e-9) this.hit(i, t + q * 2, tight, g); }
+      else if (feel === 'double') { this.hit(i, t + q / 2, tight, g); this.hit(i, t + 2 + q / 2, tight, g); }
+      else this.hit(i, beat, tight, g);
+    };
+    return shim;
+  }
+  dressed(style, br, at, nbars, t, k, { flavors, turn, extra, fills }) {   // a bar's own touches, none of them drawn (so a song's other choices stay put)
     for (const f of flavors) {
       if (f === 'ghost') for (const q of [0.75, 2.75]) this.hit(k.tick, t + q);
       else if (f === 'push' && br % 2) this.hit(k.kick, t + 3.75);
@@ -217,8 +232,9 @@ class Song {
       else if (f === 'snap' && at % 2) this.hit(k.snare, t + 1.75);
     }
     // (A radio song's own beat on top of its groove's (lib/radio.mjs songBeat): a kick, ghost snares, ticks, every bar or every other.
-    // passion_beats.py's dress_of never sets `extra` or `style`, so its songs and these engines' stay the same.)
+    // passion_beats.py's dress_of never sets `extra`, `fills`, `feel` or `style`, so its songs and these engines' stay the same.)
     for (const [d, beats, every, g] of extra || []) if (br % every === 0) for (const q of beats) this.hit(k[d], t + q, false, g);
+    if (fills && nbars >= 8 && at % 8 === 7) for (const [d, q, g] of fills) this.hit(k[d] ?? k.snare, t + q, true, g);   // (and its own fill into the next eight bars)
     if (nbars >= 4 && at % 4 === 3) {   // the end of a phrase turns
       if (turn === 'tick') for (const q of [3.25, 3.5, 3.75]) this.hit(k.tick, t + q);
       else if (turn === 'snare') for (const q of [3.5, 3.75]) this.hit(k.snare, t + q);
@@ -655,7 +671,7 @@ const alike = (a, b) => a && b ? a.reduce((s, v, k) => s + v * b[k], 0) : 0;
 // different touch for each kind of section; `key` the song's key when known (not heard from the riffs again). `mix` (lib/mix.mjs's MIX; null or on: false
 // for the pieces exactly as recorded); `stems` also returns each bus apart.
 // -> { audio, info, events, stems }
-export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25, maxBars = 29, styles = STYLES, humanize = 1, style: forced = null, detail = null, weights = null, plan: arranged = null, mix = null, stems = false, arrange = null, varied = null, key: known = null } = {}) {
+export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25, maxBars = 29, styles = STYLES, humanize = 1, style: forced = null, detail = null, weights = null, plan: arranged = null, mix = null, stems = false, arrange = null, varied = null, key: known = null, shuffle = null } = {}) {
   analysis ??= analyzeRecording(pieces, sr, { bpm });
   bpm ??= analysis.bpm; roles ??= analysis.roles;
   const loops = bpm === analysis.bpm ? analysis.loops : analyzeRecording(pieces, sr, { bpm }).loops;
@@ -716,7 +732,7 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   const plan = arranged ? planOf(arranged) : drawn, bars = plan.at(-1)[1] + plan.at(-1)[2];
   const hooks = plan.filter(([t]) => t === 'hook').length;
   const s = new Song(bars, r, pieces, sr, humanize, bpm, loops);
-  if (humanize > 0) s.sh = (SHUFFLE[style] || 0) * 0.25;   // (humanize 0: strictly on the grid)
+  if (humanize > 0) s.sh = (shuffle ?? SHUFFLE[style] ?? 0) * 0.25;   // (humanize 0: strictly on the grid; `shuffle`: a radio song's own, lib/radio.mjs songBeat)
 
   // How each section hands over, decided first: the bar before a hook may be
   // a stop bar (everything lays out but the fill). Fills fit where they lead:

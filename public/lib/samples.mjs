@@ -160,15 +160,19 @@ export const STYLE_KIT = Object.fromEntries(Object.entries(KIT_OF).flatMap(([k, 
 export const DRUM_SECONDS = { kick: 0.7, rkick: 0.7, snare: 0.9, rsnare: 0.9, rim: 0.4, hat: 0.4, open: 1.4, ride: 2, crash: 2.8, tom: 1.2, clap: 0.7, cowbell: 0.6, shaker: 0.5, conga: 0.8, bongo: 0.6, clave: 0.4, agogo: 0.7, guiro: 0.6, tamb: 0.7 };
 export const drumUrl = (base, kit, file) => `${base}samples/drums/${kit}/${file}.m4a`;
 // The kit playing now (radioSong sets it for its song: lib/radio.mjs), and the bank of a drum in it.
+// (`tune`: a radio song's kit tuned its own way, its hits played that much faster or slower: higher or lower, shorter or longer.)
 let kitNow = null;
-export const kitPlaying = () => kitNow;
-export function withKit(style, fn) {
-  const was = kitNow;
+let tuneNow = 1;
+export const kitPlaying = () => (tuneNow === 1 ? kitNow : `${kitNow}@${tuneNow}`);
+export function withKit(style, fn, tune = 1) {
+  const was = kitNow, wasTune = tuneNow;
   kitNow = STYLE_KIT[style] || null;
+  tuneNow = tune;
   try {
     return fn();
   } finally {
     kitNow = was;
+    tuneNow = wasTune;
   }
 }
 // -> { inst, sr, takes: [[x, x], [x, x], [x, x]] } | null
@@ -186,7 +190,7 @@ export function playDrum(bank, sr, vel = 0.7, variant = 0) {
   const layer = bank.takes[vel < 0.5 ? 0 : vel < 0.85 ? 1 : 2] || bank.takes[0];
   const x0 = layer[variant % layer.length] || layer[0];
   if (!x0?.length) return null;
-  const rate = bank.sr / sr;
+  const rate = (bank.sr / sr) * tuneNow;
   const n = Math.max(1, Math.floor((x0.length - 2) / rate));
   const out = new Float32Array(n);
   const S = x0 instanceof Int16Array ? 1 / 32768 : 1;

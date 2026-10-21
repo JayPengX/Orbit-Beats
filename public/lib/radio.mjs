@@ -532,15 +532,50 @@ function toned(x, tone, sr) {
 const BEAT_KICK = [[1.5], [2.5], [0.75], [3.5], [1.75, 3.25], [2.25], [0.5, 2.75]];
 const BEAT_GHOST = [[0.75], [2.25], [1.25, 3.25], [3.75], [1.75, 2.75]];
 const BEAT_TICK = [[0.25, 2.25], [1.75], [0.75, 1.75, 2.75, 3.75], [1.25, 3.25]];
+const GROOVE_OK = st => Boolean(BAND[st]);
+// (A kick pattern of a song's own, in place of its groove's, for the grooves whose kick isn't what makes them: the
+// four-on-the-floor ones, the clave and dhol ones keep theirs.)
+const OWN_KICKS = [[0, 1.75, 2.5], [0, 0.75, 2.5, 3.25], [0, 2.25, 2.75], [0, 1.5, 2.5], [0, 0.5, 2, 3.5], [0, 2, 2.75, 3.5], [0, 1.25, 2.5, 3.75], [0, 0.75, 1.5, 2.75], [0, 2.5], [0, 0.75, 2, 2.25]];
+const KICK_KEPT = new Set(['four', 'house', 'techno', 'trance', 'hardstyle', 'disco', 'kpop', 'dembow', 'reggae', 'baile', 'jersey', 'amapiano', 'salsa', 'samba', 'bossa', 'cumbia', 'bhangra', 'footwork', 'jazz', 'metal', 'punk', 'ambient', 'cinematic', 'synthwave', 'chiptune', 'kizomba']);
+// (A groove played in a song of another tempo: as it is when the tempos are near, at double time in a song half as
+// fast, at half time in one twice as fast; false when none of these is near.)
+function tempoFit(st, bpm) {
+  const [a, b] = BAND[st].bpm, near = v => v >= a - 12 && v <= b + 12;
+  return near(bpm) ? null : near(bpm * 2) ? 'double' : near(bpm / 2) ? 'half' : false;
+}
+const FILLS = [
+  [2, 2.5, 3, 3.25, 3.5, 3.75].map((q, i) => ['snare', q, 0.45 + i * 0.1]),
+  [['roll', 2, 0.9], ['roll', 2.5, 0.85], ['roll', 3, 0.8], ['roll', 3.5, 0.9], ['kick', 3.75, 0.9]],
+  [['kick', 2, 0.9], ['snare', 2.5, 0.7], ['kick', 3, 0.9], ['snare', 3.25, 0.6], ['snare', 3.5, 0.8], ['snare', 3.75, 1]],
+  [3, 3.125, 3.25, 3.375, 3.5, 3.625, 3.75, 3.875].map((q, i) => ['snare', q, 0.3 + i * 0.09])
+];
 function songBeat(sp, W) {
+  // (Its kit tuned its own way, a song in two: from about three semitones down to two up.)
+  sp.drumTune = W.random() < 0.5 ? 1 : W.choice([0.84, 0.89, 0.94, 1.06, 1.12]);
   const extra = [];
   if (W.random() < 0.6) extra.push(['kick', W.choice(BEAT_KICK), W.choice([1, 2]), 0.8]);
   if (W.random() < 0.5) extra.push(['snare', W.choice(BEAT_GHOST), W.choice([1, 2]), 0.35]);
   if (W.random() < 0.4) extra.push(['tick', W.choice(BEAT_TICK), 1, 0.55]);
-  const kin = (FAMILY[sp.style] || []).filter(x => x !== sp.style);
-  const verse = kin.length && W.random() < 0.33 ? W.choice(kin) : null;
+  // (V17: the song's own groove family, all through, in two songs in three: a kindred groove's beat, or one a step
+  // further out, played at its own tempo against the song's, at half or double time where that is what fits; and in
+  // some songs the verses on yet another, so the hook lands on a different beat.)
+  const pool = [...new Set((FAMILY[sp.style] || []).flatMap(x => [x, ...(FAMILY[x] || [])]))].filter(x => x !== sp.style && GROOVE_OK(x) && tempoFit(x, sp.bpm) !== false);
+  const core = pool.length && W.random() < 0.65 ? W.choice(pool) : null;
+  const verse = pool.length && W.random() < 0.3 ? W.choice(pool) : core;
+  const f = W.random();
+  const free = sp.bpm >= 108 && f < 0.4 ? 'half' : sp.bpm <= 96 && f < 0.35 ? 'double' : null;
+  const feelOf = st => (st ? tempoFit(st, sp.bpm) : free);
+  const both = W.random() < 0.6;
+  const hook = core, feel = feelOf(verse), hookFeel = core ? feelOf(core) : both ? free : null;
   const d = sp.dress;
-  sp.dress = { ...d, verse: { ...d.verse, extra, ...(verse ? { style: verse } : {}) }, hook: { ...d.hook, extra }, last: { ...d.last, extra }, bridge: { ...d.bridge, extra: extra.filter(([x]) => x !== 'kick') } };
+  // (A fill of its own at the end of every eight bars: a snare run, toms down, or the kick and snare trading.)
+  const fills = W.choice([null, ...FILLS]);
+  const kicksOf = st => (!KICK_KEPT.has(st || sp.style) && W.random() < 0.5 ? W.choice(OWN_KICKS) : null);
+  const vk = kicksOf(verse), hk = kicksOf(hook);
+  const own = (x, st, fl, kk) => ({ ...x, extra, ...(fills ? { fills } : {}), ...(st ? { style: st } : {}), ...(fl ? { feel: fl } : {}), ...(kk ? { kicks: kk } : {}) });
+  // (And one song in four of a straight groove under 126 BPM shuffled, the whole band: its off-beat eighths late.)
+  if (!sp.shuffle && sp.bpm < 126 && W.random() < 0.25) sp.songShuffle = W.choice([0.45, 0.55, 0.66]);
+  sp.dress = { ...d, verse: own(d.verse, verse, feel, vk), hook: own(d.hook, hook, hookFeel, hk), last: own(d.last, hook, core ? hookFeel : null, hk), bridge: { ...d.bridge, extra: extra.filter(([x]) => x !== 'kick') } };
 }
 // The comping and bass rhythms that sit with each other, so a song may take a kindred one in place of its groove's own.
 const COMP_KIN = { held: ['pulse', 'gospel'], stab: ['stab8', 'strum', 'charleston'], stab8: ['stab', 'pulse', 'gate16'], pulse: ['held', 'stab8'], skank: ['stab'], strum: ['stab', 'pulse'], montuno: ['stab'], charleston: ['stab', 'held'], gospel: ['held', 'stab'] };
@@ -1082,7 +1117,7 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
 // 808 (`lift`: false when the plan has one hook), a layer of its arpeggio.
 export function radioKit(sp, sr = RADIO_SR, opts = {}) {
   // (Its drums from the groove's recorded kit, when its hits are here: lib/samples.mjs.)
-  return withKit(sp.style, () => kitOf(sp, sr, opts));
+  return withKit(sp.style, () => kitOf(sp, sr, opts), opts.song ? sp.drumTune ?? 1 : 1);
 }
 function kitOf(sp, sr, { song = false, lift = true, introOnly = false } = {}) {
   if (song) return songKit(sp, sr, { lift, introOnly });
@@ -1269,12 +1304,13 @@ function shape(song, bpm) {
 export const PART_LIST = ['drums', 'bass', 'melody'];
 const PART_ROLES = { drums: ['hat', 'fill', 'kick', 'snare', 'tick', 'roll', 'sub'], bass: ['bass', 'sub'], melody: ['riff', 'phrase'] };
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
-export const RADIO_V = 16;
+export const RADIO_V = 17;
 export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
   const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);
   const sp = Object.assign(radioSpec(seed, mood, style), Object.fromEntries(over));
   if (sp.songMode) sp.mode = sp.songMode;
+  if (sp.songShuffle) sp.shuffle = sp.songShuffle;
   // (A remix's key, parts and fade: `shift` semitones, the parts left out, the outro fading away.)
   const shift = Number.isFinite(spec.shift) ? Math.max(-6, Math.min(6, Math.round(spec.shift))) : 0;
   if (shift) sp.key = { ...sp.key, tonic: (sp.key.tonic + shift + 12) % 12 };
@@ -1293,7 +1329,7 @@ export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const played = quiet.size ? pieces.map((p, i) => (quiet.has(roles[i]) ? { L: new Float32Array(p.L.length), R: new Float32Array(p.L.length) } : p)) : pieces;
   const song = makeSong(played, sr, seed, {
     analysis, roles, bpm: sp.bpm, styles: moodStyles(mood), style: sp.style,
-    humanize: (MOODS[mood]?.humanize ?? 100) / 100, plan, mix: mixOf({ ...songMix(seed, { ...MIX, ...MIXES[mood], ...BAND[sp.style].mix }), ...(mute.includes('drums') ? { pump: 0 } : {}), ...(fade ? { fade: true } : {}) }), stems, arrange, varied: sp.dress, key: sp.key
+    humanize: (MOODS[mood]?.humanize ?? 100) / 100, plan, ...(sp.songShuffle ? { shuffle: sp.songShuffle } : {}), mix: mixOf({ ...songMix(seed, { ...MIX, ...MIXES[mood], ...BAND[sp.style].mix }), ...(mute.includes('drums') ? { pump: 0 } : {}), ...(fade ? { fade: true } : {}) }), stems, arrange, varied: sp.dress, key: sp.key
   });
   shape(song, sp.bpm);
   // (A remix's own choices ride along in `radio`, so the song is made again as it was. `v`: the
@@ -1311,6 +1347,7 @@ export function radioIntro(spec, sr = RADIO_SR) {
   const { seed, mood = 'all', style = null } = spec;
   const sp = radioSpec(seed, mood, style);
   if (sp.songMode) sp.mode = sp.songMode;
+  if (sp.songShuffle) sp.shuffle = sp.songShuffle;
   const plan = radioPlan(makeRng(seed ^ 0x1b873593), sp.bpm, sp.seconds, false);
   const { intro, hat } = radioKit(sp, sr, { song: true, introOnly: true });
   // (Eight bars: long enough on a phone for the song to be made behind it, so it seldom has to go round.)
