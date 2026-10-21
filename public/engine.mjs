@@ -172,14 +172,14 @@ class Song {
     this.rest = new Set();                              // stop bars: loops and drums lay out
     this.sh = 0;                                        // a swung groove's off-beat eighths, late by this (beats)
   }
-  hit(i, beat, tight = false) {   // piece i, as recorded, from `beat`
+  hit(i, beat, tight = false, g = null) {   // piece i, as recorded, from `beat` (`g`: its level, a radio song's own hits only)
     if (i == null) return;
     const { r, sr, B } = this;
     const at = beat;
     if (Math.abs((beat % 0.5) - 0.25) < 1e-6) beat += this.swing;
     else if (this.sh && Math.abs((beat % 1) - 0.5) < 1e-6) beat += this.sh;
     const a = Math.max(0, Math.round(beat * B + r.normal(0, this.loose * (tight ? 0.4 : 1)) * sr));
-    this.events.push({ i, beat: at, a });
+    this.events.push(g == null ? { i, beat: at, a } : { i, beat: at, a, g });
   }
   span(i) { return i == null ? 1 : Math.max(1, Math.ceil(this.per[i] / 4)); }   // whole bars a loop takes
   loop(i, bar, nbars) {   // piece i every loop length; the last may run on
@@ -202,13 +202,13 @@ class Song {
     for (let br = bar; br < bar + nbars; br++) {
       if (this.rest.has(br)) continue;
       const t = br * 4;
-      (GROOVES[style] || GROOVES.four)(this, t, k);
+      (GROOVES[dress?.style || style] || GROOVES.four)(this, t, k);
       if (this.r.random() < 0.35 && !FULL_HATS.has(style))   // ticks between the hits
         for (const q of this.py.choice([[0.5], [1.5, 3.5], [0.5, 1.5, 2.5, 3.5]])) this.hit(k.tick, t + q);
       if (dress) this.dressed(style, br, br - bar, nbars, t, k, dress);
     }
   }
-  dressed(style, br, at, nbars, t, k, { flavors, turn }) {   // a bar's own touches, none of them drawn (so a song's other choices stay put)
+  dressed(style, br, at, nbars, t, k, { flavors, turn, extra }) {   // a bar's own touches, none of them drawn (so a song's other choices stay put)
     for (const f of flavors) {
       if (f === 'ghost') for (const q of [0.75, 2.75]) this.hit(k.tick, t + q);
       else if (f === 'push' && br % 2) this.hit(k.kick, t + 3.75);
@@ -216,6 +216,9 @@ class Song {
       else if (f === 'open' && !FULL_HATS.has(style)) for (const q of [0.5, 1.5, 2.5, 3.5]) this.hit(k.tick, t + q);
       else if (f === 'snap' && at % 2) this.hit(k.snare, t + 1.75);
     }
+    // (A radio song's own beat on top of its groove's (lib/radio.mjs songBeat): a kick, ghost snares, ticks, every bar or every other.
+    // passion_beats.py's dress_of never sets `extra` or `style`, so its songs and these engines' stay the same.)
+    for (const [d, beats, every, g] of extra || []) if (br % every === 0) for (const q of beats) this.hit(k[d], t + q, false, g);
     if (nbars >= 4 && at % 4 === 3) {   // the end of a phrase turns
       if (turn === 'tick') for (const q of [3.25, 3.5, 3.75]) this.hit(k.tick, t + q);
       else if (turn === 'snare') for (const q of [3.5, 3.75]) this.hit(k.snare, t + q);

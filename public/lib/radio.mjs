@@ -494,7 +494,7 @@ export function radioSpec(seed, mood = 'all', style = null) {
         sp[k] = fresh.length ? S.choice(fresh) : rest.length ? S.choice(rest) : pool.length ? S.choice(pool) : sp[k];
       }
   }
-  // A song's own way of playing its groove (V16): the chords comped and the bass played one of the groove's
+  // A song's own way of playing its groove (V15): the chords comped and the bass played one of the groove's
   // kindred ways, its hats changed a little, and now and then a mode of its own; a stream of its own, drawn last.
   const W = makeRng(seed ^ 0x6b43a9b5);
   const compKin = COMP_KIN[band.comp] || [];
@@ -504,6 +504,7 @@ export function radioSpec(seed, mood = 'all', style = null) {
   sp.hatTwist = W.int(0, 1e9);
   // (The soft bed under the riffs, in every song, not always the same pad: strings or voices too.)
   sp.intro = W.choice(['arp', 'arp', 'comp', 'pad']);
+  songBeat(sp, W);
   // (The band's tone, a song's own: warmer, brighter or as it is.)
   const t = W.random();
   sp.tone = t < 0.35 ? { dark: Math.round(2200 + 4000 * W.random()) } : t < 0.65 ? { bright: Math.round((25 + 35 * W.random())) / 100 } : null;
@@ -525,6 +526,21 @@ function toned(x, tone, sr) {
     L[i] = tone.dark ? y : L[i] + tone.bright * (L[i] - y);
   }
   return x;
+}
+// A song's own beat (V16), on its drums' touches (engine.mjs Song.dressed): a kick of its own, ghost snares and ticks,
+// every bar or every other, at their own levels; and in one song in three its verses on a kindred groove's beat.
+const BEAT_KICK = [[1.5], [2.5], [0.75], [3.5], [1.75, 3.25], [2.25], [0.5, 2.75]];
+const BEAT_GHOST = [[0.75], [2.25], [1.25, 3.25], [3.75], [1.75, 2.75]];
+const BEAT_TICK = [[0.25, 2.25], [1.75], [0.75, 1.75, 2.75, 3.75], [1.25, 3.25]];
+function songBeat(sp, W) {
+  const extra = [];
+  if (W.random() < 0.6) extra.push(['kick', W.choice(BEAT_KICK), W.choice([1, 2]), 0.8]);
+  if (W.random() < 0.5) extra.push(['snare', W.choice(BEAT_GHOST), W.choice([1, 2]), 0.35]);
+  if (W.random() < 0.4) extra.push(['tick', W.choice(BEAT_TICK), 1, 0.55]);
+  const kin = (FAMILY[sp.style] || []).filter(x => x !== sp.style);
+  const verse = kin.length && W.random() < 0.33 ? W.choice(kin) : null;
+  const d = sp.dress;
+  sp.dress = { ...d, verse: { ...d.verse, extra, ...(verse ? { style: verse } : {}) }, hook: { ...d.hook, extra }, last: { ...d.last, extra }, bridge: { ...d.bridge, extra: extra.filter(([x]) => x !== 'kick') } };
 }
 // The comping and bass rhythms that sit with each other, so a song may take a kindred one in place of its groove's own.
 const COMP_KIN = { held: ['pulse', 'gospel'], stab: ['stab8', 'strum', 'charleston'], stab8: ['stab', 'pulse', 'gate16'], pulse: ['held', 'stab8'], skank: ['stab'], strum: ['stab', 'pulse'], montuno: ['stab'], charleston: ['stab', 'held'], gospel: ['held', 'stab'] };
@@ -912,7 +928,7 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
   // The verse: chords with the lead, then the second time through its own variant of the tune.
   const V = block(sp, rngOf(sp, 2), { maxNotes: 5, leadX: sp.lead });
   // (Its opening alone, made in a moment, so the song can start while the rest is made: lib/radio.mjs radioIntro.)
-  // The intro (and the opening the radio plays while the song is made), one of three ways a song may open (V16): the
+  // The intro (and the opening the radio plays while the song is made), one of three ways a song may open (V15): the
   // arpeggio over a pad with the chords in, the chords comped over the pad, or the pad up front with the arpeggio soft to one side.
   const introOf = half => {
     const ch = half ? V.chords(sp.chords, 0, 1) : V.chords(sp.chords2, 1, 0);
@@ -1139,7 +1155,7 @@ export function radioPlan(R, bpm, seconds = 90, asked = false) {
 // (The intro is four bars: with eight the engine may open on the hats alone for four, and they fall quiet between hits.)
 // V verse, H hook, B bridge, K break (four bars); a pre-hook (four bars) may come before any hook that follows a verse.
 const SHAPES = ['VH', 'VHKH', 'VHBH', 'VHVH', 'VHBKH', 'VHKHBH', 'VHVHKH', 'VHKHVH', 'VHVHBH', 'VHVHKHH', 'VHVHBKH', 'VHVHBHH', 'VHKHVHH', 'VHVHBKHH',
-  // (V16: more shapes, so songs don't share one: a hook first, two verses before the first hook, a bridge after the first hook, the break late.)
+  // (V15: more shapes, so songs don't share one: a hook first, two verses before the first hook, a bridge after the first hook, the break late.)
   'HVHBH', 'HVHKHH', 'VVHBH', 'VVHVHKH', 'VHBVHH', 'VHVHHBH', 'VHHVHKH', 'HVHVHBKH', 'VVHBVHH', 'VHBHVHKH',
   'VHVHBVHH', 'VHVHKVHBHH', 'HVHVHBVHH', 'VHVHBHKHH', 'VVHVHBKHH', 'VHKHVHBHH', 'HVHBVHKHH'];
 const SHAPE_BARS = { V: 8, H: 8, B: 8, K: 4 };
@@ -1216,7 +1232,7 @@ const MIXES = {
 export const REMIX_KEYS = ['bpm', 'lead', 'chords', 'chords2'];
 // The instruments a groove's band may play: { leads, chords }.
 export const bandSounds = style => ({ leads: [...(BAND[style]?.leads || [])], chords: [...(BAND[style]?.chords || [])] });
-// Each song mixed a little its own way (V16): the room, the echo, the pump, the width and the parts' levels moved
+// Each song mixed a little its own way (V15): the room, the echo, the pump, the width and the parts' levels moved
 // by its seed, from a stream of its own, around its groove's and mood's mix.
 function songMix(seed, m) {
   const X = makeRng(seed ^ 0x7c5e2b11);
@@ -1253,7 +1269,7 @@ function shape(song, bpm) {
 export const PART_LIST = ['drums', 'bass', 'melody'];
 const PART_ROLES = { drums: ['hat', 'fill', 'kick', 'snare', 'tick', 'roll', 'sub'], bass: ['bass', 'sub'], melody: ['riff', 'phrase'] };
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
-export const RADIO_V = 15;
+export const RADIO_V = 16;
 export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
   const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);
