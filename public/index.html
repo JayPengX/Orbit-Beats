@@ -993,6 +993,9 @@ body.own-sound main, body.own-sound.playing main { padding-bottom: calc(112px + 
 .hub-game-t b { font-size: 22px; font-weight: 800; letter-spacing: -.01em; }
 .hub-game-t span { font-size: 15px; color: rgba(255,255,255,.82); }
 .hub-game-go { position: relative; flex: none; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: #2a1460; }
+/* No white in dark mode (Jay 2026-10-21): the hero's play and the game's go are glass. */
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .hero-play, :root:not([data-theme='light']) .hub-game-go { background: rgba(255,255,255,.2); color: #fff; box-shadow: none; } }
+:root[data-theme='dark'] .hero-play, :root[data-theme='dark'] .hub-game-go { background: rgba(255,255,255,.2); color: #fff; box-shadow: none; }
 .hub-game-go svg { width: 22px; height: 22px; margin-left: 2px; }
 @media (prefers-reduced-motion: reduce) { .hub-game-lanes i::after { animation: none; top: 40%; } }
 
