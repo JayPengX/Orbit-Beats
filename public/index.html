@@ -79,7 +79,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 /* Room at the foot for the tab bar, and the player over it when a song plays. */
-main { max-width: 560px; margin: 0 auto; padding: 8px 16px calc(112px + env(safe-area-inset-bottom)); }
+main { max-width: min(560px, var(--q-col, 560px)); margin: 0 auto; padding: 8px 16px calc(112px + env(safe-area-inset-bottom)); }
 body.playing main { padding-bottom: calc(184px + env(safe-area-inset-bottom)); }
 button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
@@ -1017,6 +1017,68 @@ body.own-sound main, body.own-sound.playing main { padding-bottom: calc(112px + 
 
 /* A ⋯ menu: the song on top, the page dimmed behind. */
 .q-menu { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
+
+/* ---- iPad and any screen 700 px and up (Jay 2026-10-21: "iPad just so many blank"): the page
+   spreads across the kit's column, every rail shows whole cards edge to edge (5 songs, 4 stations
+   upright; 7 and 5 on its side), 瀏覽類型 a block of tiles, the library more covers a row, the
+   making tools kept to a comfortable width; Now Playing a big cover in the middle, and side by side
+   with its controls on a screen lying down. ---- */
+@media (min-width: 700px) {
+  main { --gut: var(--q-gutter, 32px); max-width: var(--q-col, 1240px); padding-inline: max(var(--gut), env(safe-area-inset-left)) max(var(--gut), env(safe-area-inset-right)); }
+  #panel-make, #panel-studio, #panel-jam { max-width: 720px; margin-inline: auto; }
+  .page-title { font-size: 40px; }
+  .hero { aspect-ratio: 21 / 9; max-height: 46vh; width: 100%; }
+  .hero-title { font-size: 30px; }
+  .rail { --n: 5; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(calc((100% - (var(--n) - 1) * 16px) / var(--n)), 1fr); gap: 16px; margin: 0 calc(-1 * var(--gut)); padding: 12px var(--gut) 14px; scroll-padding: 0 var(--gut); }
+  .shelf[data-row="picks"] .rail, .shelf[data-row="for-you"] .rail, .shelf[data-row="moods"] .rail { --n: 4; }
+  .rail .sq, .rail .sq .sq-cover { width: auto; }
+  .rail .sq .sq-cover { height: auto; aspect-ratio: 1; }
+  .rail .sq.big .sq-cover { aspect-ratio: 16 / 10; }
+  .shelf[data-row="now"] .rail { grid-auto-columns: 100%; }
+  .sq.wide .sq-cover { height: auto; aspect-ratio: 4 / 1; }
+  .rail:has(> .sq.big) { --n: 3; }
+  /* 瀏覽類型: eight tiles in two rows of four, 全部類型 down the fifth column. */
+  .rail.rail-grid { --n: 5; grid-auto-flow: row dense; grid-template-rows: none; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-auto-columns: auto; overflow: visible; margin: 0; padding: 12px 0 14px; }
+  .rail-grid .sq.sm.all { grid-column: 5; grid-row: 1 / span 2; }
+  .home-radios { gap: 16px; }
+  .lib-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 22px 16px; }
+  .lib-pills { max-width: 520px; margin-inline: auto; }
+  .hub-hero { aspect-ratio: 21 / 9; }
+  .lib-actions { flex-direction: row; }
+  .lib-actions button { flex: 1; margin: 0; }
+  .player { width: min(calc(100vw - 48px), 640px); }
+  .np > * { width: min(100%, 600px); }
+  .np-art { place-items: center; }
+  .np-cover { width: min(100%, calc(100dvh - 420px)); max-width: 600px; }
+  .np-title { font-size: 26px; }
+}
+@media (min-width: 1100px) {
+  .rail { --n: 7; }
+  .shelf[data-row="picks"] .rail, .shelf[data-row="for-you"] .rail, .shelf[data-row="moods"] .rail { --n: 5; }
+  .rail.rail-grid { grid-template-columns: repeat(9, minmax(0, 1fr)); }
+  .rail-grid .sq.sm.all { grid-column: 9; grid-row: 1; }
+  .sq.wide .sq-cover { aspect-ratio: 5 / 1; }
+  /* 創作: 即興 on the left, the game and 樂器 · 做歌 beside it. */
+  #panel-create:not([hidden]) { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); grid-template-rows: auto auto 1fr; column-gap: 16px; }
+  #panel-create > * { grid-column: 1 / -1; }
+  #panel-create > .hub-hero { grid-column: 1; grid-row: 2 / 4; aspect-ratio: auto; margin-bottom: 16px; }
+  #panel-create > .hub-pair .hub-half { min-height: 150px; justify-content: space-between; }
+  #panel-create > .hub-game { grid-column: 2; grid-row: 2; margin: 0 0 14px; }
+  #panel-create > .hub-pair { grid-column: 2; grid-row: 3; align-self: stretch; margin-bottom: 16px; }
+}
+/* On its side: the cover on the left, the song and its controls on the right. */
+@media (min-width: 900px) and (orientation: landscape) {
+  .np { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); grid-template-rows: 44px 1fr auto auto auto auto auto 1fr; column-gap: 64px; justify-content: center; padding-inline: max(48px, env(safe-area-inset-left)) max(48px, env(safe-area-inset-right)); }
+  .np > * { width: auto; }
+  .np-top { grid-column: 1 / -1; grid-row: 1; }
+  .np-art { grid-column: 1; grid-row: 2 / -1; min-height: 0; padding: 8px 0 24px; place-items: center end; }
+  .np-cover { width: min(100%, calc(100dvh - 140px)); max-width: 640px; min-width: 0; }
+  .np-what { grid-column: 2; grid-row: 3; }
+  .np-bar { grid-column: 2; grid-row: 4; }
+  .np-times { grid-column: 2; grid-row: 5; }
+  .np-main { grid-column: 2; grid-row: 6; margin-top: 18px; }
+  .np-extra { grid-column: 2; grid-row: 7; margin-top: 18px; }
+}
 </style>
 </head>
 <body>
