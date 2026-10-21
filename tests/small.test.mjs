@@ -83,3 +83,15 @@ test('file names: nothing a file system refuses, never empty, never too long', (
   assert.ok(!/\s$/.test(fileName(`${'y'.repeat(79)} z`)));
   for (const s of ['a/b', '???', 'x'.repeat(100), ' pad ', 'q\n']) assert.equal(fileName(fileName(s)), fileName(s), 'the same name twice over');
 });
+
+// The kit locks the page's scrolling while any `.loading` is shown (its loading screen, kit/quadra.css):
+// a class of that name left on something of the app's, even on a hidden tab, froze 首頁's scrolling.
+test("nothing of the app's is ever class 'loading'", async () => {
+  const { readFile, readdir } = await import('node:fs/promises');
+  const dir = new URL('../public/lib/', import.meta.url);
+  for (const f of [...(await readdir(dir)).map(x => new URL(x, dir)), new URL('../public/app.js', import.meta.url)]) {
+    if (!/\.m?js$/.test(String(f))) continue;
+    const text = await readFile(f, 'utf8');
+    assert.doesNotMatch(text, /classList\.(add|toggle)\(\s*['"]loading['"]|class: ['"][^'"]*\bloading\b/, String(f));
+  }
+});

@@ -468,8 +468,8 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .pads { position: relative; z-index: 0; isolation: isolate; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; transition: opacity .2s; }
 .jam-bar { position: relative; z-index: 1; }
 .jam-bar button > *, .jam-set button > * { pointer-events: none; }
-.pads.loading { opacity: .55; }
-.pads.loading .jam-pad { animation: jam-ready 1.1s ease-in-out infinite alternate; }
+.pads.making, .jam-tiles.making, .jam-hits.making { opacity: .55; }
+.making .jam-pad { animation: jam-ready 1.1s ease-in-out infinite alternate; }
 @keyframes jam-ready { to { opacity: .7; } }
 .jam-pad {
   --c: var(--accent); position: relative; overflow: hidden; aspect-ratio: 1; border: 0; border-radius: 16px; padding: 4px 2px;
@@ -499,7 +499,7 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .jam-pad .lvl { position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--lvl, 1) * 100%); background: currentColor; opacity: .55; }
 .jam-pad.muted { opacity: .4; }
 .jam-pad[data-choke]:not([data-choke=""])::after { content: attr(data-choke); position: absolute; top: 5px; right: 7px; font-size: 10px; font-weight: 700; color: inherit; opacity: .75; }
-@media (prefers-reduced-motion: reduce) { .jam-pad.wait, .pads.loading .jam-pad { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .jam-pad.wait, .making .jam-pad { animation: none; } }
 .jam-pad-sheet input[type="range"] { width: 150px; }
 .jam-pad-sheet .pct { width: 40px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
 .stack > .q-seg { margin-top: 8px; }

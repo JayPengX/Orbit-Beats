@@ -197,7 +197,7 @@ export function mountJam(panel, api) {
     h('div', { class: 'stack', 'data-ctl': 'jam-snap' }, [h('div', { class: 'label' }, [h('span', {}, [W('對齊', 'Snap'), ' ', info('snap')]), h('small', { text: hintOf('snap') })]), gridSeg]),
     note
   ]);
-  const loading = on => boards.forEach(g => g.classList.toggle('loading', on));
+  const loading = on => boards.forEach(g => g.classList.toggle('making', on));
 
   function draw() {
     const mine = !usingBand();
