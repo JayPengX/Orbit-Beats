@@ -50,3 +50,15 @@ test('a melody clip is heard as a loop of its bars (a riff), a drum clip as drum
   const a = analyzeRecording(splitPieces(r), 48000, { bpm: 120 });
   assert.equal(a.loops[0], 4);
 });
+
+test('a clip goes round without a dip: a held chord at its end rings on at the same level', () => {
+  // (Jay 2026-10-21: a flicker each time round; the loop's last 3 ms used to be eased to nothing.)
+  const clip = { kind: 'notes', inst: 'pad', bars: 1, swing: 0, key: null, notes: [{ step: 12, midi: 60, len: 8 }] };
+  const { L } = renderClip(clip, 32000, 120);
+  const n = L.length;
+  const rms = (a, b) => Math.sqrt(Array.from({ length: b - a }, (_, k) => L[(a + k + n) % n] ** 2).reduce((x, y) => x + y) / (b - a));
+  const edge = rms(n - 48, n);
+  const before = rms(n - 960, n - 192);
+  assert.ok(edge > before * 0.6, `the loop's end ${edge} against ${before} just before`);
+  assert.ok(Math.abs(L[0] - L[n - 1]) < 0.05, 'and no step going round');
+});

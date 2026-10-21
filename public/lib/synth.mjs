@@ -398,6 +398,7 @@ export function renderClip(clip, sr = 48000, bpm = 120) {
   }
   const seen = new Map();
   const drums = clip.kind === 'drums';
+  const ring = Math.min(n, Math.round(1.5 * sr));
   for (let s = 0; s < STEPS * clip.bars; s++) {
     const a = Math.round(((s + swingOf(clip, s)) / 4) * B);
     const hits = hitList(clip, s);
@@ -422,20 +423,18 @@ export function renderClip(clip, sr = 48000, bpm = 120) {
       }
       const x = cache.get(key);
       const g = feel ? gain * lean * (0.92 + 0.16 * r2) : gain;
-      // (A note still ringing at the loop's end goes on from its start, as it would into the next time round: never cut off.)
-      const ring = drums ? 0 : Math.min(x.length, Math.round(1.5 * sr));
+      // (A note still ringing at the loop's end goes on from its start, as it would into the next time round: never
+      // cut off, and at the same level across the line, so going round is seamless; it fades over the next 1.5 s.)
       for (let i = 0, j = Math.max(0, a + Math.round((dt || 0) * sr + late)); i < x.length; i++, j++) {
         if (j < n) L[j] += x[i] * g;
-        else if (i < ring && j - n < n) L[j - n] += x[i] * g * (1 - i / ring);
-        else if (j >= n) break;
+        else if (j - n < ring) L[j - n] += x[i] * g * (1 - (j - n) / ring);
+        else break;
       }
     });
   }
   const floor = noiseOf(n);
   for (let i = 0; i < n; i++) L[i] += 2.5e-4 * floor();
-  // (The loop's last moment eased to nothing: no click going round.)
-  const ease = Math.min(n, Math.round(0.003 * sr));
-  for (let k = 0; k < ease; k++) L[n - 1 - k] *= k / ease;
+  // (No easing at the loop's end: a dip there clicked each time round, every four bars.)
   return { sr, L, R: L };
 }
 // Has anything in it.
