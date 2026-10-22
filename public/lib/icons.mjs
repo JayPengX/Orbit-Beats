@@ -48,7 +48,6 @@ const PATHS = {
   'arrow-down': [S, '<path d="M12 5v14M6 13l6 6 6-6"/>'],
   info: [S, '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.8" r=".6" fill="currentColor"/>'],
   spinner: [S, '<path d="M12 3a9 9 0 1 0 9 9" />'],
-  play_later: [S, '<path d="M4 6h16M4 12h9M4 18h6"/><path d="M17 14.5v7M13.5 18h7"/>'],
   grid: [S, '<rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/>'],
   radio: [S, '<circle cx="12" cy="12" r="2"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2"/>'],
   mic: [S, '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>'],

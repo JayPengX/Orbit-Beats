@@ -222,4 +222,3 @@ export function useBanks(list) {
   if (n) gen++;
   return n;
 }
-export const dropBanks = () => (BANKS.clear(), gen++);

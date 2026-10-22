@@ -200,7 +200,6 @@ export const chartsOf = (song, seed = 1) => Object.fromEntries(LEVELS.map(l => [
 
 // How far from the note a tap may be (s), each grade.
 export const WINDOWS = { perfect: 0.045, great: 0.09, good: 0.135 };
-export const GRADES = ['perfect', 'great', 'good', 'miss'];
 export const GRADE_NAMES = { perfect: ['完美', 'Perfect'], great: ['很好', 'Great'], good: ['不錯', 'Good'], miss: ['失誤', 'Miss'] };
 const WORTH = { perfect: 1, great: 0.7, good: 0.4, miss: 0 };
 // A tap `dt` seconds from its note (minus early). -> a grade, or null (too far: no note taken)
