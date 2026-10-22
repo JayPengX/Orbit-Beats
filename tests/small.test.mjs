@@ -84,7 +84,7 @@ test('file names: nothing a file system refuses, never empty, never too long', (
   for (const s of ['a/b', '???', 'x'.repeat(100), ' pad ', 'q\n']) assert.equal(fileName(fileName(s)), fileName(s), 'the same name twice over');
 });
 
-// The kit locks the page's scrolling while any `.loading` is shown (its loading screen, kit/quadra.css):
+// The kit locks the page's scrolling while any `.loading` is shown (its loading screen, kit/orbit.css):
 // a class of that name left on something of the app's, even on a hidden tab, froze 首頁's scrolling.
 test("nothing of the app's is ever class 'loading'", async () => {
   const { readFile, readdir } = await import('node:fs/promises');

@@ -3,7 +3,7 @@
 Music that never stops (聽, songs made from nothing on the app's own
 instruments), and your own beat pieces arranged into new songs, each piece
 exactly as recorded. Everything runs on the phone; no sound is uploaded. Signs in
-with the Quadra Pass. `passion_beats.py` is the same engine on the command
+with the Orbit Pass. `passion_beats.py` is the same engine on the command
 line.
 
 Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
@@ -24,7 +24,7 @@ Live: https://jaypengx.github.io/Orbit-Beats/ (was Passion Beats)
   chords, key, sections, chain, stems, MIDI, velocity, steps, choke, snap…) in
   everyday words, zh and en; a ⓘ beside a control opens one, eight with
   ▶ the same bar without it and with it. The ? sheet is the four screens as rows (聽 即興 樂器 做歌: tap one to go there, ▶ to try it; `TOUR` in `lib/help.mjs`), then rows for the words and
-  opens the full guide (the kit's `help.mjs`, in the Quadra Pass sheet).
+  opens the full guide (the kit's `help.mjs`, in the Orbit Pass sheet).
 - **Tabs:**
   - **聽** (Listen, the first screen; `lib/radio.mjs`, `lib/radioview.mjs`):
     one play button and the moods (隨機, 放鬆, 熱血, 律動, 經典, or one groove).

@@ -6,11 +6,11 @@
 // pieces as pads, played live and kept as a song, lib/jamview.mjs) and 資料庫
 // (the songs kept, on this phone). An Orbit app: the kit draws the loading
 // screen, the bar and the tab bar, keeps the app current and opening
-// offline; the Quadra Pass keeps the settings, each kit's tempo and roles
+// offline; the Orbit Pass keeps the settings, each kit's tempo and roles
 // and the styles you keep (your taste); the sound never leaves the phone.
 import { banksFor } from './lib/sampleload.mjs';
-import { quadraSession, topActions, installGate, watchUpdates, keepOffline, tabBar, ask } from '#kit/quadra.mjs';
-import * as kit from '#kit/quadra.mjs';
+import { orbitSession, topActions, installGate, watchUpdates, keepOffline, tabBar, ask } from '#kit/orbit.mjs';
+import * as kit from '#kit/orbit.mjs';
 import { h, sheet, menu, toast, toggle, empty } from './lib/ui.mjs';
 import * as ui from './lib/ui.mjs';
 import { sectionTimes, sectionIndex, labelFits } from './lib/sections.mjs';
@@ -37,7 +37,7 @@ import { mountRadio } from './lib/radioview.mjs';
 import { mountGame } from './lib/gameview.mjs';
 import { recordsOf } from './lib/game.mjs';
 import { TERM_ORDER, TOUR, EXAMPLES, term, info } from './lib/help.mjs';
-import * as kitQ from '#kit/quadra.mjs';
+import * as kitQ from '#kit/orbit.mjs';
 import { icon, inner } from './lib/icons.mjs';
 import { createPlayer, coverOfTrack } from './lib/player.mjs';
 import { mountPlayerView, subOf, onLong, speedText } from './lib/playerview.mjs';
@@ -107,7 +107,7 @@ if (en) {
   for (const n of document.querySelectorAll('[data-en-placeholder]')) n.placeholder = n.dataset.enPlaceholder;
 }
 
-const q = quadraSession('beats', { lang });
+const q = orbitSession('beats', { lang });
 // 簡單 / 進階: one stylesheet rule per control only one of them shows (lib/easy.mjs).
 document.head.append(h('style', { text: levelCss() }));
 
@@ -2273,7 +2273,7 @@ function explain(id) {
     body: h('div', { class: 'card sheet-card' }, [h('p', { class: 'term-text', text: t.text }), listen])
   });
 }
-// The ? at the top: the four screens as cards (tap one to go, ▶ to try it), the words, and the full guide (the kit's, in the Quadra Pass sheet).
+// The ? at the top: the four screens as cards (tap one to go, ▶ to try it), the words, and the full guide (the kit's, in the Orbit Pass sheet).
 // ▶ starts what the screen does: 聽's radio, 即興's pads, 樂器's beat, 做歌's batch.
 function tourPlay(id) {
   if (id === 'home') return (showTab('home'), P?.radioPlay());

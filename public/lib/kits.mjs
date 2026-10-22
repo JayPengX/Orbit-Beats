@@ -1,4 +1,4 @@
-// What Orbit Beats keeps: on the Quadra Pass, the settings and each kit's
+// What Orbit Beats keeps: on the Orbit Pass, the settings and each kit's
 // tempo and the roles set by hand (a kit known by its sound's fingerprint,
 // so the same pieces on another phone find them); on this phone, the last
 // kit's sound itself (IndexedDB: megabytes, never sent anywhere).

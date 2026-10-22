@@ -14,7 +14,7 @@ async function samples(request) {
   if (response.status === 200) await cache.put(request, response.clone()).catch(() => {});
   return response;
 }
-self.QUADRA_SW = {
+self.ORBIT_SW = {
   cache: 'beats-app-v2',
   prefix: 'beats-',
   title: 'Orbit Beats',
