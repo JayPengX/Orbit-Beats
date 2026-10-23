@@ -275,7 +275,7 @@ function echoInto(x, src, sr, d, fb, amount) {
 
 // How loud the whole song is brought to: its RMS (both sides, weighed by a high-pass at 100 Hz, over the stretches
 // that play) in dBFS. A phone's speaker plays little below that, so the bottom octave does not count.
-export const LOUDNESS = -13;
+export const LOUDNESS = -15;
 const LOUD_BLOCK = 0.4;   // seconds
 // The mean power (per side) of x = [L, R] after a 100 Hz high-pass, over the 0.4 s blocks within 10 dB of the average.
 export function loudness(L, R, sr) {

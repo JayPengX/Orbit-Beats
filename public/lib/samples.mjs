@@ -73,7 +73,7 @@ export function playSample(bank, midi, sr, hold, vel = 0.7, variant = 0, release
   if (!bank?.notes?.length) return null;
   let near = bank.notes[0];
   for (const n of bank.notes) if (Math.abs(n.midi - midi) < Math.abs(near.midi - midi)) near = n;
-  const cents = variant ? (midi % 2 ? 4 : -4) : 0;
+  const cents = variant ? (midi % 2 ? 2 : -2) : 0;
   const rate = 2 ** ((midi - near.midi + cents / 100) / 12) * (bank.sr / sr);
   const x = near.x;
   // (Kept as 16-bit samples (lib/sampleload.mjs), or floats.)
@@ -116,7 +116,7 @@ export function playSample(bank, midi, sr, hold, vel = 0.7, variant = 0, release
 }
 
 // The recorded instruments a song of the radio's band plays (its spec, lib/radio.mjs radioSpec).
-export const specInsts = sp => [...new Set([sp.chords, sp.chords2, sp.chordsC, sp.lead, sp.lead2, sp.leadB, sp.leadC, sp.bass, 'pad', 'strings', 'choir', 'glass'])].filter(i => i && SAMPLED[i]);
+export const specInsts = sp => [...new Set([sp.chords, sp.chords2, sp.chordsC, sp.lead, sp.lead2, sp.leadB, sp.leadC, sp.bass, 'pad', 'strings', 'vibes'])].filter(i => i && SAMPLED[i]);
 
 // ---- Recorded drums ----
 // Three kits and the hand percussion: a real acoustic kit (Virtuosity Drums,

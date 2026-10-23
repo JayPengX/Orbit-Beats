@@ -178,13 +178,13 @@ const ROCK = { kick: 'rkick', boom: 'rkick', sub: ['rkick', 'crash'], snare: ['r
 const BAND = {
   four: { bpm: [118, 126], chords: ['pad', 'organ', 'keys', 'piano', 'rhodes', 'clav', 'brass'], leads: ['pluck', 'lead', 'bell', 'supersaw'], bass: ['bass'], comp: 'stab8', line: 'off8' },
   hiphop: { bpm: [84, 94], chords: ['keys', 'strings', 'organ', 'piano', 'rhodes', 'guitar', 'nylon', 'vibes'], leads: ['bell', 'pluck', 'vox', 'piano', 'flute'], bass: ['bass', 'subbass'], comp: 'held', line: 'hop' },
-  trap: { bpm: [132, 148], chords: ['pad', 'strings', 'bell', 'choir', 'piano', 'harp', 'glass', 'keys'], leads: ['bell', 'pluck', 'vox', 'flute', 'glass'], bass: ['subbass', 'bass808'], comp: 'held', line: 'long' },
+  trap: { bpm: [132, 148], chords: ['pad', 'strings', 'bell', 'choir', 'piano', 'harp', 'keys'], leads: ['bell', 'pluck', 'vox', 'flute', 'glass'], bass: ['subbass', 'bass808'], comp: 'held', line: 'long' },
   half: { bpm: [70, 84], chords: ['strings', 'pad', 'keys', 'piano', 'rhodes', 'guitar', 'nylon', 'harp'], leads: ['bell', 'keys', 'guitar', 'kalimba'], bass: ['subbass', 'bass'], comp: 'held', line: 'long' },
   broken: { bpm: [120, 128], chords: ['pad', 'keys', 'rhodes', 'piano', 'clav', 'organ', 'guitar', 'strings'], leads: ['pluck', 'lead', 'vibes'], bass: ['bass'], comp: 'stab', line: 'hop' },
   house: { bpm: [120, 125], chords: ['organ', 'keys', 'pad', 'piano', 'rhodes', 'clav', 'brass', 'strings'], leads: ['pluck', 'vox', 'lead', 'piano'], bass: ['bass'], comp: 'stab8', line: 'off8' },
   dembow: { bpm: [90, 100], chords: ['pad', 'keys', 'guitar', 'nylon', 'rhodes', 'brass', 'organ'], leads: ['pluck', 'lead', 'bell', 'steel'], bass: ['subbass', 'bass'], comp: 'stab', line: 'dembow' },
   afro: { bpm: [100, 110], chords: ['keys', 'guitar', 'organ', 'rhodes', 'piano', 'nylon', 'clav', 'marimba'], leads: ['pluck', 'bell', 'guitar', 'kalimba', 'marimba'], bass: ['bass'], comp: 'stab', line: 'afro' },
-  drill: { bpm: [138, 144], chords: ['strings', 'pad', 'bell', 'choir', 'piano', 'keys', 'harp', 'glass'], leads: ['bell', 'vox', 'strings', 'piano', 'pizz'], bass: ['subbass', 'bass808'], comp: 'held', line: 'long' },
+  drill: { bpm: [138, 144], chords: ['strings', 'pad', 'bell', 'choir', 'piano', 'keys', 'harp'], leads: ['bell', 'vox', 'strings', 'piano', 'pizz'], bass: ['subbass', 'bass808'], comp: 'held', line: 'long' },
   boombap: { bpm: [86, 94], chords: ['keys', 'organ', 'strings', 'piano', 'rhodes', 'clav', 'brass', 'guitar'], leads: ['keys', 'brass', 'guitar', 'sax'], bass: ['bass', 'upright'], comp: 'held', line: 'hop' },
   jersey: { bpm: [136, 144], chords: ['pad', 'organ', 'keys', 'piano', 'brass', 'supersaw'], leads: ['vox', 'pluck', 'lead'], bass: ['subbass', 'bass808'], comp: 'stab8', line: 'long' },
   amapiano: { bpm: [110, 114], chords: ['keys', 'organ', 'pad', 'rhodes', 'piano', 'strings', 'vibes', 'marimba'], leads: ['pluck', 'bell', 'keys', 'marimba', 'sax'], bass: ['subbass'], comp: 'stab', line: 'afro' },
@@ -193,7 +193,7 @@ const BAND = {
   garage: { bpm: [128, 134], chords: ['organ', 'pad', 'keys', 'rhodes', 'piano', 'strings', 'brass', 'clav'], leads: ['vox', 'pluck'], bass: ['subbass', 'bass'], comp: 'stab8', line: 'off8' },
   dnb: { bpm: [168, 176], chords: ['pad', 'strings', 'rhodes', 'keys', 'piano', 'choir'], leads: ['pluck', 'bell', 'lead'], bass: ['subbass', 'bass', 'reese'], comp: 'held', line: 'long' },
   reggae: { bpm: [72, 84], chords: ['organ', 'guitar', 'keys', 'clav', 'piano', 'brass'], leads: ['keys', 'brass', 'guitar', 'harmonica'], bass: ['bass'], comp: 'skank', line: 'drop' },
-  phonk: { bpm: [126, 138], chords: ['bell', 'pad', 'strings', 'keys', 'choir', 'organ', 'piano', 'glass'], leads: ['bell', 'lead', 'vox', 'glass'], bass: ['subbass', 'bass808'], comp: 'held', line: 'long' },
+  phonk: { bpm: [126, 138], chords: ['bell', 'pad', 'strings', 'keys', 'choir', 'organ', 'piano'], leads: ['bell', 'lead', 'vox', 'glass'], bass: ['subbass', 'bass808'], comp: 'held', line: 'long' },
   baile: { bpm: [126, 132], chords: ['pad', 'organ', 'keys', 'brass', 'strings', 'piano'], leads: ['vox', 'lead', 'pluck'], bass: ['subbass'], comp: 'stab8', line: 'off8' },
   techno: { bpm: [124, 132], chords: ['pad', 'organ', 'strings', 'keys', 'supersaw', 'clav'], leads: ['lead', 'pluck', 'bell'], bass: ['bass', 'subbass', 'acid'], comp: 'stab8', line: 'off8' },
   jazz: {
@@ -507,10 +507,12 @@ export function radioSpec(seed, mood = 'all', style = null) {
   songBeat(sp, W);
   // (The band's tone, a song's own: warmer, brighter or as it is.)
   const t = W.random();
-  sp.tone = t < 0.35 ? { dark: Math.round(2200 + 4000 * W.random()) } : t < 0.65 ? { bright: Math.round((25 + 35 * W.random())) / 100 } : null;
-  sp.bed = bedFor(st) === 'strings' ? (W.random() < 0.65 ? 'strings' : 'choir') : W.choice(['pad', 'pad', 'strings', 'choir']);
+  sp.tone = t < 0.35 ? { dark: Math.round(2200 + 4000 * W.random()) } : t < 0.65 ? { bright: Math.round((10 + 20 * W.random())) / 100 } : null;
+  // (Never a choir: held voices under a whole song wear on the ears, and sound uneasy.)
+  sp.bed = bedFor(st) === 'strings' ? (W.random() < 0.65 ? 'strings' : 'pad') : W.choice(['pad', 'pad', 'strings', 'strings']);
   // (A song's mode only: 即興's sets keep the groove's, so `songMode`, which radioSong and radioIntro play in.)
-  if (!band.modes && !sp.mode && W.random() < 0.22) sp.songMode = minor ? W.choice(['dorian', 'dorian', 'harm']) : 'mixo';
+  // (Dorian, never harmonic minor, here: its augmented step sounds sinister when it isn't the groove's own.)
+  if (!band.modes && !sp.mode && W.random() < 0.22) sp.songMode = minor ? 'dorian' : 'mixo';
   return sp;
 }
 // A piece's tone for its song (sp.tone): `dark`, a gentle low-pass at that many Hz; `bright`, that much more of what's
@@ -1052,10 +1054,10 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
     at(sum(HX.chords(sp.chords, 1, 0), ratio(HX.mel(tH2, 0), 0.9), arpAt(HX.arp(sp.lead2, 0), 0.6), third(tH2, 0, 0.38)), 'riff'),
     at(sum(HX.chords(sp.chordsC, 0, 1), ratio(HX.mel(tH2, 1), 0.9), arpAt(HX.arp(sp.lead2, 1), 0.7), third(tH2, 1, 0.38)), 'riff')
   ];
-  // (Its third time a third variant: the tune's motif answered low then high, a choir a sixth under it and the arpeggio held back.)
+  // (Its third time a third variant: the tune's motif answered low then high, strings a sixth under it and the arpeggio held back.)
   const tH3 = HX.make({ motif: tH1.motif, displace: true, up: [2, 3, 6, 7] });
   tunes.hook3 = tH3.notes;
-  const sixth = (t, h, g) => ({ ...HX.harm(t, h, 'choir', -5), g, pan: -0.3 });
+  const sixth = (t, h, g) => ({ ...HX.harm(t, h, 'strings', -5), g, pan: -0.3 });
   parts.hook3 = [
     at(sum(HX.chords(sp.chordsC, 0, 0), ratio(HX.mel(tH3, 0), 0.9), sixth(tH3, 0, 0.32), arpAt(HX.arp(sp.lead2, 1), 0.45)), 'riff'),
     at(sum(HX.chords(sp.chords2, 1, 1), ratio(HX.mel(tH3, 1), 0.9), sixth(tH3, 1, 0.32), third(tH3, 1, 0.3)), 'riff')
@@ -1081,7 +1083,7 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
 
   // The bridge: a loop of chords of its own, other chords, its own lead and a bass to suit; quieter, higher, longer notes.
   const spC = { ...sp, prog: sp.progC };
-  const C = block(spC, rngOf(sp, 5), { maxNotes: 4, leadX: sp.leadC, own: true, bedOf: 'choir' });
+  const C = block(spC, rngOf(sp, 5), { maxNotes: 4, leadX: sp.leadC, own: true, bedOf: sp.bed === 'strings' ? 'pad' : 'strings' });
   const tC = C.make({ start: 5 });
   tunes.bridge = tC.notes;
   parts.bridge = [
@@ -1097,8 +1099,8 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
     const L = block(spL, rngOf(sp, 6), { catchy: true, maxNotes: 4, leadX: sp.leadB, oct: 12, own: true });
     const t3 = L.make({ motif: tH1.motif, up: [4, 5, 6, 7] });
     tunes.lift = t3.notes;
-    // (The last hook the fullest: the tune doubled an octave up on a bell, and its harmony under it.)
-    const lift = (t, h) => [{ ...L.harm(t, h, 'glass', 7), g: 0.28, pan: -0.35 }, { ...L.harm(t, h, 'strings', -2), g: 0.38, pan: 0.3 }];
+    // (The last hook the fullest: the tune doubled an octave up on vibes, soft, and its harmony under it.)
+    const lift = (t, h) => [{ ...L.harm(t, h, 'vibes', 7), g: 0.2, pan: -0.35 }, { ...L.harm(t, h, 'strings', -2), g: 0.38, pan: 0.3 }];
     parts.lift = [
       at(sum(L.chords(sp.chords2, 0, 0), L.mel(t3, 0), arpAt(L.arp(sp.lead2, 0), 0.5), ...lift(t3, 0)), 'riff'),
       at(sum(L.chords(sp.chordsC, 1, 1), ratio(L.mel(t3, 1), 0.9), arpAt(L.arp(sp.lead2, 1), 0.7), ...lift(t3, 1)), 'riff')
@@ -1273,7 +1275,65 @@ function songMix(seed, m) {
   const X = makeRng(seed ^ 0x7c5e2b11);
   const by = (v, lo, hi) => v * (lo + (hi - lo) * X.random());
   const db = (v, d) => v + (X.random() * 2 - 1) * d;
-  return { ...m, reverb: by(m.reverb, 0.6, 1.5), delay: by(m.delay, 0.4, 1.6), pump: by(m.pump, 0.6, 1.4), width: Math.min(1, by(m.width, 0.6, 1.6)), keys: db(m.keys, 2), bass: db(m.bass, 1.5), drums: db(m.drums, 1.5), hats: db(m.hats, 2.5) };
+  return { ...m, reverb: by(m.reverb, 0.6, 1.5), delay: by(m.delay, 0.4, 1.6), pump: by(m.pump, 0.6, 1.4), width: Math.min(1, by(m.width, 0.6, 1.6)), keys: db(m.keys, 2), bass: db(m.bass, 1.5), drums: db(m.drums, 1.5), hats: db(m.hats - 1.5, 2.5) };
+}
+// Easy on the ears (V18): long listening tires on the bite between 2 and 5 kHz and on a bright top, more than on
+// loudness. The whole song, mix and stems alike (so they still sum), gets a gentle shelf down over 7 kHz, and a
+// broad dip at 3.2 kHz as deep as the song is sharp: its 2–5 kHz against its 200 Hz–2 kHz brought down to about
+// -10 dB (1 to 8 dB of dip), so a bright groove is evened out with a warm one. The first track is the one heard.
+// In place.
+const SHARP = -10;
+export function eased(tracks, sr) {
+  const [mix] = tracks;
+  const n = mix.L.length;
+  const mono = new Float32Array(n);
+  for (let i = 0; i < n; i++) mono[i] = (mix.L[i] + (mix.R ?? mix.L)[i]) / 2;
+  const energy = (lo, hi) => {
+    const x = Float32Array.from(mono);
+    biquad(x, rbj('hp', lo, 0.7, 0, sr));
+    biquad(x, rbj('lp', hi, 0.7, 0, sr));
+    let e = 0;
+    for (let i = 0; i < n; i++) e += x[i] * x[i];
+    return e;
+  };
+  const bite = 10 * Math.log10((energy(2000, 5000) + 1e-12) / (energy(200, 2000) + 1e-12));
+  const dip = -Math.min(8, Math.max(1, 1 + (bite - SHARP) * 1.4));
+  const filters = [rbj('peak', 3200, 0.8, dip, sr), rbj('shelf', 7000, 0.7, -2.5, sr)];
+  let peak = 0;
+  for (const t of tracks)
+    for (const x of t.R && t.R !== t.L ? [t.L, t.R] : [t.L])
+      for (const f of filters) biquad(x, f);
+  for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(mix.L[i]), Math.abs((mix.R ?? mix.L)[i]));
+  // (A dip can lift a peak a hair: back under the ceiling, every track alike.)
+  if (peak > 0.891) for (const t of tracks) for (const x of t.R && t.R !== t.L ? [t.L, t.R] : [t.L]) for (let i = 0; i < x.length; i++) x[i] *= 0.891 / peak;
+  return dip;
+}
+// A filter's coefficients (the Audio EQ Cookbook's): a high- or low-pass, a peak, a high shelf. -> [b0, b1, b2, a1, a2]
+function rbj(kind, f, q, db, sr) {
+  const w = (2 * Math.PI * Math.min(f, sr * 0.45)) / sr, cs = Math.cos(w), sn = Math.sin(w), A = 10 ** (db / 40);
+  let b, a;
+  if (kind === 'peak') {
+    const al = sn / (2 * q);
+    b = [1 + al * A, -2 * cs, 1 - al * A];
+    a = [1 + al / A, -2 * cs, 1 - al / A];
+  } else if (kind === 'shelf') {
+    const al = (sn / 2) * Math.sqrt((A + 1 / A) * (1 / q - 1) + 2), r = 2 * Math.sqrt(A) * al;
+    b = [A * (A + 1 + (A - 1) * cs + r), -2 * A * (A - 1 + (A + 1) * cs), A * (A + 1 + (A - 1) * cs - r)];
+    a = [A + 1 - (A - 1) * cs + r, 2 * (A - 1 - (A + 1) * cs), A + 1 - (A - 1) * cs - r];
+  } else {
+    const al = sn / (2 * q), k = kind === 'hp' ? 1 + cs : 1 - cs;
+    b = kind === 'hp' ? [k / 2, -k, k / 2] : [k / 2, k, k / 2];
+    a = [1 + al, -2 * cs, 1 - al];
+  }
+  return [b[0] / a[0], b[1] / a[0], b[2] / a[0], a[1] / a[0], a[2] / a[0]];
+}
+function biquad(x, [b0, b1, b2, a1, a2]) {
+  let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+  for (let i = 0; i < x.length; i++) {
+    const v = x[i], y = b0 * v + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+    x2 = x1; x1 = v; y2 = y1; y1 = y;
+    x[i] = y;
+  }
 }
 // The song's level by section, as a band plays it: the verses held back, the pre-hook rising into the hook, the hooks
 // full, the bridge between (a beat's glide at each change). On the mix and its stems alike.
@@ -1304,7 +1364,7 @@ function shape(song, bpm) {
 export const PART_LIST = ['drums', 'bass', 'melody'];
 const PART_ROLES = { drums: ['hat', 'fill', 'kick', 'snare', 'tick', 'roll', 'sub'], bass: ['bass', 'sub'], melody: ['riff', 'phrase'] };
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
-export const RADIO_V = 17;
+export const RADIO_V = 18;
 export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
   const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);
@@ -1332,6 +1392,7 @@ export function radioSong(spec, sr = RADIO_SR, stems = false) {
     humanize: (MOODS[mood]?.humanize ?? 100) / 100, plan, ...(sp.songShuffle ? { shuffle: sp.songShuffle } : {}), mix: mixOf({ ...songMix(seed, { ...MIX, ...MIXES[mood], ...BAND[sp.style].mix }), ...(mute.includes('drums') ? { pump: 0 } : {}), ...(fade ? { fade: true } : {}) }), stems, arrange, varied: sp.dress, key: sp.key
   });
   shape(song, sp.bpm);
+  eased([song.audio, ...Object.values(song.stems || {})], sr);
   // (A remix's own choices ride along in `radio`, so the song is made again as it was. `v`: the
   // engine that made it; a song kept from before RADIO_V is cut from its own sound, not made again.)
   // (`events`, `roles` and each piece's `tune`: what plays when, for the game's charts.)
@@ -1357,11 +1418,12 @@ export function radioIntro(spec, sr = RADIO_SR) {
     return true;
   };
   const { L, R } = mixBuses((bus, bL, bR) => (bus === 'keys' ? into(intro, bL, bR) : bus === 'hats' ? into(hat, bL, bR) : false), { sr, B, n, plan: [['intro', 0, 4]], mix: mixOf({ ...MIXES[mood], ...BAND[sp.style].mix }) });
-  // (At about the level a song's intro plays at: its RMS -18 dB, never past -1 dB.)
+  eased([{ L, R }], sr);
+  // (At about the level a song's intro plays at: its RMS -20 dB, never past -1 dB.)
   let e = 0, peak = 0;
   for (let i = 0; i < n; i++) (e += (L[i] * L[i] + R[i] * R[i]) / 2), (peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i])));
   const rms = Math.sqrt(e / n);
-  const g = rms > 0 ? Math.min(10 ** (-18 / 20) / rms, 0.89 / peak) : 1;
+  const g = rms > 0 ? Math.min(10 ** (-20 / 20) / rms, 0.89 / peak) : 1;
   for (let i = 0; i < n; i++) (L[i] *= g), (R[i] *= g);
   const bars = plan.reduce((a, [, b]) => a + b, 0);
   return { audio: { sr, L, R }, bars: OPENING_BARS, seconds: (bars * 240) / sp.bpm, info: { style: sp.style, bpm: sp.bpm, key: sp.key, mood, plan, radio: { seed, mood, style: sp.style, v: RADIO_V } } };

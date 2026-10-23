@@ -174,7 +174,7 @@ test('the master: the loudness it is told, the stems summing to the mix, a quiet
     assert.ok(maxDiff(sum.L, s.L) < 1e-5 && maxDiff(sum.R, s.R) < 1e-5, 'stems still sum');
     const db = 10 * Math.log10(loudness(s.L, s.R, sr));
     assert.ok(db < LOUDNESS + 0.8 && db > LOUDNESS - 4.5, `loudness ${db.toFixed(1)}`);
-    assert.ok(over > -1 && over < 6.5, `over ${over}`);
+    assert.ok(over > LOUDNESS + 11 && over < 6.5, `over ${over}`);
   }
   assert.equal(master({ L: new Float32Array(10), R: new Float32Array(10) }, sr), -Infinity);
 });

@@ -642,7 +642,7 @@ MIX = dict(on=True,drums=0,hats=-2,bass=-1,keys=-1,reverb=0.25,delay=0.2,pump=0.
 LIMITS = dict(drums=(-24,6),hats=(-24,6),bass=(-24,6),keys=(-24,6),reverb=(0,1),delay=(0,1),pump=(0,1),width=(0,1))
 db_gain = lambda d: 10 ** (d / 20)
 CEILING = db_gain(-1)
-LOUDNESS = -13   # the song's RMS (dBFS) after the master
+LOUDNESS = -15   # the song's RMS (dBFS) after the master
 BLOCK = 256   # a sweep's cutoff moves by blocks
 
 def mix_of(m):   # any mixer as a whole one: every number in its range, what's missing as it opens

@@ -1,5 +1,5 @@
-// Radio songs as WAVs to listen to, on the recorded instruments (macOS:
-// afconvert decodes the samples): `node scripts/listen.mjs [count] [out dir] [--made]`.
+// Radio songs as WAVs to listen to, on the recorded instruments (afconvert
+// on macOS, else ffmpeg, decodes the samples): `node scripts/listen.mjs [count] [out dir] [--made]`.
 // --style=rock,jazz: those grooves, one song each.
 // --sf=MusyngKite: the instruments from another of gleitz/midi-js-soundfonts' sets (fetched, not kept), to compare.
 // --made: on the made voices instead (the way the tests and a first offline
@@ -19,6 +19,12 @@ const styles = (args.find(a => a.startsWith('--style=')) || '').slice(8).split('
 const [count = 4, out = join(tmpdir(), 'beats-listen')] = args.filter(a => !a.startsWith('--'));
 mkdirSync(out, { recursive: true });
 const tmp = mkdtempSync(join(tmpdir(), 'beats-samples-'));
+const mac = process.platform === 'darwin';
+// Any audio file to a 32 kHz mono 32-bit float WAV.
+function decode(src, out) {
+  if (mac) execFileSync('afconvert', ['-f', 'WAVE', '-d', 'LEF32@32000', '-c', '1', src, out]);
+  else execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', src, '-ac', '1', '-ar', '32000', '-c:a', 'pcm_f32le', out]);
+}
 // A WAV's first channel as floats (afconvert writes 32-bit float WAV here).
 function readF32(file) {
   const b = readFileSync(file);
@@ -41,7 +47,7 @@ function bank(inst) {
       src = join(tmp, `${sf}-${inst}-${m}.mp3`);
       execFileSync('curl', ['-sf', '-o', src, `https://gleitz.github.io/midi-js-soundfonts/${sf}/${SAMPLED[inst][0]}-mp3/${noteName(m)}.mp3`]);
     }
-    execFileSync('afconvert', ['-f', 'WAVE', '-d', 'LEF32@32000', '-c', '1', src, f]);
+    decode(src, f);
     const { x, sr } = readF32(f);
     return { midi: m, x: x.subarray(0, Math.round(3.2 * sr)), sr };
   });
@@ -52,7 +58,7 @@ function drum(name) {
   const layers = DRUM_KITS[kit][d];
   const read = f => {
     const out = join(tmp, `${kit}-${f}.wav`);
-    execFileSync('afconvert', ['-f', 'WAVE', '-d', 'LEF32@32000', '-c', '1', new URL(`../public/samples/drums/${kit}/${f}.m4a`, import.meta.url).pathname, out]);
+    decode(new URL(`../public/samples/drums/${kit}/${f}.m4a`, import.meta.url).pathname, out);
     return readF32(out).x;
   };
   return { inst: name, sr: 32000, takes: layers.map(pair => pair.map(read)) };
