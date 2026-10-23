@@ -1186,7 +1186,7 @@ function songRow(song, { lib: inLib = false, list = null } = {}) {
   if (!inLib) {
     const bar = h('div', { class: 'plan', role: 'group', 'aria-label': plan });
     const total = info.plan.reduce((a, [, n]) => a + n, 0);
-    const width = Math.min(innerWidth, 560) - 32 - 62 - 40; // the strip's room (row and card padding, play column), on the safe side so no label is cut
+    const width = Math.min(innerWidth, 440) - 32 - 62 - 40; // the strip's room (row and card padding, play column), on the safe side so no label is cut
     sectionTimes(info.plan, info.bpm || bpm).forEach((s, k) => {
       const label = name(SECTION_NAMES, s.type);
       const em = en ? label.length * 0.66 : label.length;

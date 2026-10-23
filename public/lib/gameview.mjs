@@ -29,7 +29,7 @@ const RANK_TINT = { 'S+': '#ffd76a', S: '#ffd76a', A: '#7ce3ff', B: '#9ef0a8', C
 const reduced = () => globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 const CSS = `
-.gm { position: fixed; inset: 0; z-index: 90; background: #06060b; color: #fff; overflow: hidden; --text: #fff; --text-2: rgba(255,255,255,.7); --text-3: rgba(255,255,255,.45); --fill: rgba(255,255,255,.14); --fill-2: rgba(255,255,255,.26); --card: rgba(255,255,255,.08); --line: rgba(255,255,255,.12); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; opacity: 0; transform: scale(1.04); transition: opacity .28s ease, transform .38s cubic-bezier(.2,.8,.2,1); }
+.gm { position: fixed; inset: 0 var(--q-side, 0px); z-index: 90; background: #06060b; color: #fff; overflow: hidden; --text: #fff; --text-2: rgba(255,255,255,.7); --text-3: rgba(255,255,255,.45); --fill: rgba(255,255,255,.14); --fill-2: rgba(255,255,255,.26); --card: rgba(255,255,255,.08); --line: rgba(255,255,255,.12); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; opacity: 0; transform: scale(1.04); transition: opacity .28s ease, transform .38s cubic-bezier(.2,.8,.2,1); }
 .gm.in { opacity: 1; transform: none; }
 .gm[hidden] { display: none; }
 body.gm-open:has(.gm.in) { overflow: hidden; }
