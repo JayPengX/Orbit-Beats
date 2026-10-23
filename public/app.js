@@ -16,7 +16,7 @@ import * as ui from './lib/ui.mjs';
 import { sectionTimes, sectionIndex, labelFits } from './lib/sections.mjs';
 import { STYLES, SECTIONS, ROLES, makeRng, NOTE_NAMES, keyOf, pieceChroma, parseWav, analyzeRecording, guessRole, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
 import { atRate, splitAll, baseName } from './lib/sources.mjs';
-import { fingerprint, decode, encode, merge, keptSettings, settingsOf, DEFAULTS, kitEntry, saveLast, loadLast, liked, saveSong, deleteSong, getSong, swapSong, dropTemps, tempId, renameSong, forgetLast, saveNamed, deleteNamed, listNamed, renameNamed } from './lib/kits.mjs';
+import { fingerprint, decode, encode, merge, keptSettings, settingsOf, DEFAULTS, kitEntry, saveLast, loadLast, liked, saveSong, listSongs, deleteSong, getSong, swapSong, dropTemps, tempId, renameSong, forgetLast, saveNamed, deleteNamed, listNamed, renameNamed } from './lib/kits.mjs';
 import { dropPieces, snapOf, rolesBack, undoStack, namedKit, kitFrom, freeName } from './lib/kitops.mjs';
 import { voice, renderClip, DRUM_NAMES, INSTRUMENT_ROLE, INSTRUMENT_NAMES } from './lib/synth.mjs';
 import { MIX, mixOf, STEMS } from './lib/mix.mjs';
@@ -1874,6 +1874,8 @@ async function keepSong(song, { quiet = false } = {}) {
   }
   navigator.storage?.persist?.().catch(() => {});
   lib.add(rec);
+  // The songs kept, toward the 十首歌 milestone.
+  listSongs().then(all => kit.milestone?.(q, 'beats', all.length), () => {});
   if (song.info.style) kept.taste = liked(kept.taste, song.info.style, 1);
   keep();
   refreshHearts(song.id);
