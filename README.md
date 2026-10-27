@@ -27,12 +27,6 @@ Music that never stops, and your own beat pieces arranged into new songs. Everyt
   <img src="docs/screenshots/beats-6.webp" width="30%" alt="Create your way">
 </p>
 
-<p align="center">
-  <img src="docs/screenshots/beats-4.webp" width="30%" alt="Jam along">
-  <img src="docs/screenshots/beats-5.webp" width="30%" alt="Make your own">
-  <img src="docs/screenshots/beats-6.webp" width="30%" alt="Keeps playing all day">
-</p>
-
 ## Features
 
 - **聽 Listen:** one play button and a mood (relaxed, energetic, groovy, classic, or one groove). Each song is written on the spot: a groove, tempo, key, chords, melodies, bass and drums, arranged into verses, hooks and a bridge and mixed, about two and a half minutes. It plays on with the screen locked, one song running into the next with no gap.
