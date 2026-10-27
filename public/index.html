@@ -559,7 +559,7 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 [data-fam="chords"] { --c: var(--q-indigo); --ink: #fff; }
 [data-fam="melody"] { --c: var(--q-pink); --ink: #fff; }
 .jam-tile { --p: 0; position: relative; height: 64px; padding: 4px; border: 0; border-radius: 16px; background: color-mix(in srgb, var(--c) 14%, var(--fill)); color: color-mix(in srgb, var(--c) 62%, var(--text)); font-size: clamp(11px, 3.5vw, 15px); font-weight: 700; display: grid; place-items: center; touch-action: manipulation; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; transition: background-color .15s, color .15s; }
-.jam-tile b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.jam-tile b { max-width: 100%; line-height: 1.15; text-align: center; overflow-wrap: anywhere; text-wrap: balance; pointer-events: none; }
 .jam-tile .glow { position: absolute; inset: 0; border-radius: inherit; opacity: 0; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 40%, transparent), 0 0 18px color-mix(in srgb, var(--c) 70%, transparent); pointer-events: none; }
 .jam-tile .two { position: absolute; top: 4px; right: 7px; font-size: 10px; font-style: normal; opacity: .8; pointer-events: none; }
 .jam-tile.on { background: var(--c); color: var(--ink); }
