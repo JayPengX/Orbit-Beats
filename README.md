@@ -16,9 +16,9 @@
 Music that never stops, and your own beat pieces arranged into new songs. Everything runs on the phone; no sound is uploaded. Part of **Orbit**, a family of phone apps for life in Taiwan that share one sign-in, the Orbit Pass. See them all at [jaypengx.com](https://jaypengx.com/).
 
 <p align="center">
-  <img src="docs/screenshots/beats-1.webp" width="240" alt="Listen">
-  <img src="docs/screenshots/beats-2.webp" width="240" alt="Create">
-  <img src="docs/screenshots/beats-3.webp" width="240" alt="Jam">
+  <img src="docs/screenshots/beats-1.webp" width="30%" alt="Listen">
+  <img src="docs/screenshots/beats-2.webp" width="30%" alt="Create">
+  <img src="docs/screenshots/beats-3.webp" width="30%" alt="Jam">
 </p>
 
 ## Features
