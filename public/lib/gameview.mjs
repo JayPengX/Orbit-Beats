@@ -46,20 +46,20 @@ body.gm-open:has(.gm.in) > :not(.gm) { visibility: hidden; }
 .gm-x svg { width: 28px; height: 28px; }
 .gm-top h1 { flex: 1; margin: 0; font-size: 17px; font-weight: 700; text-align: center; letter-spacing: -.01em; }
 .gm-top .gm-gap { width: 34px; }
-.gm-title { margin: 6px 0 14px; font-size: 34px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
+.gm-title { margin: 6px 0 14px; font-size: 34px; font-weight: 700; letter-spacing: -.02em; line-height: 1.1; }
 .gm-title i { font-style: normal; background: linear-gradient(90deg, #ff5fa2, #ffb44a 40%, #5ee2ff 80%); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .gm-hero { position: relative; display: block; width: 100%; aspect-ratio: 1 / 1; max-height: 46vh; padding: 0; border: 0; border-radius: 26px; overflow: hidden; background: #111; color: #fff; text-align: left; box-shadow: 0 24px 60px rgba(0,0,0,.5); transition: transform .3s cubic-bezier(.2,.8,.2,1); touch-action: manipulation; }
 .gm-hero:active { transform: scale(.98); }
 .gm-hero img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; animation: gm-drift 18s ease-in-out infinite alternate; }
 .gm-hero::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 35%, rgba(0,0,0,.72) 100%); }
 .gm-hero-text { position: absolute; z-index: 1; left: 20px; right: 92px; bottom: 20px; display: flex; flex-direction: column; gap: 3px; }
-.gm-eyebrow { font-size: 13px; font-weight: 700; letter-spacing: .04em; white-space: nowrap; text-transform: uppercase; color: rgba(255,255,255,.8); }
-.gm-hero-text b { font-size: clamp(22px, 7vw, 28px); font-weight: 800; letter-spacing: -.01em; line-height: 1.15; }
+.gm-eyebrow { font-size: 13px; font-weight: 400; white-space: nowrap; color: rgba(255,255,255,.8); }
+.gm-hero-text b { font-size: clamp(22px, 7vw, 28px); font-weight: 600; letter-spacing: -.01em; line-height: 1.15; }
 .gm-hero-text span { font-size: 15px; color: rgba(255,255,255,.78); }
 .gm-go { position: absolute; z-index: 1; right: 18px; bottom: 18px; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: #0b0b12; box-shadow: 0 0 0 0 rgba(255,255,255,.5); animation: gm-ping 2.2s ease-out infinite; }
 .gm-go svg { width: 30px; height: 30px; margin-left: 3px; }
 .gm-best { position: absolute; z-index: 1; top: 16px; right: 16px; min-width: 40px; padding: 5px 11px; border-radius: 999px; font-size: 14px; font-weight: 800; text-align: center; background: rgba(0,0,0,.38); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
-.gm-sect { margin: 26px 0 10px; font-size: 22px; font-weight: 800; letter-spacing: -.01em; }
+.gm-sect { margin: 26px 0 10px; font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
 .gm-recs-btn { flex: none; height: 36px; margin-right: -4px; padding: 0 14px 0 11px; border: 0; border-radius: 18px; background: var(--fill); color: #fff; display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; white-space: nowrap; touch-action: manipulation; }
 .gm-recs-btn svg { width: 19px; height: 19px; }
 .gm-lv { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 8px; }
@@ -77,7 +77,7 @@ body.gm-open:has(.gm.in) > :not(.gm) { visibility: hidden; }
 .gm-sheet-head b { font-size: 20px; font-weight: 800; line-height: 1.2; }
 .gm-sheet-head span { font-size: 14px; color: var(--text-2); }
 .gm-sheet-head .gm-x { margin: -8px -10px 0 0; align-self: flex-start; }
-.gm-sheet-q { margin: 0 0 8px; font-size: 13px; font-weight: 700; letter-spacing: .04em; color: var(--text-3); }
+.gm-sheet-q { margin: 0 0 8px; font-size: 13px; font-weight: 500; color: var(--text-3); }
 .gm-levels { display: grid; gap: 8px; }
 .gm-level { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 66px; padding: 10px 12px 10px 14px; border: 0; border-radius: 18px; background: var(--card); color: #fff; text-align: left; touch-action: manipulation; transition: transform .2s cubic-bezier(.2,.8,.2,1), background .2s; }
 .gm-level:active { transform: scale(.98); background: var(--fill); }
