@@ -227,7 +227,7 @@ npm test
 ```
 
 ```bash
-node ../Shared-Proxy/tools/preview.mjs beats --width 375
+node ../Orbit-Core/tools/preview.mjs beats --width 375
 ```
 
 The script:

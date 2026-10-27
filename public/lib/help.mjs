@@ -1,6 +1,6 @@
 // The music words in everyday words: one table for the whole app (the ⓘ
 // beside a control, the hint under it, and the 名詞小辭典 in the help sheet).
-// The app's full guide is the kit's (Shared-Proxy kit/help.mjs, the Orbit
+// The app's full guide is the kit's (Orbit-Core kit/help.mjs, the Orbit
 // Pass sheet's 說明, opened from the help sheet): this is only the words.
 //
 // TERMS[id][lang] = { name, hint (one short line, under a control), text (1–2 sentences) }.

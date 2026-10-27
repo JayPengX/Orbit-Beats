@@ -40,7 +40,7 @@ Music that never stops, and your own beat pieces arranged into new songs. Everyt
 | Audio | Synthesis and mixing in Web Workers, Web Audio, Media Source with WebCodecs' AudioEncoder (FLAC, AAC or Opus in MP4) for gapless play, one `<audio>` for the lock screen |
 | Sounds | 32 recorded instruments from the MusyngKite soundfont, recorded drum kits (acoustic, TR-808, electronic, hand percussion), plus band-limited synth voices |
 | Storage | IndexedDB for kept songs and kits on the phone; only settings go to the Orbit Pass |
-| Shared | Look and Orbit Pass from the kit in [Shared-Proxy](https://github.com/JayPengX/Shared-Proxy) |
+| Shared | Look and Orbit Pass from the kit in [Orbit-Core](https://github.com/JayPengX/Orbit-Core) |
 | Command line | `passion_beats.py` (Python 3, NumPy, SciPy): the same engine, kept in step with `engine.mjs` |
 | Tests | `node --test` on the engine, the mix, variety, loudness and playability |
 
@@ -83,10 +83,10 @@ MAP.md                       how it works
 
 ## Getting started
 
-The app loads the shared kit from a sibling folder, so clone this repo next to [Shared-Proxy](https://github.com/JayPengX/Shared-Proxy):
+The app loads the shared kit from a sibling folder, so clone this repo next to [Orbit-Core](https://github.com/JayPengX/Orbit-Core):
 
 ```bash
-git clone https://github.com/JayPengX/Shared-Proxy.git
+git clone https://github.com/JayPengX/Orbit-Core.git
 git clone https://github.com/JayPengX/Orbit-Beats.git
 cd Orbit-Beats
 ```
@@ -94,19 +94,19 @@ cd Orbit-Beats
 Requirements: Node.js 22 or newer. There is nothing to install: no framework, no `node_modules`.
 
 ```bash
-npm test   # links ../Shared-Proxy/kit as .kit, then runs node --test
+npm test   # links ../Orbit-Core/kit as .kit, then runs node --test
 ```
 
 See it on a phone-sized screen, signed in with a made-up wallet and real data (needs Playwright):
 
 ```bash
 # a screenshot, saved in /tmp/orbit-preview
-node ../Shared-Proxy/tools/preview.mjs beats --live --width 375
+node ../Orbit-Core/tools/preview.mjs beats --live --width 375
 # serve it, then open http://localhost:8123/Orbit-Beats/
-node ../Shared-Proxy/tools/preview.mjs beats --live --serve --port 8123
+node ../Orbit-Core/tools/preview.mjs beats --live --serve --port 8123
 ```
 
-`--dark`, `--lang en`, `--webkit` (Safari's engine) and the other flags are listed in [Shared-Proxy/tools/README.md](https://github.com/JayPengX/Shared-Proxy/blob/main/tools/README.md).
+`--dark`, `--lang en`, `--webkit` (Safari's engine) and the other flags are listed in [Orbit-Core/tools/README.md](https://github.com/JayPengX/Orbit-Core/blob/main/tools/README.md).
 
 The command-line engine:
 
@@ -138,6 +138,6 @@ Recorded instruments from the MusyngKite soundfont (CC BY-SA 3.0); drum kits fro
 | [Orbit Beats](https://github.com/JayPengX/Orbit-Beats) | Endless music and your own beats |
 | [Orbit Law](https://github.com/JayPengX/Orbit-Law) | Laws, rulings and bills, linked |
 | [Orbit Money](https://github.com/JayPengX/Orbit-Money) | Your own books |
-| [Shared-Proxy](https://github.com/JayPengX/Shared-Proxy) | The kit, the Orbit Pass and the Workers behind them all |
+| [Orbit-Core](https://github.com/JayPengX/Orbit-Core) | The kit, the Orbit Pass and the Workers behind them all |
 
 How it was all built, in pictures and numbers: [jaypengx.com/showcase](https://jaypengx.com/showcase/).

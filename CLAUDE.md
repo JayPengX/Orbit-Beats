@@ -1,9 +1,9 @@
 # Working on Orbit Beats
 
-Read `../Shared-Proxy/docs/TRUTH.md` first (one page: how the owner works and what matters).
+Read `../Orbit-Core/docs/TRUTH.md` first (one page: how the owner works and what matters).
 MAP.md is this repo's map (README.md is the short public front page).
 
 - `npm test`, then `git push origin HEAD:main`.
 - `engine.mjs` is the port of `passion_beats.py`: a change to the songs goes into both.
 - Nothing of a kit's sound is ever sent anywhere; the Pass keeps only settings.
-- See it on a phone: `node ../Shared-Proxy/tools/preview.mjs beats --live --width 375`.
+- See it on a phone: `node ../Orbit-Core/tools/preview.mjs beats --live --width 375`.
