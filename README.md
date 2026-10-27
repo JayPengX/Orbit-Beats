@@ -16,15 +16,15 @@
 Music that never stops, and your own beat pieces arranged into new songs. Everything runs on the phone; no sound is uploaded. Part of **Orbit**, a family of phone apps for life in Taiwan that share one sign-in, the Orbit Pass. See them all at [orbit.jaypengx.com](https://orbit.jaypengx.com/pass/).
 
 <p align="center">
-  <img src="docs/screenshots/beats-1.webp" width="30%" alt="A rhythm game for any song">
+  <img src="docs/screenshots/beats-1.webp" width="30%" alt="Music made for you">
   <img src="docs/screenshots/beats-2.webp" width="30%" alt="Music for any mood">
-  <img src="docs/screenshots/beats-3.webp" width="30%" alt="Jam on the pads">
+  <img src="docs/screenshots/beats-3.webp" width="30%" alt="Make beats in the studio">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/beats-4.webp" width="30%" alt="Make beats in the studio">
-  <img src="docs/screenshots/beats-5.webp" width="30%" alt="Fresh picks every day">
-  <img src="docs/screenshots/beats-6.webp" width="30%" alt="Create your way">
+  <img src="docs/screenshots/beats-4.webp" width="30%" alt="Jam on the pads">
+  <img src="docs/screenshots/beats-5.webp" width="30%" alt="Create your way">
+  <img src="docs/screenshots/beats-6.webp" width="30%" alt="A rhythm game for any song">
 </p>
 
 ## Features
