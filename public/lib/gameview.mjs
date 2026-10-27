@@ -842,16 +842,18 @@ export function mountGame(host, api) {
     }
   }
 
-  // (For screenshots and the Mac's walkthrough: localStorage['orbit-beats-game-auto'] = '1' plays every note itself.)
-  const auto = (() => {
+  // (For screenshots and the Mac's walkthrough: localStorage['orbit-beats-game-auto'] = '1' plays every note itself,
+  // its frame count on the stage; 'shot' plays it the same with no count, as a player sees it.)
+  const autoMode = (() => {
     try {
       // (Or ?gameauto in the address, for a phone's Safari.)
       if (/[?&]gameauto\b/.test(location.search)) localStorage.setItem('orbit-beats-game-auto', '1');
-      return localStorage.getItem('orbit-beats-game-auto') === '1';
+      return localStorage.getItem('orbit-beats-game-auto') || '';
     } catch {
-      return false;
+      return '';
     }
   })();
+  const auto = autoMode === '1' || autoMode === 'shot';
   // (It also counts the frames: the last 120's gaps, and how many ran long.)
   const gaps = [];
   if (auto) globalThis.__game = () => R?.notes && { tally: R.tally, combo: R.combo, units: R.units, n: R.notes.length, ...frames() };
@@ -879,7 +881,7 @@ export function mountGame(host, api) {
     if (auto) autoplay(t);
     judgeMisses(t);
     draw(t, dt, performance.now());
-    if (auto) {
+    if (autoMode === '1') {
       const f = frames();
       cx2.textAlign = 'left';
       text(cx2, `${f.fps} fps · ${f.slow} slow · ${f.worst} ms`, 14, Ht - 24, 13, '#9ef0a8', 700);

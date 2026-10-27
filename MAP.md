@@ -110,7 +110,7 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
     for Bluetooth lag. Opens from 創作's card (今日挑戰 and a mood's six songs
     of the day) or a song's ⋯; `#game`. Bests per song and level on this
     phone (`orbit-beats-game.v1`); `orbit-beats-game-auto` = `1` plays every
-    note itself (screenshots).
+    note itself (screenshots: `shot` plays it without the frame count).
   - **資料庫** (Library): kept songs (IndexedDB), small (`lib/pack.mjs`): AAC (else Opus)
     from the phone's AudioEncoder in a plain .m4a, about a tenth of the WAV; with no
     encoder a built-in song is mono 16-bit and one of your pieces stays a WAV. WAVs
