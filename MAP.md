@@ -6,7 +6,7 @@ exactly as recorded. Everything runs on the phone; no sound is uploaded. Signs i
 with the Orbit Pass. `passion_beats.py` is the same engine on the command
 line.
 
-Live: https://jaypengx.com/beats/ (was Passion Beats)
+Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
 
 ## How it works
 
