@@ -29,7 +29,7 @@ sr = 48000
 B = 60 / 120 * sr   # samples per beat, once the tempo is known
 pc = {}
 
-# what a piece does in a song (the same as public/engine.mjs; see the README)
+# what a piece does in a song (the same as public/engine.mjs; see MAP.md)
 ROLES = ['riff','phrase','bass','hat','fill','kick','sub','snare','tick','roll','off']
 
 def load_pieces(path, pieces_dir=None, silence_db=-90, min_gap=0.2):
@@ -55,7 +55,7 @@ def load_pieces(path, pieces_dir=None, silence_db=-90, min_gap=0.2):
             wavfile.write(f"{pieces_dir}/piece_{k+1:02d}_{len(s)/B:.1f}beats.wav", sr, s)
     return len(pc)
 
-# ---- Hearing a recording (the same as public/analyze.mjs; see the README) ----
+# ---- Hearing a recording (the same as public/analyze.mjs; see MAP.md) ----
 
 def jround(x):   # JavaScript's Math.round: halves round up
     return int(np.floor(x + 0.5))
@@ -242,7 +242,7 @@ def guess_role(a, bpm):
     if b['low'] >= 0.35: return 'kick'
     return 'snare'
 
-# Arrangement rules (the same as public/engine.mjs; see the README):
+# Arrangement rules (the same as public/engine.mjs; see MAP.md):
 # a hook may lift to a related groove, never a foreign one;
 FAMILY = {'four':['four','broken','house','techno'],'broken':['broken','four','garage','dnb'],'hiphop':['hiphop','trap','boombap','lofi'],'trap':['trap','hiphop','drill','phonk'],
           'half':['half','hiphop'],'house':['house','four','jersey','amapiano','garage'],'dembow':['dembow','afro','reggae','baile'],'afro':['afro','dembow','amapiano'],
@@ -622,7 +622,7 @@ class Song:
             for q in [3,3.25,3.5,3.75]: s.hit(k['tick'],t+q)
         # 'drop': no fill
 
-# ---- The mixer (the same steps as public/lib/mix.mjs; see the README) ----
+# ---- The mixer (the same steps as public/lib/mix.mjs; see MAP.md) ----
 # Each piece plays on its bus (drums, hats, bass, the riffs and phrases as
 # keys), each bus its level; the drums and the bass glued by a 2:1 compressor
 # and kept clear of the sub (a phone's speaker plays their harmonics, not the

@@ -24,7 +24,7 @@ export const SECTIONS = ['intro', 'verse', 'pre', 'hook', 'break', 'bridge', 'ou
 // out.
 export const ROLES = ['riff', 'phrase', 'bass', 'hat', 'fill', 'kick', 'sub', 'snare', 'tick', 'roll', 'off'];
 
-// Arrangement rules (see README, "How it works"):
+// Arrangement rules (see MAP.md, "How it works"):
 // a hook may lift to a related groove, never a foreign one;
 export const FAMILY = {
   four: ['four', 'broken', 'house', 'techno'], broken: ['broken', 'four', 'garage', 'dnb'], hiphop: ['hiphop', 'trap', 'boombap', 'lofi'], trap: ['trap', 'hiphop', 'drill', 'phonk'],

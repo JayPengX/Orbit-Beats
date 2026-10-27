@@ -1,6 +1,6 @@
 // Orbit Beats analysis (was Passion Beats): what each piece of a recording is, and the tempo it
 // was recorded at, heard from the audio alone. No DOM, so the tests run it in
-// Node. See the README, "Tempo" and "Roles".
+// Node. See MAP.md, "Tempo" and "Roles".
 
 // ---- FFT (radix 2, in place) ----
 
@@ -269,7 +269,7 @@ export function hits(a) {
   return kept.map(([t]) => t);
 }
 
-// A role for a piece, from its analysis at `bpm` (see README, "Roles").
+// A role for a piece, from its analysis at `bpm` (see MAP.md, "Roles").
 export function guessRole(a, bpm) {
   const beat = 60 / bpm, beats = a.seconds / beat, b = a.bands, h = hits(a);
   const spread = h.length > 1 ? h.at(-1) - h[0] : 0;
