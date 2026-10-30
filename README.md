@@ -30,6 +30,7 @@ Music that never stops, and your own beat pieces arranged into new songs. Everyt
 ## Features
 
 - **聽 Listen:** one play button and a mood (relaxed, energetic, groovy, classic, or one groove). Each song is written on the spot: a groove, tempo, key, chords, melodies, bass and drums, arranged into verses, hooks and a bridge and mixed, about two and a half minutes. It plays on with the screen locked, one song running into the next with no gap.
+- **今日精選 and 今日挑戰** are the same on every phone, made from Taiwan's date alone; 為你推薦, 為你電台 and 做歌 learn from what you listen to the end and what you skip.
 - **即興 Jam:** 16 coloured pads of a built-in band over a groove, or your own pieces as pads; record a take and it becomes a song.
 - **樂器 Instruments:** a step grid of drums or notes on 42 instruments and 32 drum lanes, with accents, chords, swing, tap tempo, up to four sections chained, and MIDI out.
 - **做歌 Make songs:** your recordings, a sample pack or the microphone, split on silences; the tempo, the role of each piece (riff, bass, hats, kick, 808…) and the key heard automatically; then full songs arranged in a real song form, each piece exactly as recorded.
