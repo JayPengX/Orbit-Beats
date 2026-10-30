@@ -133,7 +133,8 @@ export function radioPick(mood, recent = [], seed = Math.floor(Math.random() * 1
   // (A groove whose tempo is not where the last three were, when there is one.)
   pool = keep(pool, s => lastBpms.every(b => Math.abs((BAND[s].bpm[0] + BAND[s].bpm[1]) / 2 - b) >= 10));
   pool = keep(pool, s => !past.includes(s));
-  const style = R.choice(pool);
+  // (V19: a club, retro, breaks or trap groove half as likely as a band's, so 隨機 and 今日精選 aren't mostly electronic.)
+  const style = sound(R, pool, null, s => (ELECTRONIC.has(SOUND[s]) ? 0.5 : 1));
   const out = s => ({ seed: s, mood: outMood, style });
   if (!was) {
     for (let k = 0; k < 60 && !fits(seed, style); k++) seed = R.int(0, 1e9 - 1);
@@ -176,22 +177,22 @@ const ROCK = { kick: 'rkick', boom: 'rkick', sub: ['rkick', 'crash'], snare: ['r
 // pentatonic, blues), the melody's rhythms, an arpeggio's instruments
 // (`arps`) and sixteenths (`arp16`), a 16th swing, their drums (`kit`) and hats.
 const BAND = {
-  four: { bpm: [118, 126], chords: ['pad', 'organ', 'keys', 'piano', 'rhodes', 'clav', 'brass'], leads: ['pluck', 'lead', 'bell', 'supersaw'], bass: ['bass'], comp: 'stab8', line: 'off8' },
-  hiphop: { bpm: [84, 94], chords: ['keys', 'strings', 'organ', 'piano', 'rhodes', 'guitar', 'nylon', 'vibes'], leads: ['bell', 'pluck', 'vox', 'piano', 'flute'], bass: ['bass', 'subbass'], comp: 'held', line: 'hop' },
+  four: { bpm: [118, 126], chords: ['pad', 'organ', 'keys', 'piano', 'rhodes', 'clav', 'brass'], leads: ['piano', 'pluck', 'lead', 'bell', 'supersaw'], bass: ['bass'], comp: 'stab8', line: 'off8' },
+  hiphop: { bpm: [84, 94], chords: ['keys', 'strings', 'organ', 'piano', 'rhodes', 'guitar', 'nylon', 'vibes'], leads: ['piano', 'vox', 'flute', 'bell', 'pluck'], bass: ['bass', 'subbass'], comp: 'held', line: 'hop' },
   trap: { bpm: [132, 148], chords: ['pad', 'strings', 'bell', 'choir', 'piano', 'harp', 'keys'], leads: ['bell', 'pluck', 'vox', 'flute', 'glass'], bass: ['subbass', 'bass808'], comp: 'held', line: 'long' },
   half: { bpm: [70, 84], chords: ['strings', 'pad', 'keys', 'piano', 'rhodes', 'guitar', 'nylon', 'harp'], leads: ['bell', 'keys', 'guitar', 'kalimba'], bass: ['subbass', 'bass'], comp: 'held', line: 'long' },
-  broken: { bpm: [120, 128], chords: ['pad', 'keys', 'rhodes', 'piano', 'clav', 'organ', 'guitar', 'strings'], leads: ['pluck', 'lead', 'vibes'], bass: ['bass'], comp: 'stab', line: 'hop' },
-  house: { bpm: [120, 125], chords: ['organ', 'keys', 'pad', 'piano', 'rhodes', 'clav', 'brass', 'strings'], leads: ['pluck', 'vox', 'lead', 'piano'], bass: ['bass'], comp: 'stab8', line: 'off8' },
-  dembow: { bpm: [90, 100], chords: ['pad', 'keys', 'guitar', 'nylon', 'rhodes', 'brass', 'organ'], leads: ['pluck', 'lead', 'bell', 'steel'], bass: ['subbass', 'bass'], comp: 'stab', line: 'dembow' },
-  afro: { bpm: [100, 110], chords: ['keys', 'guitar', 'organ', 'rhodes', 'piano', 'nylon', 'clav', 'marimba'], leads: ['pluck', 'bell', 'guitar', 'kalimba', 'marimba'], bass: ['bass'], comp: 'stab', line: 'afro' },
+  broken: { bpm: [120, 128], chords: ['pad', 'keys', 'rhodes', 'piano', 'clav', 'organ', 'guitar', 'strings'], leads: ['rhodes', 'pluck', 'lead', 'vibes'], bass: ['bass'], comp: 'stab', line: 'hop' },
+  house: { bpm: [120, 125], chords: ['organ', 'keys', 'pad', 'piano', 'rhodes', 'clav', 'brass', 'strings'], leads: ['piano', 'vox', 'pluck', 'lead'], bass: ['bass'], comp: 'stab8', line: 'off8' },
+  dembow: { bpm: [90, 100], chords: ['pad', 'keys', 'guitar', 'nylon', 'rhodes', 'brass', 'organ'], leads: ['guitar', 'pluck', 'lead', 'steel'], bass: ['subbass', 'bass'], comp: 'stab', line: 'dembow' },
+  afro: { bpm: [100, 110], chords: ['keys', 'guitar', 'organ', 'rhodes', 'piano', 'nylon', 'clav', 'marimba'], leads: ['guitar', 'marimba', 'pluck', 'bell', 'kalimba'], bass: ['bass'], comp: 'stab', line: 'afro' },
   drill: { bpm: [138, 144], chords: ['strings', 'pad', 'bell', 'choir', 'piano', 'keys', 'harp'], leads: ['bell', 'vox', 'strings', 'piano', 'pizz'], bass: ['subbass', 'bass808'], comp: 'held', line: 'long' },
   boombap: { bpm: [86, 94], chords: ['keys', 'organ', 'strings', 'piano', 'rhodes', 'clav', 'brass', 'guitar'], leads: ['keys', 'brass', 'guitar', 'sax'], bass: ['bass', 'upright'], comp: 'held', line: 'hop' },
   jersey: { bpm: [136, 144], chords: ['pad', 'organ', 'keys', 'piano', 'brass', 'supersaw'], leads: ['vox', 'pluck', 'lead'], bass: ['subbass', 'bass808'], comp: 'stab8', line: 'long' },
-  amapiano: { bpm: [110, 114], chords: ['keys', 'organ', 'pad', 'rhodes', 'piano', 'strings', 'vibes', 'marimba'], leads: ['pluck', 'bell', 'keys', 'marimba', 'sax'], bass: ['subbass'], comp: 'stab', line: 'afro' },
+  amapiano: { bpm: [110, 114], chords: ['keys', 'organ', 'pad', 'rhodes', 'piano', 'strings', 'vibes', 'marimba'], leads: ['keys', 'sax', 'marimba', 'pluck', 'bell'], bass: ['subbass'], comp: 'stab', line: 'afro' },
   lofi: { bpm: [72, 84], chords: ['keys', 'guitar', 'strings', 'rhodes', 'piano', 'nylon', 'vibes', 'organ'], leads: ['keys', 'bell', 'guitar', 'vibes', 'kalimba'], bass: ['bass', 'upright'], comp: 'held', line: 'hop' },
   funk: { bpm: [100, 112], chords: ['organ', 'keys', 'brass', 'clav', 'guitar', 'rhodes', 'piano', 'strings'], leads: ['brass', 'lead', 'guitar', 'sax'], bass: ['bass', 'slap'], comp: 'stab', line: 'funk' },
   garage: { bpm: [128, 134], chords: ['organ', 'pad', 'keys', 'rhodes', 'piano', 'strings', 'brass', 'clav'], leads: ['vox', 'pluck'], bass: ['subbass', 'bass'], comp: 'stab8', line: 'off8' },
-  dnb: { bpm: [168, 176], chords: ['pad', 'strings', 'rhodes', 'keys', 'piano', 'choir'], leads: ['pluck', 'bell', 'lead'], bass: ['subbass', 'bass', 'reese'], comp: 'held', line: 'long' },
+  dnb: { bpm: [168, 176], chords: ['pad', 'strings', 'rhodes', 'keys', 'piano', 'choir'], leads: ['piano', 'pluck', 'bell', 'lead'], bass: ['subbass', 'bass', 'reese'], comp: 'held', line: 'long' },
   reggae: { bpm: [72, 84], chords: ['organ', 'guitar', 'keys', 'clav', 'piano', 'brass'], leads: ['keys', 'brass', 'guitar', 'harmonica'], bass: ['bass'], comp: 'skank', line: 'drop' },
   phonk: { bpm: [126, 138], chords: ['bell', 'pad', 'strings', 'keys', 'choir', 'organ', 'piano'], leads: ['bell', 'lead', 'vox', 'glass'], bass: ['subbass', 'bass808'], comp: 'held', line: 'long' },
   baile: { bpm: [126, 132], chords: ['pad', 'organ', 'keys', 'brass', 'strings', 'piano'], leads: ['vox', 'lead', 'pluck'], bass: ['subbass'], comp: 'stab8', line: 'off8' },
@@ -237,7 +238,7 @@ const BAND = {
     kit: { kick: 'kick', boom: 'kick', sub: ['kick', 'crash'], snare: ['snare', 'clap'], tick: ['hat'] }, hats: [[['hat', ALL16, 3], ['hat', E8]], [['hat', E8], ['open', [14], 3]], [['tamb', [4, 12]], ['shaker', ALL16, 3]]]
   },
   kpop: {
-    bpm: [116, 128], chords: ['supersaw', 'piano', 'pad', 'keys', 'strings', 'guitar', 'rhodes'], leads: ['supersaw', 'vox', 'pluck', 'lead', 'bell'], arps: ['pluck', 'bell'], bass: ['bass808', 'subbass', 'bass'], comp: 'stab8', line: 'off8',
+    bpm: [116, 128], chords: ['supersaw', 'piano', 'pad', 'keys', 'strings', 'guitar', 'rhodes'], leads: ['vox', 'piano', 'supersaw', 'pluck', 'lead', 'bell'], arps: ['piano', 'pluck', 'bell'], bass: ['bass808', 'subbass', 'bass'], comp: 'stab8', line: 'off8',
     minor: 0.6, progs: { major: [[5, 3, 0, 4], [3, 4, 2, 5], [0, 4, 5, 3]] }, ext: 0.3
   },
   synthwave: {
@@ -417,6 +418,20 @@ const MODES = { minor: [0, 2, 3, 5, 7, 8, 10], major: [0, 2, 4, 5, 7, 9, 11], do
 // The notes a tune keeps to (the pentatonic's five, the blues' six), from the tonic.
 const TUNES = { penta: { major: [0, 2, 4, 7, 9], minor: [0, 3, 5, 7, 10] }, blues: { major: [0, 3, 5, 6, 7, 10], minor: [0, 3, 5, 6, 7, 10] } };
 
+// (V19, Jay 2026-10-30: "they love high instruments; every one has the same chance, so all sound electronic". Measured: the
+// main tune on a bell, celesta, kalimba or synth in 41% of songs, a synth pad under 47%. Now each groove's own first-listed
+// sounds are drawn most (3, 2, then 1), and a chime or synth that isn't the groove's first a quarter as often (half in club,
+// retro, breaks and trap), and the synth pad so even when it is first: a soft bed, not the chords to lead a song on.)
+const CHIMES = new Set(['bell', 'glass', 'musicbox', 'kalimba', 'pluck', 'lead', 'supersaw', 'chip', 'steel']);
+const ELECTRONIC = new Set(['club', 'retro', 'breaks', 'trap']);
+// One of `xs` by those weights, on one draw of R (so every later draw is where it was).
+// (`weigh`: weights of its own, in place of the order's and the chimes'.)
+function sound(R, xs, style, weigh = null) {
+  const w = xs.map((x, i) => (weigh ? weigh(x) : (i === 0 ? 3 : i === 1 ? 2 : 1) * ((CHIMES.has(x) && i > 0) || x === 'pad' ? (ELECTRONIC.has(SOUND[style]) ? 0.5 : 0.25) : 1)));
+  let r = R.random() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < xs.length; i++) if ((r -= w[i]) < 0) return xs[i];
+  return xs.at(-1);
+}
 // What a song is made from: { seed, mood, style }. The style, its tempo, the
 // key and everything else from the seed (the page rotates the style so two
 // in a row differ, and may name it).
@@ -432,7 +447,7 @@ export function radioSpec(seed, mood = 'all', style = null) {
     bpm: R.int(band.bpm[0], band.bpm[1]),
     key: { tonic: R.int(0, 11), minor },
     prog: R.choice(PROGS[minor ? 'minor' : 'major']),
-    chords: (c1 = R.choice(band.chords)), chords2: R.choice(band.chords.length > 1 ? band.chords.filter(x => x !== c1) : band.chords), lead: R.choice(band.leads), lead2: R.choice(['pluck', 'bell', 'keys', 'guitar'].filter(x => x !== band.chords[0])), bass: R.choice(band.bass),
+    chords: (c1 = sound(R, band.chords, st)), chords2: sound(R, band.chords.length > 1 ? band.chords.filter(x => x !== c1) : band.chords, st), lead: sound(R, band.leads, st), lead2: R.choice(['pluck', 'bell', 'keys', 'guitar'].filter(x => x !== band.chords[0])), bass: R.choice(band.bass),
     snare: R.choice(['snare', 'clap', 'both']), tick: R.choice(['hat', 'shaker', 'rim']),
     sevenths: CHILL7.has(st) && R.random() < 0.7,
     seconds: R.uniform(60, 150)
@@ -442,7 +457,7 @@ export function radioSpec(seed, mood = 'all', style = null) {
   if (mode) sp.mode = R.choice(mode);
   const progs = band.progs?.[minor ? 'minor' : 'major'];
   if (progs) sp.prog = R.choice(progs);
-  if (band.arps) sp.lead2 = R.choice(band.arps);
+  if (band.arps) sp.lead2 = sound(R, band.arps, st);
   if (band.ext != null) sp.sevenths = R.random() < band.ext;
   if (band.ninths && sp.sevenths) sp.ninths = R.random() < band.ninths;
   if (band.kit) sp.kit = { kick: band.kit.kick || 'kick', boom: band.kit.boom || 'sub', sub: band.kit.sub || ['sub'], snare: R.choice(band.kit.snare || ['snare', 'clap']), tick: R.choice(band.kit.tick || ['hat']) };
@@ -458,7 +473,7 @@ export function radioSpec(seed, mood = 'all', style = null) {
   const pool = (own && new Set(own.map(progFamily)).size > 1 ? own : [...PROGS[mode2], ...EXTRA[mode2]]).filter(x => progFamily(x) !== progFamily(sp.prog));
   sp.progB = pool.length && Q.random() < 0.85 ? Q.choice(pool) : null;
   const others = band.leads.filter(x => x !== sp.lead);
-  sp.leadB = others.length && Q.random() < 0.85 ? Q.choice(others) : sp.lead;
+  sp.leadB = others.length && Q.random() < 0.85 ? sound(Q, others, st) : sp.lead;
   sp.lift = Q.random() < 0.6 ? Q.choice([2, 2, 1, 3, 5]) : 0;
   sp.hatsPick = Q.sample(HATS.length, 3).sort((a, b) => a - b);
   sp.dress = dressOf(Q);
@@ -470,16 +485,16 @@ export function radioSpec(seed, mood = 'all', style = null) {
   const poolC = (own && new Set(own.map(progFamily)).size > 2 ? own : wide).filter(x => !taken.has(progFamily(x)));
   sp.progC = U.choice(poolC.length ? poolC : wide.filter(x => !taken.has(progFamily(x))));
   const leadsC = band.leads.filter(x => x !== sp.lead && x !== sp.leadB);
-  sp.leadC = leadsC.length ? U.choice(leadsC) : sp.leadB;
+  sp.leadC = leadsC.length ? sound(U, leadsC, st) : sp.leadB;
   const chordsC = band.chords.filter(x => x !== sp.chords && x !== sp.chords2);
-  sp.chordsC = chordsC.length ? U.choice(chordsC) : sp.chords2;
+  sp.chordsC = chordsC.length ? sound(U, chordsC, st) : sp.chords2;
   sp.seconds = U.random() < 0.2 ? U.uniform(85, 115) : U.uniform(165, 225);
   // The arpeggio's instrument from the groove's own band (anything plucked or struck in it), not the same four for every groove; a stream of its own, drawn last.
   if (!band.arps) {
     const A = makeRng(seed ^ 0x510e527f);
     // (V19: the band's own only, no bell or pluck added to every groove: they made hip-hop, house and funk all chime alike.)
     const fits = [...new Set([...band.chords, ...band.leads])].filter(x => ARPY.has(x) && x !== sp.chords && x !== sp.chords2 && x !== sp.lead);
-    if (fits.length) sp.lead2 = A.choice(fits);
+    if (fits.length) sp.lead2 = sound(A, fits, st);
   }
   // A band groove (rock, jazz, funk, city pop, lo-fi …) played by recorded instruments only: a synth voice drawn for it
   // gives way to one of the band's recorded ones (the same part's first, else any), from a stream of its own.
@@ -511,6 +526,8 @@ export function radioSpec(seed, mood = 'all', style = null) {
   sp.tone = t < 0.35 ? { dark: Math.round(2200 + 4000 * W.random()) } : t < 0.65 ? { bright: Math.round((10 + 20 * W.random())) / 100 } : null;
   // (Never a choir: held voices under a whole song wear on the ears, and sound uneasy.)
   sp.bed = bedFor(st) === 'strings' ? (W.random() < 0.65 ? 'strings' : 'pad') : W.choice(['pad', 'pad', 'strings', 'strings']);
+  // (V19: a synth pad under only the club, retro and breaks grooves, and half of trap's; the rest a real string section.)
+  if (!ELECTRONIC.has(SOUND[st]) || (SOUND[st] === 'trap' && W.random() < 0.5)) sp.bed = 'strings';
   // (A song's mode only: 即興's sets keep the groove's, so `songMode`, which radioSong and radioIntro play in.)
   // (Dorian, never harmonic minor, here: its augmented step sounds sinister when it isn't the groove's own.)
   if (!band.modes && !sp.mode && W.random() < 0.22) sp.songMode = minor ? 'dorian' : 'mixo';

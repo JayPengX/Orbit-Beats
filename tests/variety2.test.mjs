@@ -133,5 +133,8 @@ test('songs differ in shape and in how their groove is played (Jay 2026-10-21: "
   assert.ok(Object.keys(forms).length > 60, `${Object.keys(forms).length} forms`);
   assert.ok(comps.size >= 3 && lines.size >= 3, `comping ${[...comps]}, bass ${[...lines]}`);
   assert.equal(intros.size, 3);
-  assert.ok(beds.size >= 2 && tones.size === 3, `beds ${[...beds]}, tones ${[...tones]}`);
+  // (V19: a band groove's bed is always the string section, never a synth pad; a club one's still either.)
+  assert.ok(beds.size === 1 && beds.has('strings') && tones.size === 3, `beds ${[...beds]}, tones ${[...tones]}`);
+  const club = new Set(Array.from({ length: 60 }, (_, k) => radioSpec(31 * k + 7, 'all', 'house').bed));
+  assert.equal(club.size, 2, `house beds ${[...club]}`);
 });
