@@ -127,7 +127,7 @@ export function radioPick(mood, recent = [], seed = Math.floor(Math.random() * 1
   if (was) {
     const jumps = s => tempoJump(BAND[s].bpm[0], was.bpm) || tempoJump(BAND[s].bpm[1], was.bpm);
     // (No groove left that can jump from the last tempo: look again further back in the mood's grooves, the tempo first.)
-    if (!pool.some(jumps)) pool = keep(keep(styles.filter(s => s !== last && !past.slice(-2).includes(s) && jumps(s)), s => !past.slice(-3).includes(s)), s => !FAMILY[last]?.includes(s) && !FAMILY[s]?.includes(last));
+    if (!pool.some(jumps)) pool = keep(keep(keep(styles.filter(s => s !== last && !past.slice(-2).includes(s) && jumps(s)), s => !past.slice(-3).includes(s)), s => !past.slice(-Math.min(6, Math.max(1, styles.length - 5))).includes(s)), s => !FAMILY[last]?.includes(s) && !FAMILY[s]?.includes(last));
     pool = keep(pool, jumps);
   }
   // (A groove whose tempo is not where the last three were, when there is one.)
@@ -345,6 +345,45 @@ const BAND = {
     kit: { kick: 'kick', boom: 'kick', sub: ['kick', 'crash'], snare: ['brush', 'snare', 'rim'], tick: ['hat', 'tamb'] }, hats: [[['hat', E8]], [['tamb', [4, 12]], ['hat', E8, 3]], [['shaker', ALL16, 3]]]
   }
 };
+// (V19, Jay 2026-10-30: "you've found why the music is bad, now fix it". The pattern: a groove left to the generic
+// choices sounded like every other, and its notes random. The first twenty grooves had no chord loops, no scale for their
+// tunes, no rhythms and no minor/major lean of their own: each now has its kind of music's (degrees: 0 the home chord).
+// `tune`: the notes a tune keeps to (penta, blues); `rhythms`: a bar's notes, as the music phrases them.)
+const POP = { major: [[0, 4, 5, 3], [5, 3, 0, 4], [0, 5, 3, 4], [3, 4, 0, 0]], minor: [[0, 5, 2, 6], [0, 5, 6, 4], [5, 6, 0, 0], [0, 3, 6, 2]] };
+const DARK = { major: [[0, 3, 0, 4], [0, 5, 3, 4]], minor: [[0, 5, 0, 5], [0, 6, 5, 6], [0, 3, 0, 6], [0, 5, 3, 4], [0, 0, 5, 5]] };
+const SOUL = { major: [[3, 2, 1, 0], [1, 4, 0, 5], [0, 3, 1, 4], [3, 4, 2, 5]], minor: [[0, 3, 6, 2], [3, 4, 0, 0], [0, 3, 0, 3], [5, 4, 0, 0]] };
+const CLUB = { major: [[0, 3, 0, 3], [0, 4, 5, 3], [1, 4, 0, 0], [5, 3, 0, 4]], minor: [[0, 5, 6, 4], [0, 3, 0, 3], [0, 5, 3, 4], [0, 6, 5, 6]] };
+const SUNG = [[0, 2, 4, 8], [0, 4, 6, 8, 12], [2, 4, 8, 10], [0, 3, 6, 8, 12], [0, 8, 10, 12], [2, 6, 8, 12]];
+const LAID = [[0, 6, 8], [2, 8, 10], [0, 3, 8, 12], [4, 8, 10, 14], [0, 6, 10], [0, 8]];
+const ROLL = [[0, 3, 6, 8, 12], [0, 4, 6, 10], [2, 6, 8, 14], [0, 3, 6, 10, 12], [0, 6, 8, 12, 14]];
+const OFFB = [[2, 6, 10, 14], [0, 6, 8, 14], [2, 8, 10], [0, 3, 6, 10, 12], [2, 4, 8, 12]];
+const AFRO = [[0, 3, 6, 10, 12], [2, 6, 8, 12], [0, 4, 6, 10], [3, 6, 10, 14], [0, 3, 8, 11]];
+const GRAMMAR = {
+  hiphop: { minor: 0.7, progs: { major: [[0, 3, 0, 3], [3, 4, 0, 0], [0, 5, 3, 4]], minor: [[0, 0, 5, 5], [0, 3, 0, 3], [0, 5, 2, 6], [0, 6, 5, 6]] }, tune: 'penta', rhythms: LAID, ext: 0.6 },
+  boombap: { minor: 0.75, progs: { major: [[0, 3, 0, 3], [3, 4, 0, 0]], minor: [[0, 0, 5, 5], [0, 3, 0, 3], [0, 6, 5, 6], [0, 5, 0, 5]] }, tune: 'penta', rhythms: LAID, ext: 0.6 },
+  lofi: { minor: 0.45, progs: SOUL, tune: 'penta', rhythms: [[0, 8], [0, 6, 10], [2, 8, 12], [0, 4, 10], [4, 12], [0, 3, 8]], ext: 1, ninths: 0.5 },
+  trap: { minor: 0.95, progs: DARK, tune: 'penta', rhythms: ROLL, ext: 0 },
+  drill: { minor: 1, progs: DARK, tune: 'penta', rhythms: ROLL, ext: 0 },
+  phonk: { minor: 1, progs: { major: DARK.major, minor: [[0, 0, 5, 5], [0, 5, 6, 0], [0, 5, 0, 5]] }, tune: 'penta', rhythms: ROLL, ext: 0 },
+  half: { minor: 0.85, progs: DARK, tune: 'penta', rhythms: LAID, ext: 0.3 },
+  house: { minor: 0.5, progs: CLUB, tune: 'penta', rhythms: OFFB, ext: 0.8 },
+  four: { minor: 0.5, progs: CLUB, tune: 'penta', rhythms: OFFB, ext: 0.6 },
+  garage: { minor: 0.6, progs: { major: CLUB.major, minor: [[0, 5, 3, 4], [0, 3, 6, 5], [0, 5, 6, 4]] }, tune: 'penta', rhythms: OFFB, ext: 0.9 },
+  jersey: { minor: 0.8, progs: { major: POP.major, minor: [[0, 5, 2, 6], [0, 6, 5, 6]] }, tune: 'penta', rhythms: ROLL, ext: 0 },
+  techno: { minor: 0.85, progs: { major: [[0, 0, 3, 3], [0, 3, 0, 3]], minor: [[0, 0, 5, 5], [0, 6, 0, 6], [0, 0, 0, 5]] }, tune: 'penta', rhythms: OFFB, ext: 0 },
+  broken: { minor: 0.5, progs: SOUL, tune: 'penta', rhythms: OFFB, ext: 1, ninths: 0.4 },
+  dnb: { minor: 0.7, progs: { major: POP.major, minor: [[0, 5, 3, 4], [0, 3, 5, 6], [0, 5, 6, 4]] }, tune: 'penta', rhythms: SUNG, ext: 0.8 },
+  afro: { minor: 0.35, progs: { major: [[0, 3, 4, 3], [0, 5, 3, 4], [3, 4, 0, 0], [1, 4, 0, 0]], minor: [[0, 3, 6, 6], [0, 5, 3, 4], [0, 3, 0, 3]] }, tune: 'penta', rhythms: AFRO, ext: 0.4 },
+  amapiano: { minor: 0.5, progs: { major: [[1, 4, 0, 5], [0, 3, 1, 4], [3, 4, 2, 5]], minor: [[0, 3, 6, 2], [0, 5, 3, 4], [3, 4, 0, 0]] }, tune: 'penta', rhythms: AFRO, ext: 0.9, ninths: 0.5 },
+  dembow: { minor: 0.8, progs: { major: POP.major, minor: [[0, 5, 2, 6], [0, 6, 5, 6], [0, 3, 6, 2]] }, tune: 'penta', rhythms: AFRO, ext: 0.1 },
+  baile: { minor: 0.8, progs: { major: POP.major, minor: [[0, 5, 2, 6], [0, 6, 5, 6], [0, 0, 5, 5]] }, tune: 'penta', rhythms: ROLL, ext: 0 },
+  reggae: { minor: 0.4, progs: { major: [[0, 3, 0, 4], [0, 3, 4, 3], [0, 4, 5, 3]], minor: [[0, 3, 0, 3], [0, 6, 0, 6], [0, 3, 6, 6]] }, tune: 'penta', rhythms: LAID, ext: 0 },
+  funk: { minor: 0.5, modes: { major: ['mixo'], minor: ['dorian'] }, progs: { major: [[0, 0, 3, 3], [0, 0, 0, 3], [0, 3, 0, 3]], minor: [[0, 0, 3, 3], [0, 3, 0, 3], [0, 0, 0, 3]] }, tune: 'blues', rhythms: [[0, 3, 6, 10], [2, 3, 6, 10, 12], [0, 6, 8, 11, 14], [0, 3, 8, 10]], ext: 1 },
+  // (And the newer grooves whose tunes were free over the whole scale, where their music keeps to five notes.)
+  rock: { tune: 'penta' }, punk: { tune: 'penta' }, country: { tune: 'penta' }, highlife: { tune: 'penta' }, cumbia: { tune: 'penta' },
+  kizomba: { tune: 'penta' }, synthwave: { tune: 'penta' }, dubstep: { tune: 'penta' }, gospel: { tune: 'penta' }, disco: { tune: 'penta' }, citypop: { rhythms: SUNG }
+};
+for (const [st, g] of Object.entries(GRAMMAR)) Object.assign(BAND[st], g);
 export const BAND_STYLES = Object.keys(BAND);
 // Four chords, one a bar, as the scale's degrees (0 the home chord).
 const PROGS = {
