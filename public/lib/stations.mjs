@@ -54,19 +54,18 @@ export function homeRows(taste = {}) {
 }
 
 const dayHash = s => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 17);
-// A day as a key: "2026-10-19", the phone's own date.
-export const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// A day as a key: "2026-10-19", Taiwan's date (UTC+8, no summer time) on every phone and computer, so
+// a laptop set to another zone, or one whose clock passes midnight first, has the same day.
+export const dayKey = (d = new Date()) => new Date(d.getTime() + 8 * 3600e3).toISOString().slice(0, 10);
 // 今日精選: n songs for a day, each { seed, mood, style, bpm, key, seconds }: the same all day, another
-// tomorrow. Each differs from the one before (the radio's own rule), and with something kept, every
-// other one is of the grooves you keep. (`from`: the first of them, worked out already: the rest follow on.)
-export function dailyPicks(day, taste = {}, n = 8, from = []) {
-  const f = stationFilter('taste', taste);
-  const mine = tasteList(taste, 1).length > 0;
+// tomorrow, and the same on every device (Jay 2026-10-30): made from the day alone, never from what
+// one phone has kept. Each differs from the one before (the radio's own rule). (`from`: the first of
+// them, worked out already: the rest follow on.)
+export function dailyPicks(day, n = 8, from = []) {
   const out = from.slice(0, n);
   for (let i = out.length; i < n; i++) {
     const seed = dayHash(`${day}:${i}`) % 1e9;
-    const st = mine && i % 2 === 1 ? f : null;
-    const p = radioPick('all', out, seed, st);
+    const p = radioPick('all', out, seed, null);
     const sp = radioSpec(p.seed, p.mood, p.style);
     out.push({ seed: p.seed, mood: p.mood, style: p.style, bpm: sp.bpm, key: { tonic: sp.key.tonic, minor: Boolean(sp.key.minor) }, seconds: Math.round(sp.seconds) });
   }

@@ -75,20 +75,24 @@ test('the home rows: your taste, moods, eight grooves to browse', () => {
 });
 
 test('今日精選: a day gives the same songs, each differing from the one before; another day, others', () => {
-  const a = dailyPicks('2026-10-19', {});
+  const a = dailyPicks('2026-10-19');
   assert.equal(a.length, 8);
-  assert.deepEqual(a, dailyPicks('2026-10-19', {}));
+  assert.deepEqual(a, dailyPicks('2026-10-19'));
   // (The first three now, the rest a moment later (lib/homeview.mjs): the same eight.)
-  assert.deepEqual(a, dailyPicks('2026-10-19', {}, 8, dailyPicks('2026-10-19', {}, 3)));
-  assert.notDeepEqual(a.map(x => x.seed), dailyPicks('2026-10-20', {}).map(x => x.seed));
+  assert.deepEqual(a, dailyPicks('2026-10-19', 8, dailyPicks('2026-10-19', 3)));
+  assert.notDeepEqual(a.map(x => x.seed), dailyPicks('2026-10-20').map(x => x.seed));
   for (const [i, x] of a.entries()) {
     assert.ok(Number.isInteger(x.seed) && STYLES.includes(x.style) && x.mood === 'all' && x.bpm > 40 && x.key && x.seconds > 0);
     if (i) assert.notEqual(x.style, a[i - 1].style, 'no groove twice in a row');
   }
   assert.ok(new Set(a.map(x => x.style)).size >= 6, 'many grooves in one day');
-  // (With taste, every other song is of the grooves kept.)
-  const mine = dailyPicks('2026-10-19', { jazz: 5, blues: 2 });
-  for (const i of [1, 3, 5, 7]) assert.ok(['jazz', 'blues'].includes(mine[i].style), mine[i].style);
+});
+
+test('今日精選 and 今日挑戰: one day everywhere, Taiwan’s date', () => {
+  // (23:30 UTC on the 18th is 07:30 on the 19th in Taiwan, whatever zone the device is set to.)
+  assert.equal(dayKey(new Date(Date.UTC(2026, 9, 18, 23, 30))), '2026-10-19');
+  assert.equal(dayKey(new Date(Date.UTC(2026, 9, 19, 15, 59))), '2026-10-19');
+  assert.equal(dayKey(new Date(Date.UTC(2026, 9, 19, 16, 0))), '2026-10-20');
 });
 
 test('適合現在: a station for the hour', () => {
@@ -98,5 +102,5 @@ test('適合現在: a station for the hour', () => {
   assert.equal(at(19), 'groove');
   assert.equal(at(2), 'style:ambient');
   for (let h = 0; h < 24; h++) assert.ok(stationId(at(h)) === at(h), `${h}: a real station`);
-  assert.equal(dayKey(new Date(2026, 9, 5)), '2026-10-05');
+  assert.equal(dayKey(new Date(Date.UTC(2026, 9, 5, 4))), '2026-10-05');
 });

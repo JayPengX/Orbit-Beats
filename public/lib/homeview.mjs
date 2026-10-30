@@ -7,7 +7,7 @@ import { icon } from './icons.mjs';
 import { genreSheet } from './genres.mjs';
 import { W } from './lang.mjs';
 import { MOODS, stationStyles } from './radio.mjs';
-import { stationFilter, stationName, homeRows, dailyPicks, dayKey, nowStation, tasteList } from './stations.mjs';
+import { stationFilter, stationName, homeRows, dailyPicks, dayKey, nowStation } from './stations.mjs';
 import { coverSvg, coverUrl } from './cover.mjs';
 import { coverOfTrack } from './player.mjs';
 import { onLong, subOf } from './playerview.mjs';
@@ -70,16 +70,16 @@ export function mountHome(panel, api) {
 
   // 今日精選: the day's songs, and the hero is the first of them.
   // (Worked out once a day and kept on the phone: working them out held the screen a moment as it opened.)
-  const keptPicks = (day, taste) => {
-    const k = `${document.querySelector('meta[name="build-version"]')?.content || ''}|${day}|${JSON.stringify(taste || {})}`;
+  const keptPicks = day => {
+    const k = `${document.querySelector('meta[name="build-version"]')?.content || ''}|${day}`;
     try {
       const was = JSON.parse(localStorage.getItem(PICKS_KEY) || 'null');
       if (was?.k === k && Array.isArray(was.picks) && was.picks.length) return was.picks;
     } catch {}
     // (A new day: the hero and the two cards on the screen first, the rest a moment later.)
-    const got = dailyPicks(day, taste, 3);
+    const got = dailyPicks(day, 3);
     setTimeout(() => {
-      const all = dailyPicks(day, taste, 8, got);
+      const all = dailyPicks(day, 8, got);
       try {
         localStorage.setItem(PICKS_KEY, JSON.stringify({ k, picks: all }));
       } catch {}
@@ -90,10 +90,10 @@ export function mountHome(panel, api) {
   let picks = [];
   let picksKey = '';
   const pickTracks = () => {
-    const key = `${dayKey()}|${tasteList(api.taste(), 1).map(x => x[0])}`;
+    const key = dayKey();
     if (key !== picksKey) {
       picksKey = key;
-      picks = keptPicks(dayKey(), api.taste()).map(e => ({ e, t: radio.trackOf(e) }));
+      picks = keptPicks(key).map(e => ({ e, t: radio.trackOf(e) }));
       // (The hero and the next pick made ahead, just after the screen opens: a tap plays at once.)
       const first = picks.slice(0, 2).map(p => p.e);
       setTimeout(() => radio.prep?.(first), 300);
