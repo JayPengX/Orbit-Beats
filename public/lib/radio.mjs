@@ -237,9 +237,13 @@ const BAND = {
     minor: 0.35, modes: { minor: ['dorian'] }, progs: { major: [[3, 4, 2, 5], [3, 4, 0, 5], [1, 4, 0, 5], [5, 3, 4, 0]], minor: [[0, 3, 1, 4], [5, 3, 4, 0]] }, ext: 1, ninths: 0.4,
     kit: { kick: 'kick', boom: 'kick', sub: ['kick', 'crash'], snare: ['snare', 'clap'], tick: ['hat'] }, hats: [[['hat', ALL16, 3], ['hat', E8]], [['hat', E8], ['open', [14], 3]], [['tamb', [4, 12]], ['shaker', ALL16, 3]]]
   },
+  // (V19, Jay 2026-10-30: "K-pop doesn't feel like pop, its notes too random". Now the pop loops (I–V–vi–IV, vi–IV–I–V, the
+  // royal road IV–V–iii–vi) in major and minor, a pentatonic tune on a sung line's rhythms, plain triads, piano and voice first,
+  // the arpeggio on piano only and no bed under the chords: a clean pop record, not every layer at once.)
   kpop: {
-    bpm: [116, 128], chords: ['supersaw', 'piano', 'pad', 'keys', 'strings', 'guitar', 'rhodes'], leads: ['vox', 'piano', 'supersaw', 'pluck', 'lead', 'bell'], arps: ['piano', 'pluck', 'bell'], bass: ['bass808', 'subbass', 'bass'], comp: 'stab8', line: 'off8',
-    minor: 0.6, progs: { major: [[5, 3, 0, 4], [3, 4, 2, 5], [0, 4, 5, 3]] }, ext: 0.3
+    bpm: [116, 128], chords: ['piano', 'supersaw', 'keys', 'guitar', 'strings', 'rhodes'], leads: ['vox', 'piano', 'supersaw', 'lead'], arps: ['piano'], bass: ['bass808', 'subbass', 'bass'], comp: 'stab8', line: 'off8',
+    minor: 0.4, tune: 'penta', bare: true, progs: { major: [[0, 4, 5, 3], [5, 3, 0, 4], [3, 4, 2, 5], [0, 5, 3, 4], [3, 4, 0, 5]], minor: [[0, 5, 2, 6], [0, 5, 6, 4], [5, 6, 0, 0], [0, 3, 6, 2]] }, ext: 0.1,
+    rhythms: [[0, 2, 4, 8], [0, 4, 6, 8, 12], [2, 4, 8, 10], [0, 3, 6, 8, 12], [0, 8, 10, 12], [0, 4, 8, 10, 12], [2, 6, 8, 12]]
   },
   synthwave: {
     bpm: [84, 110], chords: ['supersaw', 'pad', 'strings', 'keys', 'organ', 'choir'], leads: ['lead', 'chip', 'supersaw', 'sax'], arps: ['pluck', 'supersaw', 'chip'], arp16: true, bass: ['bass', 'acid'], comp: 'pulse', line: 'rock8',
@@ -989,7 +993,7 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
     const plain = slotsOf(spX.prog, Array(8).fill(null));
     // (The soft pad under a riff is voiced another way each half, so it is not the same in every piece.)
     const beds = [0, 1].map(half => clip(notesClip(bedOf, spX, chordNotes(spX, bedOf, plain, half * 4, Array(4).fill(COMP.held[0]), [0, 1, 2, 1].map(x => (half ? (x + 1) % 3 : x)), D, oct))));
-    const under = (x, inst, half) => ((compName === 'held' && HOLDS.has(inst)) || BEDLESS.has(SOUND[sp.style]) ? x : sum(x, { ...beds[half], g: 0.3 }));
+    const under = (x, inst, half) => ((compName === 'held' && HOLDS.has(inst)) || BEDLESS.has(SOUND[sp.style]) || band.bare ? x : sum(x, { ...beds[half], g: 0.3 }));
     const memo = new Map();
     const once = (key, make) => (memo.has(key) ? memo.get(key) : (memo.set(key, make()), memo.get(key)));
     const chords = (inst, primary, half) =>
