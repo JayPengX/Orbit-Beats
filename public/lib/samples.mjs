@@ -2,7 +2,9 @@
 // mallets in place of the oscillators for the instruments that are real
 // ones (the synths, 8-bit and 808 stay made). Notes a major third apart
 // (public/samples/mk/<inst>/<midi>.mp3 from the MusyngKite soundfont, CC BY-SA
-// 3.0: scripts/samples.mjs fetches them); a note between two is
+// 3.0: scripts/samples.mjs fetches them; strings and piano in samples/v2/, a
+// real string section (VSCO 2 CE, CC0) and the Salamander Grand Piano (CC BY
+// 3.0): scripts/better-samples.mjs); a note between two is
 // the nearest one played a step or two higher or lower. Loaded on the page
 // only for the instruments a song plays, decoded once, and handed to the
 // workers, which play them through voice() (lib/synth.mjs). With none
@@ -59,10 +61,34 @@ export function sampleNotes(inst) {
 const NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 export const noteName = m => `${NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
 export const SAMPLE_DIR = 'samples/mk/';
-export const sampleUrl = (base, inst, m) => `${base}${SAMPLE_DIR}${inst}/${m}.mp3`;
+// (Strings and piano, 2026-10-30: better recordings than the soundfont's, scripts/better-samples.mjs. A
+// folder of their own: the service worker keeps a sample's address forever, so new sound needs a new address.)
+export const BETTER = new Set(['strings', 'piano']);
+export const sampleDir = inst => (BETTER.has(inst) ? 'samples/v2/' : SAMPLE_DIR);
+export const sampleUrl = (base, inst, m) => `${base}${sampleDir(inst)}${inst}/${m}.mp3`;
 // How each kind of instrument lets go of a note: a struck or plucked one rings
 // on as recorded (only a short note is damped), a held one stops with the hand.
 const RINGS = new Set(['piano', 'vibes', 'marimba', 'kalimba', 'musicbox', 'glass', 'bell', 'steel', 'harp', 'nylon', 'guitar', 'banjo', 'guzheng', 'sitar', 'pizz', 'rhodes', 'keys', 'clav']);
+
+// The held instruments (bowed, blown, sung, an organ): a note as long as the hand holds it.
+const HELD = new Set(['strings', 'organ', 'erhu', 'brass', 'sax', 'flute', 'harmonica', 'accordion', 'choir', 'vox']);
+// A recording's loop: from 1 s in (past the attack) to its end, the last 0.3 s faded into what led up to
+// the loop's start (equal power: the two are different moments of one sound, not the same wave).
+// -> { at(j) }: the recording's sample j, past the end read from round the loop.
+function loopOf(x, sr) {
+  const end = x.length - 3;
+  const start = Math.round(1 * sr);
+  const len = end - start;
+  const F = Math.min(Math.round(0.3 * sr), start - 1, len >> 1);
+  const at = j => {
+    if (j < 0) return undefined;
+    if (j >= end) j = start + ((j - start) % len);
+    if (j < end - F) return x[j];
+    const t = (j - (end - F)) / F;
+    return x[j] * Math.cos((t * Math.PI) / 2) + x[j - len] * Math.sin((t * Math.PI) / 2);
+  };
+  return { at };
+}
 
 // One note from the recorded ones: the nearest, played faster or slower (a
 // four-point curve between samples, so a moved note stays clean), held
@@ -82,8 +108,12 @@ export function playSample(bank, midi, sr, hold, vel = 0.7, variant = 0, release
   const ring = RINGS.has(bank.inst);
   // (Struck: as long as it rings, up to the hold and a long tail; held: the hold and its release.)
   const want = ring ? Math.max(hold + release, Math.min(hold + 2.2, 2.6)) : hold + release;
-  const n = Math.max(1, Math.min(Math.round(want * sr), Math.floor((x.length - from - 3) / rate)));
+  // (A held one longer than its recording (3.2 s kept): its steady part played round again, each turn
+  // crossfaded into the next, so a long string chord holds to its end instead of stopping mid-chord.)
+  const loop = HELD.has(bank.inst) && x.length > 1.6 * bank.sr && from + want * sr * rate > x.length - 3 ? loopOf(x, bank.sr) : null;
+  const n = Math.max(1, loop ? Math.round(want * sr) : Math.min(Math.round(want * sr), Math.floor((x.length - from - 3) / rate)));
   const out = new Float32Array(n);
+  const at = loop ? loop.at : null;
   const h = Math.round(hold * sr);
   const k = Math.exp(-4 / (Math.max(0.03, ring ? Math.max(release, Math.min(1.2, hold * 0.8 + 0.25)) : release) * sr));
   const fadeIn = Math.max(1, Math.round(0.0015 * sr));
@@ -92,10 +122,10 @@ export function playSample(bank, midi, sr, hold, vel = 0.7, variant = 0, release
   for (let i = 0; i < n; i++) {
     const j = Math.floor(p);
     const t = p - j;
-    const a = x[j - 1] ?? x[j];
-    const b = x[j];
-    const c = x[j + 1] ?? b;
-    const d = x[j + 2] ?? c;
+    const a = at ? at(j - 1) ?? at(j) : x[j - 1] ?? x[j];
+    const b = at ? at(j) : x[j];
+    const c = at ? at(j + 1) ?? b : x[j + 1] ?? b;
+    const d = at ? at(j + 2) ?? c : x[j + 2] ?? c;
     // (Catmull-Rom between b and c.)
     const v = b + 0.5 * t * (c - a + t * (2 * a - 5 * b + 4 * c - d + t * (3 * (b - c) + d - a)));
     if (i >= h) g *= k;

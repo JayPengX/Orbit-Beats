@@ -44,7 +44,7 @@ Music that never stops, and your own beat pieces arranged into new songs. Everyt
 | --- | --- |
 | App | Plain JavaScript (ES modules), HTML and CSS; no framework, no build step, no dependencies |
 | Audio | Synthesis and mixing in Web Workers, Web Audio, Media Source with WebCodecs' AudioEncoder (FLAC, AAC or Opus in MP4) for gapless play, one `<audio>` for the lock screen |
-| Sounds | 32 recorded instruments from the MusyngKite soundfont, recorded drum kits (acoustic, TR-808, electronic, hand percussion), plus band-limited synth voices |
+| Sounds | 32 recorded instruments (a real string section from VSCO 2, the Salamander grand piano, the rest from the MusyngKite soundfont), recorded drum kits (acoustic, TR-808, electronic, hand percussion), plus band-limited synth voices |
 | Storage | IndexedDB for kept songs and kits on the phone; only settings go to the Orbit Pass |
 | Shared | Look and Orbit Pass from the kit in [Orbit-Core](https://github.com/JayPengX/Orbit-Core) |
 | Command line | `passion_beats.py` (Python 3, NumPy, SciPy): the same engine, kept in step with `engine.mjs` |
@@ -129,7 +129,7 @@ Push to `main`. GitHub Actions runs the tests, stamps every file with its conten
 
 ## Credits
 
-Recorded instruments from the MusyngKite soundfont (CC BY-SA 3.0); drum kits from Virtuosity Drums, a TR-808 sampled by Michael Fischer, and Sonic Pi (CC0). Full credits are in the app's ? sheet.
+Recorded instruments from the MusyngKite soundfont (CC BY-SA 3.0), strings from VSCO 2 Community Edition (CC0) and piano from the Salamander Grand Piano (CC BY 3.0); drum kits from Virtuosity Drums, a TR-808 sampled by Michael Fischer, and Sonic Pi (CC0). Full credits are in the app's ? sheet.
 
 ## Part of Orbit
 
