@@ -768,7 +768,10 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   plan.forEach(([t, b, L], idx) => {
     if (b > 0 && CRASH_AT.has(t)) s.hit(P.crash, b * 4, true);   // (a crash where a section comes in, when the arrangement has one)
     if (b >= 4 && t === 'hook') s.hit(P.swell, b * 4 - 4, true);   // (a bar's swell rising into every hook: a reversed cymbal, when the arrangement has one)
-    if (t === 'intro') {   // previews: hats then a riff, a riff, or phrases
+    if (t === 'intro' && P.introDrums) {   // (a radio song's own way in, lib/radio.mjs: the riff with its hats, or with the band)
+      riff(b, L, introSet); s.loop(verseHat, b, L);
+      if (P.introDrums === 'full') s.drums(style, b, L, kit, dress?.verse), bass(b, L, Math.min(2, L >> 1));
+    } else if (t === 'intro') {   // previews: hats then a riff, a riff, or phrases
       const c = R.choice(verseHat == null ? ['riff', 'phr'] : ['riff', 'phr', 'hats']);
       if (c === 'riff') riff(b, L, introSet);
       else if (c === 'phr') s.phrases(b, L, phrases);
