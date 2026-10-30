@@ -33,6 +33,7 @@ import { specOf, setOf } from './lib/jamset.mjs';
 import { W, en, lang } from './lib/lang.mjs';
 import { shows, levelCss, makeSettings, makeWith, easyMood, EASY_MOODS } from './lib/easy.mjs';
 import { MOODS, radioPick, radioPlan, RADIO_V } from './lib/radio.mjs';
+import { blendTaste, listenNote } from './lib/listen.mjs';
 import { mountRadio } from './lib/radioview.mjs';
 import { mountGame } from './lib/gameview.mjs';
 import { recordsOf } from './lib/game.mjs';
@@ -333,17 +334,30 @@ function showSettings() {
   update();
 }
 // The styles you keep most: what a batch leans to (依你的口味).
+// ♡s (kept.taste, the Pass) and what's listened through or skipped (this phone, lib/listen.mjs) as one taste.
+const LISTENED = 'orbit-beats-listened';
+let listened = {};
+try {
+  listened = JSON.parse(localStorage.getItem(LISTENED)) || {};
+} catch {}
+const taste = () => blendTaste(kept.taste, listened);
+function heardSong(style, d) {
+  listened = listenNote(listened, style, d);
+  try {
+    localStorage.setItem(LISTENED, JSON.stringify(listened));
+  } catch {}
+}
 const tasteTop = () =>
-  Object.entries(kept.taste || {})
+  Object.entries(taste())
     .sort((a, b) => b[1] - a[1])
     .slice(0, 2)
     .map(([s]) => name(STYLE_NAMES, s));
 function tasteHint() {
   const top = tasteTop();
   $('taste-row').hidden = !top.length;
-  $('taste-hint').textContent = !settings.smart ? W('關著：每種一樣多', 'Off: every style alike') : W(`多做你收藏的 ${top.join('、')}`, `More of what you keep: ${top.join(', ')}`);
+  $('taste-hint').textContent = !settings.smart ? W('關著：每種一樣多', 'Off: every style alike') : W(`多做你常聽、收藏的 ${top.join('、')}`, `More of what you play and keep: ${top.join(', ')}`);
 }
-const weights = () => (cfg().smart && Object.keys(kept.taste || {}).length ? kept.taste : null);
+const weights = () => (cfg().smart && Object.keys(taste()).length ? taste() : null);
 
 // 長度: presets and a slider, in minutes and seconds.
 {
@@ -2340,7 +2354,8 @@ async function boot() {
     kept: id => lib.has(id),
     session: o => claimSession(o),
     meta: o => sessionMeta(o),
-    taste: () => kept.taste,
+    taste,
+    heard: heardSong,
     mood: settings.radioMood,
     setMood: m => ((settings.radioMood = m), save())
   });
@@ -2408,7 +2423,7 @@ async function boot() {
   home = mountHome($('panel-home'), {
     P,
     radio,
-    taste: () => kept.taste,
+    taste,
     trackMenu: view.trackMenu,
     openNow: view.openNow,
     songs: () => lib.all(),

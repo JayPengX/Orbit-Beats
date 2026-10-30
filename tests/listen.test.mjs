@@ -131,3 +131,21 @@ test('covers: the list of grooves never shows one picture twice, and songs of on
   }
   assert.ok(frames.size >= 3, [...frames].join());
 });
+
+test('taste learns from listening: heard through up, skipped early down, ♡ kept at half at least', async () => {
+  const { listenNote, blendTaste, LISTEN_DONE, LISTEN_SKIP } = await import('../public/lib/listen.mjs');
+  const now = Date.parse('2026-10-30T12:00:00Z');
+  let m = {};
+  for (let i = 0; i < 4; i++) m = listenNote(m, 'house', LISTEN_DONE, now);
+  for (let i = 0; i < 6; i++) m = listenNote(m, 'jazz', LISTEN_SKIP, now);
+  m = listenNote(m, 'BAD', 1, now);
+  const t = blendTaste({ jazz: 2, lofi: 1 }, m, now);
+  assert.equal(t.house, 1);
+  assert.equal(t.lofi, 1);
+  assert.equal(t.jazz, 1); // 2 − 1.2 = 0.8, floored at half of 2
+  assert.equal(t.BAD, undefined);
+  // A month on, what was heard counts half.
+  assert.equal(blendTaste({}, m, now + 30 * 86_400_000).house, 0.5);
+  // Little heard: nothing yet.
+  assert.deepEqual(blendTaste({}, listenNote({}, 'kpop', LISTEN_DONE, now), now), {});
+});

@@ -26,7 +26,7 @@ import { FRAME, CODECS, bytesOf, tapeInit, tapeSegment, tapeFragment, tapeFeed, 
 import { STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
 import { coverSvg, coverUrl, coverPalette } from './cover.mjs';
-import { SLEEP_CHOICES, sleepSet, sleepLeft, sleepGain, sleepDone, sleepClock, RECENT_KEY, recentAdd, recentEntry, recentParse } from './listen.mjs';
+import { SLEEP_CHOICES, sleepSet, sleepLeft, sleepGain, sleepDone, sleepClock, RECENT_KEY, recentAdd, recentEntry, recentParse, LISTEN_DONE, LISTEN_SKIP, SKIP_WITHIN } from './listen.mjs';
 
 const moodOf = m => (MOODS[m] ? stationName(m) : '');
 // A half second of silence: played on the first tap, it lets the page start the music once it's made (iOS's rule).
@@ -641,9 +641,12 @@ export function mountRadio(panel, api) {
   // ⏭ on a song's opening (or a kept song's first bars) skips the song, not just its opening: the song
   // itself, made or on its way, is let go, and the next one's opening plays at once.
   let skipped = null; // the id of a song skipped while it was still being made
+  let heardOut = null; // the id of the last song whose outcome (heard through, or skipped) was told
   function skip() {
     if (!want) return start();
     if (sleep?.song) sleep.skipped = true;
+    // (Skipped early: a little against its groove, once a song; api.heard, lib/listen.mjs.)
+    if (cur?.info?.style && heardOut !== cur.id && songTime() < SKIP_WITHIN) (heardOut = cur.id), api.heard?.(cur.info.style, LISTEN_SKIP);
     const id = cur?.id;
     const other = it => it && it.id !== id;
     for (const it of q.ready.filter(it => !other(it))) drop(it), unart(it);
@@ -848,6 +851,8 @@ export function mountRadio(panel, api) {
     }
     paintTime();
     sleepTick();
+    // (Heard nearly to its end: a little for its groove, once a song.)
+    if (cur && !cur.quick && cur.info?.style && cur.seconds > 0 && heardOut !== cur.id && songTime() > cur.seconds * 0.85) (heardOut = cur.id), api.heard?.(cur.info.style, LISTEN_DONE);
     // Nothing made yet at the outro: the last hook again, from its bar line.
     if (!tape && cur?.hold && !q.ready.length && audio.currentTime >= cur.hold.to) audio.currentTime = cur.hold.from;
   });

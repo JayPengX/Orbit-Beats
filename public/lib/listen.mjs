@@ -57,3 +57,30 @@ export function recentParse(text, max = RECENT_MAX) {
   }
 }
 
+
+// ---- What you listen through (為你推薦, 為你電台 and 做歌's lean, with ♡) ----
+// A radio song heard to its end says a little for its groove, one skipped in
+// its first half minute a little against it: kept on this phone only, fading
+// with a month's half-life. A ♡ says more (kept.taste, 1 each), and skips
+// never take a kept groove below half of what its ♡s gave it.
+export const LISTEN_DONE = 0.25;
+export const LISTEN_SKIP = -0.2;
+export const SKIP_WITHIN = 30; // s
+const HALF = 30 * 86_400_000;
+const fade = (x, now) => (x?.v || 0) * 0.5 ** ((now - (x?.t || now)) / HALF);
+// One song's outcome into the map ({ style: { v, t } }). -> a new map
+export function listenNote(map, style, d, now = Date.now()) {
+  if (!/^[a-z]+$/.test(style || '') || !Number.isFinite(d)) return map || {};
+  const v = Math.max(-3, Math.min(6, fade(map?.[style], now) + d));
+  return { ...map, [style]: { v: Math.round(v * 1000) / 1000, t: now } };
+}
+// ♡s and listening as one taste: { style: weight } (weights under 0.3 left out).
+export function blendTaste(taste = {}, map = {}, now = Date.now()) {
+  const out = {};
+  for (const s of new Set([...Object.keys(taste || {}), ...Object.keys(map || {})])) {
+    const t = Math.max(0, Number(taste?.[s]) || 0);
+    const v = Math.max(t * 0.5, t + fade(map?.[s], now));
+    if (v >= 0.3) out[s] = Math.round(v * 100) / 100;
+  }
+  return out;
+}
