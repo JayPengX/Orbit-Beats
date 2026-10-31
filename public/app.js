@@ -2325,7 +2325,7 @@ function helpSheet() {
     body: [
       h('div', { class: 'card sheet-card tours' }, cards),
       h('div', { class: 'card sheet-card' }, [row(W('名詞小辭典', 'Music words'), () => wordsSheet()), row(W('完整說明', 'The full guide'), () => (s.close(), kitQ.openHelp ? kitQ.openHelp(q) : (location.hash = 'help=beats')))]),
-      h('p', { class: 'sheet-credit', text: W('樂器錄音：MusyngKite 音色庫（CC BY-SA 3.0），經 gleitz/midi-js-soundfonts；弦樂：VSCO 2 Community Edition（Versilian Studios，CC0）；鋼琴：Salamander Grand Piano（Alexander Holm，CC BY 3.0）。鼓組：Virtuosity Drums（Versilian Studios、Karoryfer Samples）、Michael Fischer 的 TR-808、Sonic Pi（CC0）。', 'Recorded instruments: the MusyngKite soundfont (CC BY-SA 3.0), via gleitz/midi-js-soundfonts; strings: VSCO 2 Community Edition (Versilian Studios, CC0); piano: the Salamander Grand Piano (Alexander Holm, CC BY 3.0). Drums: Virtuosity Drums (Versilian Studios, Karoryfer Samples), the TR-808 by Michael Fischer, Sonic Pi (CC0).') })
+      h('p', { class: 'sheet-credit' }, en ? ['Recorded instruments: the MusyngKite soundfont (CC BY-SA 3.0), via gleitz/midi-js-soundfonts; strings: VSCO 2 Community Edition (Versilian Studios, CC0); piano: the Salamander Grand Piano (Alexander Holm, CC BY 3.0). Drums: Virtuosity Drums (Versilian Studios, Karoryfer Samples), the TR-808 by Michael Fischer, Sonic Pi (CC0).'] : ['樂器錄音：MusyngKite 音色庫（CC BY-SA 3.0），經 ', h('span', { lang: 'en', text: 'gleitz/midi-js-soundfonts' }), '；弦樂：VSCO 2 Community Edition（Versilian Studios，CC0）；鋼琴：Salamander Grand Piano（Alexander Holm，CC BY 3.0）。鼓組：Virtuosity Drums（Versilian Studios、Karoryfer Samples）、Michael Fischer 的 TR-808、Sonic Pi（CC0）。'])
     ]
   });
 }

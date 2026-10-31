@@ -1299,28 +1299,44 @@ const SHAPES = ['VH', 'VHKH', 'VHBH', 'VHVH', 'VHBKH', 'VHKHBH', 'VHVHKH', 'VHKH
   'HVHBH', 'HVHKHH', 'VVHBH', 'VVHVHKH', 'VHBVHH', 'VHVHHBH', 'VHHVHKH', 'HVHVHBKH', 'VVHBVHH', 'VHBHVHKH',
   'VHVHBVHH', 'VHVHKVHBHH', 'HVHVHBVHH', 'VHVHBHKHH', 'VVHVHBKHH', 'VHKHVHBHH', 'HVHBVHKHH'];
 const SHAPE_BARS = { V: 8, H: 8, B: 8, K: 4 };
-export function formPlan(R, bars) {
-  const names = { V: 'verse', H: 'hook', B: 'bridge', K: 'break' };
+// (Every way of every shape, worked out once; and, for each length, the shapes near it: the same picks, without
+// counting every way again on each song a screen draws.)
+const FORM_WAYS = SHAPES.flatMap(shape => {
+  const pairs = (shape.match(/VH/g) || []).length;
+  const base = [...shape].reduce((a, c) => a + SHAPE_BARS[c], 0);
+  const ways = [];
+  for (let pre = 0; pre < 1 << pairs; pre++) {
+    let pres = 0;
+    for (let k = 0; k < pairs; k++) if (pre & (1 << k)) pres++;
+    for (const intro of [4]) for (const outro of [4, 8]) ways.push({ shape, pre, intro, outro, total: intro + outro + base + 4 * pres });
+  }
+  return ways;
+});
+const FORM_NEAR = new Map();
+function formNear(bars) {
+  if (FORM_NEAR.has(bars)) return FORM_NEAR.get(bars);
   // Every shape that comes near the length wanted; a shape picked by chance among them (each shape as likely, whatever
   // its ways of pre-hooks and outros), then one of its ways. (A long song with no bridge or break is left out.)
   const near = new Map();
   let best = null;
-  for (const shape of SHAPES) {
-    const pairs = (shape.match(/VH/g) || []).length;
-    for (let pre = 0; pre < 1 << pairs; pre++)
-      for (const intro of [4])
-        for (const outro of [4, 8]) {
-          const total = intro + outro + [...shape].reduce((a, c) => a + SHAPE_BARS[c], 0) + 4 * [...Array(pairs).keys()].filter(k => pre & (1 << k)).length;
-          const bad = (bars >= 40 && !/[BK]/.test(shape)) || (bars >= 56 && !shape.includes('B'));
-          if (total > 96) continue;
-          const way = { shape, pre, intro, outro };
-          const score = Math.abs(total - bars) + (outro === 8 ? 1.5 : 0) + (bad ? 8 : 0);
-          if (!best || score < best.score) best = { score, ...way };
-          if (!bad && total <= bars + 4 && total >= bars - Math.max(8, bars * 0.22)) (near.get(shape) || near.set(shape, []).get(shape)).push(way);
-        }
+  for (const { shape, pre, intro, outro, total } of FORM_WAYS) {
+    const bad = (bars >= 40 && !/[BK]/.test(shape)) || (bars >= 56 && !shape.includes('B'));
+    if (total > 96) continue;
+    const way = { shape, pre, intro, outro };
+    const score = Math.abs(total - bars) + (outro === 8 ? 1.5 : 0) + (bad ? 8 : 0);
+    if (!best || score < best.score) best = { score, ...way };
+    if (!bad && total <= bars + 4 && total >= bars - Math.max(8, bars * 0.22)) (near.get(shape) || near.set(shape, []).get(shape)).push(way);
   }
-  if (near.size) {
-    const ways = R.choice([...near.values()]);
+  const found = { groups: [...near.values()], best };
+  FORM_NEAR.set(bars, found);
+  return found;
+}
+export function formPlan(R, bars) {
+  const names = { V: 'verse', H: 'hook', B: 'bridge', K: 'break' };
+  const found = formNear(bars);
+  let best = found.best;
+  if (found.groups.length) {
+    const ways = R.choice(found.groups);
     best = R.choice(ways);
   }
   const { shape, pre, intro, outro } = best;
