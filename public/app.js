@@ -2436,6 +2436,8 @@ async function boot() {
       else $('go').click();
     }
   });
+  // (A new kind of screen: 首頁's rows again, 適合現在 one banner or two.)
+  kit.onScreen?.(() => home?.refresh?.());
   // (The loop button leaves a section on repeat.)
   let loopWas = P.q.loop;
   P.on(w => {

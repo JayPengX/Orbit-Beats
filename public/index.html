@@ -1046,6 +1046,13 @@ body.own-sound main, body.own-sound.playing main { padding-bottom: calc(112px + 
 /* (適合現在: the phone's banner shape, not a strip a page wide that cut its station's name.) */
 :root.q-wide .sq.wide { width: min(100%, 560px); }
 :root.q-wide .sq.wide .sq-cover { height: auto; aspect-ratio: 358 / 148; }
+:root.q-wide .rail.now-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
+:root.q-wide .rail.now-pair .sq.wide { width: 100%; }
+/* (創作's 從這裡開始 and 即興組合: the cards share the row's width, never a few left in one corner.) */
+:root.q-wide .hub-shelf :is([data-row='start'], [data-row='jam-sets']) .rail { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); overflow: visible; }
+:root.q-wide .hub-shelf :is([data-row='start'], [data-row='jam-sets']) .sq, :root.q-wide .hub-shelf :is([data-row='start'], [data-row='jam-sets']) .sq-cover { width: 100%; }
+:root.q-wide .hub-shelf [data-row='start'] .sq-cover { height: auto; aspect-ratio: 220 / 138; }
+:root.q-wide .hub-shelf [data-row='jam-sets'] .sq-cover { height: auto; aspect-ratio: 1; }
 /* 創作: 即興 large on the left; 節奏遊戲 and 樂器 · 做歌 beside it. */
 :root.q-wide #panel-create:not([hidden]) { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); column-gap: 16px; align-items: stretch; }
 :root.q-wide #panel-create > :is(.q-navtitle, .q-large-title, h1, .hub-shelf) { grid-column: 1 / -1; }

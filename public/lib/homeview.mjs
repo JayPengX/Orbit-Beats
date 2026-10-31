@@ -3,6 +3,7 @@
 // (the station for the hour), 最近播放, 為你推薦 (the stations of what you keep), 你的歌, 心情 and
 // 瀏覽類型 (eight grooves and 全部類型). A station's cover has its name in the art.
 import { h } from './ui.mjs';
+import * as kit from '#kit/orbit.mjs';
 import { icon } from './icons.mjs';
 import { genreSheet } from './genres.mjs';
 import { W } from './lang.mjs';
@@ -154,11 +155,28 @@ export function mountHome(panel, api) {
     });
     picksSlot.replaceChildren(shelf('picks', W('今日精選', 'Today’s picks'), nodes));
   }
+  // 適合現在: the hour's station; on a wide screen the next part of the day's beside it (one banner
+  // alone left half the row empty, and stretched across it cut its name).
+  const nowList = () => {
+    const hr = new Date().getHours();
+    const a = nowStation(hr);
+    if (!kit.screenFit?.().wide) return [a];
+    for (let k = 1; k < 24; k++) {
+      const b = nowStation((hr + k) % 24);
+      if (b.id !== a.id) return [a, b];
+    }
+    return [a];
+  };
   function drawNow() {
-    const n = nowStation(new Date().getHours());
-    const c = stCard(stationCover(n.id, api.taste()), stationName(n.id), { 'data-station': n.id, onclick: () => tune(n.id) }, 'sq st wide');
-    c.querySelector('.sq-cover').append(h('span', { class: 'sq-tag', text: W(...n.part) }));
-    nowSlot.replaceChildren(shelf('now', W('適合現在', 'Right now'), [c]));
+    const list = nowList();
+    const cards = list.map(n => {
+      const c = stCard(stationCover(n.id, api.taste()), stationName(n.id), { 'data-station': n.id, onclick: () => tune(n.id) }, 'sq st wide');
+      c.querySelector('.sq-cover').append(h('span', { class: 'sq-tag', text: W(...n.part) }));
+      return c;
+    });
+    const el = shelf('now', W('適合現在', 'Right now'), cards);
+    el.querySelector('.rail').classList.toggle('now-pair', cards.length > 1);
+    nowSlot.replaceChildren(el);
   }
   const browse = () => {
     const ids = homeRows(api.taste()).find(r => r.key === 'genres').ids;
@@ -173,8 +191,9 @@ export function mountHome(panel, api) {
       slots[r.key]?.remove();
       slots[r.key] = null;
       if (!r.ids.length) continue;
-      // (心情 leaves out the mood 適合現在 already shows.)
-      const ids = r.key === 'moods' ? r.ids.filter(id => id !== nowStation(new Date().getHours()).id) : r.ids;
+      // (心情 leaves out the moods 適合現在 already shows.)
+      const now = nowList().map(n => n.id);
+      const ids = r.key === 'moods' ? r.ids.filter(id => !now.includes(id)) : r.ids;
       slots[r.key] = r.key === 'genres' ? browse() : shelf(r.key, W(...ROW_NAMES[r.key]), ids.map(id => station(id)));
     }
   }
