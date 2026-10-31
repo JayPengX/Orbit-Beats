@@ -25,6 +25,7 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
   everyday words, zh and en; a ⓘ beside a control opens one, eight with
   ▶ the same bar without it and with it. The ? sheet is the four screens as rows (聽 即興 樂器 做歌: tap one to go there, ▶ to try it; `TOUR` in `lib/help.mjs`), then rows for the words and
   opens the full guide (the kit's `help.mjs`, in the Orbit Pass sheet).
+- **Wide screens** (DESIGN §10, the block at the end of `index.html`'s style): 首頁 a banner and wider shelves, 創作's three ways in side by side, 資料庫's rows beside its covers, 做歌's songs beside its settings, Now Playing's cover beside its controls when wider than tall; 樂器, 即興 and lists stay 688 wide in the middle.
 - **Tabs:**
   - **聽** (Listen, the first screen; `lib/radio.mjs`, `lib/radioview.mjs`):
     one play button and the moods (隨機, 放鬆, 熱血, 律動, 經典, or one groove).

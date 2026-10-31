@@ -187,7 +187,7 @@ export function libraryView({ panel, row, goMake, zip, play, cover = () => '', s
         ]);
       }));
       list = recentOf(songs);
-      panel.replaceChildren(top, rows, ...sections, h('section', { class: 'lib-shelf' }, [h('h2', { text: W('最近收藏', 'Recently kept') }), grid]));
+      panel.replaceChildren(top, cols([rows, ...sections], [h('section', { class: 'lib-shelf' }, [h('h2', { text: W('最近收藏', 'Recently kept') }), grid])]));
       return;
     }
     const heard = recent();
@@ -199,15 +199,22 @@ export function libraryView({ panel, row, goMake, zip, play, cover = () => '', s
       ]);
     });
     panel.replaceChildren(
-      ...[top,
-      rows,
-      ...sections,
-      nodes.length ? h('section', { class: 'lib-shelf' }, [h('h2', { text: W('最近播放', 'Recently played') }), h('ol', { class: 'lib-recs' }, nodes)]) : ui.empty({ icon: icon('heart'), title: W('還沒有收藏的歌', 'No songs kept yet'), body: W('聽到喜歡的歌按愛心，或做一首歌，就會在這裡。', 'Tap the heart on a song you like, or make one: it shows up here.') }),
-      h('div', { class: 'lib-actions' }, [
-        h('button', { class: 'primary', type: 'button', html: `${icon('radio')}<span>${W('聽電台', 'Listen to Radio')}</span>`, onclick: goListen }),
-        h('button', { class: 'secondary', type: 'button', html: `${icon('create')}<span>${W('去做歌', 'Make songs')}</span>`, onclick: goMake })
-      ])].filter(Boolean)
+      top,
+      cols(
+        [rows, ...sections],
+        [
+          nodes.length ? h('section', { class: 'lib-shelf' }, [h('h2', { text: W('最近播放', 'Recently played') }), h('ol', { class: 'lib-recs' }, nodes)]) : ui.empty({ icon: icon('heart'), title: W('還沒有收藏的歌', 'No songs kept yet'), body: W('按愛心或做一首歌，就會在這裡。', 'Heart a song or make one: it shows up here.') }),
+          h('div', { class: 'lib-actions' }, [
+            h('button', { class: 'primary', type: 'button', html: `${icon('radio')}<span>${W('聽電台', 'Listen to Radio')}</span>`, onclick: goListen }),
+            h('button', { class: 'secondary', type: 'button', html: `${icon('create')}<span>${W('去做歌', 'Make songs')}</span>`, onclick: goMake })
+          ])
+        ]
+      )
     );
+  }
+  // (Its rows, then what's kept: one column on a phone, side by side on a wide screen.)
+  function cols(side, main) {
+    return h('div', { class: 'lib-cols' }, [h('div', { class: 'lib-side' }, side.filter(Boolean)), h('div', { class: 'lib-main' }, main.filter(Boolean))]);
   }
 
   // 清單: every list, a cover each.

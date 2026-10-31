@@ -1200,7 +1200,9 @@ function songRow(song, { lib: inLib = false, list = null } = {}) {
   if (!inLib) {
     const bar = h('div', { class: 'plan', role: 'group', 'aria-label': plan });
     const total = info.plan.reduce((a, [, n]) => a + n, 0);
-    const width = Math.min(innerWidth, 440) - 32 - 62 - 40; // the strip's room (row and card padding, play column), on the safe side so no label is cut
+    // (The strip's room: the songs' card (the page's column: 688 at most alone, half a wide page beside the settings), less the row and card padding and the play column; on the safe side so no label is cut.)
+    const page = (document.querySelector('main')?.clientWidth || Math.min(innerWidth, 440)) - 32;
+    const width = (kit.screenFit?.().wide ? (page - 16) / 2 : Math.min(page, 688)) - 62 - 40;
     sectionTimes(info.plan, info.bpm || bpm).forEach((s, k) => {
       const label = name(SECTION_NAMES, s.type);
       const em = en ? label.length * 0.66 : label.length;
