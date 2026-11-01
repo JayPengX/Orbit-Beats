@@ -243,7 +243,7 @@ python3 passion_beats.py all_beats.wav --count 20 --out songs/
 Its flags: `--bpm`, `--roles 3=riff,12=off`, `--styles`, `--humanize`,
 `--seed`, `--min-bars` / `--max-bars`, `--silence-db -60`,
 `--save-pieces`, `--raw` (no mix), `--levels`, `--reverb`, `--delay`,
-`--pump`, `--width`, `--fade`, `--no-sweep`, `--stems`, `--plan`. A push to `main` tests and deploys to Pages.
+`--pump`, `--width`, `--fade`, `--no-sweep`, `--stems`, `--plan`. A push to `main` tests and deploys to Cloudflare.
 
 ## The create shell (app.js)
 
