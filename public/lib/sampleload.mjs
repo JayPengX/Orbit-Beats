@@ -127,7 +127,19 @@ export function instsOf(fn, args) {
   return [];
 }
 // For lib/maker.mjs: the banks a call needs that this worker hasn't had yet. -> { inst: bank } | null
+// (Nothing is read while the sign-in or install screen is up: the home tab's warm-ups would
+// otherwise fetch a few MB of recordings for someone who may never get past it.)
+const pastGate = () =>
+  new Promise(res => {
+    const el = globalThis.document?.documentElement;
+    if (!el || !el.classList.contains('q-signing-in')) return res();
+    const o = new MutationObserver(() => {
+      if (!el.classList.contains('q-signing-in')) (o.disconnect(), res());
+    });
+    o.observe(el, { attributes: true, attributeFilter: ['class'] });
+  });
 export async function banksFor(fn, args, sent) {
+  await pastGate();
   const want = instsOf(fn, args).filter(i => !sent.has(i));
   if (!want.length) return null;
   const got = await Promise.all(want.map(loadBank));

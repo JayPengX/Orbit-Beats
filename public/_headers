@@ -1,0 +1,5 @@
+# Cloudflare (Orbit-Core deploy/cf-site.mjs moves these under /beats/).
+# The instrument recordings never change in place (a new sound is a new file
+# or folder), so a phone keeps each one for good after reading it once.
+/samples/*
+  Cache-Control: public, max-age=31536000, immutable
