@@ -9,7 +9,7 @@
 // offline; the Orbit Pass keeps the settings, each kit's tempo and roles
 // and the styles you keep (your taste); the sound never leaves the phone.
 import { banksFor } from './lib/sampleload.mjs';
-import { orbitSession, topActions, installGate, watchUpdates, keepOffline, tabBar, ask } from '#kit/orbit.mjs';
+import { orbitSession, storedAccount, topActions, installGate, watchUpdates, keepOffline, tabBar, ask } from '#kit/orbit.mjs';
 import * as kit from '#kit/orbit.mjs';
 import { h, sheet, menu, toast, toggle, empty } from './lib/ui.mjs';
 import * as ui from './lib/ui.mjs';
@@ -122,7 +122,13 @@ let bpm = 120; // as heard, then as set
 let print = ''; // the kit's fingerprint
 let songs = []; // this batch: { id, name, info, data, url, bits, recipe }
 let busy = false;
-const make = maker(new URL('./lib/maker.worker.mjs', import.meta.url), { prep: banksFor });
+// No recording is read (nor a song made) until the Pass has answered: someone at the sign-in screen
+// would otherwise download a few MB of instruments for the home tab's warm-ups.
+let signedIn;
+const inside = new Promise(r => (signedIn = r));
+if (storedAccount()) signedIn(); // (signed in on this phone: no wait)
+const prep = (...a) => inside.then(() => banksFor(...a));
+const make = maker(new URL('./lib/maker.worker.mjs', import.meta.url), { prep });
 let kitSent = ''; // the kit the maker has: its print, tempo and roles
 
 // ---- What's kept: this phone's copy of the Pass's payload, and the Pass's ----
@@ -2347,9 +2353,9 @@ async function boot() {
   showSettings();
   radio = mountRadio(null, {
     // (The radio's own worker: a song tapped can drop what it's making ahead, never a batch being made in 做歌.)
-    make: maker(new URL('./lib/maker.worker.mjs', import.meta.url), { prep: banksFor }),
+    make: maker(new URL('./lib/maker.worker.mjs', import.meta.url), { prep }),
     // (And one for a song's opening alone, started now and idle till a tap: never a worker to start, nor one busy, then.)
-    quick: maker(new URL('./lib/maker.worker.mjs', import.meta.url), { prep: banksFor }),
+    quick: maker(new URL('./lib/maker.worker.mjs', import.meta.url), { prep }),
     quiet: () => quiet({ keep: 'radio' }),
     title: seed => songTitle(seed),
     keep: item => keepRadio(item),
@@ -2472,7 +2478,7 @@ async function boot() {
     quiet: () => quiet({ keep: 'jam' }),
     styles: () => cfg().styles,
     // (The built-in set made in a worker of its own: not queued behind 聽's songs.)
-    band: set => (jamMake ||= maker(new URL('./lib/maker.worker.mjs', import.meta.url), { prep: banksFor })).jamBand(set),
+    band: set => (jamMake ||= maker(new URL('./lib/maker.worker.mjs', import.meta.url), { prep })).jamBand(set),
     simple,
     take: (hits, beats, band, opts) => jamSong(hits, beats, band, opts),
     takes: () =>
@@ -2500,6 +2506,7 @@ async function boot() {
   $('loading').hidden = true;
   setTimeout(() => slimLibrary().catch(() => {}), 4000);
   const first = await q.start().catch(() => null);
+  signedIn();
   const theirs = decode(first?.payload || 'null');
   const before = encode(kept);
   kept = merge(kept, theirs);
