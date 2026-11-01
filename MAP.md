@@ -25,7 +25,13 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
   everyday words, zh and en; a ⓘ beside a control opens one, eight with
   ▶ the same bar without it and with it. The ? sheet is the four screens as rows (聽 即興 樂器 做歌: tap one to go there, ▶ to try it; `TOUR` in `lib/help.mjs`), then rows for the words and
   opens the full guide (the kit's `help.mjs`, in the Orbit Pass sheet).
-- **Wide screens** (DESIGN §10, the block at the end of `index.html`'s style): 首頁 a banner and wider shelves, 創作's three ways in side by side, 資料庫's rows beside its covers, 做歌's songs beside its settings, Now Playing's cover beside its controls when wider than tall; 樂器, 即興 and lists stay 688 wide in the middle.
+- **Picks that learn** (this phone only, a month's half-life): 為你推薦, 為你電台
+  and 做歌's lean learn from listening, not only ♡: a radio song heard to its
+  end counts a little for its groove, one skipped in its first 30 s a little
+  against; skips never take a ♡'d groove below half. 今日精選 and 今日挑戰 are
+  the same on every device (made from Taiwan's date alone). The home screen's
+  songs are planned from a table worked out once, so it opens faster.
+- **Wide screens** (DESIGN §10, the block at the end of `index.html`'s style): 首頁 a banner and wider shelves, 創作's three ways in side by side, 適合現在's banner beside the next part of the day's, 資料庫's rows beside its covers, 做歌's songs beside its settings, Now Playing's cover beside its controls when wider than tall; 樂器, 即興 and lists stay 688 wide in the middle.
 - **Tabs:**
   - **聽** (Listen, the first screen; `lib/radio.mjs`, `lib/radioview.mjs`):
     one play button and the moods (隨機, 放鬆, 熱血, 律動, 經典, or one groove).
