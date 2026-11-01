@@ -13,7 +13,7 @@
   <img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-ES_modules-F7DF1E?logo=javascript&logoColor=000"> <img alt="PWA" src="https://img.shields.io/badge/PWA-works_offline-5A0FC8?logo=pwa&logoColor=fff"> <img alt="Cloudflare" src="https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=fff"> <img alt="Tests" src="https://img.shields.io/badge/Tests-node_--test-339933?logo=nodedotjs&logoColor=fff"> <img alt="Python" src="https://img.shields.io/badge/Python-CLI-3776AB?logo=python&logoColor=fff">
 </p>
 
-Music that never stops, and your own beat pieces arranged into new songs. Everything runs on the phone; no sound is uploaded. Part of **Orbit**, a family of phone apps for life in Taiwan that share one sign-in, the Orbit Pass. See them all at [orbit.jaypengx.com](https://orbit.jaypengx.com/pass/).
+Music that never stops, and your own beat pieces arranged into new songs. Everything runs on the phone; no sound is uploaded. Part of **Orbit**, a family of apps for life in Taiwan that share one sign-in, the Orbit Pass. See them all at [orbit.jaypengx.com](https://orbit.jaypengx.com/pass/).
 
 <p align="center">
   <img src="docs/screenshots/beats-1.webp" width="30%" alt="Music made for you">
@@ -38,6 +38,7 @@ Music that never stops, and your own beat pieces arranged into new songs. Everyt
 - **資料庫 Library:** keep songs small (AAC), playlists, search, and export as WAV, stems, MIDI or a zip.
 - **簡單 / 進階:** Simple mode for everyone, Advanced for every control, and 23 music words explained in everyday language.
 - **Private:** everything runs on the phone; no sound is ever uploaded.
+- **Every screen, either way up:** on a tablet, a computer or a phone on its side 首頁's shelves widen, 創作's 即興 sits beside the rhythm game and 樂器·做歌, and 資料庫's rows beside its covers.
 
 ## Tech stack
 
