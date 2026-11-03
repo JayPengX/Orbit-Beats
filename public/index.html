@@ -1043,6 +1043,22 @@ body.own-sound main, body.own-sound.playing main { padding-bottom: calc(112px + 
 :root.q-wide .hero { aspect-ratio: auto; height: clamp(220px, 44dvh, 440px); }
 @media (max-height: 520px) { .hero, :root.q-wide .hero { aspect-ratio: auto; height: max(180px, 50dvh); margin-bottom: 18px; } }
 :root.q-wide .home-radios { max-width: 560px; }
+/* 首頁's and 資料庫's shelves: whole covers edge to edge, none cut at the side
+   (5 songs or 4 picks a row, 7 and 5 on a computer), 瀏覽類型 a block of tiles
+   with 全部類型 down its last column (as 10-21's iPad layout; lost with phones-only
+   10-23, back 2026-11-01). */
+:root.q-wide .rail:not(.now-pair):not(.rail-grid) { --n: 5; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(calc((100% - (var(--n) - 1) * 16px) / var(--n)), 1fr); gap: 16px; }
+:root.q-wide :is(.shelf[data-row="picks"], .shelf[data-row="for-you"], .shelf[data-row="moods"]) .rail { --n: 4; }
+:root.q-wide .rail:not(.now-pair) .sq:not(.wide), :root.q-wide .rail:not(.now-pair) .sq:not(.wide) .sq-cover { width: auto; }
+:root.q-wide .rail:not(.now-pair) .sq:not(.wide) .sq-cover { height: auto; aspect-ratio: 1; }
+:root.q-wide .rail .sq.big .sq-cover { aspect-ratio: 16 / 10; }
+:root.q-wide .rail:has(> .sq.big) { --n: 3; }
+:root.q-wide .rail.rail-grid { grid-auto-flow: row dense; grid-template-rows: none; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-auto-columns: auto; overflow: visible; }
+:root.q-wide .rail-grid .sq.sm.all { grid-column: 5; grid-row: 1 / span 2; }
+:root.q-w3 .rail:not(.now-pair):not(.rail-grid) { --n: 7; }
+:root.q-w3 :is(.shelf[data-row="picks"], .shelf[data-row="for-you"], .shelf[data-row="moods"]) .rail { --n: 5; }
+:root.q-w3 .rail.rail-grid { grid-template-columns: repeat(9, minmax(0, 1fr)); }
+:root.q-w3 .rail-grid .sq.sm.all { grid-column: 9; grid-row: 1; }
 /* (適合現在: the phone's banner shape, not a strip a page wide that cut its station's name.) */
 :root.q-wide .sq.wide { width: min(100%, 560px); }
 :root.q-wide .sq.wide .sq-cover { height: auto; aspect-ratio: 358 / 148; }
