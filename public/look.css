@@ -251,7 +251,7 @@ html[data-look='native'].q-wide .bt-cover {
   width: 140px;
   height: 140px;
 }
-/* (Wide: every station in view, an even grid of them; no row scrolled out of sight.) */
+/* (Wide: every station in view, an even grid of them, every row full where the count allows (the kit's fullRows, none left out); no row scrolled out of sight.) */
 html[data-look='native'].q-wide .bt-chips {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));

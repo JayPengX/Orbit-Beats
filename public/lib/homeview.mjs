@@ -274,8 +274,8 @@ export function mountHome(panel, api) {
     const forYou = rows.find(r => r.key === 'for-you').ids;
     const moods = rows.find(r => r.key === 'moods').ids.filter(id => id !== now.id);
     const ids = [...new Set(['all', ...forYou, ...moods])].filter(id => id !== now.id);
-    const st = h('div', { class: 'q-chips bt-chips' }, [chip(now.id, stationName(now.id), h('small', { class: 'bt-part-of', text: W(...now.part) })), ...ids.map(id => chip(id))]);
-    const genres = h('div', { class: 'q-chips bt-chips' }, [
+    const st = h('div', { class: 'q-chips bt-chips q-rows-full q-rows-keep' }, [chip(now.id, stationName(now.id), h('small', { class: 'bt-part-of', text: W(...now.part) })), ...ids.map(id => chip(id))]);
+    const genres = h('div', { class: 'q-chips bt-chips q-rows-full q-rows-keep' }, [
       ...rows.find(r => r.key === 'genres').ids.map(id => chip(id)),
       h('button', { class: 'q-chip bt-st', type: 'button', onclick: () => genreSheet({ title: W('全部類型', 'All genres'), onPick: g => P.station(`style:${g}`) }) }, [h('span', { text: W('全部類型', 'All genres') })])
     ]);
