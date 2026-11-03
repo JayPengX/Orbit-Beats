@@ -17,15 +17,32 @@ Music that never stops, and your own beat pieces arranged into new songs. Everyt
 
 <p align="center">
   <img src="docs/screenshots/beats-1.webp" width="30%" alt="Music made for you">
-  <img src="docs/screenshots/beats-2.webp" width="30%" alt="Music for any mood">
-  <img src="docs/screenshots/beats-3.webp" width="30%" alt="Make beats in the studio">
+  <img src="docs/screenshots/beats-2.webp" width="30%" alt="Moods and stations">
+  <img src="docs/screenshots/beats-3.webp" width="30%" alt="Create your way">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/beats-4.webp" width="30%" alt="Jam on the pads">
-  <img src="docs/screenshots/beats-5.webp" width="30%" alt="Create your way">
+  <img src="docs/screenshots/beats-4.webp" width="30%" alt="Make beats in the studio">
+  <img src="docs/screenshots/beats-5.webp" width="30%" alt="Jam on the pads">
   <img src="docs/screenshots/beats-6.webp" width="30%" alt="A rhythm game for any song">
 </p>
+
+<details>
+<summary>中文畫面</summary>
+
+<p align="center">
+  <img src="docs/screenshots/beats-1.zh.webp" width="30%" alt="為你做的音樂">
+  <img src="docs/screenshots/beats-2.zh.webp" width="30%" alt="各種心情與電台">
+  <img src="docs/screenshots/beats-3.zh.webp" width="30%" alt="用你的方式創作">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/beats-4.zh.webp" width="30%" alt="在樂器室做節拍">
+  <img src="docs/screenshots/beats-5.zh.webp" width="30%" alt="用打擊墊即興">
+  <img src="docs/screenshots/beats-6.zh.webp" width="30%" alt="每首歌都能玩節奏遊戲">
+</p>
+
+</details>
 
 ## Features
 
