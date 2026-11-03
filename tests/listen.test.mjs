@@ -132,20 +132,32 @@ test('covers: the list of grooves never shows one picture twice, and songs of on
   assert.ok(frames.size >= 3, [...frames].join());
 });
 
-test('taste learns from listening: heard through up, skipped early down, ♡ kept at half at least', async () => {
-  const { listenNote, blendTaste, LISTEN_DONE, LISTEN_SKIP } = await import('../public/lib/listen.mjs');
+test('taste learns from listening (the kit\'s engine): heard through up, skipped early down, ♡ kept at half at least', async () => {
+  const { tasteFrom, grooveItem, oldListening } = await import('../public/lib/listen.mjs');
+  const F = await import('#kit/feedback.mjs');
+  const mem = new Map();
+  F.useStore({ getItem: k => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, String(v)), removeItem: k => mem.delete(k) });
   const now = Date.parse('2026-10-30T12:00:00Z');
-  let m = {};
-  for (let i = 0; i < 4; i++) m = listenNote(m, 'house', LISTEN_DONE, now);
-  for (let i = 0; i < 6; i++) m = listenNote(m, 'jazz', LISTEN_SKIP, now);
-  m = listenNote(m, 'BAD', 1, now);
-  const t = blendTaste({ jazz: 2, lofi: 1 }, m, now);
-  assert.equal(t.house, 1);
-  assert.equal(t.lofi, 1);
-  assert.equal(t.jazz, 1); // 2 − 1.2 = 0.8, floored at half of 2
+  for (let i = 0; i < 6; i++) F.picked('beats', grooveItem('house'), now + i * 240_000, { from: 'list' });
+  for (let i = 0; i < 6; i++) F.passed('beats', grooveItem('jazz'), now + i * 240_000);
+  const weightAt = (at, sure = 0.5) => {
+    const sc = F.scorer('beats', at, { sure });
+    return style => sc(grooveItem(style));
+  };
+  const styles = ['house', 'jazz', 'lofi', 'kpop'];
+  const t = tasteFrom({ jazz: 2, lofi: 1, BAD: 3 }, weightAt(now + 3_600_000), styles);
+  assert.ok(t.house >= 0.3, JSON.stringify(t));
+  assert.equal(t.lofi, 0.5); // a ♡ and nothing heard yet: at its likely least, never under half
+  assert.equal(t.jazz, 1); // skipped again and again, floored at half of its ♡s
+  assert.ok(t.house > t.lofi);
   assert.equal(t.BAD, undefined);
-  // A month on, what was heard counts half.
-  assert.equal(blendTaste({}, m, now + 30 * 86_400_000).house, 0.5);
-  // Little heard: nothing yet.
-  assert.deepEqual(blendTaste({}, listenNote({}, 'kpop', LISTEN_DONE, now), now), {});
+  assert.equal(t.kpop, undefined);
+  // A month on, what was heard counts less.
+  assert.ok(tasteFrom({}, weightAt(now + 31 * 86_400_000), styles).house < t.house);
+  // One song heard by luck: nothing yet (at its likely least).
+  mem.clear();
+  F.picked('beats', grooveItem('kpop'), now, { from: 'list' });
+  assert.deepEqual(tasteFrom({}, weightAt(now + 60_000), styles), {});
+  // The old counts on a phone (0.25 a song heard), read once into the engine.
+  assert.deepEqual(oldListening({ house: { v: 1, t: now }, jazz: { v: -0.6, t: now }, BAD: { v: 2, t: now }, kpop: { v: 0.01, t: now } }, now), [['house', 1], ['jazz', -0.6]]);
 });

@@ -33,7 +33,7 @@ import { specOf, setOf } from './lib/jamset.mjs';
 import { W, en, lang } from './lib/lang.mjs';
 import { shows, levelCss, makeSettings, makeWith, easyMood, EASY_MOODS } from './lib/easy.mjs';
 import { MOODS, radioPick, radioPlan, RADIO_V } from './lib/radio.mjs';
-import { blendTaste, listenNote } from './lib/listen.mjs';
+import { tasteFrom, grooveItem, LISTEN_DONE, LISTEN_SKIP, LISTENED_OLD, oldListening } from './lib/listen.mjs';
 import { mountRadio } from './lib/radioview.mjs';
 import { mountGame } from './lib/gameview.mjs';
 import { recordsOf } from './lib/game.mjs';
@@ -340,18 +340,49 @@ function showSettings() {
   update();
 }
 // The styles you keep most: what a batch leans to (依你的口味).
-// ♡s (kept.taste, the Pass) and what's listened through or skipped (this phone, lib/listen.mjs) as one taste.
-const LISTENED = 'orbit-beats-listened';
-let listened = {};
-try {
-  listened = JSON.parse(localStorage.getItem(LISTENED)) || {};
-} catch {}
-const taste = () => blendTaste(kept.taste, listened);
-function heardSong(style, d) {
-  listened = listenNote(listened, style, d);
+// ♡s (kept.taste, the Pass) and what's listened through or skipped on the
+// radio (the family's one engine, the kit's feedback.mjs, kept on the Pass
+// too) as one taste (lib/listen.mjs tasteFrom). (Loaded on the side: an older
+// kit without it leans on ♡s alone.)
+let feedback = null;
+// A groove's weight as learnt, at its likely least (one heard by luck isn't one heard ten times).
+const SURE = 0.5;
+let grooves = null;
+const grooveWeight = () => {
+  if (!grooves || Date.now() - grooves.at > 60_000) {
+    const sc = feedback?.scorer?.('beats', Date.now(), { sure: SURE });
+    grooves = { at: Date.now(), of: sc ? style => sc(grooveItem(style)) : () => 0 };
+  }
+  return grooves.of;
+};
+import('#kit/feedback.mjs')
+  .then(m => {
+    feedback = m;
+    feedback.keep?.(q, 'beats');
+    fromOldListening();
+    grooves = null;
+    tasteHint();
+  })
+  .catch(() => {});
+// This phone's listening from before the engine, once into it.
+function fromOldListening() {
   try {
-    localStorage.setItem(LISTENED, JSON.stringify(listened));
+    const old = JSON.parse(localStorage.getItem(LISTENED_OLD) || 'null');
+    if (!old) return;
+    // (Its weights were 0.25 a song heard through and 0.2 one skipped: so many songs again.)
+    for (const [s, v] of oldListening(old)) {
+      const n = Math.min(8, Math.round(Math.abs(v) / (v > 0 ? 0.25 : 0.2)));
+      for (let i = 0; i < n; i++) v > 0 ? feedback.picked('beats', grooveItem(s), Date.now(), { from: 'list' }) : feedback.passed?.('beats', grooveItem(s));
+    }
+    localStorage.removeItem(LISTENED_OLD);
   } catch {}
+}
+const taste = () => tasteFrom(kept.taste, grooveWeight(), STYLE_ORDER);
+function heardSong(style, d) {
+  if (!feedback || !/^[a-z]+$/.test(style || '')) return;
+  if (d === LISTEN_DONE) feedback.picked('beats', grooveItem(style), Date.now(), { from: 'list' });
+  else if (d === LISTEN_SKIP) feedback.passed?.('beats', grooveItem(style));
+  grooves = null;
 }
 const tasteTop = () =>
   Object.entries(taste())

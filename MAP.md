@@ -25,10 +25,14 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
   everyday words, zh and en; a ⓘ beside a control opens one, eight with
   ▶ the same bar without it and with it. The ? sheet is the four screens as rows (聽 即興 樂器 做歌: tap one to go there, ▶ to try it; `TOUR` in `lib/help.mjs`), then rows for the words and
   opens the full guide (the kit's `help.mjs`, in the Orbit Pass sheet).
-- **Picks that learn** (this phone only, a month's half-life): 為你推薦, 為你電台
+- **Picks that learn** (the family's one engine, the kit's `feedback.mjs`,
+  kept on the Pass as `fb:beats`, a month's half-life): 為你推薦, 為你電台
   and 做歌's lean learn from listening, not only ♡: a radio song heard to its
-  end counts a little for its groove, one skipped in its first 30 s a little
-  against; skips never take a ♡'d groove below half. 今日精選 and 今日挑戰 are
+  end counts for its groove, one skipped in its first 30 s against
+  (`heardSong`); a groove counts at its likely least (`SURE`: one heard by
+  luck isn't one heard ten times); skips never take a ♡'d groove below half
+  (`lib/listen.mjs tasteFrom`). This phone's counts from before the engine are
+  read into it once (`oldListening`). 今日精選 and 今日挑戰 are
   the same on every device (made from Taiwan's date alone). The home screen's
   songs are planned from a table worked out once, so it opens faster.
 - **Wide screens** (DESIGN §10, the block at the end of `index.html`'s style): 首頁 a banner and wider shelves, 創作's three ways in side by side, 適合現在's banner beside the next part of the day's, 資料庫's rows beside its covers, 做歌's songs beside its settings, Now Playing's cover beside its controls when wider than tall; 樂器, 即興 and lists stay 688 wide in the middle.
@@ -217,7 +221,7 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
 | `lib/library.mjs`, `lib/lists.mjs` | 資料庫: search, order, zip; playlists |
 | `lib/sections.mjs` | 做歌: section times and the playing section |
 | `lib/radio.mjs`, `lib/radioview.mjs` | 聽: songs out of nothing, the join between them; its screen and player |
-| `lib/cover.mjs`, `lib/listen.mjs` | 聽's covers; its sleep timer and recently played |
+| `lib/cover.mjs`, `lib/listen.mjs` | 聽's covers; its sleep timer, recently played and the taste from listening (`tasteFrom`) |
 | `lib/tape.mjs` | 聽's one stream: FLAC frames, or AAC / Opus from AudioEncoder, in MP4 for Media Source; which way a phone plays; the songs in order (the hook again while waiting) |
 | `lib/easy.mjs`, `lib/help.mjs` | 簡單 / 進階 and 簡單's fixed settings; the music words and their examples |
 | `lib/pack.mjs` | 資料庫's songs kept small: the .m4a, packing, 資料庫瘦身's rule, telling a song made again from another |
