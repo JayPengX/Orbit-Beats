@@ -1,0 +1,313 @@
+/* Orbit Beats' 首頁 in Orbit's own look (mountHome in lib/homeview.mjs; DESIGN §11, RULEBOOK §3). The page stays
+   today's dark one; every card the kit's graphite; colour only on what it names: a song's
+   cover, and each part of the song on its own colour (the 做歌 strip's), the one playing lit. */
+
+html[data-look='native'] .bt-home {
+  row-gap: var(--q-s-5);
+  padding-top: var(--q-s-2);
+}
+html[data-look='native'] .bt-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--q-s-5);
+  min-width: 0;
+}
+html[data-look='native'] .bt-col > .bt-slot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--q-s-5);
+}
+html[data-look='native'] .bt-col > .bt-slot:empty {
+  display: none;
+}
+html[data-look='native'] .bt-sec {
+  margin: 0;
+}
+
+/* ---------- The player ---------- */
+html[data-look='native'] .bt-now {
+  padding: var(--q-s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--q-s-3);
+}
+html[data-look='native'] .bt-head {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: var(--q-s-4);
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+}
+html[data-look='native'] .bt-cover {
+  width: 104px;
+  height: 104px;
+  border-radius: 14px;
+  object-fit: cover;
+  box-shadow: inset 0 0 0 0.5px var(--nv-edge);
+}
+html[data-look='native'] .bt-words {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+html[data-look='native'] .bt-kick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--q-label-2);
+  font: 500 13px/18px var(--q-font);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+html[data-look='native'] .bt-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--q-label-3);
+}
+html[data-look='native'] .bt-dot.on {
+  background: var(--accent);
+}
+html[data-look='native'] .bt-title {
+  font: 600 24px/30px var(--q-font);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+html[data-look='native'] .bt-sub {
+  color: var(--q-label-2);
+  font: 400 15px/20px var(--q-font);
+}
+
+/* The song's parts: one line, each part as long as it plays, on its own colour (faint), the one
+   playing in full with how far it's got; what's played a little brighter than what's to come. */
+html[data-look='native'] .bt-line {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: var(--q-s-1);
+}
+html[data-look='native'] .bt-parts,
+html[data-look='native'] .bt-part-names {
+  display: flex;
+  gap: 3px;
+}
+html[data-look='native'] .bt-part {
+  position: relative;
+  min-width: 4px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+html[data-look='native'] .bt-part > i {
+  position: absolute;
+  inset: 6px 0;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--c) 30%, transparent);
+  overflow: hidden;
+}
+html[data-look='native'] .bt-part.done > i {
+  background: color-mix(in srgb, var(--c) 55%, transparent);
+}
+html[data-look='native'] .bt-part.on > i {
+  inset: 4px 0;
+  background: color-mix(in srgb, var(--c) 40%, transparent);
+}
+html[data-look='native'] .bt-part.on > i::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--at, 0%);
+  background: var(--c);
+}
+html[data-look='native'] .bt-part-names > span {
+  min-width: 4px;
+  overflow: hidden;
+  color: var(--q-label-3);
+  font: 500 11px/14px var(--q-font);
+  white-space: nowrap;
+}
+html[data-look='native'] .bt-part-names > span.on {
+  color: var(--q-label);
+  font-weight: 600;
+}
+html[data-look='native'] .bt-now.idle .bt-time {
+  display: none;
+}
+html[data-look='native'] .bt-time {
+  margin-top: calc(-1 * var(--q-s-2));
+  display: flex;
+  justify-content: space-between;
+  color: var(--q-label-2);
+  font: 500 12px/16px var(--q-font);
+  font-variant-numeric: tabular-nums;
+}
+html[data-look='native'] .bt-ctl {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  justify-items: center;
+}
+html[data-look='native'] .bt-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--q-fill-3);
+  color: var(--q-label);
+}
+html[data-look='native'] .bt-btn[hidden] {
+  visibility: hidden;
+  display: grid;
+}
+html[data-look='native'] .bt-btn svg {
+  width: 20px;
+  height: 20px;
+}
+html[data-look='native'] .bt-play {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #ffffff;
+}
+html[data-look='native'] .bt-play svg {
+  width: 26px;
+  height: 26px;
+}
+/* (The card on screen: the mini player steps aside.) */
+html[data-look='native'] body.bt-now-seen:not(.own-sound) .player {
+  display: none;
+}
+
+/* ---------- Song rows ---------- */
+html[data-look='native'] .bt-row {
+  gap: var(--q-s-3);
+}
+html[data-look='native'] .bt-thumb {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+html[data-look='native'] .bt-row .q-ritem-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+html[data-look='native'] .bt-row .q-ritem-value {
+  color: var(--q-label-2);
+  font-size: 13px;
+}
+html[data-look='native'] .bt-list + .q-more {
+  margin-top: var(--q-s-2);
+}
+
+/* ---------- Stations and genres ---------- */
+html[data-look='native'] .bt-chips {
+  margin-inline: calc(-1 * var(--q-s-4));
+  padding-inline: var(--q-s-4);
+}
+html[data-look='native'] .bt-st small {
+  margin-right: 6px;
+  color: var(--q-label-2);
+  font-weight: 500;
+}
+html[data-look='native'] .bt-st[aria-pressed='true'] small {
+  color: inherit;
+  opacity: 0.8;
+}
+html[data-look='native'] .bt-sub-head {
+  margin: var(--q-s-3) 0 var(--q-s-2);
+}
+
+/* ---------- Wide: the player and what's next on the left, the rest on the right ---------- */
+html[data-look='native'].q-wide .bt-now {
+  padding: var(--q-s-5);
+}
+html[data-look='native'].q-wide .bt-head {
+  grid-template-columns: 140px minmax(0, 1fr);
+}
+html[data-look='native'].q-wide .bt-cover {
+  width: 140px;
+  height: 140px;
+}
+/* (Wide: every station in view, an even grid of them; no row scrolled out of sight.) */
+html[data-look='native'].q-wide .bt-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: var(--q-s-2);
+  margin-inline: 0;
+  padding-inline: 0;
+  overflow: visible;
+}
+html[data-look='native'].q-wide .bt-chips > .q-chip {
+  justify-content: center;
+  margin: 0;
+}
+
+/* 創作's 節奏遊戲: a graphite card like the rest (it was a purple fill); its falling notes and
+   its ▶ on the app's colour, the one thing to do there. */
+html[data-look='native'] .hub-game {
+  background: var(--nv-card);
+  box-shadow: inset 0 0 0 0.5px var(--nv-edge), var(--nv-lift);
+  color: var(--q-label);
+}
+html[data-look='native'] .hub-game-t span {
+  color: var(--q-label-2);
+}
+html[data-look='native'] .hub-game-lanes {
+  opacity: 0.9;
+}
+html[data-look='native'] .hub-game-lanes i {
+  border-left-color: var(--q-separator, rgba(128, 128, 128, 0.2));
+}
+html[data-look='native'] .hub-game-lanes i::after {
+  background: var(--accent);
+  box-shadow: none;
+}
+html[data-look='native'][data-app] .hub-game-go {
+  background: var(--accent);
+  color: var(--accent-ink, #fff);
+  box-shadow: none;
+}
+
+/* 正在播放: no blur of the cover behind it (another app's look); the page's own dark, the
+   bar and ▶ on the app's colour (what's playing now, the one action). */
+html[data-look='native'] .np {
+  background: linear-gradient(180deg, #19191c, #0b0b0d);
+}
+html[data-look='native'] .np > .np-bg,
+html[data-look='native'] .np > .np-shade {
+  display: none;
+}
+html[data-look='native'] .np-bar i {
+  background: var(--accent);
+}
+html[data-look='native'] .np-play {
+  background: var(--accent);
+  color: var(--accent-ink, #fff);
+}
+html[data-look='native'] .np-play svg {
+  width: 36px;
+  height: 36px;
+}

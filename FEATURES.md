@@ -11,5 +11,6 @@ To remove a feature on purpose, delete its line here in the same commit and say 
 - 即興 pads and 歌單 playlists — `public/index.html`: `即興`, `歌單`
 - Remix: 驚喜 and 取出片段 — `public/lib/remixview.mjs`: `驚喜`, `取出片段`
 - A song saved and opened as a file, stems and MIDI — `public/lib/project.mjs`, `public/app.js`: `存成檔案`, `打開檔案`, `MIDI`
-- 首頁's 瀏覽類型 tiles — `public/lib/homeview.mjs`: `瀏覽類型`, `rail-grid`
-- Wide screens: shelves of whole covers, 瀏覽類型 a block — `public/index.html`: `:root.q-wide .rail.rail-grid`, `:root.q-w3 .rail:not(.now-pair):not(.rail-grid) { --n: 7; }`
+- 首頁 is the player: the song's parts as one line on their colours, a tap goes there (Orbit's own look, 2026-11-03) — `public/lib/homeview.mjs`, `public/look.css`: `bt-parts`, `sectionTimes`, `P.seek(s.from`, `bt-now-seen`
+- 首頁: 接下來, 今日精選, 電台 and 類型 (全部類型), 最近播放, 你的歌, 自己做 with 節奏遊戲 — `public/lib/homeview.mjs`: `接下來`, `今日精選`, `全部類型`, `最近播放`, `你的歌`, `自己做`, `節奏遊戲`
+- Wide screens: shelves of whole covers — `public/index.html`: `:root.q-w3 .rail:not(.now-pair):not(.rail-grid) { --n: 7; }`

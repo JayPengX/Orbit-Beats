@@ -1,0 +1,38 @@
+// 首頁's rules (Orbit's own look, 2026-11-03): the home is the player, and its song's parts are one line.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const read = f => readFileSync(new URL(`../public/${f}`, import.meta.url), 'utf8');
+const html = read('index.html');
+const home = read('lib/homeview.mjs');
+const css = read('look.css');
+const app = read('app.js');
+
+test('the look is always on: data-look on the page, look.css after the page\'s style', () => {
+  assert.match(html, /<html[^>]*data-look="native"/);
+  assert.ok(html.indexOf('./look.css') > html.lastIndexOf('</style>'));
+  assert.doesNotMatch(app + home, /orbit\.look/);
+  assert.match(app, /home = mountHome\(\$\('panel-home'\)/);
+});
+
+test('首頁 opens on the player card: cover, ▶ and the parts line, then the rows', () => {
+  assert.match(home, /class: 'q-card bt-now' \}, \[head, h\('div', \{ class: 'bt-line' \}, \[parts, names\]\)/);
+  assert.match(home, /\[h\('div', \{ class: 'bt-col' \}, \[card, upSlot\]\)/);
+});
+
+test('each part is as long as it plays, on its own colour, and a tap goes there', () => {
+  assert.match(home, /style: \{ flex: String\(s\.bars\) \}/);
+  assert.match(home, /setProperty\('--c', `var\(--\$\{times\[k\]\.type\}\)`\)/);
+  assert.match(home, /P\.seek\(s\.from \+ 0\.01\)/);
+});
+
+test('one player at a time: the mini player steps aside while the card is seen', () => {
+  assert.match(home, /classList\.toggle\('bt-now-seen'/);
+  assert.match(css, /body\.bt-now-seen:not\(\.own-sound\) \.player/);
+});
+
+test('no cover blur behind Now Playing, no coloured fill on the game card', () => {
+  assert.match(css, /\.np > \.np-bg,\s*html\[data-look='native'\] \.np > \.np-shade \{\s*display: none;/);
+  assert.match(css, /\.hub-game \{\s*background: var\(--nv-card\);/);
+});

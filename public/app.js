@@ -2460,6 +2460,7 @@ async function boot() {
   trackMenuOf = view.trackMenu;
   openNowOf = view.openNow;
   home = mountHome($('panel-home'), {
+    game: () => game?.open(),
     P,
     radio,
     taste,

@@ -35,7 +35,17 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
   read into it once (`oldListening`). 今日精選 and 今日挑戰 are
   the same on every device (made from Taiwan's date alone). The home screen's
   songs are planned from a table worked out once, so it opens faster.
-- **Wide screens** (DESIGN §10, the block at the end of `index.html`'s style): 首頁 a banner and wider shelves, 創作's three ways in side by side, 適合現在's banner beside the next part of the day's, 資料庫's rows beside its covers, 做歌's songs beside its settings, Now Playing's cover beside its controls when wider than tall; 樂器, 即興 and lists stay 688 wide in the middle.
+- **Wide screens** (DESIGN §10, the block at the end of `index.html`'s style): 首頁 in two columns (the player and what plays next; the stations, what you heard and kept, 自己做), 創作's three ways in side by side, 適合現在's banner beside the next part of the day's, 資料庫's rows beside its covers, 做歌's songs beside its settings, Now Playing's cover beside its controls when wider than tall; 樂器, 即興 and lists stay 688 wide in the middle.
+- **Orbit's own look** (2026-11-03, Orbit-Core DESIGN §11; `<html data-look="native">`, `public/look.css` after the page's style):
+  **首頁 is the player** (`mountHome` in `lib/homeview.mjs`): a graphite card with the cover, what's
+  playing and from which station (or today's first pick, ready), ▶ in the app's colour, ⏭ and ⋯,
+  and the song's parts as one line (each as long as it plays, on 做歌's section colours, faint
+  till played, the one playing lit; a tap goes there: `sectionTimes`, a radio song's plan worked
+  out from its seed as the radio makes it). While it's on screen the mini player steps aside
+  (`bt-now-seen`). Then 接下來, 今日精選 (three, then the kit's 再看 bar), 電台 and 類型 as rows of
+  taps (全部類型 opens the picker), 最近播放, 你的歌, 自己做 (即興, 做歌, 樂器, 節奏遊戲).
+  創作's 節奏遊戲 card is graphite with its notes in the app's colour; Now Playing is the page's
+  own dark (no blur of the cover), its bar and ▶ on the app's colour.
 - **Tabs:**
   - **聽** (Listen, the first screen; `lib/radio.mjs`, `lib/radioview.mjs`):
     one play button and the moods (隨機, 放鬆, 熱血, 律動, 經典, or one groove).
@@ -229,7 +239,7 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
 | `lib/midi.mjs`, `lib/tap.mjs`, `lib/download.mjs`, `lib/names.mjs` | MIDI files, tap tempo, saving, names |
 | `lib/samples.mjs`, `lib/sampleload.mjs`, `lib/voices.mjs` | Recorded instruments and drum kits: which notes, fetched and decoded; the added voices |
 | `lib/game.mjs`, `lib/gameview.mjs` | 節奏遊戲: a song's chart, the stage |
-| `lib/homeview.mjs`, `lib/stations.mjs`, `lib/genres.mjs` | 首頁 shelves; stations as filters on the radio; the genre picker |
+| `lib/homeview.mjs`, `lib/stations.mjs`, `lib/genres.mjs` | 首頁 (the player and its rows) and the covers and shelves 資料庫 shares; stations as filters on the radio; the genre picker |
 | `lib/heard.mjs`, `lib/queue.mjs`, `lib/player.mjs`, `lib/playerview.mjs` | 最近播放's kept sound; the play queue; the one player; the mini bar and Now Playing |
 | `lib/remix.mjs`, `lib/remixview.mjs`, `lib/kitops.mjs`, `lib/jamset.mjs` | 重新混音 and 取出片段; kits taken apart and kept by name; 即興's built-in set |
 | `lib/icons.mjs`, `lib/ui.mjs`, `lib/length.mjs`, `lib/lang.mjs` | Icons; the kit's UI with this app's changes; song length in words; language |
