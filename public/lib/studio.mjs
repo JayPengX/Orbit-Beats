@@ -280,6 +280,7 @@ export function mountStudio(panel, api) {
         h('button', { class: 'chip st-morechip', type: 'button', html: `<span>${W('更多', 'More')}</span>${icon('chevron')}`, onclick: () => genreSheet({ selected: st.groove, styles: all, onPick: id => (noteRecent(id), setGroove(id), drawControls(), showChip()) }) })
       );
     } else chips.replaceChildren(...INSTRUMENTS.map(id => chip(id, name(INSTRUMENT_NAMES, id), id === st.inst, () => setInst(id))));
+    fitFew();
     dice.setAttribute('aria-label', drums ? W('隨機換一個鼓', 'A random new beat') : W('隨機編一段旋律', 'A random new melody'));
     setSeg.replaceChildren(
       ...[
@@ -311,6 +312,16 @@ export function mountStudio(panel, api) {
     drawShelf();
   }
   // The chip lit scrolled into sight (after 🎲 picked one off to the side).
+  // 鼓's grooves on one line: the last used that fit, the lit one kept, then 更多 (never two rows, even at 320).
+  function fitFew() {
+    const kids = [...chips.children];
+    kids.forEach(k => (k.hidden = false));
+    if (!chips.classList.contains('st-few') || !chips.clientWidth || kids.length < 2) return;
+    const top = kids[0].offsetTop, last = kids.at(-1);
+    for (let i = kids.length - 2; i >= 0 && last.offsetTop > top + 4; i--) if (kids[i].getAttribute('aria-pressed') !== 'true') kids[i].hidden = true;
+  }
+  let fitW = 0;
+  globalThis.ResizeObserver && new ResizeObserver(() => chips.clientWidth !== fitW && ((fitW = chips.clientWidth), fitFew())).observe(chips);
   function showChip(smooth = true) {
     const b = chips.querySelector('[aria-pressed="true"]');
     if (!b || !chips.clientWidth) return;

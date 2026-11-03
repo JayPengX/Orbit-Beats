@@ -327,7 +327,7 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
    finger-sized target even at 320 px. */
 .studio .head { gap: 8px; }
 .studio .head .q-seg { flex: 0 1 180px; }
-.st-top { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.st-top { display: grid; grid-template-columns: auto auto minmax(0, 1fr); align-items: center; gap: 8px; }
 .st-play {
   flex: none; width: 52px; height: 52px; border: 0; border-radius: 50%; padding: 0; display: grid; place-items: center;
   background: var(--accent); color: var(--accent-ink); box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 38%, transparent);
@@ -338,8 +338,9 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .st-play:active { transform: scale(0.9); }
 .st-top .st-dice { background: var(--accent-soft); box-shadow: none; }
 .st-chips { flex: 1; }
-.st-chips.st-few { flex: 1 0 100%; flex-wrap: wrap; overflow: visible; -webkit-mask-image: none; mask-image: none; }
+.st-chips.st-few { grid-column: 1 / -1; flex-wrap: wrap; overflow: visible; -webkit-mask-image: none; mask-image: none; }
 .st-chips.st-few .chip:last-child { margin-right: 0; }
+.st-chips .chip[hidden] { display: none; }
 .chip.st-morechip, .chip.rx-more { display: inline-flex; align-items: center; gap: 2px; color: var(--accent); background: var(--accent-soft); }
 .st-morechip svg, .rx-more svg { width: 14px; height: 14px; }
 .st-chips.st-along { -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px, #000 88%, transparent); mask-image: linear-gradient(90deg, transparent, #000 28px, #000 88%, transparent); }
@@ -1012,7 +1013,7 @@ body.own-sound main, body.own-sound.playing main { padding-bottom: calc(112px + 
 :root.q-wide #panel-make:not(:has(> #out:not([hidden]))),
 :root.q-wide #panel-library:not(:has(> .lib-cols)) { max-width: 688px; margin-inline: auto; }
 /* 樂器: with room, the grooves on the same line as ▶ and 🎲. */
-@media (min-width: 600px) { .st-chips.st-few { flex: 1 1 0; } }
+@media (min-width: 600px) { .st-chips.st-few { grid-column: auto; } }
 /* 即興 on a phone on its side: pads shorter than wide, so the set fits the height. */
 @media (max-height: 520px) {
   .jam-pad, .jam-tiles > * { aspect-ratio: auto; height: 58px; }
