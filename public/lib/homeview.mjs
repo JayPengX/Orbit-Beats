@@ -3,7 +3,7 @@
 // part on its own colour (做歌's), the one playing lit; a tap on a part goes there. Then what plays
 // next, today's picks, the stations and genres as one row of taps each, what you heard and kept,
 // and the maker's ways in. Every card is the kit's graphite; colour only on what it names.
-// Also the pieces other tabs share: station covers, square cards and shelves (資料庫), tapTrack.
+// Also the pieces other tabs share: station covers, song rows and lists (創作), tapTrack.
 import { h } from './ui.mjs';
 import * as kitUI from '#kit/ui.mjs';
 import * as kit from '#kit/orbit.mjs';
@@ -38,10 +38,6 @@ export function stationCover(id, taste = {}) {
   return covers.get(k);
 }
 
-
-export const sqCard = (cover, title, sub, props = {}, cls = 'sq') =>
-  h('button', { class: cls, type: 'button', ...props }, [h('span', { class: 'sq-cover' }, [h('img', { alt: '', src: cover, loading: 'lazy', decoding: 'async', draggable: 'false' })]), h('b', { text: title }), sub ? h('small', { text: sub }) : null]);
-export const shelfOf = (key, title, nodes) => h('section', { class: 'shelf', 'data-row': key }, [h('h2', { text: title }), h('div', { class: 'rail' }, nodes)]);
 // A song's card tapped: it plays; already playing, Now Playing opens (paused: it goes on).
 export function tapTrack(api, t) {
   const s = api.P.state();
@@ -49,19 +45,6 @@ export function tapTrack(api, t) {
   if (!(s.playing || s.busy)) return api.P.toggle();
   return api.openNow ? api.openNow() : null;
 }
-// Kept songs as covers in a shelf (empty: nothing). api: { P, trackMenu, openNow? }
-export function songShelf(api, key, title, songs) {
-  if (!songs.length) return null;
-  const { P } = api;
-  return shelfOf(key, title, songs.map(song => {
-    const t = P.track(song);
-    const c = sqCard(coverOfTrack(t), t.title, subOf(t), { 'data-id': t.id, onclick: () => tapTrack(api, t) });
-    c.querySelector('.sq-cover').append(h('span', { class: 'sq-more', role: 'button', tabindex: '0', 'aria-label': W('更多', 'More'), html: icon('more'), onclick: e => (e.stopPropagation(), api.trackMenu(t, e.currentTarget)) }));
-    onLong(c, () => api.trackMenu(t, c.querySelector('.sq-cover')));
-    return c;
-  }));
-}
-
 // A song's parts: a kept song's own plan; a radio song's worked out from its seed, as the radio makes it.
 const plans = new Map();
 function planOf(t, songs) {
@@ -78,6 +61,32 @@ function planOf(t, songs) {
 
 const PICKS_KEY = 'orbit-beats-picks';
 const SHOW = 3;
+
+// ---- Rows: a song each (首頁 and 創作) ----
+export function songRowOf(api, t, c, { value = '' } = {}) {
+  const b = h('button', { class: 'q-ritem bt-row', type: 'button', 'data-id': t.id, onclick: () => tapTrack(api, t) }, [
+    h('img', { class: 'bt-thumb', alt: '', src: c || coverOfTrack(t), loading: 'lazy', decoding: 'async', draggable: 'false' }),
+    h('span', { class: 'q-ritem-text' }, [h('span', { class: 'q-ritem-title', text: t.title }), h('small', { text: subOf(t) })]),
+    h('span', { class: 'q-ritem-value num', text: value || (t.seconds ? clock(t.seconds) : '') })
+  ]);
+  onLong(b, () => api.trackMenu(t, b));
+  return b;
+}
+// A list of songs: three, the rest behind the kit's quiet more bar (`open` keeps which are open).
+export function songListOf(open, key, head_, rows, opts = {}) {
+  if (!rows.length) return null;
+  const box = h('div', { class: 'q-rowcard bt-list' }, rows.slice(0, open[key] ? rows.length : SHOW));
+  const tail =
+    rows.length > SHOW
+      ? kitUI.moreToggle?.({
+          more: W(`再看 ${rows.length - SHOW} 首`, `${rows.length - SHOW} more`),
+          less: W('收起', 'Less'),
+          open: Boolean(open[key]),
+          onToggle: o => ((open[key] = o), box.replaceChildren(...rows.slice(0, o ? rows.length : SHOW)))
+        })
+      : null;
+  return kitUI.section(head_, [box, tail].filter(Boolean), { cls: `bt-sec bt-${key}`, ...opts });
+}
 
 // api: { P, radio, taste() -> { style: n }, trackMenu(track, anchor), openNow(), songs(), go(tab, run), game() }
 export function mountHome(panel, api) {
@@ -238,32 +247,9 @@ export function mountHome(panel, api) {
     new IntersectionObserver(([en_]) => document.body.classList.toggle('bt-now-seen', en_.isIntersecting), { threshold: 0.35 }).observe(card);
   } catch {}
 
-  // ---- Rows: a song each ----
-  const songRow = (t, c, { value = '' } = {}) => {
-    const b = h('button', { class: 'q-ritem bt-row', type: 'button', 'data-id': t.id, onclick: () => tapTrack(api, t) }, [
-      h('img', { class: 'bt-thumb', alt: '', src: c || coverOfTrack(t), loading: 'lazy', decoding: 'async', draggable: 'false' }),
-      h('span', { class: 'q-ritem-text' }, [h('span', { class: 'q-ritem-title', text: t.title }), h('small', { text: subOf(t) })]),
-      h('span', { class: 'q-ritem-value num', text: value || (t.seconds ? clock(t.seconds) : '') })
-    ]);
-    onLong(b, () => api.trackMenu(t, b));
-    return b;
-  };
-  // A list of songs: three, the rest behind the kit's quiet more bar.
+  const songRow = (t, c, o) => songRowOf(api, t, c, o);
   const open = {};
-  const songList = (key, head_, rows, opts = {}) => {
-    if (!rows.length) return null;
-    const box = h('div', { class: 'q-rowcard bt-list' }, rows.slice(0, open[key] ? rows.length : SHOW));
-    const tail =
-      rows.length > SHOW
-        ? kitUI.moreToggle?.({
-            more: W(`再看 ${rows.length - SHOW} 首`, `${rows.length - SHOW} more`),
-            less: W('收起', 'Less'),
-            open: Boolean(open[key]),
-            onToggle: o => ((open[key] = o), box.replaceChildren(...rows.slice(0, o ? rows.length : SHOW)))
-          })
-        : null;
-    return kitUI.section(head_, [box, tail].filter(Boolean), { cls: `bt-sec bt-${key}`, ...opts });
-  };
+  const songList = (key, head_, rows, opts = {}) => songListOf(open, key, head_, rows, opts);
 
   // ---- Stations: one row of taps; genres: another ----
   const chip = (id, label = stationName(id), extra = null) => h('button', { class: 'q-chip bt-st', type: 'button', 'data-station': id, 'aria-pressed': 'false', onclick: () => tune(id) }, [extra, h('span', { text: label })]);

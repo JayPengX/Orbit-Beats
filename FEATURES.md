@@ -13,4 +13,4 @@ To remove a feature on purpose, delete its line here in the same commit and say 
 - A song saved and opened as a file, stems and MIDI — `public/lib/project.mjs`, `public/app.js`: `存成檔案`, `打開檔案`, `MIDI`
 - 首頁 is the player: the song's parts as one line on their colours, a tap goes there (Orbit's own look, 2026-11-03) — `public/lib/homeview.mjs`, `public/look.css`: `bt-parts`, `sectionTimes`, `P.seek(s.from`, `bt-now-seen`
 - 首頁: 接下來, 今日精選, 電台 and 類型 (全部類型), 最近播放, 你的歌, 自己做 with 節奏遊戲 — `public/lib/homeview.mjs`: `接下來`, `今日精選`, `全部類型`, `最近播放`, `你的歌`, `自己做`, `節奏遊戲`
-- Wide screens: shelves of whole covers — `public/index.html`: `:root.q-w3 .rail:not(.now-pair):not(.rail-grid) { --n: 7; }`
+- 創作: the 即興 card (the set, ▶, six other sets), 樂器 · 做歌 · 節奏遊戲 as rows, 你的歌 or 從這裡開始 — `public/app.js`: `cr-jam`, `cr-sets`, `songListOf`, `從這裡開始`

@@ -42,10 +42,9 @@ import * as kitQ from '#kit/orbit.mjs';
 import { icon, inner } from './lib/icons.mjs';
 import { createPlayer, coverOfTrack } from './lib/player.mjs';
 import { mountPlayerView, subOf, onLong, speedText } from './lib/playerview.mjs';
-import { mountHome, songShelf, shelfOf, sqCard, stationCover } from './lib/homeview.mjs';
+import { mountHome, songRowOf, songListOf, stationCover } from './lib/homeview.mjs';
 import { remix, surprise, remixId, remixTitle, kindOfRecipe, baseOf, radioBase, bandBase, remixNow, retime, clipSpan, partOf } from './lib/remix.mjs';
 import { remixSheet, clipSheet, PART_NAMES } from './lib/remixview.mjs';
-import { coverSvg, coverUrl } from './lib/cover.mjs';
 import * as Q from './lib/queue.mjs';
 import { LENGTH_MIN, LENGTH_MAX, LENGTH_STEP, LENGTH_PRESETS, clampLength, clock, kitLength } from './lib/length.mjs';
 
@@ -241,61 +240,77 @@ function showTab(id) {
 const firstTab = () => (SCREEN_TAB[location.hash.slice(1)] ? location.hash.slice(1) : 'home');
 $('subnav-back').innerHTML = icon('back-chevron');
 $('subnav-back').onclick = () => showTab('create');
-// 創作: the path in cards. 即興 (the band, with ▶), then 樂器 and 做歌 (with how many pieces wait there),
-// then shelves: your songs (or ways to start, before there are any) and 即興's sets.
+// 創作 in Orbit's own look (DESIGN §11): one graphite card for 即興 (the set ready on the pads, its
+// cover small, ▶ on the app's colour, the other sets as a row of taps), then the other ways in as
+// rows that say what each does (樂器, 做歌 with how many pieces wait there, 節奏遊戲), then your
+// songs as rows (or, before there are any, ways to begin). Wide: 即興 on the left, the rest beside it.
 let hubDraw = () => {};
 let game = null;
 {
-  const cover = h('img', { alt: '', class: 'hub-cover' });
-  const badge = h('i', { class: 'hub-badge', hidden: true });
-  const hero = h('div', { class: 'hub-hero' }, [
-    cover,
-    h('button', { class: 'hub-open', type: 'button', 'aria-label': W('即興', 'Jam'), onclick: () => showTab('jam') }),
-    h('b', { text: W('即興', 'Jam') }),
-    h('button', { class: 'hub-play', type: 'button', 'aria-label': W('開始', 'Start'), html: icon('play'), onclick: () => (showTab('jam'), jam?.start()) })
+  const cover = h('img', { alt: '', class: 'cr-cover', draggable: 'false' });
+  const style = h('span', { class: 'cr-title' });
+  const about = h('small', { class: 'cr-sub' });
+  // 即興's sets: six grooves, each a band of its own (the same set every time).
+  const JAM_SETS = ['hiphop', 'house', 'citypop', 'jazz', 'kpop', 'afro', 'trap'].filter(x => STYLES.includes(x)).slice(0, 6).map((style, i) => setOf({ seed: 11 + i * 97, style }));
+  const openJam = set => {
+    showTab('jam');
+    if (set) jam?.useSet?.(set);
+    jam?.start();
+  };
+  const setChips = JAM_SETS.map(x => h('button', { class: 'q-chip cr-set', type: 'button', 'data-style': x.style, 'aria-pressed': 'false', onclick: () => openJam(x) }, [h('span', { text: name(STYLE_NAMES, x.style) })]));
+  const jamCard = h('section', { class: 'q-card cr-jam' }, [
+    h('div', { class: 'cr-jam-top' }, [
+      h('button', { class: 'cr-jam-open', type: 'button', onclick: () => showTab('jam') }, [
+        cover,
+        h('span', { class: 'cr-words' }, [h('span', { class: 'cr-kick' }, [h('span', { class: 'cr-ico', html: icon('grid') }), h('span', { text: W('即興', 'Jam') })]), style, about])
+      ]),
+      h('button', { class: 'cr-play', type: 'button', 'aria-label': W('開始即興', 'Start jamming'), html: icon('play'), onclick: () => openJam() })
+    ]),
+    h('p', { class: 'cr-desc', text: W('16 個打擊墊，跟著節奏按', '16 pads over a groove') }),
+    h('h3', { class: 'q-list-head cr-sets-head', text: W('換一組', 'Another set') }),
+    h('div', { class: 'q-chips cr-sets' }, setChips)
   ]);
-  const half = (id, ic, label, extra) => h('button', { class: 'hub-half', type: 'button', 'data-screen': id, onclick: () => showTab(id) }, [h('span', { class: 'hub-ico', html: icon(ic) }), h('b', { text: label }), extra]);
+  const ways = h('div', { class: 'cr-ways' });
+  const side = h('div', { class: 'cr-side' });
   // (The songs just made first, the newest kept ones after: what 做歌 or 即興 made shows up here at once.)
   const mineFirst = () => {
     const fresh = songs.filter(x => !lib.has(x.id));
     return [...fresh, ...[...lib.all()].sort((a, b) => (b.at || 0) - (a.at || 0))].slice(0, 12);
   };
-  // 即興's sets: six grooves, each a band of its own (the same set every time, so its cover is too).
-  const JAM_SETS = ['hiphop', 'house', 'citypop', 'jazz', 'kpop', 'afro', 'trap'].filter(x => STYLES.includes(x)).slice(0, 6).map((style, i) => setOf({ seed: 11 + i * 97, style }));
-  const openJam = set => {
-    showTab('jam');
-    jam?.useSet?.(set);
-    jam?.start();
-  };
-  const card = (img, title, sub, onclick, cls = 'sq') => sqCard(img, title, sub, { onclick }, cls);
-  // Before there are songs: four ways to begin, one tap each.
+  const open = {};
+  // Before there are songs: three ways to begin, one tap each.
   const starters = () => {
     const last = radio?.recent?.()[0];
-    const lofi = setOf({ seed: 11, style: 'lofi' });
-    return [
-      card(setCover(lofi, specOf(lofi).bpm), W('用 Lo-fi 即興', 'Jam on Lo-fi'), W('即興', 'Jam'), () => openJam(lofi), 'sq big'),
-      card(coverUrl(coverSvg({ seed: 4242, style: 'trap', bpm: 140, text: false })), W('寫一段 Trap 鼓', 'Write a trap beat'), W('樂器', 'Studio'), () => showTab('studio'), 'sq big'),
-      ...(last ? [card(radio.coverOf(last), W('混音剛聽的歌', 'Remix what you heard'), last.title, () => remixOf(last), 'sq big')] : []),
-      card(stationCover('all'), W('做 6 首歌', 'Make 6 songs'), W('做歌', 'Songs'), () => (showTab('make'), $('go').click()), 'sq big')
-    ];
+    return ui.section(
+      W('從這裡開始', 'Start here'),
+      ui.rowCard([
+        { icon: icon('create'), color: 'var(--accent)', title: W('寫一段 Trap 鼓', 'Write a trap beat'), sub: W('在樂器一格一格點出來', 'Tap it out in Studio'), onClick: () => showTab('studio') },
+        last && { icon: icon('wave'), color: 'var(--accent)', title: W('混音剛聽的歌', 'Remix what you heard'), sub: last.title, onClick: () => remixOf(last) },
+        { icon: icon('dice'), color: 'var(--accent)', title: W('做 6 首歌', 'Make 6 songs'), sub: W('用內建的樂團，一次做好', 'On the built-in band, at once'), onClick: () => (showTab('make'), $('go').click()) }
+      ]),
+      { cls: 'bt-sec cr-start' }
+    );
   };
   hubDraw = () => {
     const set = readSet();
-    cover.src = setCover(set, specOf(set).bpm);
-    badge.textContent = String(pieces.length);
-    badge.hidden = !pieces.length;
-    const mine = songShelf({ P, trackMenu: (t, a) => trackMenuOf(t, a), openNow: () => openNowOf() }, 'mine', W('你的歌', 'Your songs'), mineFirst());
-    const sets = shelfOf('jam-sets', W('即興組合', 'Jam sets'), JAM_SETS.map(x => card(setCover(x, specOf(x).bpm), name(STYLE_NAMES, x.style), speedText(specOf(x).bpm), () => openJam(x))));
-    shelf.replaceChildren(...(mine ? [mine] : [shelfOf('start', W('從這裡開始', 'Start here'), starters())]), sets);
+    const spec = specOf(set);
+    cover.src = setCover(set, spec.bpm);
+    style.textContent = name(STYLE_NAMES, set.style);
+    about.textContent = W(`${speedText(spec.bpm)}速 · ${spec.bpm} BPM`, `${speedText(spec.bpm)} · ${spec.bpm} BPM`);
+    for (const c of setChips) c.setAttribute('aria-pressed', String(c.dataset.style === set.style));
+    const n = pieces.length;
+    ways.replaceChildren(
+      ui.rowCard([
+        { icon: icon('create'), color: 'var(--accent)', title: W('樂器', 'Studio'), sub: W('一格一格寫節奏和旋律', 'Write beats and tunes step by step'), onClick: () => showTab('studio') },
+        { icon: icon('note'), color: 'var(--accent)', title: W('做歌', 'Songs'), sub: n ? W('用你的片段做成整首歌', 'Whole songs from your pieces') : W('用片段或內建樂團做成歌', 'Songs from pieces or the band'), value: n ? W(`${n} 個片段`, `${n} pieces`) : '', onClick: () => showTab('make') },
+        { icon: icon('trophy'), color: 'var(--accent)', title: W('節奏遊戲', 'Rhythm game'), sub: W('每首歌都是一關', 'Every song is a level'), onClick: () => game?.open() }
+      ])
+    );
+    const songApi = { P, trackMenu: (t, a) => trackMenuOf(t, a), openNow: () => openNowOf() };
+    const mine = songListOf(open, 'mine', W('你的歌', 'Your songs'), mineFirst().map(t => songRowOf(songApi, P.track(t))), { more: W('資料庫', 'Library'), onMore: () => showTab('library') });
+    side.replaceChildren(mine || starters());
   };
-  const shelf = h('div', { class: 'hub-shelf' });
-  // 節奏遊戲: every song a level (lib/gameview.mjs).
-  const play = h('button', { class: 'hub-game', type: 'button', onclick: () => game?.open() }, [
-    h('span', { class: 'hub-game-lanes', 'aria-hidden': 'true' }, ['22%', '58%', '12%', '40%'].map(y => h('i', { style: `--y: ${y}` }))),
-    h('span', { class: 'hub-game-t' }, [h('b', { text: W('節奏遊戲', 'Rhythm game') }), h('span', { text: W('跟著每首歌的節拍點', 'Tap along to any song') })]),
-    h('span', { class: 'hub-game-go', html: icon('play') })
-  ]);
-  $('panel-create').append(ui.navTitle(W('創作', 'Create')), hero, play, h('div', { class: 'hub-pair' }, [half('studio', 'grid', W('樂器', 'Studio')), half('make', 'note', W('做歌', 'Songs'), badge)]), shelf);
+  $('panel-create').append(ui.navTitle(W('創作', 'Create')), h('div', { class: 'q-cols cr-page' }, [h('div', { class: 'cr-col' }, [jamCard]), h('div', { class: 'cr-col' }, [ways, side])]));
 }
 
 // ---- Settings (做歌) ----

@@ -509,21 +509,6 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .jam-rec.on { background: var(--q-red); color: #fff; }
 
 
-/* 創作: the path. */
-.hub-hero { position: relative; aspect-ratio: 16 / 10; border-radius: 22px; overflow: hidden; background: var(--fill); margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 10px 26px rgba(0,0,0,.07); }
-.hub-hero .hub-cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center top; }
-.hub-hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(0,0,0,.5), transparent 60%); pointer-events: none; }
-.hub-open { position: absolute; inset: 0; width: 100%; border: 0; background: none; padding: 0; z-index: 1; }
-.hub-hero > b { position: absolute; left: 16px; bottom: 14px; z-index: 2; font-size: 22px; font-weight: 600; color: #fff; pointer-events: none; }
-.hub-play { position: absolute; right: 14px; bottom: 12px; z-index: 2; width: 52px; height: 52px; border: 0; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; box-shadow: 0 6px 16px rgba(0,0,0,.3); touch-action: manipulation; }
-.hub-play svg { width: 24px; height: 24px; }
-.hub-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.hub-half { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; min-height: 108px; padding: 16px; border: 0; border-radius: 22px; background: var(--card); color: var(--text); text-align: left; box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 10px 26px rgba(0,0,0,.07); touch-action: manipulation; }
-.hub-half .hub-ico { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
-.hub-half .hub-ico svg { width: 24px; height: 24px; }
-.hub-half b { font-size: 20px; font-weight: 600; }
-.hub-badge { position: absolute; top: 14px; right: 14px; min-width: 24px; height: 24px; padding: 0 7px; border-radius: 12px; background: var(--accent); color: var(--accent-ink); font: 700 13px/24px var(--q-font, inherit); font-style: normal; text-align: center; font-variant-numeric: tabular-nums; }
-.hub-badge[hidden] { display: none; }
 
 /* 即興 簡單: the set card, the band's board, the hits. */
 .jam-set { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; }
@@ -681,47 +666,8 @@ body.lv-simple #pieces .piece .more { width: 28px; height: 28px; }
 
 /* ---- Home, Create, Library: a big title a page, covers and cards ---- */
 .page-title { margin: 4px 0 14px; font-size: 34px; line-height: 1.1; font-weight: 700; letter-spacing: -.02em; }
-.shelf { margin: 0 0 22px; }
-.shelf h2 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
-.rail { position: relative; display: flex; gap: 14px; margin: 0 -16px; padding: 12px 16px 14px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scroll-padding: 0 16px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-.rail::-webkit-scrollbar { display: none; }
-.sq { flex: none; width: 136px; padding: 0; border: 0; background: none; color: var(--text); text-align: left; scroll-snap-align: start; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; user-select: none; }
-.sq-cover { position: relative; display: block; width: 136px; height: 136px; border-radius: 14px; overflow: hidden; background: var(--fill); box-shadow: 0 8px 18px rgba(0,0,0,.16), 0 1px 3px rgba(0,0,0,.1); transition: transform var(--q-dur-snappy) var(--q-spring-snappy); }
-.sq-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.sq:active .sq-cover { transform: scale(.96); }
-.sq b { display: block; margin-top: 9px; font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sq small { display: block; margin-top: 1px; font-size: 13px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sq.big, .sq.big .sq-cover { width: 220px; }
-.sq.big .sq-cover { height: 138px; }
-.sq-cover.tile { display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); box-shadow: none; }
-.sq-cover.tile svg { width: 40px; height: 40px; }
-.sq.on b { color: var(--accent); }
-.sq.on .sq-cover { box-shadow: 0 0 0 2.5px var(--accent), 0 8px 18px rgba(0,0,0,.16); }
-.sq-more { position: absolute; right: 6px; bottom: 6px; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #fff; background: rgba(0,0,0,.42); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
-.sq-more svg { width: 18px; height: 18px; }
-.sq.lg, .sq.lg .sq-cover { width: 172px; }
-.sq.lg .sq-cover { height: 172px; border-radius: 16px; }
-/* (A station's name is on its art: the card's label for VoiceOver, no line under it.) */
-.sq.st { position: relative; }
-.sq.wide { width: 100%; }
-.sq.wide .sq-cover { width: 100%; height: 148px; border-radius: 18px; }
-.sq.wide .sq-cover img { object-position: 50% 100%; }
-.sq.sm, .sq.sm .sq-cover { width: 108px; }
-.sq.sm .sq-cover { height: 108px; border-radius: 13px; }
-.sq.sm.all { grid-row: span 2; display: flex; flex-direction: column; }
-.sq.sm.all .sq-cover { flex: 1; height: auto; }
-.sq.sm.all b { position: static; width: auto; height: auto; clip: auto; margin-top: 8px; font-size: 14px; text-align: center; }
-.sq.sm.all .sq-cover.tile svg { width: 34px; height: 34px; }
 
-/* 創作: three big cards; a screen opened from one has a back chevron. */
-.hub { display: grid; gap: 14px; }
-.hub-card { display: flex; align-items: center; gap: 16px; width: 100%; padding: 18px; border: 0; border-radius: 22px; background: var(--card); color: var(--text); text-align: left; box-shadow: 0 1px 2px rgba(0,0,0,.05), 0 10px 26px rgba(0,0,0,.07); transition: transform var(--q-dur-snappy) var(--q-spring-snappy); }
-.hub-card:active { transform: scale(.98); }
-.hub-ico { flex: none; width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
-.hub-ico svg { width: 32px; height: 32px; }
-.hub-card b { display: block; font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
-.hub-card .l { display: block; margin-top: 2px; font-size: 15px; color: var(--text-2); }
-.hub-card > svg { flex: none; width: 20px; height: 20px; margin-left: auto; color: var(--text-3); }
+/* A screen opened from 創作 has a back chevron. */
 .subnav { display: flex; align-items: center; min-width: 0; margin-left: -10px; }
 .subnav[hidden] { display: none; }
 .subnav button { flex: none; width: 44px; height: 44px; border: 0; background: none; color: var(--accent); display: grid; place-items: center; touch-action: manipulation; }
@@ -874,7 +820,6 @@ footer, .q-brand-logo, .q-brand-text { display: none; }
 /* (The brand box stays as the bar's spacer, so the account buttons sit on the right like every Orbit app.) */
 .q-actions { margin-left: auto; }
 .page-title { font-size: 26px; margin: 4px 0 18px; }
-.hub-shelf { margin-top: 26px; }
 
 /* Remix and Take a clip */
 .rx-lab { font-size: 13px; font-weight: 600; color: var(--text-2); margin: 0 0 6px; }
@@ -967,18 +912,6 @@ body.lv-simple .len-row .sheet-line { margin-bottom: 0; }
 /* 樂器 or 即興 playing: one ▶ on screen (the mini player waits). */
 body.own-sound .player { display: none; }
 body.own-sound main, body.own-sound.playing main { padding-bottom: calc(112px + env(safe-area-inset-bottom)); }
-#panel-create .hub-hero { margin-top: 4px; }
-/* 創作's 節奏遊戲 card: four lanes of notes falling behind it. */
-.hub-game { position: relative; display: flex; align-items: center; gap: 14px; width: 100%; margin: 14px 0; padding: 16px 16px 16px 18px; border: 0; border-radius: 22px; overflow: hidden; color: #fff; text-align: left; background: radial-gradient(120% 140% at 0% 0%, #ff5fa2 0%, #7a3cff 45%, #0d0b2a 100%); box-shadow: 0 10px 28px rgba(122,60,255,.32); touch-action: manipulation; transition: transform var(--q-dur-snappy) var(--q-spring-snappy); }
-.hub-game:active { transform: scale(.98); }
-.hub-game-lanes { position: absolute; inset: 0 0 0 auto; width: 46%; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 0 12px; opacity: .55; pointer-events: none; -webkit-mask-image: linear-gradient(90deg, transparent, #000 40%); mask-image: linear-gradient(90deg, transparent, #000 40%); }
-.hub-game-lanes i { position: relative; border-left: 1px solid rgba(255,255,255,.18); }
-.hub-game-lanes i::after { content: ''; position: absolute; left: 12%; right: 12%; top: var(--y, 40%); height: 10px; border-radius: 5px; background: #fff; box-shadow: 0 0 12px #fff; }
-.hub-game-t { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.hub-game-t b { font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
-.hub-game-t span { font-size: 15px; color: rgba(255,255,255,.82); }
-.hub-game-go { position: relative; flex: none; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; background: #fff; color: #2a1460; }
-.hub-game-go svg { width: 22px; height: 22px; margin-left: 2px; }
 
 /* The ? sheet: the four screens as rows. */
 .tours { padding: 4px 16px; }
@@ -1002,9 +935,8 @@ body.own-sound main, body.own-sound.playing main { padding-bottom: calc(112px + 
 .q-empty p { text-wrap: balance; }
 
 /* ==== Every screen, either way up (Jay 2026-10-31; Orbit-Core DESIGN §10) ====
-   A wide page (q-wide) is as wide as 1180: 首頁's and 創作's shelves show more
-   covers, 創作's three ways in sit beside each other, 資料庫's rows beside its
-   covers, 做歌's songs beside its settings. A tool on its own (樂器, 即興, 做歌
+   A wide page (q-wide) is as wide as 1180: 創作's 即興 and ways in beside your
+   songs, 資料庫's rows beside its covers, 做歌's songs beside its settings. A tool on its own (樂器, 即興, 做歌
    before any song, a list) stays a readable 720 in the middle. A phone on its
    side is short: no hero taller than half of it; Now Playing puts the cover
    beside its controls whenever the screen is wider than tall. */
@@ -1019,39 +951,6 @@ body.own-sound main, body.own-sound.playing main { padding-bottom: calc(112px + 
   .jam-pad, .jam-tiles > * { aspect-ratio: auto; height: 58px; }
   .jam-hits { margin-top: 10px; }
   .jam-hit { width: 52px; }
-}
-/* 首頁's and 資料庫's shelves: whole covers edge to edge, none cut at the side
-   (5 songs or 4 picks a row, 7 and 5 on a computer), 瀏覽類型 a block of tiles
-   with 全部類型 down its last column (as 10-21's iPad layout; lost with phones-only
-   10-23, back 2026-11-01). */
-:root.q-wide .rail:not(.now-pair):not(.rail-grid) { --n: 5; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(calc((100% - (var(--n) - 1) * 16px) / var(--n)), 1fr); gap: 16px; }
-:root.q-wide :is(.shelf[data-row="picks"], .shelf[data-row="for-you"], .shelf[data-row="moods"]) .rail { --n: 4; }
-:root.q-wide .rail:not(.now-pair) .sq:not(.wide), :root.q-wide .rail:not(.now-pair) .sq:not(.wide) .sq-cover { width: auto; }
-:root.q-wide .rail:not(.now-pair) .sq:not(.wide) .sq-cover { height: auto; aspect-ratio: 1; }
-:root.q-wide .rail .sq.big .sq-cover { aspect-ratio: 16 / 10; }
-:root.q-wide .rail:has(> .sq.big) { --n: 3; }
-:root.q-w3 .rail:not(.now-pair):not(.rail-grid) { --n: 7; }
-:root.q-w3 :is(.shelf[data-row="picks"], .shelf[data-row="for-you"], .shelf[data-row="moods"]) .rail { --n: 5; }
-/* (適合現在: the phone's banner shape, not a strip a page wide that cut its station's name.) */
-:root.q-wide .sq.wide { width: min(100%, 560px); }
-:root.q-wide .sq.wide .sq-cover { height: auto; aspect-ratio: 358 / 148; }
-:root.q-wide .rail.now-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; }
-:root.q-wide .rail.now-pair .sq.wide { width: 100%; }
-/* (創作's 從這裡開始 and 即興組合: the cards share the row's width, never a few left in one corner.) */
-:root.q-wide .hub-shelf :is([data-row='start'], [data-row='jam-sets']) .rail { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); overflow: visible; }
-:root.q-wide .hub-shelf :is([data-row='start'], [data-row='jam-sets']) .sq, :root.q-wide .hub-shelf :is([data-row='start'], [data-row='jam-sets']) .sq-cover { width: 100%; }
-:root.q-wide .hub-shelf [data-row='start'] .sq-cover { height: auto; aspect-ratio: 220 / 138; }
-:root.q-wide .hub-shelf [data-row='jam-sets'] .sq-cover { height: auto; aspect-ratio: 1; }
-/* 創作: 即興 large on the left; 節奏遊戲 and 樂器 · 做歌 beside it. */
-:root.q-wide #panel-create:not([hidden]) { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); column-gap: 16px; align-items: stretch; }
-:root.q-wide #panel-create > :is(.q-navtitle, .q-large-title, h1, .hub-shelf) { grid-column: 1 / -1; }
-:root.q-wide #panel-create > .hub-hero { grid-column: 1; grid-row: 2 / span 2; aspect-ratio: auto; min-height: 280px; margin: 0; }
-:root.q-wide #panel-create > .hub-game { grid-column: 2; grid-row: 2; margin: 0 0 12px; min-height: 120px; }
-:root.q-wide #panel-create > .hub-pair { grid-column: 2; grid-row: 3; }
-@media (max-height: 520px) {
-  :root.q-wide #panel-create > .hub-hero { min-height: 0; }
-  :root.q-wide #panel-create > .hub-game { min-height: 0; }
-  .hub-half { min-height: 92px; gap: 10px; }
 }
 /* 資料庫: its rows on the left, the covers on the right. */
 :root.q-wide .lib-cols > * > :first-child { margin-top: 0; }

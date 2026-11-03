@@ -32,7 +32,6 @@ test('one player at a time: the mini player steps aside while the card is seen',
   assert.match(css, /body\.bt-now-seen:not\(\.own-sound\) \.player/);
 });
 
-test('no cover blur behind Now Playing, no coloured fill on the game card', () => {
+test('no cover blur behind Now Playing', () => {
   assert.match(css, /\.np > \.np-bg,\s*html\[data-look='native'\] \.np > \.np-shade \{\s*display: none;/);
-  assert.match(css, /\.hub-game \{\s*background: var\(--nv-card\);/);
 });

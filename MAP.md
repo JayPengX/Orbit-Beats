@@ -35,7 +35,7 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
   read into it once (`oldListening`). 今日精選 and 今日挑戰 are
   the same on every device (made from Taiwan's date alone). The home screen's
   songs are planned from a table worked out once, so it opens faster.
-- **Wide screens** (DESIGN §10, the block at the end of `index.html`'s style): 首頁 in two columns (the player and what plays next; the stations, what you heard and kept, 自己做), 創作's three ways in side by side, 適合現在's banner beside the next part of the day's, 資料庫's rows beside its covers, 做歌's songs beside its settings, Now Playing's cover beside its controls when wider than tall; 樂器, 即興 and lists stay 688 wide in the middle.
+- **Wide screens** (DESIGN §10, the block at the end of `index.html`'s style): 首頁 in two columns (the player and what plays next; the stations, what you heard and kept, 自己做), 創作's 即興 card on the left and its rows beside it, 資料庫's rows beside its covers, 做歌's songs beside its settings, Now Playing's cover beside its controls when wider than tall; 樂器, 即興 and lists stay 688 wide in the middle.
 - **Orbit's own look** (2026-11-03, Orbit-Core DESIGN §11; `<html data-look="native">`, `public/look.css` after the page's style):
   **首頁 is the player** (`mountHome` in `lib/homeview.mjs`): a graphite card with the cover, what's
   playing and from which station (or today's first pick, ready), ▶ in the app's colour, ⏭ and ⋯,
@@ -44,7 +44,10 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
   out from its seed as the radio makes it). While it's on screen the mini player steps aside
   (`bt-now-seen`). Then 接下來, 今日精選 (three, then the kit's 再看 bar), 電台 and 類型 as rows of
   taps (全部類型 opens the picker), 最近播放, 你的歌, 自己做 (即興, 做歌, 樂器, 節奏遊戲).
-  創作's 節奏遊戲 card is graphite with its notes in the app's colour; Now Playing is the page's
+  創作 (`hubDraw` in `app.js`, its CSS in `look.css` `.cr-*`): one graphite 即興 card (the set on the pads: its cover small,
+  its groove and speed, ▶ on the app's colour, the six other sets as an even 3 × 2 of taps, `jam.useSet`),
+  then 樂器, 做歌 (how many pieces wait) and 節奏遊戲 as the kit's rows, each saying what it does, then
+  你的歌 as song rows (`songRowOf`/`songListOf`, shared with 首頁) or 從這裡開始 as rows. Now Playing is the page's
   own dark (no blur of the cover), its bar and ▶ on the app's colour.
 - **Tabs:**
   - **聽** (Listen, the first screen; `lib/radio.mjs`, `lib/radioview.mjs`):
@@ -267,7 +270,7 @@ Its flags: `--bpm`, `--roles 3=riff,12=off`, `--styles`, `--humanize`,
 
 ## The create shell (app.js)
 
-- **創作** has no big title: 即興's hero, 樂器 and 做歌, then 你的歌 (or 從這裡開始, four one-tap ways in, before there are songs) and 即興組合 (six grooves, each a band: a tap opens 即興 on it and starts it, `jam.useSet`).
+- **創作**: the 即興 card (▶ starts the set on the pads; the six other sets, each a band: a tap opens 即興 on it and starts it, `jam.useSet`), the rows for 樂器, 做歌 and 節奏遊戲, then 你的歌 (or 從這裡開始, up to three one-tap ways in, before there are songs).
 - **樂器, 即興, 做歌** put their chevron and name in the account's own line (`#subnav` in the app bar). While 樂器 or 即興 plays, the mini player steps aside (`body.own-sound`).
 - A **song row** is one button (cover and name play it); ♡ and ⋯ stand beside it. The section strip is 做歌's only. The ⋯ menu leads with the song (cover, title) over a dimmed page: 插播, 稍後播放 · 加到清單, 分享 · 重新混音, 取出片段, 變奏一首 · 下載 · 重新命名 · 從資料庫移除 (red, last).
 - **簡單 做歌**: the built-in band (its cover, ringed) beside ＋, four 情境 cards (放鬆 熱血 律動 經典; a tap picks, again lets go; `makeWith` in `lib/easy.mjs`) and the length. 做 N 首歌 shows a spinner only while it works, and the list below is the progress: a shimmering place per song, filled as each lands.

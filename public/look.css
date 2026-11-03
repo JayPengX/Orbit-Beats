@@ -265,30 +265,154 @@ html[data-look='native'].q-wide .bt-chips > .q-chip {
   margin: 0;
 }
 
-/* 創作's 節奏遊戲: a graphite card like the rest (it was a purple fill); its falling notes and
-   its ▶ on the app's colour, the one thing to do there. */
-html[data-look='native'] .hub-game {
-  background: var(--nv-card);
-  box-shadow: inset 0 0 0 0.5px var(--nv-edge), var(--nv-lift);
-  color: var(--q-label);
+/* ---------- 創作 (app.js hubDraw) ----------
+   One graphite card for 即興: the set ready on the pads (its cover small, what it is), ▶ on the
+   app's colour, then the other sets as an even 3 × 2 of taps. The other ways in as the kit's rows,
+   each saying what it does; your songs as rows. Wide: 即興 on the left, the rest beside it. */
+html[data-look='native'] .cr-page {
+  row-gap: var(--q-s-4);
+  padding-top: var(--q-s-2);
 }
-html[data-look='native'] .hub-game-t span {
+html[data-look='native'] .cr-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--q-s-4);
+  min-width: 0;
+}
+html[data-look='native'] .cr-side > .q-section {
+  margin: var(--q-s-2) 0 0;
+}
+html[data-look='native'] .cr-jam {
+  display: flex;
+  flex-direction: column;
+  gap: var(--q-s-3);
+  padding: var(--q-s-4);
+}
+html[data-look='native'] .cr-jam-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--q-s-3);
+  align-items: center;
+}
+html[data-look='native'] .cr-jam-open {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: var(--q-s-3);
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+html[data-look='native'] .cr-cover {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--q-fill-3);
+  box-shadow: inset 0 0 0 0.5px var(--nv-edge);
+}
+html[data-look='native'] .cr-words {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+html[data-look='native'] .cr-kick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: var(--q-label-2);
+  font: 500 13px/18px var(--q-font);
+  white-space: nowrap;
 }
-html[data-look='native'] .hub-game-lanes {
-  opacity: 0.9;
+html[data-look='native'] .cr-ico {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
 }
-html[data-look='native'] .hub-game-lanes i {
-  border-left-color: var(--q-separator, rgba(128, 128, 128, 0.2));
+html[data-look='native'] .cr-ico svg {
+  width: 12px;
+  height: 12px;
 }
-html[data-look='native'] .hub-game-lanes i::after {
+html[data-look='native'] .cr-title {
+  font: 600 22px/28px var(--q-font);
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+html[data-look='native'] .cr-sub {
+  color: var(--q-label-2);
+  font: 400 13px/18px var(--q-font);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+html[data-look='native'] .cr-desc {
+  margin: 0;
+  color: var(--q-label-2);
+  font: 400 15px/20px var(--q-font);
+}
+html[data-look='native'] .cr-play {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
   background: var(--accent);
-  box-shadow: none;
+  color: #ffffff;
+  touch-action: manipulation;
 }
-html[data-look='native'][data-app] .hub-game-go {
-  background: var(--accent);
-  color: var(--accent-ink, #fff);
-  box-shadow: none;
+html[data-look='native'] .cr-play svg {
+  width: 24px;
+  height: 24px;
+}
+html[data-look='native'] .cr-sets-head {
+  margin: var(--q-s-1) 0 0;
+}
+html[data-look='native'] .cr-sets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--q-s-2);
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+}
+html[data-look='native'] .cr-sets > .q-chip {
+  justify-content: center;
+  min-width: 0;
+  margin: 0;
+  padding-inline: 6px;
+}
+html[data-look='native'] .cr-sets > .q-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html[data-look='native'].q-wide .cr-jam {
+  padding: var(--q-s-5);
+}
+html[data-look='native'].q-wide .cr-jam-open {
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: var(--q-s-4);
+}
+html[data-look='native'].q-wide .cr-cover {
+  width: 88px;
+  height: 88px;
+  border-radius: 14px;
+}
+html[data-look='native'].q-wide .cr-play {
+  width: 60px;
+  height: 60px;
 }
 
 /* 正在播放: no blur of the cover behind it (another app's look); the page's own dark, the
