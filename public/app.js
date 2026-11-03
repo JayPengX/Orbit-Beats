@@ -1639,7 +1639,7 @@ function pickGroove(song) {
     ])
   });
 }
-// 編排: the song's sections, moved, repeated, lengthened or taken out; made again with every other choice as it was.
+// 編排: the song's sections, put in order by their grips (the kit's reorder), repeated, lengthened or taken out; made again with every other choice as it was.
 function arrange(song) {
   let plan = song.info.plan.map(([t, n]) => [t, n]);
   const list = h('ol', { class: 'arr' });
@@ -1656,19 +1656,20 @@ function arrange(song) {
         lenSel.value = String(n);
         lenSel.onchange = () => ((plan[k][1] = +lenSel.value), draw());
         const btn = (txt, label, fn, off = false) => h('button', { class: 'mini', type: 'button', html: icon(txt), 'aria-label': label, disabled: off, onclick: () => (fn(), draw()) });
-        return h('li', {}, [
+        return h('li', { 'data-q-key': String(k) }, [
           h('i', { style: { background: `var(--${t})` } }),
           typeSel,
           lenSel,
           h('div', { class: 'ctl' }, [
-            btn('arrow-up', W('上移', 'Move up'), () => plan.splice(k - 1, 0, ...plan.splice(k, 1)), k === 0),
             btn('copy', W('重複', 'Repeat'), () => plan.splice(k + 1, 0, [...plan[k]]), plan.length >= 24),
             btn('close', W('拿掉', 'Remove'), () => plan.splice(k, 1), plan.length <= 1)
-          ])
+          ]),
+          plan.length > 1 ? ui.grip(W(`拖曳排序：${name(SECTION_NAMES, t)}`, `Reorder ${name(SECTION_NAMES, t)}`)) : null
         ]);
       })
     );
   };
+  ui.reorder(list, { onChange: keys => ((plan = keys.map(k => plan[Number(k)])), draw()) });
   draw();
   const s = sheet({
     title: W('編排', 'Arrange'),

@@ -82,7 +82,7 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
   - **做歌** (Make): pieces in, a 情境 mood (放鬆, 熱血, 律動, 經典), the drum
     styles, how many songs, and 更多設定. Each song has a title, length,
     groove and key, ▶ in the player over the tab bar, ♡ to keep it, and ⋯
-    (變奏一首, 換個鼓, 編排, 分享, 下載 WAV, 存成檔案, 分軌 stems, MIDI). A song
+    (變奏一首, 換個鼓, 編排 (sections in order by their grips, kit `reorder`), 分享, 下載 WAV, 存成檔案, 分軌 stems, MIDI). A song
     plays on into the next of the list it was started from. Under each song is its
     section strip (前奏 主歌 導歌 副歌 …, wide as they are long): tap one to play
     from its start, hold it to loop it (the player's § repeat); the one playing
