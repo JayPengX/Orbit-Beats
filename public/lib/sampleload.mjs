@@ -57,18 +57,63 @@ async function decode(buf) {
   for (let i = 0; i < n; i++) x[i] = Math.max(-32768, Math.min(32767, Math.round(16384 * (L[i] + R[i]))));
   return { x, sr: a.sampleRate };
 }
-// (Fetched all at once, as before: only the decoding waits its turn.)
-const fetchDecode = url =>
-  fetch(url)
-    .then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+// (Fetched a few at a time, in the order asked, an opening's notes first.
+// All at once, a song's hundred notes shared the phone's link with
+// everything else: on a slow connection the app's own files and a tab's
+// pictures waited a minute behind the songs made ahead (3G, 2026-11-05), and
+// a song tapped had its opening's notes in with all of them.)
+const FETCH_AT_ONCE = 6;
+let fetching = 0;
+const queued = []; // { url, go, first }: the openings' first, each in the order asked
+const firstEnd = () => {
+  let i = 0;
+  while (i < queued.length && queued[i].first) i++;
+  return i;
+};
+const slot = (url, first) => {
+  if (fetching < FETCH_AT_ONCE) return (fetching++, Promise.resolve());
+  return new Promise(go => {
+    const e = { url, go, first };
+    if (first) queued.splice(firstEnd(), 0, e);
+    else queued.push(e);
+  });
+};
+const free = () => {
+  const next = queued.shift();
+  if (next) next.go();
+  else fetching--;
+};
+// An instrument an opening wants, already asked for by a song made ahead: its notes still waiting go first.
+function hurry(urls) {
+  const want = new Set(urls);
+  const moved = queued.filter(e => !e.first && want.has(e.url));
+  if (!moved.length) return;
+  for (const e of moved) queued.splice(queued.indexOf(e), 1);
+  queued.splice(firstEnd(), 0, ...moved.map(e => ((e.first = true), e)));
+}
+const fetchDecode = (url, first = false) =>
+  slot(url, first)
+    .then(() => fetch(url).then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status))))).finally(free))
     .then(buf => turn().then(() => decode(buf).finally(() => pause().then(done))));
-// One drum of a kit ('drum:<kit>:<drum>'): its takes. -> { inst, sr, takes: [[x, x], …] } | null
-function loadDrum(name) {
+const drumFiles = name => {
   const [, kit, drum] = name.split(':');
   const layers = DRUM_KITS[kit]?.[drum];
-  if (!layers) return Promise.resolve(null);
-  const files = [...new Set(layers.flat())];
-  return Promise.all(files.map(f => fetchDecode(drumUrl(BASE, kit, f)))).then(got => {
+  return layers ? { kit, layers, files: [...new Set(layers.flat())] } : null;
+};
+// Every file an instrument (or a drum) is read from.
+function urlsOf(inst) {
+  if (inst.startsWith('drum:')) {
+    const d = drumFiles(inst);
+    return d ? d.files.map(f => drumUrl(BASE, d.kit, f)) : [];
+  }
+  return SAMPLED[inst] ? sampleNotes(inst).map(m => sampleUrl(BASE, inst, m)) : [];
+}
+// One drum of a kit ('drum:<kit>:<drum>'): its takes. -> { inst, sr, takes: [[x, x], …] } | null
+function loadDrum(name, first) {
+  const d = drumFiles(name);
+  if (!d) return Promise.resolve(null);
+  const { kit, layers, files } = d;
+  return Promise.all(files.map(f => fetchDecode(drumUrl(BASE, kit, f), first))).then(got => {
     const by = Object.fromEntries(files.map((f, k) => [f, got[k]]));
     const bank = { inst: name, sr: got[0].sr, takes: layers.map(pair => pair.map(f => by[f].x)) };
     useBanks({ [name]: bank });
@@ -76,9 +121,11 @@ function loadDrum(name) {
   });
 }
 // One instrument's notes. -> { inst, sr, notes: [{ midi, x }] } | null
-export function loadBank(inst) {
+// `first`: for an opening (someone is waiting on it): its notes ahead of a song's made ahead.
+export function loadBank(inst, first = false) {
+  if (first && loading.has(inst)) hurry(urlsOf(inst));
   if (inst.startsWith('drum:')) {
-    if (!loading.has(inst)) loading.set(inst, loadDrum(inst).catch(() => (loading.delete(inst), null)));
+    if (!loading.has(inst)) loading.set(inst, loadDrum(inst, first).catch(() => (loading.delete(inst), null)));
     return loading.get(inst);
   }
   if (!SAMPLED[inst]) return Promise.resolve(null);
@@ -86,7 +133,7 @@ export function loadBank(inst) {
     loading.set(
       inst,
       Promise.all(
-        sampleNotes(inst).map(m => fetchDecode(sampleUrl(BASE, inst, m)).then(d => ({ midi: m, ...d })))
+        sampleNotes(inst).map(m => fetchDecode(sampleUrl(BASE, inst, m), first).then(d => ({ midi: m, ...d })))
       ).then(
         notes => {
           const bank = { inst, sr: notes[0].sr, notes: notes.map(({ midi, x }) => ({ midi, x })) };
@@ -130,7 +177,7 @@ export function instsOf(fn, args) {
 export async function banksFor(fn, args, sent) {
   const want = instsOf(fn, args).filter(i => !sent.has(i));
   if (!want.length) return null;
-  const got = await Promise.all(want.map(loadBank));
+  const got = await Promise.all(want.map(i => loadBank(i, fn === 'radioStart')));
   const out = {};
   got.forEach((b, k) => {
     if (b) (out[want[k]] = b), sent.add(want[k]);
