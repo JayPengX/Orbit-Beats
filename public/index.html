@@ -940,7 +940,7 @@ body.own-sound main, body.own-sound.playing main { padding-bottom: calc(112px + 
    before any song, a list) stays a readable 720 in the middle. A phone on its
    side is short: no hero taller than half of it; Now Playing puts the cover
    beside its controls whenever the screen is wider than tall. */
-:root.q-wide { --q-page-max: 1180px; }
+:root.q-wide { --q-page-max: var(--q-wide-max, 1180px); }
 :root.q-wide #panel-studio, :root.q-wide #panel-jam,
 :root.q-wide #panel-make:not(:has(> #out:not([hidden]))),
 :root.q-wide #panel-library:not(:has(> .lib-cols)) { max-width: 688px; margin-inline: auto; }
