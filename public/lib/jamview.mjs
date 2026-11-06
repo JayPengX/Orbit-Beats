@@ -187,11 +187,10 @@ export function mountJam(panel, api) {
   const grooveSub = h('small', {});
   const grooveRow = row(W('鼓', 'Groove'), null, h('div', { class: 'ctl' }, [grooveSw, styleSel]), { only: 'jam-groove', term: 'groove' });
   grooveRow.querySelector('.label').append(grooveSub);
+  // (The pads as one stage: on a wide page they fill the left, the set and its controls beside them.)
   const body = h('section', { class: 'card jam' }, [
     setRow,
-    tileGrid,
-    hitRow,
-    padGrid,
+    h('div', { class: 'jam-stage' }, [tileGrid, hitRow, padGrid]),
     h('div', { class: 'jam-bar' }, [playBtn, keepBtn, recBtn, stopAllBtn]),
     grooveRow,
     h('div', { class: 'stack', 'data-ctl': 'jam-snap' }, [h('div', { class: 'label' }, [h('span', {}, [W('對齊', 'Snap'), ' ', info('snap')]), h('small', { text: hintOf('snap') })]), gridSeg]),

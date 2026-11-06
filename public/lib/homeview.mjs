@@ -88,6 +88,32 @@ export function songListOf(open, key, head_, rows, opts = {}) {
   return kitUI.section(head_, [box, tail].filter(Boolean), { cls: `bt-sec bt-${key}`, ...opts });
 }
 
+// ---- Wide screens (DESIGN §10): like cards as a grid, never a phone's rows made long ----
+// (A page of 640 or more: the kit marks <html> q-wide. Each draw asks; onScreen draws again.)
+export const isWide = () => document.documentElement.classList.contains('q-wide');
+// A song as a cover card: the cover, its name and groove under it; a tap plays (as its row's does).
+export function songTileOf(api, t, c) {
+  const b = h('button', { class: 'bt-tile', type: 'button', 'data-id': t.id, 'aria-label': t.title, onclick: () => tapTrack(api, t) }, [
+    h('span', { class: 'bt-tile-art' }, [h('img', { class: 'bt-tile-cover', alt: '', src: c || coverOfTrack(t), loading: 'lazy', decoding: 'async', draggable: 'false' })]),
+    h('span', { class: 'bt-tile-text' }, [h('b', { text: t.title }), h('small', { text: [subOf(t), t.seconds ? clock(t.seconds) : ''].filter(Boolean).join(' · ') })])
+  ]);
+  onLong(b, () => api.trackMenu(t, b));
+  return b;
+}
+// Songs as an even grid of covers (no part row: the kit's fullRows; the most telling first).
+export function songGridOf(key, head_, tiles, opts = {}) {
+  if (!tiles.length) return null;
+  return kitUI.section(head_, h('div', { class: 'bt-tiles q-rows-full' }, tiles), { cls: `bt-sec bt-${key}`, ...opts });
+}
+// The ways in (自己做, 創作's tools) as tiles side by side: its mark, what it is, what it does.
+export function wayTilesOf(items) {
+  return h(
+    'div',
+    { class: 'bt-ways q-rows-full q-rows-keep' },
+    items.filter(Boolean).map(x => h('button', { class: 'q-card bt-way', type: 'button', onclick: x.onClick }, [h('span', { class: 'bt-way-ico', html: x.icon }), h('b', { text: x.title }), h('small', { text: x.sub }), x.value ? h('span', { class: 'bt-way-value', text: x.value }) : null]))
+  );
+}
+
 // api: { P, radio, taste() -> { style: n }, trackMenu(track, anchor), openNow(), songs(), go(tab, run), game() }
 export function mountHome(panel, api) {
   const { P, radio } = api;
@@ -267,6 +293,28 @@ export function mountHome(panel, api) {
     ]);
     return kitUI.section(W('電台', 'Radio'), [st, h('h3', { class: 'q-list-head bt-sub-head', text: W('類型', 'Genres') }), genres], { cls: 'bt-sec bt-stations' });
   }
+  // (Wide: each station and genre its own cover, the radio's beside the genres', 全部類型 at their head.)
+  const tile = (id, part = null) =>
+    h('button', { class: 'bt-stile', type: 'button', 'data-station': id, 'aria-pressed': 'false', 'aria-label': part ? `${W(...part)} ${stationName(id)}` : stationName(id), onclick: () => tune(id) }, [
+      h('img', { alt: '', src: stationCover(id, taste()), loading: 'lazy', decoding: 'async', draggable: 'false' }),
+      part ? h('small', { class: 'bt-stile-part', text: W(...part) }) : null
+    ]);
+  function stationsWide() {
+    const now = nowStation(new Date().getHours());
+    const rows = homeRows(taste());
+    const forYou = rows.find(r => r.key === 'for-you').ids;
+    const moods = rows.find(r => r.key === 'moods').ids.filter(id => id !== now.id);
+    const ids = [...new Set(['all', ...forYou, ...moods])].filter(id => id !== now.id);
+    const all = () => genreSheet({ title: W('全部類型', 'All genres'), onPick: g => P.station(`style:${g}`) });
+    return h('div', { class: 'bt-pair bt-stations' }, [
+      kitUI.section(W('電台', 'Radio'), h('div', { class: 'bt-stiles q-rows-full q-rows-keep' }, [tile(now.id, now.part), ...ids.map(id => tile(id))]), { cls: 'bt-sec' }),
+      kitUI.section(W('類型', 'Genres'), h('div', { class: 'bt-stiles q-rows-full q-rows-keep' }, rows.find(r => r.key === 'genres').ids.map(id => tile(id))), { cls: 'bt-sec', more: W('全部類型', 'All genres'), onMore: all })
+    ]);
+  }
+  function paintTiles() {
+    const id = P.state()?.track?.id || '';
+    for (const b of panel.querySelectorAll('.bt-tile[data-id]')) b.toggleAttribute('data-on', b.dataset.id === id);
+  }
   function paintStations() {
     const s = P.state();
     const on = s?.source === 'radio' && (s.playing || s.busy) ? radio.station() : '';
@@ -274,15 +322,17 @@ export function mountHome(panel, api) {
   }
 
   // ---- The maker's ways in ----
+  const WAYS = () => [
+    { icon: icon('grid'), title: W('即興', 'Jam'), sub: W('16 個打擊墊，跟著節奏按', '16 pads over a groove'), onClick: () => api.go('jam') },
+    { icon: icon('note'), title: W('做歌', 'Songs'), sub: W('用你的片段做成歌', 'Songs from your pieces'), onClick: () => api.go('make') },
+    { icon: icon('create'), title: W('樂器', 'Studio'), sub: W('一格一格寫節奏和旋律', 'Write beats and tunes step by step'), onClick: () => api.go('studio') },
+    { icon: icon('trophy'), title: W('節奏遊戲', 'Rhythm game'), sub: W('每首歌都是一關', 'Every song is a level'), onClick: () => api.game?.() }
+  ];
+  const makeWide = () => kitUI.section(W('自己做', 'Make your own'), wayTilesOf(WAYS()), { cls: 'bt-sec bt-make' });
   const make = () =>
     kitUI.section(
       W('自己做', 'Make your own'),
-      kitUI.rowCard([
-        { icon: icon('grid'), color: 'var(--accent)', title: W('即興', 'Jam'), sub: W('16 個打擊墊，跟著節奏按', '16 pads over a groove'), onClick: () => api.go('jam') },
-        { icon: icon('note'), color: 'var(--accent)', title: W('做歌', 'Songs'), sub: W('用你的片段做成歌', 'Songs from your pieces'), onClick: () => api.go('make') },
-        { icon: icon('create'), color: 'var(--accent)', title: W('樂器', 'Studio'), sub: W('一格一格寫節奏和旋律', 'Write beats and tunes step by step'), onClick: () => api.go('studio') },
-        { icon: icon('trophy'), color: 'var(--accent)', title: W('節奏遊戲', 'Rhythm game'), sub: W('每首歌都是一關', 'Every song is a level'), onClick: () => api.game?.() }
-      ]),
+      kitUI.rowCard(WAYS().map(x => ({ ...x, color: 'var(--accent)' }))),
       { cls: 'bt-sec bt-make' }
     );
 
@@ -299,6 +349,10 @@ export function mountHome(panel, api) {
     const key = [s?.track?.id || '', ...ups.map(t => t.id)].join('|');
     if (key === upKey) return;
     upKey = key;
+    if (isWide())
+      return upSlot.replaceChildren(
+        ...[ups.length ? songGridOf('up', W('接下來', 'Up next'), ups.map(t => songTileOf(api, t, t.cover))) : null, songGridOf('picks', W('今日精選', 'Today’s picks'), ps.map(p => songTileOf(api, p.t, p.cover)))].filter(Boolean)
+      );
     upSlot.replaceChildren(
       ...[ups.length ? songList('up', W('接下來', 'Up next'), ups.map(t => songRow(t, t.cover))) : null, songList('picks', W('今日精選', 'Today’s picks'), ps.map(p => songRow(p.t, p.cover)))].filter(Boolean)
     );
@@ -320,9 +374,18 @@ export function mountHome(panel, api) {
     litWas = -2;
     drawUp();
     drawRecent();
-    panel.replaceChildren(h('div', { class: 'q-cols bt-home' }, [h('div', { class: 'bt-col' }, [card, upSlot]), h('div', { class: 'bt-col' }, [stations(), recentSlot, make()])]));
+    // (Wide: the player across the top, then what plays as covers, the radio beside the genres,
+    // what you heard beside what you kept, the ways to make your own side by side: the phone's order.)
+    const wide = isWide();
+    recentSlot.classList.toggle('bt-pair', wide);
+    panel.replaceChildren(
+      wide
+        ? h('div', { class: 'bt-home bt-wide' }, [card, upSlot, stationsWide(), recentSlot, makeWide()])
+        : h('div', { class: 'q-cols bt-home' }, [h('div', { class: 'bt-col' }, [card, upSlot]), h('div', { class: 'bt-col' }, [stations(), recentSlot, make()])])
+    );
     paintCard();
     paintStations();
+    paintTiles();
   }
   drawAll();
   P.on(w => {
@@ -331,6 +394,7 @@ export function mountHome(panel, api) {
     paintStations();
     drawUp();
     drawRecent();
+    paintTiles();
   });
   return { refresh: drawAll };
 }

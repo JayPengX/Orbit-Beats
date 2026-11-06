@@ -42,7 +42,7 @@ import * as kitQ from '#kit/orbit.mjs';
 import { icon, inner } from './lib/icons.mjs';
 import { createPlayer, coverOfTrack } from './lib/player.mjs';
 import { mountPlayerView, subOf, onLong, speedText } from './lib/playerview.mjs';
-import { mountHome, songRowOf, songListOf, stationCover } from './lib/homeview.mjs';
+import { mountHome, songRowOf, songListOf, stationCover, isWide, songTileOf, songGridOf, wayTilesOf } from './lib/homeview.mjs';
 import { remix, surprise, remixId, remixTitle, kindOfRecipe, baseOf, radioBase, bandBase, remixNow, retime, clipSpan, partOf } from './lib/remix.mjs';
 import { remixSheet, clipSheet, PART_NAMES } from './lib/remixview.mjs';
 import * as Q from './lib/queue.mjs';
@@ -257,7 +257,8 @@ let game = null;
     if (set) jam?.useSet?.(set);
     jam?.start();
   };
-  const setChips = JAM_SETS.map(x => h('button', { class: 'q-chip cr-set', type: 'button', 'data-style': x.style, 'aria-pressed': 'false', onclick: () => openJam(x) }, [h('span', { text: name(STYLE_NAMES, x.style) })]));
+  // (Wide, each set shows its cover over its name: drawn only there.)
+  const setChips = JAM_SETS.map(x => h('button', { class: 'q-chip cr-set', type: 'button', 'data-style': x.style, 'aria-pressed': 'false', onclick: () => openJam(x) }, [h('img', { class: 'cr-set-art', alt: '', draggable: 'false' }), h('span', { text: name(STYLE_NAMES, x.style) })]));
   const jamCard = h('section', { class: 'q-card cr-jam' }, [
     h('div', { class: 'cr-jam-top' }, [
       h('button', { class: 'cr-jam-open', type: 'button', onclick: () => showTab('jam') }, [
@@ -279,17 +280,14 @@ let game = null;
   };
   const open = {};
   // Before there are songs: three ways to begin, one tap each.
-  const starters = () => {
+  const starters = wide => {
     const last = radio?.recent?.()[0];
-    return ui.section(
-      W('從這裡開始', 'Start here'),
-      ui.rowCard([
-        { icon: icon('create'), color: 'var(--accent)', title: W('寫一段 Trap 鼓', 'Write a trap beat'), sub: W('在樂器一格一格點出來', 'Tap it out in Studio'), onClick: () => showTab('studio') },
-        last && { icon: icon('wave'), color: 'var(--accent)', title: W('混音剛聽的歌', 'Remix what you heard'), sub: last.title, onClick: () => remixOf(last) },
-        { icon: icon('dice'), color: 'var(--accent)', title: W('做 6 首歌', 'Make 6 songs'), sub: W('用內建的樂團，一次做好', 'On the built-in band, at once'), onClick: () => (showTab('make'), $('go').click()) }
-      ]),
-      { cls: 'bt-sec cr-start' }
-    );
+    const items = [
+      { icon: icon('create'), color: 'var(--accent)', title: W('寫一段 Trap 鼓', 'Write a trap beat'), sub: W('在樂器一格一格點出來', 'Tap it out in Studio'), onClick: () => showTab('studio') },
+      last && { icon: icon('wave'), color: 'var(--accent)', title: W('混音剛聽的歌', 'Remix what you heard'), sub: last.title, onClick: () => remixOf(last) },
+      { icon: icon('dice'), color: 'var(--accent)', title: W('做 6 首歌', 'Make 6 songs'), sub: W('用內建的樂團，一次做好', 'On the built-in band, at once'), onClick: () => (showTab('make'), $('go').click()) }
+    ];
+    return ui.section(W('從這裡開始', 'Start here'), wide ? wayTilesOf(items) : ui.rowCard(items), { cls: 'bt-sec cr-start' });
   };
   hubDraw = () => {
     const set = readSet();
@@ -299,18 +297,29 @@ let game = null;
     about.textContent = W(`${speedText(spec.bpm)}速 · ${spec.bpm} BPM`, `${speedText(spec.bpm)} · ${spec.bpm} BPM`);
     for (const c of setChips) c.setAttribute('aria-pressed', String(c.dataset.style === set.style));
     const n = pieces.length;
-    ways.replaceChildren(
-      ui.rowCard([
-        { icon: icon('create'), color: 'var(--accent)', title: W('樂器', 'Studio'), sub: W('一格一格寫節奏和旋律', 'Write beats and tunes step by step'), onClick: () => showTab('studio') },
-        { icon: icon('note'), color: 'var(--accent)', title: W('做歌', 'Songs'), sub: n ? W('用你的片段做成整首歌', 'Whole songs from your pieces') : W('用片段或內建樂團做成歌', 'Songs from pieces or the band'), value: n ? W(`${n} 個片段`, `${n} pieces`) : '', onClick: () => showTab('make') },
-        { icon: icon('trophy'), color: 'var(--accent)', title: W('節奏遊戲', 'Rhythm game'), sub: W('每首歌都是一關', 'Every song is a level'), onClick: () => game?.open() }
-      ])
-    );
+    // (Wide: 即興 across the top, its sets as covers beside it; the tools side by side under it; your songs as covers.)
+    const wide = isWide();
+    if (wide) for (const [k, c] of setChips.entries()) if (!c.firstChild.getAttribute('src')) c.firstChild.src = setCover(JAM_SETS[k], specOf(JAM_SETS[k]).bpm);
+    const tools = [
+      { icon: icon('create'), color: 'var(--accent)', title: W('樂器', 'Studio'), sub: W('一格一格寫節奏和旋律', 'Write beats and tunes step by step'), onClick: () => showTab('studio') },
+      { icon: icon('note'), color: 'var(--accent)', title: W('做歌', 'Songs'), sub: n ? W('用你的片段做成整首歌', 'Whole songs from your pieces') : W('用片段或內建樂團做成歌', 'Songs from pieces or the band'), value: n ? W(`${n} 個片段`, `${n} pieces`) : '', onClick: () => showTab('make') },
+      { icon: icon('trophy'), color: 'var(--accent)', title: W('節奏遊戲', 'Rhythm game'), sub: W('每首歌都是一關', 'Every song is a level'), onClick: () => game?.open() }
+    ];
+    ways.replaceChildren(wide ? wayTilesOf(tools) : ui.rowCard(tools));
     const songApi = { P, trackMenu: (t, a) => trackMenuOf(t, a), openNow: () => openNowOf() };
-    const mine = songListOf(open, 'mine', W('你的歌', 'Your songs'), mineFirst().map(t => songRowOf(songApi, P.track(t))), { more: W('資料庫', 'Library'), onMore: () => showTab('library') });
-    side.replaceChildren(mine || starters());
+    const mine = wide
+      ? songGridOf('mine', W('你的歌', 'Your songs'), mineFirst().map(t => songTileOf(songApi, P.track(t))), { more: W('資料庫', 'Library'), onMore: () => showTab('library') })
+      : songListOf(open, 'mine', W('你的歌', 'Your songs'), mineFirst().map(t => songRowOf(songApi, P.track(t))), { more: W('資料庫', 'Library'), onMore: () => showTab('library') });
+    side.replaceChildren(mine || starters(wide));
+    const want = wide ? 'wide' : 'phone';
+    if (page.dataset.as !== want) {
+      page.dataset.as = want;
+      page.className = wide ? 'cr-page cr-wide' : 'q-cols cr-page';
+      page.replaceChildren(...(wide ? [jamCard, ways, side] : [h('div', { class: 'cr-col' }, [jamCard]), h('div', { class: 'cr-col' }, [ways, side])]));
+    }
   };
-  $('panel-create').append(ui.navTitle(W('創作', 'Create')), h('div', { class: 'q-cols cr-page' }, [h('div', { class: 'cr-col' }, [jamCard]), h('div', { class: 'cr-col' }, [ways, side])]));
+  const page = h('div', { class: 'q-cols cr-page' });
+  $('panel-create').append(ui.navTitle(W('創作', 'Create')), page);
 }
 
 // ---- Settings (做歌) ----
@@ -2491,7 +2500,7 @@ async function boot() {
     }
   });
   // (A new kind of screen: 首頁's rows again, 適合現在 one banner or two.)
-  kit.onScreen?.(() => home?.refresh?.());
+  kit.onScreen?.(() => (home?.refresh?.(), tabNow === 'create' && hubDraw(), tabNow === 'library' && lib.draw()));
   // (The loop button leaves a section on repeat.)
   let loopWas = P.q.loop;
   P.on(w => {

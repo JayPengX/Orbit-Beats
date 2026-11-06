@@ -941,9 +941,30 @@ body.own-sound main, body.own-sound.playing main { padding-bottom: calc(112px + 
    side is short: no hero taller than half of it; Now Playing puts the cover
    beside its controls whenever the screen is wider than tall. */
 :root.q-wide { --q-page-max: var(--q-wide-max, 1180px); }
-:root.q-wide #panel-studio, :root.q-wide #panel-jam,
-:root.q-wide #panel-make:not(:has(> #out:not([hidden]))),
 :root.q-wide #panel-library:not(:has(> .lib-cols)) { max-width: 688px; margin-inline: auto; }
+/* A screen opened from 創作 on the rail's screens: its ‹ and name a line of their own over the page
+   (the top line has no height there), at the page's left edge. */
+html.q-tabrail .q-appbar .q-appbar-inner:has(.subnav:not([hidden])) { height: auto; min-height: 52px; padding-top: 6px; padding-bottom: 2px; }
+html.q-tabrail .q-appbar .q-appbar-inner:has(.subnav:not([hidden])) .q-brand > :not(.subnav) { display: none; }
+/* 即興: the pads fill the left, the set and its controls beside them (the phone's order: the set,
+   the pads, then ▶ and the rest). The pads stay square enough to fit the screen's height. */
+:root.q-wide .card.jam { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); grid-template-rows: repeat(6, auto) 1fr; column-gap: 28px; align-items: start; padding: 22px 24px; }
+:root.q-wide .card.jam > * { grid-column: 2; min-width: 0; }
+:root.q-wide .card.jam > .jam-stage { grid-column: 1; grid-row: 1 / -1; }
+:root.q-wide .card.jam > .jam-bar { margin-top: 4px; }
+:root.q-wide .jam-stage { max-width: calc((100dvh - 120px) * 1.1); width: 100%; margin-inline: auto; }
+:root.q-wide .jam-takes { margin-top: 8px; }
+/* 樂器: the grid the whole page wide, its steps bigger; 進階's settings beside it. */
+:root.q-wide .card.studio { padding: 22px 24px; }
+:root.q-wide .st-cells .cell { height: 40px; }
+:root.q-wide body.lv-pro .card.studio { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 340px); grid-template-rows: repeat(7, auto) 1fr; column-gap: 28px; align-items: start; }
+:root.q-wide body.lv-pro .card.studio > * { grid-column: 1; min-width: 0; }
+:root.q-wide body.lv-pro .card.studio > .st-pro { grid-column: 2; grid-row: 1 / -1; }
+:root.q-wide body.lv-pro .card.studio > .st-pro > :first-child { margin-top: 0; border-top: 0; }
+/* 做歌 before any song: the pieces beside the settings. */
+:root.q-wide #panel-make:not([hidden]):not(:has(> #out:not([hidden]))) { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); column-gap: 16px; align-items: start; }
+:root.q-wide #panel-make:not(:has(> #out:not([hidden]))) > .pieces-card { grid-column: 1; grid-row: 1 / span 3; }
+:root.q-wide #panel-make:not(:has(> #out:not([hidden]))) > :not(.pieces-card) { grid-column: 2; }
 /* 樂器: with room, the grooves on the same line as ▶ and 🎲. */
 @media (min-width: 600px) { .st-chips.st-few { grid-column: auto; } }
 /* 即興 on a phone on its side: pads shorter than wide, so the set fits the height. */
@@ -956,8 +977,17 @@ body.own-sound main, body.own-sound.playing main { padding-bottom: calc(112px + 
 :root.q-wide .lib-cols > * > :first-child { margin-top: 0; }
 :root.q-wide .lib-cols { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: 0 28px; align-items: start; }
 :root.q-wide .lib-cols .lib-main > .lib-shelf:first-child { margin-top: 0; }
+:root.q-wide .lib-main:has(> .q-empty) { padding: 40px 32px 32px; border-radius: var(--q-r-card); background: var(--card); }
 :root.q-wide .lib-main > .lib-actions { max-width: 400px; margin-inline: auto; }
 :root.q-wide .lib-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+/* (A page opened beside the rows: the row it came from lit, the page from the top of its column.) */
+:root.q-wide .lib-side .q-cell.lib-on { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+:root.q-wide .lib-side .q-cell.lib-on .q-cell-text > span { color: var(--accent); font-weight: 600; }
+:root.q-wide .lib-page > .lib-nav { margin-top: 0; }
+:root.q-wide .lib-split > .lib-side { position: sticky; top: 16px; }
+:root.q-wide .lib-page .lib-hero { flex-direction: row; justify-content: flex-start; gap: 20px; }
+:root.q-wide .lib-page .lib-hero h2 { text-align: left; font-size: 30px; }
+:root.q-wide .lib-page .lib-pills { max-width: 420px; }
 /* 做歌: once there are songs, they sit beside the settings. */
 :root.q-wide #panel-make:not([hidden]):has(> #out:not([hidden])) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 16px; align-items: start; }
 :root.q-wide #panel-make:has(> #out:not([hidden])) > * { grid-column: 1; }

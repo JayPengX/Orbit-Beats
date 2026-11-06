@@ -240,29 +240,280 @@ html[data-look='native'] .bt-sub-head {
   margin: var(--q-s-3) 0 var(--q-s-2);
 }
 
-/* ---------- Wide: the player and what's next on the left, the rest on the right ---------- */
-html[data-look='native'].q-wide .bt-now {
-  padding: var(--q-s-5);
+/* ---------- Wide (DESIGN §10): a big screen's own home, not a phone's made long ----------
+   The player across the top (a large cover, the song, ▶ beside it, its parts the whole width
+   under it); what plays next and today's picks as an even grid of covers; the radio's stations
+   beside the genres, each its own cover; what you heard beside what you kept; the four ways to
+   make your own side by side. Read left to right, top to bottom: the phone's order. */
+html[data-look='native'] .bt-wide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--q-s-6);
 }
-html[data-look='native'].q-wide .bt-head {
-  grid-template-columns: 140px minmax(0, 1fr);
+html[data-look='native'] .bt-wide > .bt-slot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--q-s-6);
 }
-html[data-look='native'].q-wide .bt-cover {
-  width: 140px;
-  height: 140px;
+html[data-look='native'] .bt-wide > .bt-slot:empty {
+  display: none;
 }
-/* (Wide: every station in view, an even grid of them, every row full where the count allows (the kit's fullRows, none left out); no row scrolled out of sight.) */
-html[data-look='native'].q-wide .bt-chips {
+html[data-look='native'] .bt-wide .bt-now {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
-  gap: var(--q-s-2);
-  margin-inline: 0;
-  padding-inline: 0;
-  overflow: visible;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'head ctl' 'line line' 'time time';
+  column-gap: var(--q-s-6);
+  row-gap: var(--q-s-3);
+  align-items: center;
+  padding: var(--q-s-5) var(--q-s-6);
 }
-html[data-look='native'].q-wide .bt-chips > .q-chip {
-  justify-content: center;
+html[data-look='native'] .bt-wide .bt-head {
+  grid-area: head;
+  grid-template-columns: 176px minmax(0, 1fr);
+  gap: var(--q-s-5);
+}
+html[data-look='native'] .bt-wide .bt-cover {
+  width: 176px;
+  height: 176px;
+  border-radius: 18px;
+}
+html[data-look='native'] .bt-wide .bt-title {
+  font: 700 34px/42px var(--q-font);
+}
+html[data-look='native'] .bt-wide .bt-sub {
+  font-size: 17px;
+  line-height: 22px;
+}
+html[data-look='native'] .bt-wide .bt-kick {
+  font-size: 15px;
+  line-height: 20px;
+}
+html[data-look='native'] .bt-wide .bt-line {
+  grid-area: line;
+  margin-top: var(--q-s-2);
+}
+html[data-look='native'] .bt-wide .bt-time {
+  grid-area: time;
+  margin-top: calc(-1 * var(--q-s-1));
+}
+html[data-look='native'] .bt-wide .bt-ctl {
+  grid-area: ctl;
+  grid-template-columns: 48px 72px 48px;
+  gap: var(--q-s-4);
+}
+html[data-look='native'] .bt-wide .bt-btn {
+  width: 48px;
+  height: 48px;
+}
+html[data-look='native'] .bt-wide .bt-play {
+  width: 72px;
+  height: 72px;
+}
+html[data-look='native'] .bt-wide .bt-play svg {
+  width: 30px;
+  height: 30px;
+}
+/* (A phone on its side is short: a smaller cover, so the picks start on the first screen.) */
+@media (max-height: 520px) {
+  html[data-look='native'] .bt-wide .bt-head {
+    grid-template-columns: 112px minmax(0, 1fr);
+  }
+  html[data-look='native'] .bt-wide .bt-cover {
+    width: 112px;
+    height: 112px;
+    border-radius: 14px;
+  }
+  html[data-look='native'] .bt-wide .bt-title {
+    font-size: 26px;
+    line-height: 32px;
+  }
+  html[data-look='native'] .bt-wide .bt-now {
+    padding: var(--q-s-4) var(--q-s-5);
+  }
+}
+
+/* Songs as covers: an even grid, every row full. */
+html[data-look='native'] .bt-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(156px, 1fr));
+  gap: var(--q-s-5) var(--q-s-4);
+}
+html[data-look='native'] .bt-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--q-s-2);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+html[data-look='native'] .bt-tile-art {
+  position: relative;
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--nv-card);
+  box-shadow: inset 0 0 0 0.5px var(--nv-edge);
+  transition: transform var(--q-dur-snappy, 0.2s) var(--q-spring-snappy, ease);
+}
+html[data-look='native'] .bt-tile:active .bt-tile-art {
+  transform: scale(0.97);
+}
+html[data-look='native'] .bt-tile-cover {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+html[data-look='native'] .bt-tile[data-on] .bt-tile-art {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+html[data-look='native'] .bt-tile-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-inline: 2px;
+}
+html[data-look='native'] .bt-tile-text > b {
+  font: 600 16px/21px var(--q-font);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+html[data-look='native'] .bt-tile[data-on] .bt-tile-text > b {
+  color: var(--accent);
+}
+html[data-look='native'] .bt-tile-text > small {
+  color: var(--q-label-2);
+  font: 400 13px/18px var(--q-font);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* (The kit's fullRows leaves out what's past the last full row: this page's tiles are displayed by name.) */
+html[data-look='native'] :is(.bt-tiles, .bt-stiles, .bt-ways) > .q-cut {
+  display: none;
+}
+/* (Nothing playing yet: no ⏭ beside ▶.) */
+html[data-look='native'] .bt-wide .bt-ctl:has(> .bt-btn[hidden]) {
+  grid-template-columns: 48px 72px;
+}
+html[data-look='native'] .bt-wide .bt-ctl > .bt-btn[hidden] {
+  display: none;
+}
+
+/* Two things side by side (the radio and the genres; what you heard and what you kept); one alone takes the width. */
+html[data-look='native'] .bt-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: var(--q-s-6) var(--q-s-6);
+  align-items: start;
+}
+html[data-look='native'] .bt-pair:empty {
+  display: none;
+}
+
+/* A station or a genre: its own cover (its name drawn on it); the one on the air ringed. */
+html[data-look='native'] .bt-stiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: var(--q-s-3);
+}
+html[data-look='native'] .bt-stile {
+  position: relative;
+  aspect-ratio: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--nv-card);
+  box-shadow: inset 0 0 0 0.5px var(--nv-edge);
+  cursor: pointer;
+  transition: transform var(--q-dur-snappy, 0.2s) var(--q-spring-snappy, ease);
+}
+html[data-look='native'] .bt-stile:active {
+  transform: scale(0.96);
+}
+html[data-look='native'] .bt-stile > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+html[data-look='native'] .bt-stile[aria-pressed='true'] {
+  box-shadow: 0 0 0 3px var(--accent);
+}
+html[data-look='native'] .bt-stile-part {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font: 600 12px/18px var(--q-font);
+}
+
+/* The ways in, side by side: each a card with its mark, its name and what it does. */
+html[data-look='native'] .bt-ways {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(208px, 1fr));
+  gap: var(--q-s-3);
+}
+html[data-look='native'] .bt-way {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
   margin: 0;
+  padding: var(--q-s-4);
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform var(--q-dur-snappy, 0.2s) var(--q-spring-snappy, ease);
+}
+html[data-look='native'] .bt-way:active {
+  transform: scale(0.98);
+}
+html[data-look='native'] .bt-way-ico {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: var(--q-s-2);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+html[data-look='native'] .bt-way-ico svg {
+  width: 24px;
+  height: 24px;
+}
+html[data-look='native'] .bt-way > b {
+  font: 600 17px/22px var(--q-font);
+}
+html[data-look='native'] .bt-way > small {
+  color: var(--q-label-2);
+  font: 400 14px/19px var(--q-font);
+}
+html[data-look='native'] .bt-way-value {
+  position: absolute;
+  top: var(--q-s-4);
+  right: var(--q-s-4);
+  color: var(--q-label-2);
+  font: 500 13px/18px var(--q-font);
 }
 
 /* ---------- 創作 (app.js hubDraw) ----------
@@ -398,21 +649,90 @@ html[data-look='native'] .cr-sets > .q-chip > span {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-html[data-look='native'].q-wide .cr-jam {
-  padding: var(--q-s-5);
+html[data-look='native'] .cr-set-art {
+  display: none;
 }
-html[data-look='native'].q-wide .cr-jam-open {
-  grid-template-columns: 88px minmax(0, 1fr);
+/* Wide (DESIGN §10): 即興 across the top (the set ready, ▶, what it is on the left; the six other
+   sets beside it, each its cover and name); 樂器 · 做歌 · 節奏遊戲 side by side under it; your songs
+   as covers (or the ways to begin as tiles). */
+html[data-look='native'] .cr-wide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--q-s-6);
+}
+html[data-look='native'] .cr-wide > .cr-side:empty {
+  display: none;
+}
+html[data-look='native'] .cr-wide > .cr-side > .q-section {
+  margin: 0;
+}
+html[data-look='native'] .cr-wide .cr-jam {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  grid-template-rows: auto auto 1fr;
+  grid-template-areas: 'top head' 'top sets' 'desc sets';
+  column-gap: var(--q-s-6);
+  row-gap: var(--q-s-3);
+  padding: var(--q-s-5) var(--q-s-6);
+}
+html[data-look='native'] .cr-wide .cr-jam-top {
+  grid-area: top;
+  align-self: end;
+}
+html[data-look='native'] .cr-wide .cr-desc {
+  grid-area: desc;
+}
+html[data-look='native'] .cr-wide .cr-sets-head {
+  grid-area: head;
+  margin: 0;
+}
+html[data-look='native'] .cr-wide .cr-sets {
+  grid-area: sets;
+  align-self: start;
+  gap: var(--q-s-3);
+}
+html[data-look='native'] .cr-wide .cr-jam-open {
+  grid-template-columns: 112px minmax(0, 1fr);
   gap: var(--q-s-4);
 }
-html[data-look='native'].q-wide .cr-cover {
-  width: 88px;
-  height: 88px;
-  border-radius: 14px;
+html[data-look='native'] .cr-wide .cr-cover {
+  width: 112px;
+  height: 112px;
+  border-radius: 16px;
 }
-html[data-look='native'].q-wide .cr-play {
-  width: 60px;
+html[data-look='native'] .cr-wide .cr-title {
+  font-size: 30px;
+  line-height: 36px;
+}
+html[data-look='native'] .cr-wide .cr-play {
+  width: 64px;
+  height: 64px;
+}
+html[data-look='native'] .cr-wide .cr-sets > .q-chip {
+  justify-content: flex-start;
+  gap: var(--q-s-3);
   height: 60px;
+  padding: 8px 12px 8px 8px;
+  border-radius: 16px;
+}
+html[data-look='native'] .cr-wide .cr-set-art {
+  display: block;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: cover;
+}
+html[data-look='native'] .cr-wide .cr-sets > .q-chip > span {
+  font-size: 15px;
+}
+/* (A narrower wide page, a tablet upright or a phone on its side: the sets under the set, as on a phone but roomier.) */
+@media (max-width: 999px) {
+  html[data-look='native'] .cr-wide .cr-jam {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-template-areas: 'top' 'desc' 'head' 'sets';
+  }
 }
 
 /* 正在播放: no blur of the cover behind it (another app's look); the page's own dark, the
