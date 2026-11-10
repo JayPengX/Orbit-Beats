@@ -113,6 +113,7 @@ button { cursor: pointer; }
 @keyframes pb-rec { 50% { opacity: .35; } }
 .status { display: flex; align-items: center; gap: 8px; margin-top: 14px; font-size: 14px; white-space: nowrap; }
 .status[hidden] { display: none; }
+#status-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
 .status.bad .dot { background: var(--danger); }
 .status.busy .dot { background: var(--text-3); }
@@ -1046,7 +1047,7 @@ html.q-tabrail .q-appbar .q-appbar-inner:has(.subnav:not([hidden])) .q-brand > :
       <div class="head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 7v10"/></svg><h2 id="h-rec"><span data-ctl="make-card" data-en="Pieces">片段</span><span data-ctl="make-ingredients" data-en="Ingredients">材料</span></h2></div>
       <label class="drop" id="drop" data-ctl="make-card">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg>
-        <div><b data-en="Choose recordings or samples">選錄音或取樣檔</b><span data-en="One file or a whole pack · split by silence">一個檔或一整包 · 依安靜切開</span></div>
+        <div><b data-en="Choose recordings or samples">選錄音或取樣檔</b><span data-en="One file or a whole pack · cut on the beat">一個檔或一整包 · 依節拍切開</span></div>
         <input type="file" id="file" accept="audio/*,.wav" multiple>
       </label>
       <div class="ways src">

@@ -5,7 +5,7 @@
 // ---- FFT (radix 2, in place) ----
 
 const TWIDDLE = new Map();
-function fft(re, im) {
+export function fft(re, im) {
   const n = re.length;
   for (let i = 1, j = 0; i < n; i++) {
     let bit = n >> 1;

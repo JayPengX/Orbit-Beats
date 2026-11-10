@@ -8,7 +8,30 @@
 // `restart()`: what's being made is dropped (its calls reject with 'cancelled') and a fresh worker
 // takes the next call at once: a song tapped never waits behind one made ahead.
 // A bank's samples copied (the page keeps its own for the next worker), and the copies' buffers.
-const copyBank = b => ({ ...b, ...(b.notes && { notes: b.notes.map(n => ({ ...n, x: n.x.slice() })) }), ...(b.takes && { takes: b.takes.map(t => t.map(x => x.slice())) }) });
+// (A few notes at a time, a breath between: a whole instrument copied at once held the page a tenth of a second.)
+const BREATH = 1 << 18; // samples copied between breaths
+async function copyBank(b) {
+  let since = 0;
+  const cp = async x => {
+    const y = x.slice();
+    if ((since += x.length) > BREATH) (since = 0), await new Promise(ok => setTimeout(ok, 0));
+    return y;
+  };
+  const out = { ...b };
+  if (b.notes) {
+    out.notes = [];
+    for (const n of b.notes) out.notes.push({ ...n, x: await cp(n.x) });
+  }
+  if (b.takes) {
+    out.takes = [];
+    for (const t of b.takes) {
+      const pair = [];
+      for (const x of t) pair.push(await cp(x));
+      out.takes.push(pair);
+    }
+  }
+  return out;
+}
 const buffersOf = b => [...(b.notes || []).map(n => n.x.buffer), ...(b.takes || []).flat().map(x => x.buffer)];
 export function maker(url, { limit = 90000, prep = null } = {}) {
   let worker = null;
@@ -92,7 +115,7 @@ export function maker(url, { limit = 90000, prep = null } = {}) {
         // (Each instrument on its own, its notes copied and moved rather than cloned in one message:
         // a song's instruments are tens of megabytes, and cloning them held the page for a second.)
         for (const [k, bank] of Object.entries(b || {})) {
-          const copy = copyBank(bank);
+          const copy = await copyBank(bank);
           send('setSamples', [{ [k]: copy }], buffersOf(copy)).catch(() => {});
           await new Promise(ok => setTimeout(ok, 0));
         }
@@ -110,11 +133,12 @@ export function maker(url, { limit = 90000, prep = null } = {}) {
     song: (recipe, bits) => ask('song', recipe, bits),
     stems: (recipe, bits, opts) => ask('stems', recipe, bits, opts),
     midi: (recipe, opts) => ask('midi', recipe, opts),
-    radio: (spec, after) => ask('radio', spec, after),
-    radioStart: spec => ask('radioStart', spec),
+    radio: (spec, after, as) => ask('radio', spec, after, as),
+    radioStart: (spec, as) => ask('radioStart', spec, as),
     radioWav: spec => ask('radioWav', spec),
     game: spec => ask('game', spec),
     clip: (recipe, k, part) => ask('clip', recipe, k, part),
-    jamBand: set => ask('jamBand', set)
+    jamBand: set => ask('jamBand', set),
+    cuts: (x, sr) => ask('cuts', x, sr)
   };
 }

@@ -12,12 +12,18 @@ import { packPcm, keptAudio } from './pack.mjs';
 const DB = 'orbit-beats-heard';
 const STORE = 'songs';
 const KEEP = { heard: 8, ready: 6, opening: 40 };
+const STRETCH = 1 << 16; // samples converted between breaths
 export const heardKey = e => `${e.seed}:${e.mood || 'all'}:${e.style}`;
 function open() {
   return new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') return reject(new Error('no IndexedDB'));
-    const req = indexedDB.open(DB, 1);
-    req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: 'key' });
+    const req = indexedDB.open(DB, 2);
+    // (v2: an index of each kind's songs by age, so the oldest are let go by their keys alone: reading
+    // every kept song whole to find them, megabytes each, held the page as each new song began.)
+    req.onupgradeneeded = e => {
+      const store = e.oldVersion < 1 ? req.result.createObjectStore(STORE, { keyPath: 'key' }) : req.transaction.objectStore(STORE);
+      if (!store.indexNames.contains('age')) store.createIndex('age', ['kind', 'at']);
+    };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
@@ -57,10 +63,10 @@ export async function keepHeard(key, item, pcm, sr, v, kind = 'heard') {
     const rec = { key, kind, at: Date.now(), v, id: item.id, info: item.info, seconds: item.seconds, hold: item.hold, quick: Boolean(item.quick), length: item.length, whole: item.seconds, head, headSr: sr, ...packed };
     await run('readwrite', s => s.put(rec));
     keys.add(key);
-    const all = (await run('readonly', s => s.getAll())) || [];
-    const old = all.filter(r => (r.kind || 'heard') === kind).sort((a, b) => b.at - a.at).slice(KEEP[kind]);
-    if (old.length) await run('readwrite', s => old.forEach(r => s.delete(r.key)));
-    for (const r of old) keys.delete(r.key);
+    const all = (await run('readonly', s => s.index('age').getAllKeys(IDBKeyRange.bound([kind, -Infinity], [kind, Infinity])))) || [];
+    const old = all.slice(0, Math.max(0, all.length - KEEP[kind]));
+    if (old.length) await run('readwrite', s => old.forEach(k => s.delete(k)));
+    for (const k of old) keys.delete(k);
     return keys.has(key);
   } catch {
     return false;
@@ -86,9 +92,14 @@ export async function heardItem(key, v) {
     const a = await keptAudio(rec);
     const n = a.L.length;
     const pcm = new Int16Array(n * 2);
-    for (let i = 0; i < n; i++) {
-      pcm[i * 2] = Math.max(-32768, Math.min(32767, Math.round(a.L[i] * 32767)));
-      pcm[i * 2 + 1] = Math.max(-32768, Math.min(32767, Math.round(a.R[i] * 32767)));
+    // (A stretch at a time, a breath between: a whole song in one go held the page a third of a second.)
+    for (let from = 0; from < n; from += STRETCH) {
+      const to = Math.min(n, from + STRETCH);
+      for (let i = from; i < to; i++) {
+        pcm[i * 2] = Math.max(-32768, Math.min(32767, Math.round(a.L[i] * 32767)));
+        pcm[i * 2 + 1] = Math.max(-32768, Math.min(32767, Math.round(a.R[i] * 32767)));
+      }
+      if (to < n) await new Promise(r => setTimeout(r, 0));
     }
     return { id: rec.id, info: rec.info, seconds: rec.seconds, hold: rec.hold, ...(rec.quick && { quick: true, length: rec.length, seconds: rec.whole }), url: URL.createObjectURL(rec.sound), pcm };
   } catch {

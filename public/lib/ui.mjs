@@ -43,3 +43,16 @@ export function empty(o = {}) {
   if (String(o.icon || '').startsWith('<svg')) el.prepend(h('span', { class: 'q-tile q-empty-tile', 'aria-hidden': 'true', html: o.icon }));
   return el;
 }
+
+// A ticking line (a song's time, four times a second): its words changed in
+// the text that's there, and only when they differ. Swapped as a new text
+// node each tick, it was a change to the page's tree that the kit's place
+// keeper (hold-place.mjs) answered with a layout read, four times a second
+// while the page scrolled.
+export function tickText(el, text) {
+  if (!el) return;
+  const t = el.firstChild;
+  if (t && t === el.lastChild && t.nodeType === 3) {
+    if (t.data !== text) t.data = text;
+  } else if (el.textContent !== text) el.textContent = text;
+}

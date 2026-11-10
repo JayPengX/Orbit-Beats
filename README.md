@@ -50,7 +50,7 @@ Music that never stops, and your own beat pieces arranged into new songs. Everyt
 - **今日精選 and 今日挑戰** are the same on every phone, made from Taiwan's date alone; 為你推薦, 為你電台 and 做歌 learn from what you listen to the end and what you skip.
 - **即興 Jam:** 16 coloured pads of a built-in band over a groove, or your own pieces as pads; record a take and it becomes a song.
 - **樂器 Instruments:** a step grid of drums or notes on 42 instruments and 32 drum lanes, with accents, chords, swing, tap tempo, up to four sections chained, and MIDI out.
-- **做歌 Make songs:** your recordings, a sample pack or the microphone, split on silences; the tempo, the role of each piece (riff, bass, hats, kick, 808…) and the key heard automatically; then full songs arranged in a real song form, each piece exactly as recorded.
+- **做歌 Make songs:** your recordings, a sample pack or the microphone, split on silences, and a long take with none cut on its beat (its bars, or hit by hit); the tempo, the role of each piece (riff, bass, hats, kick, 808…) and the key heard automatically; then full songs arranged in a real song form, each piece exactly as recorded.
 - **節奏遊戲 Rhythm game:** every song is a level, its chart taken from the song's own notes, four lanes, four difficulties, playable with two thumbs.
 - **資料庫 Library:** keep songs small (AAC), playlists, search, and export as WAV, stems, MIDI or a zip.
 - **簡單 / 進階:** Simple mode for everyone, Advanced for every control, and 23 music words explained in everyday language.
@@ -72,7 +72,7 @@ Music that never stops, and your own beat pieces arranged into new songs. Everyt
 ## How it works
 
 ```
-pieces in (files, pack, mic) ─► split on silence ─► tempo · roles · key (analyze.mjs)
+pieces in (files, pack, mic) ─► split on silence, then the beat (rhythm.mjs) ─► tempo · roles · key (analyze.mjs)
                                                          │
 built-in band (radio.mjs) ─────────────────────────────► engine.mjs: song form, phrases, fills
                                                          │

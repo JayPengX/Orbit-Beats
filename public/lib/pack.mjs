@@ -7,7 +7,7 @@
 // A phone with no encoder keeps a built-in song as mono 16-bit (made again
 // whole on export) and a song of your own pieces as it was. Nothing here
 // leaves the phone.
-import { box, full, u16, u32, enc, ZERO, MATRIX, sampleEntry, timescaleOf, bytesOf } from './tape.mjs';
+import { box, join, full, u16, u32, enc, ZERO, MATRIX, sampleEntry, timescaleOf, bytesOf } from './tape.mjs';
 import { parseWav, encodeWav } from '../engine.mjs';
 
 // What a kept song can be made again from: 'radio' (聽's band, from its
@@ -38,6 +38,13 @@ export const mbText = bytes => {
 };
 
 // ---- The .m4a ----
+// 32-bit big-endian words, as one array.
+const words = xs => {
+  const b = new Uint8Array(xs.length * 4);
+  const v = new DataView(b.buffer);
+  xs.forEach((x, i) => v.setUint32(i * 4, x >>> 0));
+  return b;
+};
 // One audio track: frames [{ data, dur }] (dur in the track's clock, sr or
 // Opus's 48 kHz), `skip` (the encoder's start, cut by the edit list) and
 // `length` (the song's samples, in that clock: the end is cut there too).
@@ -66,10 +73,10 @@ export function m4a({ codec, sr, description = null, bitrate = 192000, frames, s
     const stbl = box(
       'stbl',
       full('stsd', 0, 0, u32(1), sampleEntry(codec, sr, description, bitrate)),
-      full('stts', 0, 0, u32(runs.length), runs.flatMap(([n, d]) => [...u32(n), ...u32(d)])),
-      full('stsc', 0, 0, u32(stsc.length), stsc.flatMap(([first, n]) => [...u32(first), ...u32(n), ...u32(1)])),
-      full('stsz', 0, 0, u32(0), u32(frames.length), frames.flatMap(f => u32(f.data.length))),
-      full('stco', 0, 0, u32(offsets.length), offsets.flatMap(u32))
+      full('stts', 0, 0, u32(runs.length), words(runs.flat())),
+      full('stsc', 0, 0, u32(stsc.length), words(stsc.flatMap(([first, n]) => [first, n, 1]))),
+      full('stsz', 0, 0, u32(0), u32(frames.length), words(frames.map(f => f.data.length))),
+      full('stco', 0, 0, u32(offsets.length), words(offsets))
     );
     const minf = box('minf', full('smhd', 0, 0, u16(0), u16(0)), box('dinf', full('dref', 0, 0, u32(1), full('url ', 0, 1))), stbl);
     const mdia = box('mdia', full('mdhd', 0, 0, u32(0), u32(0), u32(ts), u32(media), u16(0x55c4), u16(0)), full('hdlr', 0, 0, u32(0), enc('soun'), ZERO(12), enc('Sound'), [0]), minf);
@@ -79,7 +86,7 @@ export function m4a({ codec, sr, description = null, bitrate = 192000, frames, s
   };
   const size = moovAt(0).length;
   const moov = moovAt(ftyp.length + size + 8);
-  const head = new Uint8Array([...ftyp, ...moov, ...u32(8 + frames.reduce((a, f) => a + f.data.length, 0)), ...enc('mdat')]);
+  const head = join(ftyp, moov, u32(8 + frames.reduce((a, f) => a + f.data.length, 0)), enc('mdat'));
   return [head, ...frames.map(f => f.data)];
 }
 
@@ -168,6 +175,8 @@ export async function encodePcm({ sr, L, R = L, pcm = null }, { codec, bitrate }
     data.close();
     if (error) throw error;
     while (encoder.encodeQueueSize > 8) await new Promise(r => setTimeout(r, 2));
+    // (On the page, a breath every few blocks: a whole song at once held its thread for a fifth of a second.)
+    if (env.document && (at / BLOCK) % 4 === 3) await new Promise(r => setTimeout(r, 0));
   }
   await encoder.flush();
   encoder.close();
@@ -228,6 +237,74 @@ async function findWay(sr, env) {
   return null;
 }
 
+// ---- Packed off the page ----
+// The encoder and the .m4a in a worker (lib/packer.worker.mjs) where the
+// worker has an AudioEncoder; else, or if the worker fails, here on the page.
+// `src`: { sr, L, R } or { sr, pcm } (16-bit L R interleaved), copied to the
+// worker (the page goes on using it).
+let packer = null;
+let asked = 0;
+const waiting = new Map();
+function packerOf(env) {
+  if (env !== globalThis || typeof Worker !== 'function') return Promise.resolve(null);
+  return (packer ||= new Promise(ok => {
+    let w;
+    try {
+      w = new Worker(new URL('./packer.worker.mjs', import.meta.url), { type: 'module' });
+    } catch {
+      return ok(null);
+    }
+    const give = v => (clearTimeout(timer), ok(v));
+    const timer = setTimeout(() => (w.terminate(), give(null)), 8000);
+    w.onmessage = e => {
+      if (e.data?.hello) return give(e.data.encoder ? w : (w.terminate(), null));
+      const job = waiting.get(e.data?.id);
+      if (!job) return;
+      waiting.delete(e.data.id);
+      if (e.data.ok) job.ok(e.data.sound);
+      else job.no(new Error(e.data.error));
+    };
+    w.onerror = ev => {
+      ev.preventDefault?.();
+      give(null);
+      for (const job of waiting.values()) job.no(new Error('packer gone'));
+      waiting.clear();
+      packer = Promise.resolve(null);
+    };
+  }));
+}
+// The samples to the worker a stretch at a time, each copied and moved, a breath between:
+// a whole song cloned in one message held the page as long as a big copy takes on a phone.
+const PIECE = 1 << 18;
+async function sendSoon(w, id, src, how) {
+  const parts = src.pcm ? { pcm: src.pcm } : { L: src.L, R: src.R === src.L ? null : src.R };
+  w.postMessage({ id, start: true, sr: src.sr, sizes: Object.fromEntries(Object.entries(parts).map(([k, x]) => [k, x?.length || 0])), ...how });
+  for (const [k, x] of Object.entries(parts)) {
+    if (!x) continue;
+    for (let at = 0; at < x.length; at += PIECE) {
+      const piece = x.slice(at, at + PIECE);
+      w.postMessage({ id, k, at, piece }, [piece.buffer]);
+      await new Promise(ok => setTimeout(ok, 0));
+    }
+  }
+  w.postMessage({ id, end: true });
+}
+// -> Blob (audio/mp4)
+async function encodeOff(src, { codec, bitrate, skip, length }, env) {
+  const w = await packerOf(env).catch(() => null);
+  if (w) {
+    try {
+      return await new Promise((ok, no) => {
+        const id = ++asked;
+        waiting.set(id, { ok, no });
+        sendSoon(w, id, src, { codec, bitrate, skip, length }).catch(no);
+      });
+    } catch {}
+  }
+  const { frames, description } = await encodePcm(src, { codec, bitrate }, env);
+  return new Blob(m4a({ codec, sr: src.sr, description, bitrate, frames, skip, length }), { type: 'audio/mp4' });
+}
+
 // A song's WAV (16- or 32-bit) in its kept form. -> { sound: Blob, form, sr, seconds }
 export async function packSong(wav, { built = false } = {}, env = globalThis) {
   const audio = parseWav(wav);
@@ -236,9 +313,8 @@ export async function packSong(wav, { built = false } = {}, env = globalThis) {
   if (way) {
     try {
       const bitrate = BITRATE[way.codec][built ? 'built' : 'kit'];
-      const { frames, description } = await encodePcm(audio, { codec: way.codec, bitrate }, env);
       const length = Math.round((audio.L.length * timescaleOf(way.codec, audio.sr)) / audio.sr);
-      return { sound: new Blob(m4a({ codec: way.codec, sr: audio.sr, description, bitrate, frames, skip: way.skip, length }), { type: 'audio/mp4' }), form: way.codec, sr: audio.sr, seconds };
+      return { sound: await encodeOff(audio, { codec: way.codec, bitrate, skip: way.skip, length }, env), form: way.codec, sr: audio.sr, seconds };
     } catch {}
   }
   if (built) return { sound: new Blob([monoWav(audio)], { type: 'audio/wav' }), form: 'mono', sr: audio.sr, seconds };
@@ -249,10 +325,9 @@ export async function packPcm(pcm, sr, env = globalThis) {
   const way = await packWay(sr, env);
   if (!way) return null;
   const bitrate = BITRATE[way.codec].built;
-  const { frames, description } = await encodePcm({ sr, pcm }, { codec: way.codec, bitrate }, env);
   const n = pcm.length / 2;
   const length = Math.round((n * timescaleOf(way.codec, sr)) / sr);
-  return { sound: new Blob(m4a({ codec: way.codec, sr, description, bitrate, frames, skip: way.skip, length }), { type: 'audio/mp4' }), form: way.codec, sr, seconds: n / sr };
+  return { sound: await encodeOff({ sr, pcm }, { codec: way.codec, bitrate, skip: way.skip, length }, env), form: way.codec, sr, seconds: n / sr };
 }
 // A packed copy plays back whole: decoded, as long as the song (a quarter second either way).
 export async function playsWhole(sound, sr, seconds, env = globalThis) {

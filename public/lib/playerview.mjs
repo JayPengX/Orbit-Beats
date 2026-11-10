@@ -1,7 +1,7 @@
 // The player's screens: the mini bar over the tab bar, Now Playing (a full
 // screen sheet), the queue sheet and a song's ⋯ menu. They draw lib/player.mjs's
 // state; the sound is not here.
-import { h, sheet, menu } from './ui.mjs';
+import { h, sheet, menu, tickText } from './ui.mjs';
 import { icon } from './icons.mjs';
 import { STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
@@ -259,8 +259,8 @@ export function mountPlayerView(P, core, { mini, npHost = document.body }) {
     if (drag) return;
     els.fill.style.width = s.seconds ? `${Math.min(100, (s.t / s.seconds) * 100)}%` : '0';
     els.reach.style.width = s.canSeek && s.seconds ? `${Math.min(100, ((s.upTo ?? s.seconds) / s.seconds) * 100)}%` : '0';
-    els.t0.textContent = clock(s.t);
-    els.t1.textContent = s.seconds ? `-${clock(s.seconds - s.t)}` : '';
+    tickText(els.t0, clock(s.t));
+    tickText(els.t1, s.seconds ? `-${clock(s.seconds - s.t)}` : '');
     els.bar.setAttribute('aria-valuenow', String(Math.round(s.t)));
   }
 

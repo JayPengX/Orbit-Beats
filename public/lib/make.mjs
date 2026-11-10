@@ -13,6 +13,7 @@ import { fromOffsets } from './jam.mjs';
 import { chartsOf } from './game.mjs';
 
 import { useBanks } from './samples.mjs';
+import { planCuts } from './rhythm.mjs';
 
 let kit = null;
 
@@ -23,6 +24,11 @@ export const setSamples = list => useBanks(list);
 export function setKit({ pieces, sr, heard, bpm, roles }) {
   kit = { pieces, sr, roles, bpm, analysis: { ...heard, bpm, loops: heard.analyses.map(a => loopBeats(a, bpm)) } };
   return true;
+}
+// A recording's beat and where it comes apart (lib/rhythm.mjs), for the page's pieces. (`x`: one channel near 22 kHz.)
+export function cuts(x, sr) {
+  const { how, bpm, bars, cuts } = planCuts(x, sr);
+  return { how, bpm, bars, cuts };
 }
 const need = () => {
   if (!kit) throw new Error('No kit');
@@ -107,21 +113,24 @@ const tails = new Map();
 export const radioId = ({ seed, mood, style }) => `radio:${seed}:${mood}:${style}`;
 // The radio's next stretch: the song of `spec`, its start under the ring of
 // the song `after` (when there's one). -> { id, info, wav, seconds, hold }
-export function radio(spec, after = null) {
+// (`as` 'blob': the WAV as a Blob, made here: a song's tens of megabytes copied into a Blob on the
+// page held its thread while the music played; for a phone that plays the songs file by file.)
+const wavOut = (wav, as) => (as === 'blob' ? { blob: new Blob([wav], { type: 'audio/wav' }) } : { wav });
+export function radio(spec, after = null, as = 'wav') {
   const { audio, info } = radioSong(spec);
   const seg = segment(audio, cutOf(info, audio.sr), tails.get(after) || null);
   const id = radioId(info.radio);
   tails.set(id, seg.tail);
   while (tails.size > 6) tails.delete(tails.keys().next().value);
-  return { id, info, wav: encodeWav({ sr: audio.sr, L: seg.L, R: seg.R }, 16), seconds: seg.L.length / audio.sr, hold: holdOf(info) };
+  return { id, info, ...wavOut(encodeWav({ sr: audio.sr, L: seg.L, R: seg.R }, 16), as), seconds: seg.L.length / audio.sr, hold: holdOf(info) };
 }
 // A song's opening, to play while the song is made (lib/radio.mjs radioIntro): round again until it is.
 // -> { id, info, wav, seconds (the song's, about), hold, quick: true }
-export function radioStart(spec) {
+export function radioStart(spec, as = 'wav') {
   const { audio, info, seconds } = radioIntro(spec);
   const len = audio.L.length / audio.sr;
   // (Gone round only if the song still isn't made: from its second half, never back to its first notes.)
-  return { id: radioId(info.radio), info, wav: encodeWav(audio, 16), seconds, hold: { from: len / 2, to: len }, length: len, quick: true };
+  return { id: radioId(info.radio), info, ...wavOut(encodeWav(audio, 16), as), seconds, hold: { from: len / 2, to: len }, length: len, quick: true };
 }
 // A radio song whole, to keep (歌單) or to list (簡單's 隨機做一批). -> { info, wav }
 export function radioWav(spec) {

@@ -146,10 +146,39 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
     delete, add a song from its ⋯, open one and play it in order; a song
     taken out of 資料庫 leaves every list. 依你的口味 leans new batches toward
     the styles you keep.
-- **Pieces in:** one recording split on its silences, a sample pack (many
-  files, each split), or the microphone, in any mix.
+- **Pieces in:** one recording, a sample pack (many files), or the
+  microphone, in any mix. Each is split on its silences first; then every
+  stretch longer than 3 s with no silence in it (a song, a jam, a drum take)
+  is cut by its beat (`lib/rhythm.mjs`, heard in a worker as the file loads,
+  `maker.cuts`; `lib/sources.mjs` `planAll` keeps the plan by the stretch):
+  - **The beat** (librosa's methods, ISC, ported): a log-mel SuperFlux onset
+    strength (64 bands, a max filter of 3, about 86 frames a second), the low
+    end weighed in at half (`PULSE_LOW`) so a syncopated layer can't pull the
+    beat; the tempo from the onset curve's autocorrelation (8.9 s Hann windows)
+    under a log-normal prior at 120 BPM, an octave wide; the beats by Ellis's
+    dynamic programming (2007, tightness 100), then moved onto the metre
+    (`onTheBeat`: the shift of up to half a beat where beats, eighths and
+    sixteenths land best).
+  - **The bar** (Goto; Davies & Plumbley): which beat of four is the one, from
+    the kick and low end on it and where the harmony (chroma) changes.
+  - **The patterns:** each bar as a picture (16 steps of low, high and all
+    hits, and its chroma); how many bars a pattern takes (1, 2, 4 or 8) where
+    the bars repeat best (Foote's self-similarity); the song in runs of that
+    length, runs alike (cosine 0.97) kept once, the most typical take of each,
+    at most 12. A piece is whole bars to the sample, starting on the downbeat's
+    hit (20 ms either way, 6 ms before it), its edges eased 2 ms.
+  - **No steady beat** (a loose take, a spoken line): cut at each hit that
+    stands apart (the sound fallen under 30% before the next, at least 0.6 s);
+    else the stretch stays whole, as does a loop of up to four bars.
+  - Measured (`node scripts/beat-eval.mjs 24`, the radio's own songs with
+    no silences, 2026-11-10): tempo right 71% (old 67%), right or an octave off
+    96% (old 79%), 96% cut into bars (old: none, one piece a song), beat
+    F-measure 0.62, about 0.36 s to hear a minute of music. `tests/rhythm.test.mjs`.
+  - Not used: essentia.js (AGPL, megabytes of WASM), madmom (its models are
+    non-commercial); aubio's and BeatRoot's ideas are covered by the above.
 - **Tempo:** every tempo from 70–190 BPM is scored by how well the hits
-  sit on 16ths; ½ and ×2 fix the usual off-by-a-ratio misses.
+  sit on 16ths; ½ and ×2 fix the usual off-by-a-ratio misses. A kit cut by
+  its beat takes the beat's tempo (`beatTempo`).
 - **Roles:** each piece is heard as riff, phrase, bass, hats, fill, kick,
   808, snare, tick or roll (by hits, decay, frequency bands, noisiness,
   pitch). Each can be changed by hand. On 100 made-up packs: 97% of tempos
@@ -176,6 +205,16 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
   mix. Off, the pieces play exactly as recorded. `passion_beats.py` does the
   same steps, and `tests/mixparity.test.mjs` feeds both one input.
 - **Making** runs in a worker (`lib/maker.mjs`), so the page never stalls.
+- **Smooth while playing** (Jay 2026-11-10: lag and stuck scrolling as music
+  plays): nothing that size runs on the page's thread while a song plays.
+  聽's next songs come from the worker as a Blob where they play file by file
+  (`radio(spec, after, 'blob')`, no tens-of-megabytes copy on the page);
+  資料庫's .m4a is encoded in `lib/packer.worker.mjs` (the PCM sent in
+  pieces), else on the page with a breath every few blocks; the recorded
+  instruments go to the workers in slices (`copyBank`); 最近播放's sound is
+  converted in slices and pruned by an index (`heard.mjs`, IndexedDB v2,
+  `age`); the clock text changes its text node only (`tickText`), so the
+  kit's place-keeping isn't woken four times a second.
 - **Saved:**
   - On the phone: the last kit's sound and the kept songs.
   - On the Pass (app `beats`, `{ v: 1, settings, kits, taste }`): settings
@@ -190,7 +229,9 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
   locked, and two (one starting before the other ends) stopped the music.
 - The mixer is on by default (the owner's call). With it off, pieces are
   never changed: no volume, panning, fades or effects, and overlaps that
-  clip are left (32-bit float keeps them; the page shows the peak).
+  clip are left (32-bit float keeps them; the page shows the peak). The one
+  exception: a piece cut out of a sound by its beat (not at a silence) has
+  its two edges eased over 2 ms, or each cut would click.
 - No sound ever leaves the phone.
 - Nothing goes silent by accident: a song's every second sounds, and no
   quarter second of a radio song falls under -45 dBFS (the tests listen to
@@ -225,7 +266,7 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
 | `app.js`, `index.html` | The page, tabs, player, library |
 | `engine.mjs` | Song planning and rendering (port of the script) |
 | `analyze.mjs` | Hearing tempo and roles |
-| `lib/sources.mjs` | Files to one rate, split on silence |
+| `lib/sources.mjs`, `lib/rhythm.mjs` | Files to one rate, split on silence, then by the beat; the beat, bars and patterns heard |
 | `lib/kits.mjs` | Fingerprint, the Pass payload, the phone's kit and songs |
 | `lib/synth.mjs`, `lib/studio.mjs` | Instruments and 自動編; the 樂器 tab |
 | `lib/mix.mjs` | The mixer: buses, glue, width, room, the master (loudness, saturation, limiter), stems |
@@ -237,7 +278,7 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
 | `lib/cover.mjs`, `lib/listen.mjs` | 聽's covers; its sleep timer, recently played and the taste from listening (`tasteFrom`) |
 | `lib/tape.mjs` | 聽's one stream: FLAC frames, or AAC / Opus from AudioEncoder, in MP4 for Media Source; which way a phone plays; the songs in order (the hook again while waiting) |
 | `lib/easy.mjs`, `lib/help.mjs` | 簡單 / 進階 and 簡單's fixed settings; the music words and their examples |
-| `lib/pack.mjs` | 資料庫's songs kept small: the .m4a, packing, 資料庫瘦身's rule, telling a song made again from another |
+| `lib/pack.mjs`, `lib/packer.worker.mjs` | 資料庫's songs kept small: the .m4a (encoded in a worker of its own, else on the page between frames), packing, 資料庫瘦身's rule, telling a song made again from another |
 | `lib/project.mjs` | 存成檔案 / 打開檔案: a song's settings (no sound) as a versioned `.orbitbeats.json` |
 | `lib/midi.mjs`, `lib/tap.mjs`, `lib/download.mjs`, `lib/names.mjs` | MIDI files, tap tempo, saving, names |
 | `lib/samples.mjs`, `lib/sampleload.mjs`, `lib/voices.mjs` | Recorded instruments and drum kits: which notes, fetched and decoded; the added voices |

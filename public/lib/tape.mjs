@@ -68,9 +68,24 @@ export const enc = s => [...s].map(c => c.charCodeAt(0));
 export const u32 = n => [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255];
 export const u16 = n => [(n >> 8) & 255, n & 255];
 const u64 = n => [...u32(Math.floor(n / 2 ** 32)), ...u32(n >>> 0)];
+// (Bytes written once into one array: a song's sample table is thousands of entries, and spread
+// from array to array at each level it was a tenth of a second and as much garbage, on the page.)
 export function box(type, ...parts) {
-  const body = parts.flatMap(p => (p instanceof Uint8Array ? [...p] : p));
-  return [...u32(8 + body.length), ...enc(type), ...body];
+  let n = 8;
+  for (const p of parts) n += p.length;
+  const out = new Uint8Array(n);
+  out.set(u32(n));
+  out.set(enc(type), 4);
+  let o = 8;
+  for (const p of parts) out.set(p, o), (o += p.length);
+  return out;
+}
+// Bytes one after another, as one array.
+export function join(...parts) {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let o = 0;
+  for (const p of parts) out.set(p, o), (o += p.length);
+  return out;
 }
 export const full = (type, version, flags, ...parts) => box(type, [version, (flags >> 16) & 255, (flags >> 8) & 255, flags & 255], ...parts);
 export const ZERO = n => new Array(n).fill(0);
@@ -88,7 +103,7 @@ export function tapeInit(sr, { codec = 'flac', description = null } = {}) {
   const trak = box('trak', full('tkhd', 0, 3, u32(0), u32(0), u32(1), u32(0), u32(0), ZERO(8), u16(0), u16(1), u16(0x0100), u16(0), MATRIX, u32(0), u32(0)), mdia);
   const mvex = box('mvex', full('trex', 0, 0, u32(1), u32(1), u32(0), u32(0), u32(0)));
   const moov = box('moov', full('mvhd', 0, 0, u32(0), u32(0), u32(ts), u32(0), u32(0x10000), u16(0x0100), ZERO(10), MATRIX, ZERO(24), u32(2)), trak, mvex);
-  return new Uint8Array([...box('ftyp', enc('iso5'), u32(512), enc('iso5'), enc('iso6'), enc('mp41')), ...moov]);
+  return join(box('ftyp', enc('iso5'), u32(512), enc('iso5'), enc('iso6'), enc('mp41')), moov);
 }
 // The stream's clock: Opus counts at 48 kHz whatever it was made at.
 export const timescaleOf = (codec, sr) => (codec === 'opus' ? 48000 : sr);

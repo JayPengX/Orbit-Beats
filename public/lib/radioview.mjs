@@ -89,7 +89,7 @@ export function mountRadio(panel, api) {
     q.busy = true;
     q.making = s;
     api.make
-      .radio(s, after)
+      .radio(s, after, asFiles() ? 'blob' : 'wav')
       .then(v => {
         q.busy = false;
         fails = 0;
@@ -100,8 +100,8 @@ export function mountRadio(panel, api) {
         if (opening?.id === item.id) (item.start = opening.length), (opening = null);
         if (gen === q.gen) {
           // (Files: the next one's file made now, long before it's needed; the stream: its samples.)
-          if (taped) item.pcm = wavPcm(v.wav);
-          else (item.url = URL.createObjectURL(new Blob([v.wav], { type: 'audio/wav' }))), delete item.wav;
+          if (v.wav && taped) item.pcm = wavPcm(v.wav);
+          else (item.url = URL.createObjectURL(v.blob || new Blob([v.wav], { type: 'audio/wav' }))), delete item.wav, delete item.blob;
           q.ready.push(item);
         }
         arrived();
@@ -148,7 +148,7 @@ export function mountRadio(panel, api) {
     if (!made) exact.unshift(s);
     const m = api.quick || api.make;
     if (api.quick?.busy()) api.quick.restart();
-    m.radioStart?.(s)
+    m.radioStart?.(s, asFiles() ? 'blob' : 'wav')
       .finally(over)
       .then(v => {
         // (Its worker let go of the opening's instruments a while after: a fresh one waits for the next tap.)
@@ -157,8 +157,8 @@ export function mountRadio(panel, api) {
         // (The song itself made first after all: no opening before it.)
         if ((cur?.id === v.id && !cur.quick) || q.ready.some(it => it.id === v.id && !it.quick)) return;
         const item = dress({ ...v, spec: s, title: api.title(s.seed), url: null });
-        if (taped) item.pcm = wavPcm(v.wav);
-        else (item.url = URL.createObjectURL(new Blob([v.wav], { type: 'audio/wav' }))), delete item.wav;
+        if (v.wav && taped) item.pcm = wavPcm(v.wav);
+        else (item.url = URL.createObjectURL(v.blob || new Blob([v.wav], { type: 'audio/wav' }))), delete item.wav, delete item.blob;
         opening = { id: item.id, length: v.length };
         q.ready.unshift(item);
         arrived();
@@ -557,7 +557,11 @@ export function mountRadio(panel, api) {
   // localStorage 'orbit-beats-radio-path' ('stream: …' or 'files: …'), and on 聽 with ?debug.
   let taped = false;
   let choice = null;
+  // (Decided on files: songs come as a Blob made in the worker. Until it's decided, as samples, which can go either way.)
+  let decided = false;
+  const asFiles = () => decided && !taped;
   function note(path, reason) {
+    decided = true;
     try {
       localStorage.setItem('orbit-beats-radio-path', `${path}: ${reason}`);
     } catch {}

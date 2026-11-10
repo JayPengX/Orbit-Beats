@@ -4,7 +4,7 @@
 // next, today's picks, the stations and genres as one row of taps each, what you heard and kept,
 // and the maker's ways in. Every card is the kit's graphite; colour only on what it names.
 // Also the pieces other tabs share: station covers, song rows and lists (創作), tapTrack.
-import { h } from './ui.mjs';
+import { h, tickText } from './ui.mjs';
 import * as kitUI from '#kit/ui.mjs';
 import * as kit from '#kit/orbit.mjs';
 import { icon } from './icons.mjs';
@@ -238,8 +238,8 @@ export function mountHome(panel, api) {
     const mine = s?.track && s.track.id === shown().t.id;
     const t = mine ? s.t || 0 : 0;
     const k0 = mine && times.length ? sectionIndex(times, t) : -1;
-    at.textContent = mine ? [clock(t), k0 >= 0 ? name(SECTION_NAMES, times[k0].type) : ''].filter(Boolean).join(' · ') : '';
-    if (mine && s.seconds) total.textContent = clock(s.seconds);
+    tickText(at, mine ? [clock(t), k0 >= 0 ? name(SECTION_NAMES, times[k0].type) : ''].filter(Boolean).join(' · ') : '');
+    if (mine && s.seconds) tickText(total, clock(s.seconds));
     const k = mine && times.length ? sectionIndex(times, t) : -1;
     const kids = parts.children;
     if (k !== litWas) {

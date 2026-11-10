@@ -134,7 +134,13 @@ export function parseWav(buf) {
 
 // Pieces are the sound between runs of silence longer than `minGap` seconds.
 // Sound before the first gap and after the last counts too (the .py lost it).
-export function splitPieces({ sr, L, R }, { silenceDb = -90, minGap = 0.2 } = {}) {
+export function splitPieces(source, opts) {
+  const { L, R } = source;
+  // Each piece exactly as recorded: it starts and ends at silence, so no fades.
+  return silenceSpans(source, opts).map(([a, b]) => ({ L: L.slice(a, b), R: R === L ? L.slice(a, b) : R.slice(a, b) }));
+}
+// Where the pieces are: [start, end) in samples, each between silences.
+export function silenceSpans({ sr, L, R }, { silenceDb = -90, minGap = 0.2 } = {}) {
   const thr = 10 ** (silenceDb / 20), n = L.length, need = minGap * sr;
   const segs = [];
   let prev = 0, run = -1;
@@ -148,8 +154,7 @@ export function splitPieces({ sr, L, R }, { silenceDb = -90, minGap = 0.2 } = {}
   }
   if (prev < n) segs.push([prev, n]);
   const minLen = 0.02 * sr;   // a click between two gaps isn't a piece
-  // Each piece exactly as recorded: it starts and ends at silence, so no fades.
-  return segs.filter(([a, b]) => b - a >= minLen).map(([a, b]) => ({ L: L.slice(a, b), R: R === L ? L.slice(a, b) : R.slice(a, b) }));
+  return segs.filter(([a, b]) => b - a >= minLen);
 }
 
 // ---- Songs ----

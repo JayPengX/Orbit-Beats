@@ -15,7 +15,7 @@ import { h, sheet, menu, toast, toggle, empty } from './lib/ui.mjs';
 import * as ui from './lib/ui.mjs';
 import { sectionTimes, sectionIndex, labelFits } from './lib/sections.mjs';
 import { STYLES, SECTIONS, ROLES, makeRng, NOTE_NAMES, keyOf, pieceChroma, parseWav, analyzeRecording, guessRole, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
-import { atRate, splitAll, baseName } from './lib/sources.mjs';
+import { atRate, splitAll, baseName, planAll, unplanned, beatTempo, cutWay } from './lib/sources.mjs';
 import { fingerprint, decode, encode, merge, keptSettings, settingsOf, DEFAULTS, kitEntry, saveLast, loadLast, liked, saveSong, listSongs, deleteSong, getSong, swapSong, dropTemps, tempId, renameSong, forgetLast, saveNamed, deleteNamed, listNamed, renameNamed } from './lib/kits.mjs';
 import { dropPieces, snapOf, rolesBack, undoStack, namedKit, kitFrom, freeName } from './lib/kitops.mjs';
 import { voice, renderClip, DRUM_NAMES, INSTRUMENT_ROLE, INSTRUMENT_NAMES } from './lib/synth.mjs';
@@ -693,8 +693,19 @@ async function load(get, add = false) {
   sources = atRate(add ? [...sources, ...fresh] : fresh);
   sr = sources[0].sr;
   kitShown();
+  await listen(sources);
   split();
   saveLast(sources);
+}
+// The beat of every long stretch with no silences (lib/rhythm.mjs), heard in a worker of its own
+// (a few seconds of a song made elsewhere never wait on it, nor it on them), before the kit is cut.
+let ears = null;
+const splitOpts = () => ({ silenceDb: cfg().silenceDb, minGap: cfg().minGap });
+async function listen(list) {
+  if (!unplanned(list, splitOpts())) return;
+  status(`<b>${W('聽節拍中…', 'Finding the beat…')}</b>`, 'busy');
+  ears ||= maker(new URL('./lib/maker.worker.mjs', import.meta.url));
+  await planAll(list, splitOpts(), (x, rate) => ears.cuts(x, rate));
 }
 // The ways in, as the kit stands: 再加檔案 once there is one, 示範 only before.
 function kitShown() {
@@ -719,8 +730,15 @@ function clearPieces() {
 function split() {
   if (!sources.length) return;
   stopPiece();
-  pieces = splitAll(sources, { silenceDb: cfg().silenceDb, minGap: cfg().minGap });
-  heard = analyzeRecording(pieces, sr);
+  // (A long stretch whose beat isn't heard yet (the splitting settings changed, a kit put back): cut on
+  // its silences for now, then again, by its beat, once it's heard.)
+  if (unplanned(sources, splitOpts())) {
+    const was = sources;
+    listen(was).then(() => was === sources && (split(), keepKit()));
+  }
+  pieces = splitAll(sources, splitOpts());
+  const beat = beatTempo(sources, splitOpts());
+  heard = analyzeRecording(pieces, sr, beat ? { bpm: beat } : {});
   print = fingerprint(sources);
   bpm = heard.bpm;
   edited = new Set();
@@ -751,7 +769,9 @@ function kitStatus() {
     return;
   }
   const key = kitKey();
-  status(`<b>${W(`${pieces.length} 個片段`, `${pieces.length} piece${pieces.length === 1 ? '' : 's'}`)}</b>${files} · ${key ? `${esc(keyName(key))} · ` : ''}${time}`);
+  // (How it came apart, when it wasn't on silences: by its bars' patterns, or hit by hit.)
+  const way = { bars: W(' · 依節拍', ' · by beat'), hits: W(' · 依擊點', ' · by hit'), silence: '' }[cutWay(pieces)];
+  status(`<b>${W(`${pieces.length} 個片段`, `${pieces.length} piece${pieces.length === 1 ? '' : 's'}`)}</b>${files}${way} · ${key ? `${esc(keyName(key))} · ` : ''}${time}`);
 }
 // The kit's key: from the notes of its riffs and phrases (its bass when that's all).
 function kitKey() {
@@ -1280,7 +1300,10 @@ function songRow(song, { lib: inLib = false, list = null } = {}) {
 const rowsOf = id => [...document.querySelectorAll(`.song[data-id="${CSS.escape(id)}"]`)];
 function markRow(li, on) {
   li.classList.toggle('now', on);
-  li.querySelector('.si').innerHTML = on && !audio.paused ? ICON.pause : ICON.play;
+  // (Drawn again only when it changes: this runs at every tick of the time.)
+  const si = li.querySelector('.si');
+  const want = on && !audio.paused ? 'pause' : 'play';
+  if (si && si.dataset.is !== want) (si.dataset.is = want), (si.innerHTML = ICON[want]);
 }
 function refreshHearts(id) {
   radio?.refresh();
@@ -2550,6 +2573,7 @@ async function boot() {
   if (last) {
     sources = atRate(last);
     sr = sources[0].sr;
+    await listen(sources).catch(() => {});
     split();
   }
   kitShown();
