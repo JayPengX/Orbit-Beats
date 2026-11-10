@@ -731,6 +731,8 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
   const kicks = pool.kick;
   const kick = kicks[0] ?? pick(pool.sub), heavy = kicks[1] ?? kick, snare = pick(pool.snare);
   const kit = { kick, heavy, sub: pick(pool.sub) ?? heavy, snare, tick: pick(pool.tick), roll: pick(pool.roll) ?? snare, fill: pick(pool.fill) };
+  // (An arranged song that went up a key for its last hook ends there: its outro and last hit on the lifted 808.)
+  const endKit = P?.outroLifted && P.liftSub != null ? { ...kit, sub: P.liftSub } : kit;
 
   // (An arrangement by hand still draws the plan, so every later choice is the seed's.)
   const drawn = planSong(R, minBars, maxBars);
@@ -807,13 +809,13 @@ export function makeSong(pieces, sr, seed, { analysis, bpm, roles, minBars = 25,
       if (R.random() < 0.5) bass(b, L, 0, P.bridgeBass?.length ? P.bridgeBass : null);
     } else if (t === 'outro') {   // the intro's riff again, winding down
       riff(b, L, P.outro?.length ? P.outro : introSet);   // (an arranged song's own outro: its hook's tune, softly)
-      if (R.random() < 0.6) s.drums(style, b, Math.floor(L / 2), kit);
+      if (R.random() < 0.6) s.drums(style, b, Math.floor(L / 2), endKit);
       s.loop(verseHat, b, L);
     }
     if (L === 8 && (t === 'verse' || t === 'hook') && R.random() < 0.3) s.fill(b + 3, ['tick', 'roll'], kit);   // mid-section turnaround
     s.fill(...into[idx], kit);
   });
-  s.hit(R.choice([kit.heavy, kit.sub]), bars * 4);   // one last hit on the next downbeat
+  s.hit(R.choice([endKit.heavy, endKit.sub]), bars * 4);   // one last hit on the next downbeat
   s.hit(P.crash, bars * 4, true);
   const m = mix && mix.on !== false ? mixOf(mix) : null;
   const { audio, stems: parts } = renderSong(s, { roles, plan, mix: m, stems });

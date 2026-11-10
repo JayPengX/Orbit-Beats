@@ -687,12 +687,22 @@ function noteOf(sp, d, low) {
   return root + 12 * Math.floor(d / 7) + steps[((d % 7) + 7) % 7];
 }
 // A tune's note kept to its scale (pentatonic, blues): the nearest of its notes, lower on a tie.
-function tuned(sp, m) {
+// `pcs` (V20): what sounds under it then (heardPcs). A tone of that chord is never moved, and a note is
+// never moved onto one that grinds against it: the five notes are a colour, not a rule over the chord.
+function tuned(sp, m, pcs = null) {
   const set = TUNES[sp.tune]?.[sp.key.minor ? 'minor' : 'major'];
-  if (!set) return m;
-  for (const d of [0, -1, 1, -2, 2]) if (set.includes((((m + d - sp.key.tonic) % 12) + 12) % 12)) return m + d;
+  if (!set || pcs?.has(m % 12)) return m;
+  for (const d of [0, -1, 1, -2, 2]) if (set.includes((((m + d - sp.key.tonic) % 12) + 12) % 12) && !(pcs && grinds(m + d, pcs))) return m + d;
   return m;
 }
+// (V20, Jay 2026-11-10: "it hurts my ear, it's not even musical". Measured: 18% of the tune's and arpeggio's held notes
+// sat a half step above a note of the chord under them (a minor ninth: the sound heard as a wrong note), from the
+// five-note scale pulling chord tones off the chord, a seventh's root over its seventh, and chords turning mid-bar
+// under a pad and bass that didn't. The rule every arranger keeps: a note held over a chord is never a half step
+// above one of its notes, and what is on the beat is the chord's.)
+const grinds = (m, pcs) => pcs.has((((m - 1) % 12) + 12) % 12);
+// Both ways: a half step above or below a chord's note (a part inside the chords' range, an arpeggio).
+const rubs = (m, pcs) => grinds(m, pcs) || pcs.has((m + 1) % 12);
 // (No tune, chord or arpeggio over C6 (V19): above it every instrument turns thin and shrill, and a song of them
 // sounds like a music box. A part that goes over comes down an octave whole, its shape kept; a note still over, alone.)
 const CEIL = 84;
@@ -812,11 +822,14 @@ const CELLS = [
 const NOTE_LENS = [1, 2, 3, 4, 6, 8, 12];
 const lenOf = n => NOTE_LENS.filter(x => x <= n).at(-1) ?? 1;
 const rngOf = (sp, k) => makeRng(((sp.seed ^ 0x6a09e667) + Math.imul(k + 1, 0x9e3779b1)) >>> 0);
-// The lowest and highest scale degrees a lead plays (two octaves, kept below midi 96 and above midi 40).
+// The lowest and highest scale degrees a lead plays: from E4 (or the instrument's lowest, if higher) to C6.
+// (V20: it was two octaves from the instrument's low C, so half its notes sat inside the chords, where the ear
+// can't pick the tune out of them. A lead sings over its chords.)
 function rangeOf(sp, inst) {
-  let lo = -3, hi = 11;
-  while (hi > 6 && noteOf(sp, hi, LOW[inst]) > 96) hi--;
-  while (lo < -1 && noteOf(sp, lo, LOW[inst]) < 40) lo++;
+  const floor = Math.max(62, LOW[inst]);
+  let lo = -7, hi = 16;
+  while (noteOf(sp, lo, LOW[inst]) < floor) lo++;
+  while (noteOf(sp, hi, LOW[inst]) > CEIL) hi--;
   return [lo, hi];
 }
 // A song's chords turn mid-bar now and then: the bar's second half takes the chord a third above or below, or the fifth,
@@ -827,13 +840,39 @@ function turns(K, comp, prog) {
 // Each bar's chords as [{ at, deg }] (the 16th it starts on, and the scale degree of its root).
 const slotsOf = (prog, turned) => turned.map((t, i) => [{ at: 0, deg: prog[i % 4] }, ...(t == null ? [] : [{ at: 8, deg: t }])]);
 const chordAt = (slots, bar, step) => slots[bar].filter(x => x.at <= step).at(-1).deg;
+const slotAt = (slots, bar, step) => slots[bar].filter(x => x.at <= step).at(-1);
+// The pitch classes sounding under a tune at a 16th of the block's eight bars: the chord as it is voiced (its
+// seventh, ninth or a sus) and the bass's root.
+function heardPcs(sp, slots, bar, step) {
+  const sl = slotAt(slots, bar, step);
+  const pcs = new Set(voicing(sp, 'keys', sl.deg, 0, sl.sus).map(m => m % 12));
+  pcs.add(noteOf(sp, slots[bar][0].deg, 36) % 12);
+  return pcs;
+}
+// A tune's note as heard over its chord (V20): one held, or on the beat, that grinds moves to the nearest
+// note of the scale that doesn't, a chord tone first when it is on the beat. A quick passing note is left as it is.
+function overChord(sp, m, pcs, step, len, low = 0) {
+  if (len < 2 && step % 4) return m;
+  if (!grinds(m, pcs) && (step % 8 || len < 4 || pcs.has(m % 12) || !rubs(m, pcs))) return m;
+  const steps = MODES[sp.mode] || (sp.key.minor ? MODES.minor : MODES.major);
+  const inScale = x => steps.includes((((x - sp.key.tonic) % 12) + 12) % 12);
+  const ok = [];
+  for (let d = 1; d <= 5; d++) for (const x of [m - d, m + d]) if (x >= low && inScale(x) && !grinds(x, pcs)) ok.push(x);
+  const chordy = ok.filter(x => pcs.has(x % 12));
+  return (step % 4 === 0 && chordy.length ? chordy : ok)[0] ?? m;
+}
 
 // A chord's notes: close, drop-2 (the second from the top an octave down) or open (the root an octave down). A distorted guitar: root, fifth, octave.
 // `sus`: the third held up a step (a sus4), which the chord's second half lets down.
 function voicing(sp, inst, deg, kind, sus = false) {
   if (inst === 'distgtr') return [0, 4, 7].map(x => noteOf(sp, deg + x, LOW[inst]));
   const shape = [0, sus ? 3 : 2, 4, ...(sp.sevenths && !sus ? [6] : []), ...(sp.ninths ? [8] : [])];
-  const close = shape.map(x => LOW[inst] + 3 + ((((noteOf(sp, deg + x, LOW[inst]) - LOW[inst] - 3) % 12) + 12) % 12)).sort((a, b) => a - b);
+  // (V20: voiced from the instrument's low G-ish, three steps lower than before, so the tune has the air above them.)
+  const tones = shape.map(x => LOW[inst] + ((((noteOf(sp, deg + x, LOW[inst]) - LOW[inst]) % 12) + 12) % 12));
+  // (V20: no note a half step above another of the chord's (a major seventh's root, a flat ninth): it grinds as a
+  // pianist never plays it; the bass has the root.)
+  const pcs = new Set(tones.map(m => m % 12));
+  const close = (tones.length > 3 ? tones.filter(m => !pcs.has((m + 11) % 12)) : tones).sort((a, b) => a - b);
   if (kind === 1 && close.length > 2) close[close.length - 2] -= 12;
   else if (kind === 2) close[0] -= 12;
   return close;
@@ -870,14 +909,28 @@ function fresh(pat, K) {
   if (free.length && K.random() < 0.8) p.push([K.choice(free), 2]);
   return p.sort((a, b) => a[0] - b[0]);
 }
+const ARP_TOP = 66;
 // The chord tones up and down, in eighths or sixteenths, four bars from bar `from`; the last bar turns round.
 function arpNotes(sp, inst, slots, from, shape, D) {
   const step = BAND[sp.style].arp16 ? 1 : sp.bpm < 110 ? 2 : 4;
   const notes = [];
   for (let b = 0; b < 4; b++) {
     const sh = b === 3 ? [...shape].reverse() : shape;
-    for (let s = 0, k = 0; s < 16; s += step, k++)
-      notes.push({ step: b * 16 + s, midi: tuned(sp, noteOf(sp, chordAt(slots, from + b, s) + sh[k % sh.length], LOW[inst])), len: step, lv: k % 2 ? 3 : 1, g: (s % 8 === 0 ? 1 : 0.85) * (0.9 + 0.2 * D.random()), dt: (D.random() - 0.5) * 0.006 });
+    for (let s = 0, k = 0; s < 16; s += step, k++) {
+      // (V20: the chord's own notes, as played: one that rubs a half step against another of its notes (a seventh's
+      // root) gives way to the next of the shape, and no five-note scale moves them off it.)
+      const pcs = heardPcs(sp, slots, from + b, s), deg = chordAt(slots, from + b, s);
+      let midi = null;
+      for (let j = 0; j < sh.length && midi == null; j++) {
+        const m = noteOf(sp, deg + sh[(k + j) % sh.length], LOW[inst]);
+        const others = new Set([...pcs].filter(x => x !== m % 12));
+        if (!rubs(m, others)) midi = m;
+      }
+      // (V20: under the tune, never through it: an arpeggio note over E4 comes down an octave, where the chords are.)
+      let at = midi ?? noteOf(sp, deg + 2, LOW[inst]);
+      while (at > ARP_TOP && at - 12 >= 45) at -= 12;
+      notes.push({ step: b * 16 + s, midi: at, len: step, lv: k % 2 ? 3 : 1, g: (s % 8 === 0 ? 1 : 0.85) * (0.9 + 0.2 * D.random()), dt: (D.random() - 0.5) * 0.006 });
+    }
   }
   return notes;
 }
@@ -911,17 +964,30 @@ function tune(R, D, c, o = {}) {
     const ok = pool.filter(x => !not.includes(x));
     return R.choice(ok.length ? ok : pool);
   };
+  // (V20, Jay 2026-11-10: "not even musical". A tune was a fresh random walk in every bar: 12% of bars repeated an
+  // earlier bar's rhythm and shape, where a song's tune is built from one idea. Now each tune has a form, the way
+  // songs build theirs: a motif (A), the same motif again on the next chord (a sequence: its rhythm and shape, its
+  // notes moved onto that chord), a contrast (B, C), and a close (E: the question's, F: the answer's).)
+  const FORMS = [
+    ['A', 'A', 'B', 'E', 'A', 'A', 'C', 'F'],   // a sentence: the idea, the idea again, a turn, the end
+    ['A', 'B', 'A', 'E', 'A', 'B', 'C', 'F'],   // a period: the idea and its reply, twice, the second time ending home
+    ['A', 'A', 'B', 'E', 'A', 'A', 'B', 'F']
+  ];
+  const form = o.catchy ? R.choice([FORMS[0], FORMS[2]]) : R.choice(FORMS);
   const spare = cells.filter(x => x.length <= 4);
+  // (A close leaves room to hold its last note: its last note starts by the bar's middle, where there is one.)
+  const closes = spare.filter(x => x.at(-1) <= 8).length ? spare.filter(x => x.at(-1) <= 8) : spare.length ? spare : cells;
   const A = o.motif?.cell ?? pick([]);
-  const B = o.catchy ? A : pick([A]);
+  const B = pick([A]);
   const C = pick([A, B]);
-  const E1 = pick([A, B, C], spare.length ? spare : cells);
-  const B2 = pick([E1, ...(o.catchy ? [] : [A, B])]);
-  const C2 = pick([A, B2]);
-  const E2 = pick([B2, E1], spare.length ? spare : cells);
+  const E = pick([A, B, C], closes);
+  const F = pick([E, A], closes);
+  const cellOf = { A, B, C, E, F };
   const late = x => (x.map(s => s + 2).filter(s => s < 16).length ? x.map(s => s + 2).filter(s => s < 16) : x);
-  const cellsOf = [A, B, C, E1, A, B2, C2, E2].map((x, bar) => (o.displace && (bar === 1 || bar === 5) ? late(x) : x));
+  const cellsOf = form.map((l, bar) => (o.displace && (bar === 1 || bar === 5) ? late(cellOf[l]) : cellOf[l]));
   const tonesOf = d => [d - 7, d - 5, d - 3, d, d + 2, d + 4, d + 7, d + 9, d + 11].filter(t => t >= lo && t <= hi);
+  const isTone = (d, cd) => [0, 2, 4].includes((((d - cd) % 7) + 7) % 7);
+  const mid = (lo + hi) / 2;
   const move = (prev, st, d) => {
     if (st % 4 === 0 || R.random() < 0.2) {
       const t = tonesOf(d).sort((a, b) => Math.abs(a - prev) - Math.abs(b - prev));
@@ -930,18 +996,43 @@ function tune(R, D, c, o = {}) {
       const k = near.length > 1 && (near[0] === prev ? R.random() < 0.6 : R.random() < 0.3) ? 1 : 0;
       return near[k] ?? t[0];
     }
-    const dir = prev >= hi - 2 ? -1 : prev <= lo + 2 ? 1 : prev > 5 ? (R.random() < 0.65 ? -1 : 1) : R.random() < 0.65 ? 1 : -1;
+    const dir = prev >= hi - 2 ? -1 : prev <= lo + 2 ? 1 : prev > mid ? (R.random() < 0.65 ? -1 : 1) : R.random() < 0.65 ? 1 : -1;
     return clamp(prev + dir * (R.random() < 0.7 ? 1 : 2));
   };
+  // A bar's motif again on this bar's chords: its first note the chord's tone nearest where the motif began, its
+  // steps kept, kept in range by octaves, and each note on a beat that isn't the chord's moved to its nearest tone.
+  const seqOf = (src, bar, cell) => {
+    const s0 = tonesOf(chordAt(slots, bar, cell[0])).sort((a, b) => Math.abs(a - src[0]) - Math.abs(b - src[0]))[0] ?? src[0];
+    let line = cell.map((_, k) => src[Math.min(k, src.length - 1)] - src[0] + s0);
+    while (Math.max(...line) > hi && Math.min(...line) - 7 >= lo) line = line.map(d => d - 7);
+    while (Math.min(...line) < lo && Math.max(...line) + 7 <= hi) line = line.map(d => d + 7);
+    return line.map(clamp).map((d, k) => {
+      const cd = chordAt(slots, bar, cell[k]);
+      return cell[k] % 4 === 0 && !isTone(d, cd) ? tonesOf(cd).sort((a, b) => Math.abs(a - d) - Math.abs(b - d))[0] ?? d : d;
+    });
+  };
+  const toneNear = (bar, st, to) => tonesOf(chordAt(slots, bar, st)).sort((a, b) => Math.abs(a - to) - Math.abs(b - to))[0] ?? clamp(to);
   const degs = [];
-  // ('high': a hook's tune starts up around the octave, above the verse's.)
-  let prev = o.start === 'high' ? Math.max(lo, Math.min(hi - 2, 7)) : o.start ?? 3 + R.int(0, 2);
+  const first = {};
+  // (Where it starts, from the bottom of its range: the verse a few steps up, a hook's up around the octave.)
+  let prev = clamp(o.start === 'high' ? Math.min(hi - 2, lo + 7) : lo + (o.start ?? 3 + R.int(0, 2)));
   for (let bar = 0; bar < 8; bar++) {
-    const cell = cellsOf[bar];
+    const cell = cellsOf[bar], letter = form[bar];
     let line = [];
     if (bar === 0 && o.motif) line = o.motif.degs.slice();
-    else if (bar === 4) line = degs[0].slice(0, Math.max(1, cell.length - R.int(2, 3)));   // the answer opens on the question's notes, the tail drawn again
+    else if (bar === 4) line = degs[0].slice(0, Math.max(1, cell.length - R.int(1, 2)));   // the answer opens on the question's notes, its end drawn again
+    else if (first[letter] && letter !== 'E' && letter !== 'F') {
+      line = seqOf(first[letter], bar, cell);
+      // (A variant's sequence turns its tail another way: its last note to the chord's next tone up or down.)
+      if (o.motif && line.length > 1) line[line.length - 1] = tonesOf(chordAt(slots, bar, cell.at(-1))).filter(t => t !== line.at(-1) && Math.abs(t - line.at(-1)) <= 4).sort(() => R.random() - 0.5)[0] ?? line.at(-1);
+    }
+    // (The question's contrast dips low and the answer's leaps to the top of the range, then falls home: the high point
+    // comes late, as a song's does, and the tune spans its range.)
+    else if (letter === 'B' && !first.B) line = [toneNear(bar, cell[0], Math.max(Math.min(prev - 3, lo + 2), prev - 5))];
+    else if (bar === 6) line = [toneNear(bar, cell[0], Math.min(Math.max(prev + 4, hi - 1), prev + 5))];
     for (let k = line.length; k < cell.length; k++) line.push(move(line.length ? line.at(-1) : prev, cell[k], chordAt(slots, bar, cell[k])));
+    line = line.slice(0, cell.length);
+    first[letter] ??= line.slice();
     const cd = chordAt(slots, bar, cell.at(-1)), last = line.length - 1;
     const near = xs => xs.filter(t => t >= lo && t <= hi).sort((a, b) => Math.abs(a - (line[last - 1] ?? prev)) - Math.abs(b - (line[last - 1] ?? prev)))[0];
     // (The question stops short on the chord's third or fifth; the answer comes home on its root.)
@@ -979,8 +1070,13 @@ function tune(R, D, c, o = {}) {
   };
 }
 // Half of a tune (0 the question, 1 the answer) as a four-bar clip on `inst`.
-const tuneClip = (sp, inst, t, half) =>
-  notesClip(inst, sp, t.notes.filter(n => n.step >= half * 64 && n.step < half * 64 + 64).map(n => ({ step: n.step - half * 64, midi: tuned(sp, noteOf(sp, n.deg, LOW[inst])), len: n.len, g: n.g, dt: n.dt, ...(n.lv ? { lv: n.lv } : {}) })));
+// (`slots`, V20: each note heard over the chord under it: tuned and overChord.)
+const tuneClip = (sp, inst, t, half, slots = null) =>
+  notesClip(inst, sp, t.notes.filter(n => n.step >= half * 64 && n.step < half * 64 + 64).map(n => {
+    const pcs = slots ? heardPcs(sp, slots, Math.floor(n.step / 16), n.step % 16) : null;
+    const m = tuned(sp, noteOf(sp, n.deg, LOW[inst]), pcs);
+    return { step: n.step - half * 64, midi: pcs ? overChord(sp, m, pcs, n.step % 16, n.len) : m, len: n.len, g: n.g, dt: n.dt, ...(n.lv ? { lv: n.lv } : {}) };
+  }));
 
 // A bar of a drum lane's hits, four bars of it, played with levels: the beat louder, the off-beats softer and now and then a hit left out; the last bar turns (an open hat or a roll).
 function hatPiece(lanes, sp, H, clip) {
@@ -1029,9 +1125,9 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
     if (slots[7].length === 1 && slots[7][0].deg % 7 !== 4 && compName !== 'power' && compName !== 'chug') slots[7] = [slots[7][0], { at: 8, deg: 4 }];
     // (A part of its own holds its fourth bar's chord suspended for half the bar and lets it down: the question's end leans.)
     if (own && slots[3].length === 1) slots[3] = [{ ...slots[3][0], sus: true }, { at: 8, deg: slots[3][0].deg }];
-    const plain = slotsOf(spX.prog, Array(8).fill(null));
     // (The soft pad under a riff is voiced another way each half, so it is not the same in every piece.)
-    const beds = [0, 1].map(half => clip(notesClip(bedOf, spX, chordNotes(spX, bedOf, plain, half * 4, Array(4).fill(COMP.held[0]), [0, 1, 2, 1].map(x => (half ? (x + 1) % 3 : x)), D, oct))));
+    // (V20: the bed turns with the chords: held under a chord that had moved on, it ground against it.)
+    const beds = [0, 1].map(half => clip(notesClip(bedOf, spX, chordNotes(spX, bedOf, slots, half * 4, Array(4).fill(COMP.held[0]), [0, 1, 2, 1].map(x => (half ? (x + 1) % 3 : x)), D, oct))));
     const under = (x, inst, half) => ((compName === 'held' && HOLDS.has(inst)) || BEDLESS.has(SOUND[sp.style]) || band.bare ? x : sum(x, { ...beds[half], g: 0.3 }));
     const memo = new Map();
     const once = (key, make) => (memo.has(key) ? memo.get(key) : (memo.set(key, make()), memo.get(key)));
@@ -1047,10 +1143,10 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
     const cells = band.rhythms ? [...band.rhythms, ...CELLS.filter(x => x.length <= 3)] : CELLS.filter(x => x.length <= maxNotes - (sp.bpm >= 150 ? 2 : sp.bpm >= 125 ? 1 : 0));
     const make = o => tune(K, D, { slots, cells, lo, hi }, { catchy, ...o });
     const tunes8 = [];
-    const mel = (t, half) => once(`m${tunes8.indexOf(t) < 0 ? tunes8.push(t) - 1 : tunes8.indexOf(t)}${half}`, () => clip(tuneClip(spX, leadX, t, half)));
+    const mel = (t, half) => once(`m${tunes8.indexOf(t) < 0 ? tunes8.push(t) - 1 : tunes8.indexOf(t)}${half}`, () => clip(tuneClip(spX, leadX, t, half, slots)));
     const lowBass = !bass ? null : half => once(`b${half}`, () => clip(notesClip(sp.bass, spX, bassNotes(spX, sp.bass, lines, half ? [0, 1, 0, 1] : [0, 0, 0, 1], D, half === 1 && slots[7].length > 1 && slots[7][1].deg === 4))));
     // The tune again on another instrument, `dd` scale steps away (-2 a third under it, 7 an octave over): a harmony or a doubling.
-    const harm = (t, half, inst, dd) => once(`h${tunes8.indexOf(t) < 0 ? tunes8.push(t) - 1 : tunes8.indexOf(t)}${half}${inst}${dd}`, () => clip(tuneClip(spX, inst, { notes: t.notes.map(n => ({ ...n, deg: n.deg + dd })) }, half)));
+    const harm = (t, half, inst, dd) => once(`h${tunes8.indexOf(t) < 0 ? tunes8.push(t) - 1 : tunes8.indexOf(t)}${half}${inst}${dd}`, () => clip(tuneClip(spX, inst, { notes: t.notes.map(n => ({ ...n, deg: n.deg + dd })) }, half, slots)));
     return { beds, chords, arp, make, mel, harm, bass: lowBass };
   };
   const ratio = (x, g) => ({ ...x, g });
@@ -1210,6 +1306,16 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
     ];
     parts.liftBass = [0, 1].map(h => at(L.bass(h), 'bass'));
     parts.liftSub = at(subOf(tonicL), 'sub');
+    // (V20: a song that went up a key for its last hook ends in that key: its outro dropping back down sounded like a mistake.)
+    if (sp.lift) {
+      const O = block(spL, rngOf(sp, 8), { catchy: true, maxNotes: 4, leadX: sp.leadB, own: true });
+      const tO = O.make({ motif: tH1.motif });
+      parts.outro = [
+        at(sum(ratio(O.chords(sp.chords2, 0, 0), 0.7), ratio(O.mel(tO, 0), 0.6), ratio(O.beds[0], 0.9)), 'riff'),
+        at(sum(ratio(O.chords(sp.chords, 1, 1), 0.6), ratio(O.beds[1], 0.9), arpAt(O.arp(sp.lead2, 1), 0.4)), 'riff')
+      ];
+      parts.outroLifted = true;
+    }
   }
   // (`like`: for each piece after the first `base`, the one of those it is a cousin of, so the song needs hearing only those.)
   return { pieces, roles, parts, base, like: roles.slice(base).map(r => roles.indexOf(r)), tunes };
@@ -1483,7 +1589,8 @@ function shape(song, bpm) {
 export const PART_LIST = ['drums', 'bass', 'melody'];
 const PART_ROLES = { drums: ['hat', 'fill', 'kick', 'snare', 'tick', 'roll', 'sub'], bass: ['bass', 'sub'], melody: ['riff', 'phrase'] };
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
-export const RADIO_V = 19;
+// (20, 2026-11-10: tunes built from a motif and kept off the chords' half steps; songs kept from 19 are made again.)
+export const RADIO_V = 20;
 export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
   const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);
