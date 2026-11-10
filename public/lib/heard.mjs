@@ -60,7 +60,7 @@ export async function keepHeard(key, item, pcm, sr, v, kind = 'heard') {
     // (An opening is eight bars itself, and small packed: none.)
     const bars = item.info?.bpm ? Math.round(((16 * 60) / item.info.bpm) * sr) : 8 * sr;
     const head = kind === 'opening' ? null : pcm.slice(0, Math.min(pcm.length, bars * 2));
-    const rec = { key, kind, at: Date.now(), v, id: item.id, info: item.info, seconds: item.seconds, hold: item.hold, quick: Boolean(item.quick), length: item.length, whole: item.seconds, head, headSr: sr, ...packed };
+    const rec = { key, kind, at: Date.now(), v, id: item.id, info: item.info, seconds: item.seconds, ring: item.ring || 0, hold: item.hold, quick: Boolean(item.quick), length: item.length, whole: item.seconds, head, headSr: sr, ...packed };
     await run('readwrite', s => s.put(rec));
     keys.add(key);
     const all = (await run('readonly', s => s.index('age').getAllKeys(IDBKeyRange.bound([kind, -Infinity], [kind, Infinity])))) || [];
@@ -101,7 +101,7 @@ export async function heardItem(key, v) {
       }
       if (to < n) await new Promise(r => setTimeout(r, 0));
     }
-    return { id: rec.id, info: rec.info, seconds: rec.seconds, hold: rec.hold, ...(rec.quick && { quick: true, length: rec.length, seconds: rec.whole }), url: URL.createObjectURL(rec.sound), pcm };
+    return { id: rec.id, info: rec.info, seconds: rec.seconds, ring: rec.ring || 0, hold: rec.hold, ...(rec.quick && { quick: true, length: rec.length, seconds: rec.whole }), url: URL.createObjectURL(rec.sound), pcm };
   } catch {
     return null;
   }

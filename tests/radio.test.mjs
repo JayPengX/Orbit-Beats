@@ -70,28 +70,32 @@ test('the join: a song to its cut, the last one’s ring under its start, rising
   assert.equal(holdOf({ bpm: 120, plan: [['verse', 8]] }), null);
 });
 
-test("the maker makes the radio's stretches without a kit: each after the last, whole songs to keep, the same song from the same seed", async () => {
+test("the maker makes the radio's songs without a kit: whole, its cut and its ring its own, the same song from the same seed", async () => {
   const m = maker('lib/maker.worker.mjs');
   const spec = { seed: 9, mood: 'groove', style: 'house' };
   const one = await m.radio(spec, null);
   assert.equal(one.id, 'radio:9:groove:house');
   const wav = parseWav(one.wav);
   assert.equal(wav.sr, RADIO_SR);
-  assert.ok(Math.abs(one.seconds - wav.L.length / RADIO_SR) < 1e-6);
+  // (V21: the whole song, ring and all; `seconds` where the next may start, `ring` what rings on after it.)
+  assert.ok(Math.abs(one.seconds + one.ring - wav.L.length / RADIO_SR) < 1e-6);
+  assert.ok(one.ring > 0 && one.ring < 10);
   assert.ok(one.hold && one.hold.from < one.hold.to && one.hold.to <= one.seconds);
   assert.equal(one.info.style, 'house');
   const whole = await m.radioWav(spec);
   assert.equal(parseWav(whole.wav).L.length, Math.round(one.info.seconds * RADIO_SR), 'the whole song, ring and all');
-  // The next one starts under the first one's ring; the same song alone starts from nothing.
+  // A song made after another starts as it is: never on the last one's crash (Jay 2026-11-10). The ring is the tape's to play.
   const two = await m.radio({ seed: 10, mood: 'groove', style: 'afro' }, one.id);
   const alone = parseWav((await m.radioWav({ seed: 10, mood: 'groove', style: 'afro' })).wav);
   const joined = parseWav(two.wav);
   let diff = 0;
   for (let j = 0; j < RADIO_SR; j++) diff += Math.abs(joined.L[j] - alone.L[j]);
-  assert.ok(diff > 1, 'the ring is under its start');
-  let later = 0;
-  for (let j = 10 * RADIO_SR; j < 11 * RADIO_SR; j++) later += Math.abs(joined.L[j] - alone.L[j]);
-  assert.ok(later < 0.01 * RADIO_SR, 'and only there');
+  assert.ok(diff < 0.01 * RADIO_SR, 'its start as it is');
+  // Played file by file: the ring's first second and a half, easing out.
+  const file = await m.radio(spec, null, 'blob');
+  const f = parseWav(new Uint8Array(await file.blob.arrayBuffer()));
+  assert.ok(Math.abs(f.L.length / RADIO_SR - (file.seconds + Math.min(1.5, one.ring))) < 0.01);
+  assert.ok(Math.abs(f.L.at(-1)) < 0.01);
 });
 
 // A kit with a four-bar riff and no phrases, and drums.

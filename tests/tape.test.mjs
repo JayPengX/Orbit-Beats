@@ -83,6 +83,35 @@ test('the tape plays one song into the next with nothing between, the hook again
   assert.deepEqual([...four.pcm], [...a.pcm.subarray(24000, 24200)]);
 });
 
+test('a song’s last hit rings under the next only where it runs into it; a tap or ⏭ crossfades, never a crash out of nowhere', () => {
+  // (V21, Jay 2026-11-10: "a volume big up and crash when I click on 今日精選". The ring was mixed into whichever
+  // song was made next, so a song tapped or skipped to began on the last one's crash.)
+  const sr = RADIO_SR;
+  const ringy = (n, cut, v, ringV) => {
+    const pcm = new Int16Array(n * 2);
+    for (let i = 0; i < n; i++) pcm[2 * i] = pcm[2 * i + 1] = i < cut ? v : ringV;
+    return { pcm, hold: null, seconds: cut / sr, ring: (n - cut) / sr };
+  };
+  const a = ringy(20000, 15000, 1000, 30000), b = ringy(20000, 15000, 2000, 30000);
+  const queue = [a, b];
+  const feed = tapeFeed(sr);
+  const take = n => feed.take(n, () => queue.length > 0, () => queue.shift() || null);
+  const one = take(17000);
+  assert.equal(one.marks[1].at, 15000, 'b starts at a’s cut');
+  assert.equal(one.pcm[2 * 14999], 1000);
+  assert.ok(one.pcm[2 * 15000] > 2000 && one.pcm[2 * 16999] > 2000, 'a’s ring under b’s start');
+  assert.ok(one.pcm.every(v => v <= 32767), 'eased under full scale');
+  // A tap: b cut to, from where a plays. b's own start as it is (no ring of a's), a crossfaded out over 0.15 s.
+  const c = ringy(20000, 15000, 3000, 30000);
+  feed.cut(c, 0, { item: a, at: 5000 });
+  const two = take(10000);
+  const fade = Math.round(0.15 * sr);
+  assert.ok(Math.abs(two.pcm[0] - 1000) < 20, 'a where it was at first');
+  assert.ok(Math.abs(two.pcm[2 * fade + 10] - 3000) < 2, 'then c alone');
+  assert.ok(two.pcm.subarray(0, 2 * fade).every(v => v >= 990 && v <= 3010), 'nothing louder than either between');
+  assert.ok(two.pcm.every(v => v < 30000), 'no ring at all on a cut');
+});
+
 test('two radio songs on the tape come back sample for sample, as MP4 a player can read', () => {
   let tail = null;
   const items = [11, 2026].map(seed => {

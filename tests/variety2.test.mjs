@@ -30,7 +30,7 @@ test('a seed makes the same song: the spec, the pick, the plan and the sound', (
 test('no chord loop, lead or key in two songs running; the last eight rarely repeat what is near', () => {
   for (const mood of Object.keys(MOODS)) {
     const specs = specsOf(mood);
-    const fam = specs.map(s => progFamily(s.prog));
+    const fam = specs.map(s => progFamily(s.progV || s.prog)); // (the verse's loop as heard: a song's own, V21)
     specs.forEach((s, k) => {
       if (!k) return;
       const p = specs[k - 1];

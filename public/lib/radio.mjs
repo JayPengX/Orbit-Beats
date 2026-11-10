@@ -7,7 +7,7 @@
 // and mixed by the engine like any kit's song, in sections of four or eight bars
 // so every piece stays on its chord. A song runs about two and a half minutes. Songs
 // follow each other with no gap: each one is cut just before its last hit,
-// and that hit's ring is played under the next one's intro (`segment`). Each
+// and that hit's ring is played under the next one's intro where one runs into the next (lib/tape.mjs). Each
 // next song is picked to differ from the last ones (`radioPick`): another
 // kind of groove, another tempo, key and mode, other instruments, another
 // form. No DOM: the worker makes them (lib/make.mjs), the tests listen to them.
@@ -69,7 +69,7 @@ const tempoJump = (a, b) => Math.abs(a - b) >= 15 || Math.abs(a / b - 2) < 0.12 
 const modeName = sp => sp.mode || (sp.key.minor ? 'minor' : 'major');
 const planSig = sp => radioPlan(makeRng(sp.seed ^ 0x1b873593), sp.bpm, sp.seconds).map(p => p.join('')).join();
 // What a song is remembered by, so the next ones can steer clear of it: the verse's chord loop and the hook's (a loop and its turns are one family), the key, the lead and chord instruments, the form, the tempo and the drums' touches.
-const marks = sp => ({ fam: progFamily(sp.prog), famB: sp.progB ? progFamily(sp.progB) : null, tonic: sp.key.tonic, lead: sp.lead, chords: sp.chords, chords2: sp.chords2, form: planSig(sp), bpm: sp.bpm, dress: sp.dress.id });
+const marks = sp => ({ fam: progFamily(sp.progV || sp.prog), famB: sp.progB ? progFamily(sp.progB) : null, tonic: sp.key.tonic, lead: sp.lead, chords: sp.chords, chords2: sp.chords2, form: planSig(sp), bpm: sp.bpm, dress: sp.dress.id });
 export const MEMORY = 8;
 // How much `sp` repeats of the last songs (`mem`: their marks, oldest first): what is near counts the most. 0 is a song with nothing in common.
 function clash(sp, mem) {
@@ -578,7 +578,58 @@ export function radioSpec(seed, mood = 'all', style = null) {
   // 'hats' the chords over the hats, 'band' the riff with the drums, 'keys' the chords alone, 'arp' the arpeggio over a pad.
   const O = makeRng(seed ^ 0x9b05688c);
   sp.open = O.choice(OPENS[st] || OPENS[SOUND[st]] || ['keys', 'beat']);
+  ownLoops(sp, makeRng(seed ^ 0x5be0cd19));
   return sp;
+}
+// (V21, Jay 2026-11-10: "it sounds the same if it's the same genre". Measured on ten songs a groove: two songs shared
+// 37% of their chord loops (each groove draws from four to eight), 45% of their tune's bar rhythms (each groove's five),
+// and every hook the same strings a third under. A song now writes its own: loops grown from how chords move in its
+// music (`NEXT`), rhythms of its own grown from its groove's (`songCells`), and its own way of filling out a hook (`texture`).)
+// How chords move, by scale degree (0 the home chord): where each goes next, and how often. Major: I ii iii IV V vi
+// (no vii°); minor: i III iv v VI VII (no ii°).
+const NEXT = {
+  major: { 0: { 3: 3, 4: 2, 5: 3, 1: 1.5, 2: 0.7 }, 1: { 4: 4, 3: 1, 5: 0.6 }, 2: { 5: 2, 3: 2, 1: 1 }, 3: { 4: 3, 0: 2, 1: 1, 5: 1.2, 2: 0.5 }, 4: { 0: 3, 5: 3, 3: 1.2, 1: 0.3 }, 5: { 3: 3, 1: 2, 4: 1.5, 2: 1, 0: 0.6 } },
+  minor: { 0: { 5: 3, 3: 3, 6: 2, 2: 1, 4: 1 }, 2: { 6: 2, 5: 2, 3: 1.5, 0: 0.5 }, 3: { 4: 2, 0: 2, 6: 2, 5: 1.2 }, 4: { 0: 3, 5: 2 }, 5: { 6: 3, 2: 2, 3: 2, 4: 1.5, 0: 1 }, 6: { 0: 3, 2: 2, 5: 2, 3: 0.5 } }
+};
+// (The grooves whose music turns on one or two chords: a vamp of their own, never a pop loop.)
+const VAMPS = new Set(['hiphop', 'boombap', 'trap', 'drill', 'phonk', 'half', 'dubstep', 'techno', 'funk', 'reggae', 'metal']);
+const KEEPS = new Set(['blues', 'chinese', 'country', 'ambient']);
+const weighed = (G, w) => {
+  const e = Object.entries(w);
+  let r = G.random() * e.reduce((a, [, v]) => a + v, 0);
+  for (const [k, v] of e) if ((r -= v) < 0) return +k;
+  return +e.at(-1)[0];
+};
+// A loop of four chords, as its music moves them, that comes round to its start; none of the families in `not`.
+export function growLoop(G, minor, vamp, not = new Set()) {
+  const next = NEXT[minor ? 'minor' : 'major'];
+  for (let tries = 0; tries < 30; tries++) {
+    let p;
+    if (vamp) {
+      const x = G.choice(minor ? [5, 3, 6, 2, 4] : [3, 5, 4, 1]);
+      p = G.random() < 0.5 ? [0, x, 0, x] : G.random() < 0.6 ? [0, 0, x, x] : [0, 0, 0, x];
+    } else {
+      p = [G.random() < 0.65 ? 0 : G.choice(minor ? [5, 3] : [5, 3])];
+      while (p.length < 4) p.push(G.random() < 0.08 ? p.at(-1) : weighed(G, next[p.at(-1)]));
+      if (!next[p[3]]?.[p[0]] && p[3] !== p[0]) continue;
+      if (new Set(p).size < 3) continue;
+    }
+    if (!not.has(progFamily(p))) return p;
+  }
+  return null;
+}
+// (A radio song's own loops, on a stream of their own: the jam's sets and the songs' other draws are as they were.
+// `progV` the verse's (songKit plays it in place of `prog`, which a jam set keeps), `progB` the hook's, `progC` the bridge's.)
+function ownLoops(sp, G) {
+  if (KEEPS.has(sp.style)) return;
+  const minor = sp.key.minor, vamp = VAMPS.has(sp.style);
+  const fams = () => new Set([sp.progV || sp.prog, sp.prog, sp.progB, sp.progC].filter(Boolean).map(progFamily));
+  if (G.random() < 0.55) {
+    const v = growLoop(G, minor, vamp, new Set([sp.progB, sp.progC].filter(Boolean).map(progFamily)));
+    if (v) sp.progV = v;
+  }
+  if (sp.progB && G.random() < 0.5) sp.progB = growLoop(G, minor, vamp, fams()) || sp.progB;
+  if (G.random() < 0.5) sp.progC = growLoop(G, minor, vamp, fams()) || sp.progC;
 }
 // (Jay 2026-10-30: "every song is a rising sound, then a random string of notes, then drums". Each kind of music opens its own way.)
 const OPENS = {
@@ -954,6 +1005,34 @@ function bassNotes(sp, inst, lines, plan, D, turn = false) {
   return notes;
 }
 
+// A song's own bar rhythms for its tunes (V21): six grown from its groove's, each changed once or twice as a player
+// would: a note moved an eighth, a beat anticipated by a 16th, a note left out or put in on an eighth, or the first half
+// of one with the second of another. At most two notes off the eighths; each its own.
+function songCells(M, pool) {
+  const out = [];
+  for (let tries = 0; out.length < 6 && tries < 60; tries++) {
+    let x = [...M.choice(pool)];
+    for (let i = M.int(1, 2); i > 0; i--) {
+      const r = M.random();
+      if (r < 0.4) {
+        const k = M.int(0, x.length - 1), at = x[k];
+        const t = at + (at % 4 === 0 && at > 0 && M.random() < 0.4 ? -1 : M.choice([-2, 2]));
+        if (t >= 0 && t < 16 && !x.includes(t)) x[k] = t;
+      } else if (r < 0.6 && x.length > 2) x.splice(M.int(1, x.length - 1), 1);
+      else if (r < 0.8) {
+        const free = [2, 4, 6, 8, 10, 12, 14].filter(t => !x.includes(t));
+        if (free.length) x.push(M.choice(free));
+      } else {
+        const o = M.choice(pool);
+        x = [...x.filter(t => t < 8), ...o.filter(t => t >= 8)];
+      }
+    }
+    x = [...new Set(x)].sort((a, b) => a - b);
+    if (x.length < 2 || x.filter(t => t % 2).length > 2 || out.some(c => String(c) === String(x))) continue;
+    out.push(x);
+  }
+  return out;
+}
 // A tune of eight bars on the chords `c.slots`: the question's four bars, then the answer's. -> { notes, motif }
 // The notes: { step (of 128), deg (scale degree), len, g, dt, lv }. `o`: motif (a tune's first bar to keep: a variant of that tune), catchy
 // (the second bar repeats the first: a hook), displace (bars two and six start two 16ths late), up (bars played an octave up), start.
@@ -1103,6 +1182,8 @@ function hatPiece(lanes, sp, H, clip) {
 // The song's band, for a song of the radio: the pieces, their roles and `parts`, which pieces each section plays. Every riff, phrase and bass piece is four bars
 // (the engine plays an eight-bar part as two of them, one after the other). tests/phrases.test.mjs reads `tunes`.
 function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
+  // (V21: the song's own verse loop, where it has one: a jam set keeps `prog`.)
+  if (sp.progV) sp = { ...sp, prog: sp.progV };
   const band = BAND[sp.style];
   const compName = sp.comp || band.comp;
   const comp = COMP[compName];
@@ -1117,6 +1198,17 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
     return { L: x, R: x };
   };
   const tunes = {};
+  const RC = rngOf(sp, 11);
+  const ownCells = songCells(RC, band.rhythms || CELLS.filter(x => x.length <= 5 - (sp.bpm >= 150 ? 2 : sp.bpm >= 125 ? 1 : 0)));
+  // (V21: the song's own way of filling out its hooks: which instrument sings with the tune, how far under it, and who hums the second verse.)
+  const TX = rngOf(sp, 12);
+  const SUNG_BY = ['strings', 'brass', 'sax', 'flute', 'harmonica', 'accordion', 'erhu', 'vox', 'organ'];
+  const sung = [...new Set([...band.leads, ...band.chords])].filter(x => SUNG_BY.includes(x) && x !== sp.leadB);
+  const harmBy = TX.random() < 0.3 || !sung.length ? 'strings' : TX.choice(sung);
+  const harm3By = TX.random() < 0.5 ? 'strings' : harmBy;
+  const [dd2, dd3] = TX.choice([[-2, -5], [-5, -2], [-7, -2], [-2, -7], [-5, -7]]);
+  const humBy = TX.choice(['vox', 'vox', harmBy, sp.leadC]);
+  const shortCells = RC.sample(CELLS.filter(x => x.length <= 3).length, 2).map(i => CELLS.filter(x => x.length <= 3)[i]);
   // One set of chords with all its parts: its chords (an instrument, a comping pattern, a half), its arpeggio, its bed of pad, a bass and tunes.
   const block = (spX, K, { catchy = false, maxNotes = 6, leadX, bass = true, oct = 0, own = false, bedOf = sp.bed || bedFor(sp.style) }) => {
     const pat = own ? comp.map(c => fresh(c, K)) : comp;
@@ -1140,7 +1232,10 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
     const shapes = K.sample(4, 2).map(i => [[0, 2, 4, 2], [0, 2, 4, 7], [0, 4, 2, 4], [7, 4, 2, 0]][i]);
     const arp = (inst, half) => once(`a${inst}${half}`, () => clip(notesClip(inst, spX, arpNotes(spX, inst, slots, half * 4, shapes[half], D))));
     const [lo, hi] = rangeOf(spX, leadX);
-    const cells = band.rhythms ? [...band.rhythms, ...CELLS.filter(x => x.length <= 3)] : CELLS.filter(x => x.length <= maxNotes - (sp.bpm >= 150 ? 2 : sp.bpm >= 125 ? 1 : 0));
+    // (V21: the song's own rhythms, grown from its groove's, and two short ones to close on.)
+    const most = band.rhythms ? 6 : maxNotes - (sp.bpm >= 150 ? 2 : sp.bpm >= 125 ? 1 : 0);
+    const mine = ownCells.filter(x => x.length <= most);
+    const cells = mine.length >= 3 ? [...mine, ...shortCells] : band.rhythms ? [...band.rhythms, ...CELLS.filter(x => x.length <= 3)] : CELLS.filter(x => x.length <= most);
     const make = o => tune(K, D, { slots, cells, lo, hi }, { catchy, ...o });
     const tunes8 = [];
     const mel = (t, half) => once(`m${tunes8.indexOf(t) < 0 ? tunes8.push(t) - 1 : tunes8.indexOf(t)}${half}`, () => clip(tuneClip(spX, leadX, t, half, slots)));
@@ -1174,7 +1269,7 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
   const bare = !sp.open || sp.open === 'arp' || sp.open === 'keys';
   const verse1 = [bare ? sum({ ...V.beds[0], g: 0.75, pan: -0.25 }, ratio(V.mel(tV1, 0), 0.9)) : sum(V.chords(sp.chords, 0, 0), ratio(V.mel(tV1, 0), 0.9)), sum(V.chords(sp.chords2, 1, 1), ratio(V.mel(tV1, 1), 0.9), arpAt(V.arp(sp.lead2, 1), 0.5))];
   // (The second verse comes back changed: voices humming its tune an octave under, to one side.)
-  const hum = h => ({ ...V.harm(tV2, h, 'vox', -7), g: 0.3, pan: -0.3 });
+  const hum = h => ({ ...V.harm(tV2, h, humBy, -7), g: 0.3, pan: -0.3 });
   const hums = !sp.open || HUMS.has(SOUND[sp.style]);
   const verse2 = [sum(V.chords(sp.chords2, 1, 0), ratio(V.mel(tV2, 0), 0.9), arpAt(V.arp(sp.lead2, 0), 0.5), ...(hums ? [hum(0)] : [])), sum(V.chords(sp.chords, 0, 1), ratio(V.mel(tV2, 1), 0.9), ...(hums ? [hum(1)] : []))];
   const i0 = add(verse1[0], 'riff');
@@ -1247,7 +1342,7 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
     at(sum(HX.chords(sp.chords, 1, 1), ratio(HX.mel(tH1, 1), 0.85), arpAt(HX.arp(sp.lead2, 1), 0.6)), 'riff')
   ];
   // (The hook again, fuller: a harmony a third under its tune, on strings to one side.)
-  const third = (t, h, g) => ({ ...HX.harm(t, h, 'strings', -2), g, pan: 0.3 });
+  const third = (t, h, g) => ({ ...HX.harm(t, h, harmBy, dd2), g, pan: 0.3 });
   parts.hook2 = [
     at(sum(HX.chords(sp.chords, 1, 0), ratio(HX.mel(tH2, 0), 0.9), arpAt(HX.arp(sp.lead2, 0), 0.6), third(tH2, 0, 0.38)), 'riff'),
     at(sum(HX.chords(sp.chordsC, 0, 1), ratio(HX.mel(tH2, 1), 0.9), arpAt(HX.arp(sp.lead2, 1), 0.7), third(tH2, 1, 0.38)), 'riff')
@@ -1255,7 +1350,7 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
   // (Its third time a third variant: the tune's motif answered low then high, strings a sixth under it and the arpeggio held back.)
   const tH3 = HX.make({ motif: tH1.motif, displace: true, up: [2, 3, 6, 7] });
   tunes.hook3 = tH3.notes;
-  const sixth = (t, h, g) => ({ ...HX.harm(t, h, 'strings', -5), g, pan: -0.3 });
+  const sixth = (t, h, g) => ({ ...HX.harm(t, h, harm3By, dd3), g, pan: -0.3 });
   parts.hook3 = [
     at(sum(HX.chords(sp.chordsC, 0, 0), ratio(HX.mel(tH3, 0), 0.9), sixth(tH3, 0, 0.32), arpAt(HX.arp(sp.lead2, 1), 0.45)), 'riff'),
     at(sum(HX.chords(sp.chords2, 1, 1), ratio(HX.mel(tH3, 1), 0.9), sixth(tH3, 1, 0.32), third(tH3, 1, 0.3)), 'riff')
@@ -1299,7 +1394,7 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
     tunes.lift = t3.notes;
     // (The last hook the fullest: the tune doubled an octave up on vibes, soft, and its harmony under it.)
     // (V19: no vibes an octave over it: they sat at C7, the shrill top of every last hook.)
-    const lift = (t, h) => [...(sp.open ? [] : [{ ...L.harm(t, h, 'vibes', 7), g: 0.2, pan: -0.35 }]), { ...L.harm(t, h, 'strings', -2), g: 0.38, pan: 0.3 }];
+    const lift = (t, h) => [...(sp.open ? [] : [{ ...L.harm(t, h, 'vibes', 7), g: 0.2, pan: -0.35 }]), { ...L.harm(t, h, harmBy, dd2), g: 0.38, pan: 0.3 }];
     parts.lift = [
       at(sum(L.chords(sp.chords2, 0, 0), L.mel(t3, 0), arpAt(L.arp(sp.lead2, 0), 0.5), ...lift(t3, 0)), 'riff'),
       at(sum(L.chords(sp.chordsC, 1, 1), ratio(L.mel(t3, 1), 0.9), arpAt(L.arp(sp.lead2, 1), 0.7), ...lift(t3, 1)), 'riff')
@@ -1590,7 +1685,8 @@ export const PART_LIST = ['drums', 'bass', 'melody'];
 const PART_ROLES = { drums: ['hat', 'fill', 'kick', 'snare', 'tick', 'roll', 'sub'], bass: ['bass', 'sub'], melody: ['riff', 'phrase'] };
 // One song. -> { audio, info } (info: makeSong's, and the spec's key, mood and plan)
 // (20, 2026-11-10: tunes built from a motif and kept off the chords' half steps; songs kept from 19 are made again.)
-export const RADIO_V = 20;
+// (21, 2026-11-10: a song's own loops, rhythms and hook harmony; its ring kept with it, not mixed into the next: songs kept from 20 started on the last one's crash.)
+export const RADIO_V = 21;
 export function radioSong(spec, sr = RADIO_SR, stems = false) {
   const { seed, mood = 'all', style = null } = spec;
   const over = REMIX_KEYS.filter(k => spec[k] != null).map(k => [k, spec[k]]);

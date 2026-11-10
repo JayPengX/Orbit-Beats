@@ -229,24 +229,53 @@ export function wavPcm(wav) {
 // (A song that comes in after its own opening, already played (lib/radio.mjs radioIntro): from `start` seconds.)
 export function tapeFeed(sr) {
   const startOf = it => (it?.start ? Math.round(it.start * sr) : 0);
-  let item = null; // { pcm, hold: { from, to } (seconds), ... }
+  // (Where a song gives way to the next: a song with its ring after it (`ring`, seconds) ends at its `seconds`, the
+  // last hit's ring then played under the next one's start; any other at its last sample.)
+  const endOf = it => (it.ring > 0 && it.seconds > 0 ? Math.min(it.pcm.length / 2, Math.round(it.seconds * sr)) : it.pcm.length / 2);
+  let item = null; // { pcm, hold: { from, to } (seconds), seconds, ring, ... }
   let pos = 0;
   let fresh = false;
+  // (V21, Jay 2026-11-10: a tapped song came in with a loud crash. The last hit's ring was mixed into the start of
+  // whichever song was made next, so a song tapped or skipped to began on the old one's crash. Now the ring is mixed
+  // here, only where a song really runs into the next; a tap or ⏭ crossfades the two over 0.15 s.)
+  let under = null; // { pcm, pos, end, fade (samples: a crossfade, 0: the ring as it is), at (into the next take) }
+  const mix = (out, from) => {
+    const u = under;
+    if (!u) return;
+    for (let j = from, k = 0; j < out.length / 2 && u.pos < u.end; j++, k++, u.pos++) {
+      const g = u.fade ? Math.max(0, 1 - (u.done + k) / u.fade) : 1;
+      const h = u.fade ? 1 - g : 1;
+      for (let c = 0; c < 2; c++) {
+        const v = (out[j * 2 + c] * h + u.pcm[u.pos * 2 + c] * g) / 32768;
+        const a = Math.abs(v);
+        out[j * 2 + c] = Math.round((a <= 0.9 ? v : Math.sign(v) * (0.9 + 0.1 * Math.tanh((a - 0.9) / 0.1))) * 32767);
+      }
+      if (u.fade && u.done + k >= u.fade) {
+        u.pos = u.end;
+        break;
+      }
+    }
+    if (u.fade) u.done += out.length / 2 - from;
+    if (u.pos >= u.end) under = null;
+  };
   return {
     get item() {
       return item;
     },
     // Start this song now (⏭, a mood changed), from its sample `from` (0, or where a drag on the bar put it): the next take begins with it.
-    cut(to, from = 0) {
+    // `away`: { item, at (its sample) } the song it takes over from, crossfaded out under it.
+    cut(to, from = 0, away = null) {
       item = to;
       pos = from;
       fresh = true;
+      under = away?.item?.pcm ? { pcm: away.item.pcm, pos: away.at, end: away.item.pcm.length / 2, fade: Math.round(0.15 * sr), done: 0, at: 0 } : null;
     },
     // n samples on; ready(): is a song made to follow; next(): that song, taken.
     take(n, ready, next) {
       const pcm = new Int16Array(n * 2);
       const marks = [];
       let o = 0;
+      let ringAt = under ? 0 : -1;
       if (item && fresh) marks.push({ at: 0, item, from: pos });
       fresh = false;
       while (o < n) {
@@ -256,21 +285,29 @@ export function tapeFeed(sr) {
           if (!item) break;
           marks.push({ at: o, item, from: pos });
         }
-        const len = item.pcm.length / 2;
+        const len = endOf(item);
         const from = item.hold ? Math.round(item.hold.from * sr) : 0;
         const to = item.hold ? Math.round(item.hold.to * sr) : len;
         // (At the outro and nothing to follow: back to the hook, from its bar line.)
         const end = to > from && pos < to && !ready() ? to : len;
-        const m = Math.min(n - o, end - pos);
+        const m = Math.max(0, Math.min(n - o, end - pos));
         pcm.set(item.pcm.subarray(pos * 2, (pos + m) * 2), o * 2);
         o += m;
         pos += m;
         if (pos < end) continue;
         const after = end === len ? next() : null;
-        if (after) item = after, (pos = startOf(after));
-        else pos = end === len && !(to > from) ? 0 : from;
+        if (after) {
+          // (Its ring under the next one's start.)
+          if (len < item.pcm.length / 2) {
+            if (ringAt >= 0) mix(pcm.subarray(0, o * 2), ringAt);
+            under = { pcm: item.pcm, pos: len, end: item.pcm.length / 2, fade: 0, done: 0 };
+            ringAt = o;
+          }
+          (item = after), (pos = startOf(after));
+        } else pos = end === len && !(to > from) ? 0 : from;
         marks.push({ at: o, item, from: pos });
       }
+      if (ringAt >= 0) mix(pcm, ringAt);
       return { pcm, marks, filled: o };
     }
   };

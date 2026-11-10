@@ -6,7 +6,7 @@
 
 import { makeSong, renderEvents, encodeWav, zipParts, loopBeats } from '../engine.mjs';
 import { midiFile, songTracks } from './midi.mjs';
-import { radioSong, radioIntro, cutOf, segment, holdOf, radioKit, RADIO_SR } from './radio.mjs';
+import { radioSong, radioIntro, cutOf, holdOf, radioKit, RADIO_SR } from './radio.mjs';
 import { retime, clipSpan, partOf } from './remix.mjs';
 import { specOf, setOf } from './jamset.mjs';
 import { fromOffsets } from './jam.mjs';
@@ -22,8 +22,7 @@ let kit = null;
 export const setSamples = list => useBanks(list);
 // Out of sight, between songs (lib/maker.mjs letGo): the instruments and the notes rendered from them let
 // go, a hundred MB and more after an hour of the radio, so the phone keeps the page (and the music) rather
-// than closing it for memory. The next call is handed what it needs again; the radio's last rings
-// (`tails`, each song starting under the one before) stay.
+// than closing it for memory. The next call is handed what it needs again.
 export function letGo() {
   forgetVoices();
   return forgetBanks();
@@ -117,21 +116,31 @@ export function clip(recipe, k, part = 'all') {
 
 // ---- 聽, the radio (lib/radio.mjs): no kit needed ----
 
-// Each stretch's ring after its cut, kept for the song that follows it (the newest few).
-const tails = new Map();
 export const radioId = ({ seed, mood, style }) => `radio:${seed}:${mood}:${style}`;
-// The radio's next stretch: the song of `spec`, its start under the ring of
-// the song `after` (when there's one). -> { id, info, wav, seconds, hold }
+// The radio's next song, whole: to its cut (`seconds`, just before its last hit) and the last hit's ring after it
+// (`ring`, seconds). The stream plays the ring under the next song's start, where one runs into the next
+// (lib/tape.mjs tapeFeed); a song tapped or skipped to starts as it is. (V21: the ring used to be mixed into
+// whichever song was made next, `after`, so a song tapped began on the last one's crash.)
+// Files (`as` 'blob', a phone that plays the songs file by file): the ring's first second and a half, eased out,
+// so the file ends soon after its last hit and the next starts. -> { id, info, wav | blob, seconds, ring, hold }
 // (`as` 'blob': the WAV as a Blob, made here: a song's tens of megabytes copied into a Blob on the
-// page held its thread while the music played; for a phone that plays the songs file by file.)
+// page held its thread while the music played.)
 const wavOut = (wav, as) => (as === 'blob' ? { blob: new Blob([wav], { type: 'audio/wav' }) } : { wav });
 export function radio(spec, after = null, as = 'wav') {
   const { audio, info } = radioSong(spec);
-  const seg = segment(audio, cutOf(info, audio.sr), tails.get(after) || null);
-  const id = radioId(info.radio);
-  tails.set(id, seg.tail);
-  while (tails.size > 6) tails.delete(tails.keys().next().value);
-  return { id, info, ...wavOut(encodeWav({ sr: audio.sr, L: seg.L, R: seg.R }, 16), as), seconds: seg.L.length / audio.sr, hold: holdOf(info) };
+  const sr = audio.sr, cut = Math.min(cutOf(info, sr), audio.L.length);
+  let { L, R } = audio;
+  if (as === 'blob') {
+    const end = Math.min(L.length, cut + Math.round(1.5 * sr)), ease = Math.round(1 * sr);
+    L = L.slice(0, end);
+    R = R === audio.L ? L : R.slice(0, end);
+    for (let i = Math.max(cut, end - ease); i < end; i++) {
+      const g = (end - i) / ease;
+      L[i] *= g;
+      if (R !== L) R[i] *= g;
+    }
+  }
+  return { id: radioId(info.radio), info, ...wavOut(encodeWav({ sr, L, R }, 16), as), seconds: cut / sr, ring: (L.length - cut) / sr, hold: holdOf(info) };
 }
 // A song's opening, to play while the song is made (lib/radio.mjs radioIntro): round again until it is.
 // -> { id, info, wav, seconds (the song's, about), hold, quick: true }

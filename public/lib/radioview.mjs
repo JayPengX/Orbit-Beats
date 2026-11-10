@@ -132,7 +132,7 @@ export function mountRadio(panel, api) {
       cutTo(full, Math.round((full.start || 0) * SR), round.t);
       return paintNext(), fill(), prepNext();
     }
-    if (want && tape && !cur) pump();
+    if (want && tape && !cur && !q.skip) pump();
     else if (want && (!cur || q.skip)) advance();
     else if (tape) pump();
     paintNext();
@@ -272,7 +272,7 @@ export function mountRadio(panel, api) {
       .finally(() => (opensMade++, preparing === mine && ((preparing = false), setTimeout(prepNext, 300))));
   }
   const urlOf = it => (it.url ||= URL.createObjectURL(new Blob([it.wav], { type: 'audio/wav' })));
-  const drop = it => it && it !== cur && !tape?.marks.some(m => m.item === it) && !q.ready.includes(it) && (it.url && URL.revokeObjectURL(it.url), (it.url = null), (it.pcm = null), (it.wav = null));
+  const drop = it => it && !it.hush && it !== cur && !tape?.marks.some(m => m.item === it) && !q.ready.includes(it) && (it.url && URL.revokeObjectURL(it.url), (it.url = null), (it.pcm = null), (it.wav = null));
   // The next song, now (or as soon as it's made).
   function advance() {
     const item = q.ready.shift();
@@ -460,14 +460,18 @@ export function mountRadio(panel, api) {
   function upcoming() {
     if (!tape) return null;
     const now = audio.currentTime;
-    return tape.marks.find(m => m.t > now && m.item !== cur)?.item || null;
+    return tape.marks.find(m => m.t > now && m.item !== cur && !m.item.hush)?.item || null;
   }
   function cutTo(item, from = 0, when = audio.currentTime + 0.25) {
     const t = tape;
-    t.feed.cut(item, from);
     // (At the first whole frame a quarter second on (or at `when`), or where the stream ends if sooner.)
     const k = Math.ceil((Math.max(when, audio.currentTime + 0.25) * t.ts - t.base) / t.fr);
     const at = (t.cut = Math.min(t.time, t.base + Math.max(0, k) * t.fr) / t.ts);
+    // (What plays there, crossfaded out under the song cut to: never a click, never two at full.)
+    let m = null;
+    for (const x of t.marks) if (x.t <= at + 1e-6) m = x;
+    const away = m?.item?.pcm ? { item: m.item, at: Math.round((m.from + (at - m.t)) * SR) } : null;
+    t.feed.cut(item, from, away && away.at < m.item.pcm.length / 2 ? away : null);
     pump();
     return at;
   }
@@ -485,7 +489,7 @@ export function mountRadio(panel, api) {
     if (!cur.pcm) return;
     const t = tape;
     // (A song laid down after this one, not heard yet, goes back in line.)
-    const later = [...new Set([...t.marks.filter(m => m.t > audio.currentTime && m.item !== cur).map(m => m.item), t.feed.item].filter(it => it && it !== cur))];
+    const later = [...new Set([...t.marks.filter(m => m.t > audio.currentTime && m.item !== cur && !m.item.hush).map(m => m.item), t.feed.item].filter(it => it && it !== cur && !it.hush))];
     q.ready.unshift(...later.filter(it => !q.ready.includes(it)));
     jump = { at: s, t: cutTo(cur, Math.round(s * SR)) };
     paintTime();
@@ -497,9 +501,9 @@ export function mountRadio(panel, api) {
     const t = tape;
     const here = cur ? onTape() : null;
     // (What was laid down and not heard yet goes back in line.)
-    const later = [...new Set(t.marks.filter(m => m.t > audio.currentTime && m.item !== cur).map(m => m.item))];
+    const later = [...new Set(t.marks.filter(m => m.t > audio.currentTime && m.item !== cur && !m.item.hush).map(m => m.item))];
     q.ready.unshift(...later.filter(it => !q.ready.includes(it)));
-    if (t.feed.item && t.feed.item !== cur && !q.ready.includes(t.feed.item)) q.ready.unshift(t.feed.item);
+    if (t.feed.item && t.feed.item !== cur && !t.feed.item.hush && !q.ready.includes(t.feed.item)) q.ready.unshift(t.feed.item);
     tape = null;
     taped = false;
     audio.disableRemotePlayback = false;
@@ -522,9 +526,9 @@ export function mountRadio(panel, api) {
   function freshTape(why) {
     const t = tape;
     if (t) {
-      const later = [...new Set(t.marks.filter(m => m.t > audio.currentTime && m.item !== cur).map(m => m.item))];
+      const later = [...new Set(t.marks.filter(m => m.t > audio.currentTime && m.item !== cur && !m.item.hush).map(m => m.item))];
       q.ready.unshift(...later.filter(it => !q.ready.includes(it)));
-      if (t.feed.item && t.feed.item !== cur && !q.ready.includes(t.feed.item)) q.ready.unshift(t.feed.item);
+      if (t.feed.item && t.feed.item !== cur && !t.feed.item.hush && !q.ready.includes(t.feed.item)) q.ready.unshift(t.feed.item);
       try {
         t.enc?.close();
       } catch {}
@@ -649,6 +653,21 @@ export function mountRadio(panel, api) {
   }
   // ⏭ on a song's opening (or a kept song's first bars) skips the song, not just its opening: the song
   // itself, made or on its way, is let go, and the next one's opening plays at once.
+  // (V21, Jay 2026-11-10: "click next song, it keeps playing the current song then jumps to it". A tap on ⏭, a
+  // station or a song not made yet: the song playing fades out at once (0.15 s), the screen shows the next one on
+  // its way, and it comes in as soon as it's made. On the tape a moment of silence held round; file by file, the hush.)
+  const SILENT = { hush: true, id: 'hush', pcm: new Int16Array(RADIO_SR), hold: { from: 0, to: 0.5 }, seconds: 0 };
+  function hushNow() {
+    if (!cur || !want) return;
+    if (tape) return void cutTo(SILENT);
+    const was = cur;
+    cur = null;
+    audio.loop = true;
+    audio.src = silent ||= hush();
+    audio.play().catch(() => {});
+    setTimeout(() => drop(was), 4000);
+    paint();
+  }
   let skipped = null; // the id of a song skipped while it was still being made
   let heardOut = null; // the id of the last song whose outcome (heard through, or skipped) was told
   function skip() {
@@ -662,11 +681,12 @@ export function mountRadio(panel, api) {
     q.ready = q.ready.filter(other);
     if (cur?.quick) skipped = id;
     looking = null;
-    const n = tape && tape.marks.find(m => m.t > audio.currentTime && other(m.item))?.item;
+    const n = tape && tape.marks.find(m => m.t > audio.currentTime && other(m.item) && !m.item.hush)?.item;
     // (The one laid down next: from now.)
     if (n) return cutTo(n);
     if (q.ready.length) return advance();
     q.skip = true;
+    hushNow();
     // (Nothing made to go to: the next song's opening, made in a moment, plays while the song is made.
     // What's being made is that song, unless it's this one: then it's dropped and another one is made.)
     if (cur?.quick && q.busy && q.making?.seed === cur.spec?.seed && api.make.restart?.()) q.busy = false;
@@ -710,7 +730,7 @@ export function mountRadio(panel, api) {
     if ((q.busy || preparing) && api.make.restart?.()) (q.busy = false), (preparing = false);
     rush(spec());
     if (!want) start();
-    else fill();
+    else hushNow(), fill();
     paintNext();
   }
   // One exact song again ({ seed, mood, style }): made from its spec like any other, then played from the next cut.
@@ -781,7 +801,7 @@ export function mountRadio(panel, api) {
     if (miss) rush(spec);
     if (!want) start();
     else if (ready) advance();
-    else fill();
+    else hushNow(), fill();
     paintNext();
   }
 
@@ -845,7 +865,16 @@ export function mountRadio(panel, api) {
     if (tape) {
       // (On the tape: which song it is now, from where it was laid down.)
       const here = onTape();
-      if (here && here.item !== cur) {
+      // (The hush after a tap, while the song asked for is made: nothing playing, said so.)
+      if (here?.item.hush) {
+        if (cur) {
+          const was = cur;
+          cur = null;
+          paint();
+          claim();
+          setTimeout(() => drop(was), 4000);
+        }
+      } else if (here && here.item !== cur) {
         const was = cur;
         cur = here.item;
         q.skip = false;
