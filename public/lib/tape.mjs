@@ -258,6 +258,19 @@ export function tapeFeed(sr) {
     if (u.fade) u.done += out.length / 2 - from;
     if (u.pos >= u.end) under = null;
   };
+  // The master limiter, last on everything laid down: nothing past -1 dBFS, ever. A song alone already peaks
+  // under it (radio.mjs eased); a ring under the next song's start or a crossfade may not. At once down to where
+  // it must be, back up over 0.1 s.
+  const CEIL = 0.891 * 32767, back = 1 / (0.1 * sr);
+  let g = 1;
+  const limit = out => {
+    for (let j = 0; j < out.length; j += 2) {
+      const p = Math.max(Math.abs(out[j]), Math.abs(out[j + 1]));
+      g = Math.min(g + back, 1);
+      if (p * g > CEIL) g = CEIL / p;
+      if (g < 1) (out[j] = Math.round(out[j] * g)), (out[j + 1] = Math.round(out[j + 1] * g));
+    }
+  };
   return {
     get item() {
       return item;
@@ -308,6 +321,7 @@ export function tapeFeed(sr) {
         marks.push({ at: o, item, from: pos });
       }
       if (ringAt >= 0) mix(pcm, ringAt);
+      limit(pcm);
       return { pcm, marks, filled: o };
     }
   };

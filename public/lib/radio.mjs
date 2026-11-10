@@ -1268,7 +1268,14 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
   tunes.verse1 = tV1.notes; tunes.verse2 = tV2.notes;
   // (The first verse opens bare, the tune over a held bed alone, and its chords come in at its fifth bar: the song starts small and grows.)
   const bare = !sp.open || sp.open === 'arp' || sp.open === 'keys';
-  const verse1 = [bare ? sum({ ...V.beds[0], g: 0.75, pan: -0.25 }, ratio(V.mel(tV1, 0), 0.9)) : sum(V.chords(sp.chords, 0, 0), ratio(V.mel(tV1, 0), 0.9)), sum(V.chords(sp.chords2, 1, 1), ratio(V.mel(tV1, 1), 0.9), arpAt(V.arp(sp.lead2, 1), 0.5))];
+  // (V21: a song's own way of filling out its first verse: as it was, thin (the tune over its bed all eight bars, the
+  // chords first heard in the hook) or led by its arpeggio (the chords soft under it in the answer).)
+  const AR = rngOf(sp, 13);
+  const verseTex = AR.choice(['as', 'as', 'thin', 'arp']), hookTex = AR.choice(['as', 'double', 'answer']);
+  const v1b = verseTex === 'thin' && bare ? sum({ ...V.beds[1], g: 0.75, pan: -0.25 }, ratio(V.mel(tV1, 1), 0.9), arpAt(V.arp(sp.lead2, 1), 0.35))
+    : verseTex === 'arp' ? sum(ratio(V.chords(sp.chords2, 1, 1), 0.55), ratio(V.mel(tV1, 1), 0.9), arpAt(V.arp(sp.lead2, 1), 0.85))
+    : sum(V.chords(sp.chords2, 1, 1), ratio(V.mel(tV1, 1), 0.9), arpAt(V.arp(sp.lead2, 1), 0.5));
+  const verse1 = [bare ? sum({ ...V.beds[0], g: 0.75, pan: -0.25 }, ratio(V.mel(tV1, 0), 0.9)) : sum(V.chords(sp.chords, 0, 0), ratio(V.mel(tV1, 0), 0.9)), v1b];
   // (The second verse comes back changed: voices humming its tune an octave under, to one side.)
   const hum = h => ({ ...V.harm(tV2, h, humBy, -7), g: 0.3, pan: -0.3 });
   const hums = !sp.open || HUMS.has(SOUND[sp.style]);
@@ -1338,9 +1345,12 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
   const tH1 = HX.make({ start: 'high' }), tH2 = HX.make({ motif: tH1.motif, displace: true, up: [4, 5, 6, 7] });
 
   tunes.hook1 = tH1.notes; tunes.hook2 = tH2.notes;
+  // (Its first hook its own way too: as it was, the tune doubled an octave under by the instrument that sings with it,
+  // or the answer's arpeggio given way to that instrument a third under the tune.)
+  const dbl = h => (hookTex === 'double' ? [{ ...HX.harm(tH1, h, harmBy, -7), g: 0.32, pan: -0.2 }] : []);
   parts.hook = [
-    at(sum(HX.chords(sp.chords2, 0, 0), HX.mel(tH1, 0)), 'riff'),
-    at(sum(HX.chords(sp.chords, 1, 1), ratio(HX.mel(tH1, 1), 0.85), arpAt(HX.arp(sp.lead2, 1), 0.6)), 'riff')
+    at(sum(HX.chords(sp.chords2, 0, 0), HX.mel(tH1, 0), ...dbl(0)), 'riff'),
+    at(sum(HX.chords(sp.chords, 1, 1), ratio(HX.mel(tH1, 1), 0.85), ...dbl(1), hookTex === 'answer' ? { ...HX.harm(tH1, 1, harmBy, -2), g: 0.3, pan: 0.3 } : arpAt(HX.arp(sp.lead2, 1), 0.6)), 'riff')
   ];
   // (The hook again, fuller: a harmony a third under its tune, on strings to one side.)
   const third = (t, h, g) => ({ ...HX.harm(t, h, harmBy, dd2), g, pan: 0.3 });

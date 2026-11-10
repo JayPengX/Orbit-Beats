@@ -308,7 +308,7 @@ export function mountRadio(panel, api) {
   // ---- The tape: every song on one stream, no gap between them (lib/tape.mjs) ----
   // { ms, sb, time (samples laid down), number, seq, marks: [{ t (s), item, from (s) }], cut (s, a ⏭ to make) }
   let tape = null;
-  const AHEAD = 12; // seconds laid down ahead of the one playing
+  const AHEAD = 20; // seconds laid down ahead of the one playing (V21: 12 was enough on a computer; a phone's page can pause longer)
   const AHEAD_OFF = 90; // off the screen, where the phone runs the page only now and then: more
   const CHUNK = 20; // FLAC frames an append (2.6 s); as many samples a time to the encoder
   const SR = RADIO_SR;
