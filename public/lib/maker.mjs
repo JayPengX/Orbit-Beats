@@ -106,6 +106,18 @@ export function maker(url, { limit = 90000, prep = null } = {}) {
     return true;
   }
   let line = Promise.resolve();
+  // The recorded instruments this worker holds let go, what it keeps of its own between calls staying
+  // (lib/make.mjs letGo): in line with the calls, so one already handed its instruments is made with them,
+  // and the next is handed what it needs again. Never on the page (its instruments are the page's own).
+  function letGo() {
+    if (!worker) return false;
+    line = line.then(() => {
+      if (!worker) return;
+      sent.clear();
+      call('letGo').catch(() => {});
+    });
+    return true;
+  }
   const ask = (fn, ...args) => {
     if (!prep) return call(fn, ...args);
     const posted = line
@@ -128,6 +140,7 @@ export function maker(url, { limit = 90000, prep = null } = {}) {
   return {
     restart,
     reset,
+    letGo,
     busy: () => waiting.size > 0,
     setKit: k => ((last = k), ask('setKit', k)),
     song: (recipe, bits) => ask('song', recipe, bits),

@@ -384,6 +384,11 @@ const STRUM = { guitar: 0.016, nylon: 0.02, distgtr: 0.008, banjo: 0.014, harp: 
 const VOICES = new Map();
 let voiceSamples = 0;
 const VOICE_BUDGET = 12e6;   // (samples kept: about 48 MB; a song's own notes are a few hundred)
+// The notes rendered lately let go (lib/make.mjs letGo: a worker out of sight, between songs).
+export function forgetVoices() {
+  VOICES.clear();
+  voiceSamples = 0;
+}
 // A clip as a piece: exactly its bars long (a loop of them), with a phone
 // mic's faint noise floor all through, so splitting keeps it whole.
 // A note that comes again in the clip takes the other of its two takes, so a repeat is never bit for bit the last.

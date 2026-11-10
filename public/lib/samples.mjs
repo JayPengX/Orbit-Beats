@@ -242,6 +242,14 @@ export const banks = () => BANKS;
 export const bankOf = inst => BANKS.get(inst) || null;
 // Changes each time a bank comes in (lib/synth.mjs keeps notes per change).
 export const bankGen = () => gen;
+// Every bank let go (a worker out of sight, between songs: lib/make.mjs letGo); handed over again when next needed.
+export function forgetBanks() {
+  if (!BANKS.size) return 0;
+  const n = BANKS.size;
+  BANKS.clear();
+  gen++;
+  return n;
+}
 export function useBanks(list) {
   let n = 0;
   for (const b of Object.values(list || {}))

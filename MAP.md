@@ -215,6 +215,30 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
   converted in slices and pruned by an index (`heard.mjs`, IndexedDB v2,
   `age`); the clock text changes its text node only (`tickText`), so the
   kit's place-keeping isn't woken four times a second.
+- **Out of sight** (Jay 2026-11-10: the music stopped in the background while
+  he used the other Orbit apps and swiped them off). The Orbit apps on a phone
+  share one WebKit underneath (one app's BroadcastChannel reaches the others,
+  2026-10-21), so most likely one audio session: in WebKit a sound that can't
+  mix interrupts the other pages' (`RemoteAudioSessionProxyManager`), and
+  nothing tells the interrupted page when that sound is over (WebKit lets a
+  session go without notifying others). A page whose music stopped is frozen
+  about ten seconds later (`audibleActivityClearDelay`), and iOS closes the
+  heaviest background pages when the app in front wants memory.
+  So: the app's sound is music (`navigator.audioSession.type = 'playback'`,
+  `soundAs` in `app.js`) from its first sound (every sound starts through
+  `quiet()`), never as it opens, and `'auto'` while the microphone records:
+  WebKit keeps a session the page named between songs. Out of sight, 聽 keeps one
+  song ahead (two on screen) and the workers let go of their recorded
+  instruments and the notes made from them (`letGo` in `lib/maker.mjs` and
+  `lib/make.mjs`, in line with the calls; 聽's after each song, the others at
+  once if idle; the radio's last rings stay): 聽's worker drops from 170 MB
+  to under 10 MB between songs. The audio session's `statechange` out of
+  `interrupted` (a call, Siri) resumes 聽, a song, 樂器 and 即興; a song the
+  phone stopped goes on when the app is back on screen, as 聽 does. The
+  除錯紀錄 notes `beats-stopped` (the phone stopped 聽 out of sight: after how
+  long, the way it played, the session's state) and `beats-gone` (music was
+  playing when the page went: `orbit-beats-alive`, written every 15 s while
+  something plays).
 - **Saved:**
   - On the phone: the last kit's sound and the kept songs.
   - On the Pass (app `beats`, `{ v: 1, settings, kits, taste }`): settings

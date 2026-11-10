@@ -7,6 +7,7 @@ To remove a feature on purpose, delete its line here in the same commit and say 
 - The full mixer on by default — `public/lib/mix.mjs`: `mixOf`, `MIX = { on: true`
 - Easy listening: eased songs — `public/lib/mix.mjs`, `public/lib/radio.mjs`: `eased`
 - Radio: 隨機電台, 為你電台, sleep timer — `public/lib/radioview.mjs`: `隨機電台`, `為你電台`, `睡眠`
+- Music in the background: music's audio session from the first sound, lighter out of sight, on again when iOS lets go (2026-11-10) — `public/app.js`, `public/lib/radioview.mjs`, `public/lib/maker.mjs`: `soundAs('playback')`, `letGo`, `statechange`
 - The game and 我的紀錄 — `public/lib/gameview.mjs`: `我的紀錄`
 - 即興 pads and 歌單 playlists — `public/index.html`: `即興`, `歌單`
 - Remix: 驚喜 and 取出片段 — `public/lib/remixview.mjs`: `驚喜`, `取出片段`

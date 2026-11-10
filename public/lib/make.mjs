@@ -12,13 +12,22 @@ import { specOf, setOf } from './jamset.mjs';
 import { fromOffsets } from './jam.mjs';
 import { chartsOf } from './game.mjs';
 
-import { useBanks } from './samples.mjs';
+import { useBanks, forgetBanks } from './samples.mjs';
+import { forgetVoices } from './synth.mjs';
 import { planCuts } from './rhythm.mjs';
 
 let kit = null;
 
 // The recorded instruments the page decoded (lib/samples.mjs), for every song made after.
 export const setSamples = list => useBanks(list);
+// Out of sight, between songs (lib/maker.mjs letGo): the instruments and the notes rendered from them let
+// go, a hundred MB and more after an hour of the radio, so the phone keeps the page (and the music) rather
+// than closing it for memory. The next call is handed what it needs again; the radio's last rings
+// (`tails`, each song starting under the one before) stay.
+export function letGo() {
+  forgetVoices();
+  return forgetBanks();
+}
 
 // The kit: its pieces, their rate, the analysis, and the tempo and roles in use.
 export function setKit({ pieces, sr, heard, bpm, roles }) {

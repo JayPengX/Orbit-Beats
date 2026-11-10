@@ -40,7 +40,7 @@ function hush() {
   return URL.createObjectURL(new Blob([b], { type: 'audio/wav' }));
 }
 
-// api: { make (lib/maker.mjs), quiet(), title(seed), keep(item), kept(id), session(owner), mood, setMood(m) }
+// api: { make, quick (lib/maker.mjs), quiet(), title(seed), keep(item), kept(id), session(owner), mood, setMood(m), rec(kind, data)? (the 除錯紀錄) }
 export function mountRadio(panel, api) {
   const audio = new Audio();
   audio.preload = 'auto';
@@ -53,6 +53,7 @@ export function mountRadio(panel, api) {
   let silent = null;
   let fails = 0;
   let last = []; // the songs played lately ({ seed, mood, style }), so the next differs
+  const away = () => document.visibilityState === 'hidden'; // out of sight: locked, or another app in front
 
   // ---- Telling the screens (lib/homeview.mjs, lib/playerview.mjs draw them) ----
   const subs = new Set();
@@ -71,6 +72,8 @@ export function mountRadio(panel, api) {
     return s;
   };
   // Two ahead of the one playing (on the tape, one already laid down counts); one more as soon as one is used.
+  // (Out of sight, one: a song is about 20 MB waiting, and the phone closes the heaviest page it can when the
+  // app in front wants memory. The next is still made a couple of minutes before it's due.)
   // (A tap's song starting: the next one's instruments, read and handed to the maker, wait a moment,
   // so they don't hold up the first notes. Over once the music plays, or after 1.5 s at most.)
   let starting = 0;
@@ -80,7 +83,7 @@ export function mountRadio(panel, api) {
     if (starting && Date.now() - starting < 1500) return;
     starting = 0;
     // (Before play: one, so the first tap plays at once; playing: two.)
-    if (looking || q.busy || q.ready.length + (upcoming() ? 1 : 0) >= (want ? 2 : 1) || fails >= 3) return;
+    if (looking || q.busy || q.ready.length + (upcoming() ? 1 : 0) >= (want && !away() ? 2 : 1) || fails >= 3) return;
     // (Before play, 今日精選's songs come first: they're what a tap on 首頁 most often wants.)
     if (!want && (preparing || (prepWant.length && prepared.size < 3) || keptFor(mood))) return;
     const s = spec();
@@ -98,6 +101,8 @@ export function mountRadio(panel, api) {
         const item = dress({ ...v, spec: s, title: api.title(s.seed), url: null });
         // (Its opening already playing, made first: the song comes in after it, where the opening ends.)
         if (opening?.id === item.id) (item.start = opening.length), (opening = null);
+        // (Out of sight: the worker lets go of the instruments it made it with, till the next.)
+        if (away()) api.make.letGo?.();
         if (gen === q.gen) {
           // (Files: the next one's file made now, long before it's needed; the stream: its samples.)
           if (v.wav && taped) item.pcm = wavPcm(v.wav);
@@ -877,10 +882,23 @@ export function mountRadio(panel, api) {
   // (iOS says nothing when the other sound ends: another home-screen app closed, a call over. So while
   // the music is still wanted it's tried again every few seconds out of sight, for up to 30 minutes.)
   let held = 0;
+  let hiddenAt = 0;
   audio.addEventListener('pause', () => {
     if (!want) return;
     held = Date.now();
+    // (Noted for the 除錯紀錄 when it's still stopped a moment later, not a song change's pause: out of sight
+    // how long, the way it played, what iOS said of its sound.)
+    const at = held;
+    setTimeout(() => want && audio.paused && away() && held === at && api.rec?.('beats-stopped', { away: hiddenAt ? Math.round((at - hiddenAt) / 1000) : null, path: taped ? 'stream' : 'files', session: navigator.audioSession?.state || null, t: Math.round(audio.currentTime) }), 800);
     for (const ms of [1000, 3000, 8000, 20000]) setTimeout(() => resume('paused by the phone'), ms);
+  });
+  // iOS's word that what stopped the sound is over (a call, Siri: the page's audio session out of
+  // 'interrupted'): on again at once, as it was asked for. (Another app's video or voice ends without a word.)
+  const sound = navigator.audioSession;
+  let cut = false;
+  sound?.addEventListener?.('statechange', () => {
+    if (sound.state === 'interrupted') return void (cut = true);
+    if (cut) (cut = false), setTimeout(() => resume('the phone let go'), 300);
   });
   setInterval(() => {
     if (!held || !want || !audio.paused) return void (held = want && audio.paused ? held : 0);
@@ -903,10 +921,15 @@ export function mountRadio(panel, api) {
   // (Off the screen: the songs made for 今日精選's taps let go, a few dozen MB, so the phone keeps the
   // page (and the music) rather than closing it to free memory; they're made again once it's back.)
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') return resume('back on the screen'), setTimeout(prepNext, 1500);
+    if (document.visibilityState === 'visible') return (hiddenAt = 0), resume('back on the screen'), setTimeout(() => (prepNext(), fill()), 1500);
+    hiddenAt = Date.now();
     for (const [k, it] of prepared) drop(it), prepWant.some(x => prepKey(x) === k) || prepWant.unshift(it.spec);
     prepWant.splice(3);
     prepared.clear();
+    // (And the workers' instruments, a hundred MB and more after a while: the radio's once it's between
+    // songs, the openings' at once. Handed back as the next song needs them.)
+    if (!q.busy) api.make.letGo?.();
+    if (!api.quick?.busy?.()) api.quick?.reset?.();
   });
 
   // ---- The cover, the beat, the tint ----

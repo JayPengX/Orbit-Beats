@@ -899,9 +899,13 @@ let recTimer = 0;
 $('record').onclick = async () => {
   if (recorder) return recorder.stop();
   let stream;
+  // (Recording: WebKit's own choice of session, play and record; the music's again once it stops.)
+  const was = navigator.audioSession?.type;
+  soundAs('auto');
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
   } catch {
+    if (was) soundAs(was);
     return status(`<b>${W('沒有麥克風權限', 'No microphone')}</b> · ${W('在設定裡允許', 'allow it in Settings')}`, 'bad');
   }
   const chunks = [];
@@ -911,6 +915,7 @@ $('record').onclick = async () => {
     stream.getTracks().forEach(t => t.stop());
     clearInterval(recTimer);
     recorder = null;
+    if (was && was !== 'auto') soundAs(was);
     $('record').classList.remove('on');
     $('record-text').textContent = W('用麥克風錄', 'Record');
     const blob = new Blob(chunks, { type: chunks[0]?.type || 'audio/mp4' });
@@ -930,17 +935,27 @@ $('record').onclick = async () => {
 };
 if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') $('record').hidden = true;
 
+// What the app's sound is to iOS (Safari 16.4+'s audio session): music ('playback'), from the first
+// sound on, whatever plays it (聽's songs, a song, the pieces, the instruments, the pads). As music it
+// plays on locked and in another app, the silent switch doesn't mute it, and WebKit keeps the phone's
+// audio session for the page between songs (a song ending with the screen off and the next starting is
+// never a new start the phone may refuse; WebKit's MediaSessionManager keeps a session the page named).
+// Said at the first sound, never as the app opens: the Home Screen apps share one audio session, so an
+// Orbit Beats that hasn't played leaves the others' sounds as they are. The microphone records with
+// WebKit's own choice ('auto': play and record) and gives it back after.
+function soundAs(type) {
+  try {
+    if (navigator.audioSession && navigator.audioSession.type !== type) navigator.audioSession.type = type;
+  } catch {}
+}
 // One sound for the whole app (the pieces, the instruments, the pads): made on the first tap.
-// (iOS plays it as music, not as a ringtone's sound, so the silent switch doesn't mute it; and
-// one stopped by a call, Siri or the screen locking is started again when it's wanted.)
+// (One stopped by a call, Siri or the screen locking is started again when it's wanted.)
 let ctx = null;
 const wanted = () => Boolean(studio?.playing() || jam?.playing() || playing || example);
 const wake = () => ctx && ctx.state !== 'running' && wanted() && ctx.resume().catch(() => {});
 const audioCtx = () => {
   if (!ctx) {
-    try {
-      if (navigator.audioSession) navigator.audioSession.type = 'playback';
-    } catch {}
+    if (!recorder) soundAs('playback');
     ctx = new AudioContext();
     ctx.addEventListener?.('statechange', wake);
   }
@@ -1009,6 +1024,8 @@ function live(on, o = {}) {
 document.addEventListener('pointerdown', () => ctx && ctx.state !== 'running' && ctx.resume().catch(() => {}), true);
 // Everything that plays, stopped (before something else plays).
 function quiet({ keep: but = '' } = {}) {
+  // (Something is about to play: the app's sound is music from here on. Not while the microphone records.)
+  if (!recorder) soundAs('playback');
   stopPiece();
   stopExample();
   if (but !== 'radio') radio?.stop();
@@ -1904,6 +1921,23 @@ setInterval(() => {
   if (!heldAt || !audio.paused || !nowPlaying || Date.now() - heldAt > 30 * 60e3) return void (heldAt = audio.paused && nowPlaying && Date.now() - heldAt <= 30 * 60e3 ? heldAt : 0);
   if (document.visibilityState === 'hidden') audio.play().catch(() => {});
 }, 5000);
+// Back on the screen, or iOS saying what stopped it is over (a call, Siri): a song the phone stopped goes
+// on at once, as 聽's songs do (it had waited for a tap), and so do the instruments and pads.
+const heldSong = () => heldAt && nowPlaying && audio.paused && !audio.ended && Date.now() - heldAt < 30 * 60e3;
+const goOn = () => {
+  if (heldSong()) audio.play().catch(() => {});
+  wake();
+};
+document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && goOn());
+addEventListener('pageshow', goOn);
+{
+  const sound = navigator.audioSession;
+  let cut = false;
+  sound?.addEventListener?.('statechange', () => {
+    if (sound.state === 'interrupted') return void (cut = true);
+    if (cut) (cut = false), setTimeout(goOn, 300);
+  });
+}
 // A song the phone left stuck (the share sheet, a call: time standing still, or a play it
 // won't take): its file loaded again where it was, and on.
 async function revive() {
@@ -2267,6 +2301,38 @@ let studio = null;
 let jam = null;
 let jamMake = null;
 let radio = null;
+// Out of sight: the workers nobody is using let go of the recorded instruments they hold, and the notes
+// made from them (50 to 100 MB each after a while; each is handed what it needs again at its next call).
+// iOS closes the heaviest pages it can when the app in front wants memory, the other Orbit apps among
+// them; lighter, Orbit Beats is kept, and the music playing in it. (聽's own worker: lib/radioview.mjs.)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'hidden') return;
+  if (!make.busy()) make.letGo();
+  if (jamMake && !jam?.playing() && !jamMake.busy()) jamMake.letGo();
+});
+// Music playing when the page went away (iOS closed it for memory, or it was swiped off): said in the
+// 除錯紀錄 at the next opening, how long before, whether it was out of sight, what played and how.
+{
+  const ALIVE = 'orbit-beats-alive';
+  try {
+    const was = JSON.parse(localStorage.getItem(ALIVE) || 'null');
+    localStorage.removeItem(ALIVE);
+    if (was?.t && Date.now() - was.t < 60 * 60e3) kit.rec?.('beats-gone', { ago: Math.round((Date.now() - was.t) / 1000), away: was.away, what: was.what, path: was.path });
+  } catch {}
+  setInterval(() => {
+    const s = P?.state();
+    const what = s?.playing ? s.source : studio?.playing() ? 'studio' : jam?.playing() ? 'jam' : '';
+    try {
+      if (what) localStorage.setItem(ALIVE, JSON.stringify({ t: Date.now(), away: document.visibilityState === 'hidden', what, path: (localStorage.getItem('orbit-beats-radio-path') || '').split(':')[0] }));
+      else localStorage.removeItem(ALIVE);
+    } catch {}
+  }, 15000);
+  addEventListener('pagehide', () => {
+    try {
+      localStorage.removeItem(ALIVE);
+    } catch {}
+  });
+}
 // ♡ on 聽: the song whole into 資料庫 (made again from its seed), or out again.
 async function keepRadio(item) {
   const id = `radio:${item.spec.seed}:${item.spec.mood}:${item.info.style}`;
@@ -2443,6 +2509,7 @@ async function boot() {
     meta: o => sessionMeta(o),
     taste,
     heard: heardSong,
+    rec: (kind, data) => kit.rec?.(kind, data),
     mood: settings.radioMood,
     setMood: m => ((settings.radioMood = m), save())
   });
