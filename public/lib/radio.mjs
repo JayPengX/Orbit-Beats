@@ -1203,11 +1203,12 @@ function songKit(sp, sr, { lift = true, introOnly = false } = {}) {
   // (V21: the song's own way of filling out its hooks: which instrument sings with the tune, how far under it, and who hums the second verse.)
   const TX = rngOf(sp, 12);
   const SUNG_BY = ['strings', 'brass', 'sax', 'flute', 'harmonica', 'accordion', 'erhu', 'vox', 'organ'];
-  const sung = [...new Set([...band.leads, ...band.chords])].filter(x => SUNG_BY.includes(x) && x !== sp.leadB);
+  // (Only an instrument the song already plays: its recording is the one loaded for it, lib/samples.mjs specInsts.)
+  const sung = [...new Set([sp.chords, sp.chords2, sp.chordsC, sp.lead, sp.lead2, sp.leadC])].filter(x => SUNG_BY.includes(x) && x !== sp.leadB);
   const harmBy = TX.random() < 0.3 || !sung.length ? 'strings' : TX.choice(sung);
   const harm3By = TX.random() < 0.5 ? 'strings' : harmBy;
   const [dd2, dd3] = TX.choice([[-2, -5], [-5, -2], [-7, -2], [-2, -7], [-5, -7]]);
-  const humBy = TX.choice(['vox', 'vox', harmBy, sp.leadC]);
+  const humBy = TX.choice(['vox', 'vox', harmBy]);
   const shortCells = RC.sample(CELLS.filter(x => x.length <= 3).length, 2).map(i => CELLS.filter(x => x.length <= 3)[i]);
   // One set of chords with all its parts: its chords (an instrument, a comping pattern, a half), its arpeggio, its bed of pad, a bass and tunes.
   const block = (spX, K, { catchy = false, maxNotes = 6, leadX, bass = true, oct = 0, own = false, bedOf = sp.bed || bedFor(sp.style) }) => {
