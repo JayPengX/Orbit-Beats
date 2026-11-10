@@ -313,6 +313,7 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
 | `lib/samples.mjs`, `lib/sampleload.mjs`, `lib/voices.mjs` | Recorded instruments and drum kits: which notes, fetched and decoded; the added voices |
 | `lib/game.mjs`, `lib/gameview.mjs` | 節奏遊戲: a song's chart, the stage |
 | `lib/homeview.mjs`, `lib/stations.mjs`, `lib/genres.mjs` | 首頁 (the player and its rows) and the covers and shelves 資料庫 shares; stations as filters on the radio; the genre picker |
+| `lib/say.mjs` | 用說的做節奏 (the family's AI, Jay 11-10; code first): the bar over 電台 (`homeview.mjs` `sayBar`) reads your words into a station (`readVibe`: grooves by name, a scene, how fast; `vibeStation` → `say:<grooves>@<lo>-<hi>`, `stations.mjs` `sayOf`); only words code finds no groove in go to the AI door (`beats-say`: the words only, never a sound; it answers grooves and a tempo) |
 | `lib/heard.mjs`, `lib/queue.mjs`, `lib/player.mjs`, `lib/playerview.mjs` | 最近播放's kept sound; the play queue; the one player; the mini bar and Now Playing |
 | `lib/remix.mjs`, `lib/remixview.mjs`, `lib/kitops.mjs`, `lib/jamset.mjs` | 重新混音 and 取出片段; kits taken apart and kept by name; 即興's built-in set |
 | `lib/icons.mjs`, `lib/ui.mjs`, `lib/length.mjs`, `lib/lang.mjs` | Icons; the kit's UI with this app's changes; song length in words; language |

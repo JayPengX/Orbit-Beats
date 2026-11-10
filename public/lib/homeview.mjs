@@ -19,6 +19,8 @@ import { coverSvg, coverUrl } from './cover.mjs';
 import { coverOfTrack } from './player.mjs';
 import { onLong, subOf } from './playerview.mjs';
 import { clock } from './length.mjs';
+import * as kitAI from '#kit/ai.mjs';
+import { readVibe, vibeStation, TEMPO } from './say.mjs';
 
 const hash = s => [...String(s)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7);
 const covers = new Map();
@@ -277,6 +279,37 @@ export function mountHome(panel, api) {
   const open = {};
   const songList = (key, head_, rows, opts = {}) => songListOf(open, key, head_, rows, opts);
 
+  // ---- 用說的做節奏 (the family's AI, Jay 11-10; code first): what you'd like to hear in your own
+  // words, read by code (lib/say.mjs) into a station; only words code can't place go to the AI door
+  // (beats-say: the words only, never a sound), and it answers grooves and a tempo, nothing more.
+  function sayBar() {
+    const note = h('p', { class: 'bt-say-note', 'aria-live': 'polite' });
+    const bar = kitAI.aiBar?.({ placeholder: W('說想聽什麼，例如「讀書用的 lo-fi」', 'Say what to play: “lo-fi to study”'), label: W('用說的選電台', 'Say what to play'), max: 80, onSend: t => go(t) });
+    if (!bar) return null;
+    async function go(t) {
+      bar.busy(true);
+      note.textContent = '';
+      try {
+        let v = readVibe(t);
+        if (!v?.styles.length) {
+          note.replaceChildren(kitAI.aiThinking(W('想一下…', 'Thinking…')));
+          const r = await kitAI.aiCall('beats-say', { text: t });
+          const styles = (r.out?.styles || []).filter(x => typeof x === 'string');
+          if (styles.length || TEMPO[r.out?.tempo]) v = { styles, bpm: v?.bpm || TEMPO[r.out?.tempo] || null };
+          else if (r.error) return (note.textContent = kitAI.aiSays(r.error, r.left));
+        }
+        const id = vibeStation(v);
+        if (!id) return (note.textContent = W('聽不出想要的感覺，換個說法試試。', 'Couldn’t tell what you’d like. Try other words.'));
+        note.textContent = W(`正在播：${stationName(id)}`, `Playing: ${stationName(id)}`);
+        bar.clear();
+        tune(id);
+      } finally {
+        bar.busy(false);
+      }
+    }
+    return h('div', { class: 'bt-say' }, [bar, note]);
+  }
+
   // ---- Stations: one row of taps; genres: another ----
   const chip = (id, label = stationName(id), extra = null) => h('button', { class: 'q-chip bt-st', type: 'button', 'data-station': id, 'aria-pressed': 'false', onclick: () => tune(id) }, [extra, h('span', { text: label })]);
   function stations() {
@@ -291,7 +324,7 @@ export function mountHome(panel, api) {
       ...rows.find(r => r.key === 'genres').ids.map(id => chip(id)),
       h('button', { class: 'q-chip bt-st', type: 'button', onclick: () => genreSheet({ title: W('全部類型', 'All genres'), onPick: g => P.station(`style:${g}`) }) }, [h('span', { text: W('全部類型', 'All genres') })])
     ]);
-    return kitUI.section(W('電台', 'Radio'), [st, h('h3', { class: 'q-list-head bt-sub-head', text: W('類型', 'Genres') }), genres], { cls: 'bt-sec bt-stations' });
+    return kitUI.section(W('電台', 'Radio'), [sayBar(), st, h('h3', { class: 'q-list-head bt-sub-head', text: W('類型', 'Genres') }), genres], { cls: 'bt-sec bt-stations' });
   }
   // (Wide: each station and genre its own cover, the radio's beside the genres', 全部類型 at their head.)
   const tile = (id, part = null) =>
@@ -307,7 +340,7 @@ export function mountHome(panel, api) {
     const ids = [...new Set(['all', ...forYou, ...moods])].filter(id => id !== now.id);
     const all = () => genreSheet({ title: W('全部類型', 'All genres'), onPick: g => P.station(`style:${g}`) });
     return h('div', { class: 'bt-pair bt-stations' }, [
-      kitUI.section(W('電台', 'Radio'), h('div', { class: 'bt-stiles q-rows-full q-rows-keep' }, [tile(now.id, now.part), ...ids.map(id => tile(id))]), { cls: 'bt-sec' }),
+      kitUI.section(W('電台', 'Radio'), [sayBar(), h('div', { class: 'bt-stiles q-rows-full q-rows-keep' }, [tile(now.id, now.part), ...ids.map(id => tile(id))])], { cls: 'bt-sec' }),
       kitUI.section(W('類型', 'Genres'), h('div', { class: 'bt-stiles q-rows-full q-rows-keep' }, rows.find(r => r.key === 'genres').ids.map(id => tile(id))), { cls: 'bt-sec', more: W('全部類型', 'All genres'), onMore: all })
     ]);
   }

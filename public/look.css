@@ -755,3 +755,18 @@ html[data-look='native'] .np-play svg {
   width: 36px;
   height: 36px;
 }
+
+/* 用說的做節奏: the AI bar above the stations, a line under it for what it chose. */
+html[data-look='native'] .bt-say {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+html[data-look='native'] .bt-say-note {
+  margin: 0 4px;
+  color: var(--q-label-2);
+  font: var(--q-t-footnote);
+}
+html[data-look='native'] .bt-say-note:empty {
+  display: none;
+}

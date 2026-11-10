@@ -31,6 +31,9 @@ export function stationFilter(id, taste = {}) {
     const t = TEMPOS[s.slice(6)];
     return t ? { mood: 'all', bpm: t.bpm } : { mood: 'all' };
   }
+  // 用說的做節奏 (lib/say.mjs): the grooves and the tempo read from the words.
+  const said = sayOf(s);
+  if (said) return { mood: 'all', ...(said.styles.length ? { styles: said.styles } : {}), ...(said.bpm ? { bpm: said.bpm } : {}) };
   if (s === 'taste') {
     const top = tasteList(taste, 4).map(([x]) => x);
     return top.length ? { mood: 'all', styles: top } : { mood: 'all', styles: POPULAR };
@@ -38,7 +41,15 @@ export function stationFilter(id, taste = {}) {
   return { mood: 'all' };
 }
 // An id that is a station, else 'all'.
-export const stationId = id => (id === 'taste' || MOODS[id] || /^style:[a-z]+$/.test(id) || /^tempo:(slow|mid|fast)$/.test(id) ? id : 'all');
+export const stationId = id => (id === 'taste' || MOODS[id] || /^style:[a-z]+$/.test(id) || /^tempo:(slow|mid|fast)$/.test(id) || sayOf(id) ? id : 'all');
+// A said station, say:lofi.jazz@60-95 → { styles, bpm }, or null.
+export function sayOf(id) {
+  const m = /^say:([a-z]+(?:\.[a-z]+)*)?(?:@(\d{2,3})-(\d{2,3}))?$/.exec(String(id || ''));
+  if (!m || (!m[1] && !m[2])) return null;
+  const styles = (m[1] || '').split('.').filter(x => STYLE_ORDER.includes(x));
+  const bpm = m[2] ? [Number(m[2]), Number(m[3])] : null;
+  return styles.length || bpm ? { styles, bpm } : null;
+}
 
 // The rows of 首頁: [{ key, ids: [station id] }]. 為你推薦 is the taste stations (your mix, then the grooves
 // you keep most) and is empty until something is kept: 今日精選's songs speak for it. 瀏覽類型 is eight
@@ -84,5 +95,12 @@ export function stationName(id) {
   if (MOODS[s]) return W(MOODS[s].zh, MOODS[s].en);
   if (/^style:/.test(s)) return name(STYLE_NAMES, s.slice(6));
   if (/^tempo:/.test(s)) return TEMPOS[s.slice(6)] ? W(TEMPOS[s.slice(6)].zh, TEMPOS[s.slice(6)].en) : s;
+  const said = sayOf(s);
+  if (said) {
+    // (Its first two grooves and how fast: Lo-fi・爵士搖擺 · 慢.)
+    const tempo = said.bpm ? Object.values(TEMPOS).find(t => said.bpm[0] >= t.bpm[0] - 10 && said.bpm[1] <= t.bpm[1] + 10) : null;
+    const names = said.styles.slice(0, 2).map(x => name(STYLE_NAMES, x)).join('・') + (said.styles.length > 2 ? W('等', ' +') : '');
+    return [names, tempo ? W(tempo.zh, tempo.en) : said.bpm ? `${said.bpm[0]}–${said.bpm[1]} BPM` : ''].filter(Boolean).join(' · ') || W('你說的', 'Yours');
+  }
   return s === 'taste' ? W('我的口味', 'Your mix') : W('隨機', 'Random');
 }
