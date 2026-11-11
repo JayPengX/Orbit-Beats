@@ -320,6 +320,7 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
 | `lib/library.mjs`, `lib/lists.mjs` | 資料庫: search, order, zip; playlists |
 | `lib/sections.mjs` | 做歌: section times and the playing section |
 | `lib/radio.mjs`, `lib/radioview.mjs` | 聽: songs out of nothing, the join between them; its screen and player |
+| `lib/focus.mjs` | 專注配樂 (the AI plan's family links): the radio's calm grooves (放鬆's lofi, ambient, bossa, neo-soul; 爵士's jazz) one after another, for Orbit Class's 專注飛行, which imports this file from this site on its tap (same origin, made on the phone in this app's worker with its recorded instruments; never Beats' page, library or Pass copy) |
 | `lib/cover.mjs`, `lib/listen.mjs` | 聽's covers; its sleep timer, recently played and the taste from listening (`tasteFrom`) |
 | `lib/tape.mjs` | 聽's one stream: FLAC frames, or AAC / Opus from AudioEncoder, in MP4 for Media Source; which way a phone plays; the songs in order (the hook again while waiting) |
 | `lib/easy.mjs`, `lib/help.mjs` | 簡單 / 進階 and 簡單's fixed settings; the music words and their examples |
