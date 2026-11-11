@@ -94,7 +94,7 @@ const subText = song => [song.info?.style ? name(STYLE_NAMES, song.info.style) :
 // d: { panel, row(song, listId), play(song), goMake(), zip(list), cover(song) -> url, songMenu(song, anchor),
 //      recent() -> [{ track, cover, sub }] (the radio's, to keep), keepTrack(track), playTrack(track), goListen(),
 //      others() -> Promise<[{ icon, title, value, onClick }]> (what else is kept: kits, clips, game records; only what there is)
-export function libraryView({ panel, row, goMake, zip, play, cover = () => '', songMenu = () => {}, recent = () => [], keepTrack = () => {}, playTrack = () => {}, goListen = () => {}, others = async () => [] }) {
+export function libraryView({ panel, row, goMake, zip, play, cover = () => '', songMenu = () => {}, recent = () => [], keepTrack = () => {}, playTrack = () => {}, goListen = () => {}, others = async () => [], onLists = () => {} }) {
   let kind = null; // the songs page shows one kind only (null: all)
   let extra = [];
   let songs = [];
@@ -115,14 +115,17 @@ export function libraryView({ panel, row, goMake, zip, play, cover = () => '', s
     draw();
     panel.scrollIntoView?.({ block: 'start' });
   }
-  function saveLists(next) {
-    if (!listsOk) return toast(W('讀不到清單，先不存', "Couldn't read the lists: not saved"), { tone: 'bad' });
+  // (`synced`: the lists as the Pass has them, not a change made here to send.)
+  function saveLists(next, synced = false) {
+    if (!listsOk) return synced ? false : toast(W('讀不到清單，先不存', "Couldn't read the lists: not saved"), { tone: 'bad' });
     try {
       localStorage.setItem(LISTS, JSON.stringify(next));
     } catch {
-      return toast(W('存不下：手機空間不夠？', "Couldn't save: phone storage full?"), { tone: 'bad' });
+      return synced ? false : toast(W('存不下：手機空間不夠？', "Couldn't save: phone storage full?"), { tone: 'bad' });
     }
+    const was = lists;
     lists = next;
+    if (!synced) onLists(was, next);
     if (!panel.hidden) draw();
     return true;
   }
@@ -318,6 +321,17 @@ export function libraryView({ panel, row, goMake, zip, play, cover = () => '', s
     add(rec) {
       songs = [rec, ...songs.filter(s => s.id !== rec.id)];
       if (shownNow()) draw();
+    },
+    // Songs from the Pass, all at once (their sound made when first wanted).
+    addAll(recs) {
+      const ids = new Set(recs.map(r => r.id));
+      songs = [...recs, ...songs.filter(s => !ids.has(s.id))];
+      if (recs.length && shownNow()) draw();
+    },
+    // 清單 as the Pass has them (null: the lists here couldn't be read, so left alone).
+    lists: () => (listsOk ? lists : null),
+    setLists(next) {
+      if (JSON.stringify(next) !== JSON.stringify(lists)) saveLists(next, true);
     },
     remove(id) {
       songs = songs.filter(s => s.id !== id);

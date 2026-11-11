@@ -244,10 +244,21 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
   something plays).
 - **Saved:**
   - On the phone: the last kit's sound and the kept songs.
-  - On the Pass (app `beats`, `{ v: 1, settings, kits, taste }`): settings
+  - On the Pass (app `beats`, `{ v: 1, settings, kits, taste, songs, lists }`): settings
     (簡單 / 進階 and what 聽 plays among them),
     and each kit's tempo and hand-set roles, keyed by a fingerprint of its
     sound. The newest 40 kits.
+  - **資料庫 on every phone** (`lib/songsync.mjs`, Jay 2026-11-11): a kept song made on the
+    app's own band (聽, 簡單's batches, a remix of one, a take on 即興's built-in set) goes up
+    as its recipe alone (seed, groove, the remix's choices; its name, tempo, length, key and
+    sections for the row: about 300 bytes, never the sound), the newest that fit 150 KB; 清單
+    too. Another phone lists it at once with no sound (`sound: null`) and makes it from the
+    recipe when first played or exported (`soundFor`, said after 0.4 s) or behind everything
+    else (`fillSounds`), packed and kept as if kept there. Taken out, renamed or a list changed
+    on one phone: the same on the others (each entry the later change; a gone mark 120 days).
+    A song of your own pieces stays on its phone (their sound never leaves it). Written through
+    the kit's `passSync`: the Pass's copy read and merged before every write, so two phones
+    never drop each other's songs.
 - **Offline:** works fully (`sw.js` keeps every file).
 
 ## Decisions in force
@@ -297,6 +308,7 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
 | `analyze.mjs` | Hearing tempo and roles |
 | `lib/sources.mjs`, `lib/rhythm.mjs` | Files to one rate, split on silence, then by the beat; the beat, bars and patterns heard |
 | `lib/kits.mjs` | Fingerprint, the Pass payload, the phone's kit and songs |
+| `lib/songsync.mjs` | 資料庫's songs (as recipes) and 清單 on the Pass, merged with every phone's |
 | `lib/synth.mjs`, `lib/studio.mjs` | Instruments and 自動編; the 樂器 tab |
 | `lib/mix.mjs` | The mixer: buses, glue, width, room, the master (loudness, saturation, limiter), stems |
 | `lib/make.mjs`, `lib/maker.mjs`, `lib/maker.worker.mjs` | Making songs in a worker |

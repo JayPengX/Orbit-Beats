@@ -3,11 +3,13 @@
 // so the same pieces on another phone find them); on this phone, the last
 // kit's sound itself (IndexedDB: megabytes, never sent anywhere).
 //
-// The Pass's payload: { v: 1, settings: { …, at }, kits: { <fp>: { bpm, roles: { <piece>: role }, at } } }.
+// The Pass's payload: { v: 1, settings: { …, at }, kits: { <fp>: { bpm, roles: { <piece>: role }, at } }, taste,
+// songs, lists } (songs and lists: 資料庫's songs made on the app's own band, as recipes, and 清單; lib/songsync.mjs).
 
 import { STYLES } from '../engine.mjs';
 import { mixOf } from './mix.mjs';
 import { levelOk } from './easy.mjs';
+import { songsMap, listsMap, mergeMap, trimSongs } from './songsync.mjs';
 
 // (mood, smart, studioBpm and mix were set on the page but never kept until 2026-10-18: they came back as they open.)
 // (level, 2026-10-18: 簡單 / 進階, lib/easy.mjs; radioMood: what 聽 plays, lib/radio.mjs.)
@@ -71,16 +73,16 @@ export function fingerprint(sources) {
 }
 
 export function decode(text) {
-  const none = { v: 1, settings: null, kits: {}, taste: {} };
+  const none = { v: 1, settings: null, kits: {}, taste: {}, songs: {}, lists: {} };
   try {
     const p = JSON.parse(text || 'null');
     if (!p || p.v !== 1) return none;
-    return { v: 1, settings: p.settings && typeof p.settings === 'object' ? p.settings : null, kits: p.kits && typeof p.kits === 'object' ? p.kits : {}, taste: tasteOf(p.taste) };
+    return { v: 1, settings: p.settings && typeof p.settings === 'object' ? p.settings : null, kits: p.kits && typeof p.kits === 'object' ? p.kits : {}, taste: tasteOf(p.taste), songs: songsMap(p.songs), lists: listsMap(p.lists) };
   } catch {
     return none;
   }
 }
-export const encode = p => JSON.stringify({ v: 1, settings: p.settings || null, kits: p.kits || {}, taste: p.taste || {} });
+export const encode = p => JSON.stringify({ v: 1, settings: p.settings || null, kits: p.kits || {}, taste: p.taste || {}, songs: trimSongs(p.songs || {}), lists: p.lists || {} });
 // The styles of the songs kept (歌單): { style: how many }, what a batch leans to.
 const tasteOf = t => Object.fromEntries(Object.entries(t && typeof t === 'object' ? t : {}).filter(([k, v]) => /^[a-z]+$/.test(k) && Number.isFinite(v) && v > 0).map(([k, v]) => [k, Math.min(999, Math.round(v))]));
 export function liked(taste, style, d = 1) {
@@ -108,7 +110,8 @@ export function merge(a, b) {
   // (Taste: each style's larger count, the phones' kept songs not added twice.)
   const taste = { ...(a.taste || {}) };
   for (const [k, v] of Object.entries(b.taste || {})) taste[k] = Math.max(taste[k] || 0, v);
-  return { v: 1, settings, kits: Object.fromEntries(newest), taste };
+  // (Songs and lists: each the later change, lib/songsync.mjs.)
+  return { v: 1, settings, kits: Object.fromEntries(newest), taste, songs: mergeMap(a.songs, b.songs), lists: mergeMap(a.lists, b.lists) };
 }
 
 // A kit's entry: its tempo when set by hand (or as heard, to skip hearing it

@@ -11,12 +11,14 @@
 import { banksFor } from './lib/sampleload.mjs';
 import { orbitSession, storedAccount, topActions, installGate, watchUpdates, keepOffline, tabBar, ask } from '#kit/orbit.mjs';
 import * as kit from '#kit/orbit.mjs';
+import { passSync } from '#kit/pass-sync.mjs';
 import { h, sheet, menu, toast, toggle, empty } from './lib/ui.mjs';
 import * as ui from './lib/ui.mjs';
 import { sectionTimes, sectionIndex, labelFits } from './lib/sections.mjs';
 import { STYLES, SECTIONS, ROLES, makeRng, NOTE_NAMES, keyOf, pieceChroma, parseWav, analyzeRecording, guessRole, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
 import { atRate, splitAll, baseName, planAll, unplanned, beatTempo, cutWay } from './lib/sources.mjs';
 import { fingerprint, decode, encode, merge, keptSettings, settingsOf, DEFAULTS, kitEntry, saveLast, loadLast, liked, saveSong, listSongs, deleteSong, getSong, swapSong, dropTemps, tempId, renameSong, forgetLast, saveNamed, deleteNamed, listNamed, renameNamed } from './lib/kits.mjs';
+import { songsPlan, songEntry, syncable, soundless, listsChanged, listsPlan } from './lib/songsync.mjs';
 import { dropPieces, snapOf, rolesBack, undoStack, namedKit, kitFrom, freeName } from './lib/kitops.mjs';
 import { voice, renderClip, DRUM_NAMES, INSTRUMENT_ROLE, INSTRUMENT_NAMES } from './lib/synth.mjs';
 import { MIX, mixOf, STEMS } from './lib/mix.mjs';
@@ -174,16 +176,30 @@ function setLevel(v) {
   toast(v === 'pro' ? W('進階：所有工具都在', 'Advanced: every tool shown') : W('簡單：只留做歌需要的', 'Simple: just what you need'), { ms: 1600 });
 }
 
+// The Pass's copy is read and merged in before anything is written over it (the kit's pass-sync:
+// two phones each keeping songs never lose the other's), a change going up 1.5 s later.
+// (decode: a copy that can't be read is null, so it's never written over.)
+const passCopy = text => {
+  try {
+    const p = JSON.parse(text || 'null');
+    return p === null || p?.v === 1 ? decode(text) : null;
+  } catch {
+    return null;
+  }
+};
+const pass = passSync(q, { decode: passCopy, encode: () => encode(kept), apply: theirs => takePass(theirs) });
 let shareTimer = 0;
 function keep(share = true) {
   try {
     localStorage.setItem(KEY, encode(kept));
   } catch {}
   if (share) {
+    pass.changed();
     clearTimeout(shareTimer);
-    shareTimer = setTimeout(() => q.active && q.write({ payload: encode(kept) }).catch(() => {}), 1500);
+    shareTimer = setTimeout(() => pass.sync(), 1500);
   }
 }
+document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && pass.dirty && (clearTimeout(shareTimer), pass.sync()));
 const save = () => {
   kept.settings = keptSettings(settings);
   keep();
@@ -1263,6 +1279,8 @@ const lib = libraryView({
   keepTrack: t => keepRadio({ id: t.id, title: t.title, spec: { seed: t.seed, mood: t.mood }, info: { style: t.style, bpm: t.bpm, key: t.key } }),
   playTrack: t => P.play(t),
   goListen: () => (showTab('home'), P.station('all')),
+  // (清單 changed here: onto the Pass.)
+  onLists: (was, now) => ((kept.lists = listsChanged(kept.lists, was, now)), keep()),
   // (Everything else kept on this phone, in 資料庫 too: 我的套組, the pieces in 做歌, 節奏遊戲's records.)
   others: async () => {
     const kits = await listNamed().catch(() => []);
@@ -1634,7 +1652,7 @@ async function clipOf(x) {
   } else {
     // (Not made again: cut from the sound itself, all of it.)
     try {
-      decoded = song.data ? parseWav(song.data) : await keptAudio(lib.get(song.id) || song);
+      decoded = song.data ? parseWav(song.data) : await keptAudio(await soundFor(lib.get(song.id) || song));
     } catch {}
     if (!decoded) return toast(W('讀不了這首歌', "Can't read that song"), { tone: 'bad' });
   }
@@ -1769,6 +1787,7 @@ let trackMenuOf = () => {};
 let openNowOf = () => {}; // (Now Playing, once the player's screens are up)
 async function urlOf(song) {
   if (song.url) return song.url;
+  if (soundless(lib.get(song.id) || song)) await soundNow(lib.get(song.id) || song);
   // (The kept record as it is now: 資料庫瘦身 may have packed it since its row was drawn.)
   if (!urls.has(song.id)) urls.set(song.id, URL.createObjectURL(soundOf(lib.get(song.id) || song)));
   return urls.get(song.id);
@@ -1984,6 +2003,8 @@ async function keepSong(song, { quiet = false } = {}) {
   if (lib.has(song.id)) {
     await deleteSong(song.id).catch(() => {});
     lib.remove(song.id);
+    // (Out of 資料庫 on every phone with this Pass.)
+    if (kept.songs[song.id]) kept.songs[song.id] = { g: Date.now() };
     if (song.info.style) kept.taste = liked(kept.taste, song.info.style, -1);
     keep();
     refreshHearts(song.id);
@@ -2009,6 +2030,8 @@ async function keepSong(song, { quiet = false } = {}) {
   }
   navigator.storage?.persist?.().catch(() => {});
   lib.add(rec);
+  // (Made on the app's own band: its recipe onto the Pass, a few hundred bytes; lib/songsync.mjs.)
+  if (syncable(rec)) kept.songs[rec.id] = songEntry(rec);
   // The songs kept, toward the 十首歌 milestone.
   listSongs().then(all => kit.milestone?.(q, 'beats', all.length), () => {});
   if (song.info.style) kept.taste = liked(kept.taste, song.info.style, 1);
@@ -2017,6 +2040,102 @@ async function keepSong(song, { quiet = false } = {}) {
   tasteHint();
   quiet || toast(W('已存到資料庫', 'Kept in Library'));
 }
+// ---- 資料庫 on every phone: the Pass's songs and 清單 (lib/songsync.mjs) ----
+// A song made on the app's own band comes as its recipe; its sound is made
+// here when it's first wanted (played, exported), or behind everything else
+// one at a time, packed small and kept as if it had been kept here.
+
+// The Pass's copy read (at sign-in, on coming back): merged in, the settings
+// and 資料庫 brought in step. (Written up by pass-sync when this phone had anything it lacked.)
+async function takePass(theirs) {
+  const before = JSON.stringify(kept.settings) + JSON.stringify(kept.kits);
+  kept = merge(kept, theirs);
+  if (JSON.stringify(kept.settings) + JSON.stringify(kept.kits) !== before) {
+    settings = settingsOf(kept.settings, settings);
+    applyLevel();
+    showSettings();
+    if (sources.length && kept.kits[print] && !edited.size) split();
+  }
+  await syncSongs();
+}
+async function syncSongs() {
+  await lib.read();
+  const plan = songsPlan(kept.songs, lib.all());
+  kept.songs = plan.map;
+  let changed = plan.add.length + plan.drop.length + plan.rename.length;
+  for (const id of plan.drop) {
+    await deleteSong(id).catch(() => {});
+    lib.remove(id);
+    refreshHearts(id);
+  }
+  for (const [id, n] of plan.rename) {
+    await renameSong(id, n).catch(() => {});
+    lib.rename(id, n);
+  }
+  const added = [];
+  for (const rec of plan.add) if (await saveSong(rec).then(() => true, () => false)) added.push(rec);
+  lib.addAll(added);
+  for (const rec of added) refreshHearts(rec.id);
+  const here = lib.lists();
+  if (here) {
+    const lp = listsPlan(kept.lists, here);
+    kept.lists = lp.map;
+    lib.setLists(lp.lists);
+  }
+  keep(false);
+  if (changed) home?.refresh();
+  if (added.length) setTimeout(() => fillSounds().catch(() => {}), 6000);
+}
+// A song from the Pass with its sound made and kept (once, however often it's asked for). -> the record
+const making = new Map();
+function soundFor(rec) {
+  if (!soundless(rec)) return Promise.resolve(rec);
+  if (!making.has(rec.id))
+    making.set(
+      rec.id,
+      (async () => {
+        const r = rec.recipe;
+        const { info, wav } = r.print === 'radio' ? await make.radioWav(r.radio) : await make.song(r, 16);
+        const small = await packSong(wav, { built: true });
+        const now = lib.get(rec.id);
+        const done = { ...(now || rec), info: { ...rec.info, ...info }, sound: small.sound, form: small.form, sr: small.sr, seconds: small.seconds };
+        if (now) {
+          await saveSong(done);
+          lib.replace(done);
+        }
+        return done;
+      })().finally(() => making.delete(rec.id))
+    );
+  return making.get(rec.id);
+}
+// The same, said when it takes a moment (a tap on one not made yet).
+async function soundNow(rec) {
+  const slow = setTimeout(() => toast(W('正在做這首歌…', 'Making this song…'), { ms: 10000 }), 400);
+  try {
+    return await soundFor(rec);
+  } finally {
+    clearTimeout(slow);
+    document.querySelector('.q-toast')?.remove();
+  }
+}
+// Every song from the Pass not made yet, one at a time behind everything else
+// (never while a batch is made, 樂器 or 即興 play, or a song plays, or out of sight).
+let filling = false;
+async function fillSounds() {
+  if (filling) return;
+  filling = true;
+  try {
+    for (;;) {
+      while (busy || studio?.playing() || jam?.playing() || (nowPlaying && !audio.paused) || radio?.playing?.() || document.visibilityState === 'hidden') await sleep(5000);
+      const next = lib.all().find(r => soundless(r) && !making.has(r.id));
+      if (!next) return;
+      await soundFor(next).catch(() => sleep(30000));
+    }
+  } finally {
+    filling = false;
+  }
+}
+
 // One rule for what's kept: a song you make is kept in 資料庫 as it's made
 // (做歌, 樂器, 即興, 重新混音, a variation); a radio song when you ♡ it. The
 // toast counts what was just kept, and 復原 takes those out again.
@@ -2066,6 +2185,8 @@ async function wavOf(song) {
         if (mine) await kitToMaker();
         ({ wav } = await make.song(rec.recipe, cfg().bits));
       }
+      // (From the Pass, its sound not made here yet: made now, whole.)
+      if (soundless(rec)) return { blob: new Blob([wav], { type: 'audio/wav' }), note: '' };
       kept = await keptAudio(rec);
       if (sameSong(parseWav(wav), kept)) return { blob: new Blob([wav], { type: 'audio/wav' }), note: '' };
     } catch {}
@@ -2193,6 +2314,7 @@ function renameKept(song) {
     if (!v || v === song.name) return;
     await renameSong(song.id, v).catch(() => {});
     lib.rename(song.id, v);
+    if (kept.songs[song.id] && !kept.songs[song.id].g) (kept.songs[song.id] = { ...kept.songs[song.id], n: v, u: Date.now() }), keep();
     for (const x of songs) if (x.id === song.id) x.name = v;
     for (const li of rowsOf(song.id)) li.querySelector('.name').textContent = v;
     P?.refresh();
@@ -2655,18 +2777,11 @@ async function boot() {
   setTimeout(() => slimLibrary().catch(() => {}), 4000);
   const first = await q.start().catch(() => null);
   signedIn();
-  const theirs = decode(first?.payload || 'null');
-  const before = encode(kept);
-  kept = merge(kept, theirs);
-  if (encode(kept) !== before) {
-    settings = settingsOf(kept.settings, settings);
-    applyLevel();
-    showSettings();
-    if (sources.length && kept.kits[print] && !edited.size) split();
-  }
-  keep(encode(kept) !== (first?.payload || ''));
+  // (The Pass's copy merged in; this phone's own goes up if the Pass lacks any of it, songs and lists too.)
+  await pass.first(first, { local: true });
+  if (!first || first.offline || typeof first.payload !== 'string') await syncSongs();
+  pass.watch();
 }
-q.on('active', live => live && keep());
 if (!gated) boot();
 
 // Opens without a connection: the kit registers the worker and has it keep every file loaded.
