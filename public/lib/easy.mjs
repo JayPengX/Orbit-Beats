@@ -26,7 +26,7 @@ export const PRO_ONLY = [
   'make-length-slider', 'make-legend', 'make-card', 'make-piece', 'studio-head'
 ];
 // Only in Simple.
-export const SIMPLE_ONLY = ['make-easy', 'make-mood-cards', 'jam-easy', 'jam-band', 'jam-keep', 'make-ingredients', 'studio-parts'];
+export const SIMPLE_ONLY = ['make-easy', 'make-mood-cards', 'jam-band', 'jam-keep', 'make-ingredients', 'studio-parts'];
 export const levelOk = v => LEVELS.includes(v);
 // Whether a control shows at this level.
 export const shows = (level, ctl) => (level === 'pro' ? !SIMPLE_ONLY.includes(ctl) : !PRO_ONLY.includes(ctl));

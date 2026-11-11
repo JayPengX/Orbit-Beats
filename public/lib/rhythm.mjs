@@ -140,8 +140,7 @@ export function pulseOf({ env, lowEnv }, low = PULSE_LOW) {
   const a = std(env) || 1, b = std(lowEnv) || 1;
   return env.map((v, f) => v / a + (low * lowEnv[f]) / b);
 }
-export let PULSE_LOW = 0.5;
-export const setPulseLow = v => (PULSE_LOW = v);
+const PULSE_LOW = 0.5;
 
 // ---- Tempo ----
 

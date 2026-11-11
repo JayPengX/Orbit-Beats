@@ -7,8 +7,8 @@
 // four-bar parts in step with each other, one of a group at a time); a
 // one-shot plays on the next step of the grid (16th, 8th, beat, or as
 // tapped). ● records from the next bar; stopped, what was played (the groove
-// too, when it's on) becomes a song (api.take, mixed like any other), in
-// 做歌. A long press on a pad: its level, mute and choke (kept per kit on
+// too, when it's on) becomes a song (api.take, mixed like any other), kept
+// in 資料庫 and listed in 即興's takes row. A long press on a pad: its level, mute and choke (kept per kit on
 // this phone, by the kit's fingerprint; the built-in set's as one).
 import { h, segmented, sheet, toggle, toast } from './ui.mjs';
 import { STYLES, drumKit, grooveHits, loopBeats } from '../engine.mjs';
@@ -684,7 +684,7 @@ export function mountJam(panel, api) {
       if (!t.hits.length) continue;
       const { hits: took, beats } = trimTake(t.hits, t.beats, t.from);
       // (Kept: its cover arrives first in 你的即興 with a little pop.)
-      Promise.resolve(api.take(took, beats, from, { keep: true })).then(() => (paintTakes(), takesRow.firstElementChild?.classList.add('fresh')), () => {});
+      Promise.resolve(api.take(took, beats, from)).then(() => (paintTakes(), takesRow.firstElementChild?.classList.add('fresh')), () => {});
     }
   }
   // The beat: which of the four beats of the bar, and the loops' tiles (on, waiting for the bar, leaving).

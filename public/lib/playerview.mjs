@@ -1,7 +1,7 @@
 // The player's screens: the mini bar over the tab bar, Now Playing (a full
 // screen sheet), the queue sheet and a song's ⋯ menu. They draw lib/player.mjs's
 // state; the sound is not here.
-import { h, sheet, menu, tickText } from './ui.mjs';
+import { h, sheet, tickText } from './ui.mjs';
 import { icon } from './icons.mjs';
 import { STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
@@ -45,32 +45,14 @@ export function onLong(el, fn) {
   el.addEventListener('click', e => held && (e.stopImmediatePropagation(), e.preventDefault(), (held = false)), true);
 }
 
-// core: { kept(track), toggleKeep(track), share(track), inLibrary(track), remove(track), sleep(anchor), sleeping() }
+// core: { menu(track, anchor, o) (the ⋯ sheet), kept(track), toggleKeep(track), clip(track)?, sleep(anchor), sleeping() }
 export function mountPlayerView(P, core, { mini, npHost = document.body }) {
   const q = sel => mini.querySelector(sel);
 
   // ---- ⋯ ----
   // np: opened from Now Playing, where the song is already playing and ♡ and ✂ sit beside the ⋯.
-  function trackMenu(track, anchor, { np = false } = {}) {
-    if (core.menu) return core.menu(track, anchor, { np, after: () => paint() });
-    const kept = core.kept(track);
-    const header = { cover: coverOfTrack(track), title: track.title, sub: subOf(track) };
-    menu(
-      anchor,
-      [
-        ...(np ? [] : [{ label: W('播放', 'Play'), icon: 'play', onClick: () => P.play(track) }]),
-        { label: W('插播', 'Play next'), icon: 'play_next', onClick: () => P.playNext(track) },
-        { label: W('稍後播放', 'Play later'), icon: 'play_later', onClick: () => P.playLater(track) },
-        'divider',
-        ...(np ? [] : [{ label: kept ? W('取消收藏', 'Remove from Library') : W('收藏', 'Keep'), icon: kept ? 'heart-fill' : 'heart', onClick: () => core.toggleKeep(track).then(() => paint()) }]),
-        { label: W('分享', 'Share'), icon: 'share', onClick: () => core.share(track) },
-        ...(core.game && Number.isFinite(track.seed) && track.style ? [{ label: W('玩節奏遊戲', 'Play the rhythm game'), icon: 'grid', onClick: () => core.game(track) }] : []),
-        ...(core.remix ? [{ label: W('重新混音', 'Remix'), icon: 'shuffle', onClick: () => core.remix(track) }, ...(np ? [] : [{ label: W('取出片段', 'Take a clip'), icon: 'cut', onClick: () => core.clip(track) }])] : []),
-        ...(core.inLibrary(track) ? ['divider', { label: W('從資料庫移除', 'Remove from Library'), icon: 'trash', danger: true, onClick: () => core.remove(track) }] : [])
-      ],
-      { header, scrim: true }
-    );
-  }
+  // (The sheet is app.js's songSheet, core.menu.)
+  const trackMenu = (track, anchor, { np = false } = {}) => core.menu(track, anchor, { np, after: () => paint() });
 
   // ---- The mini bar ----
   const main = q('.mp-main');

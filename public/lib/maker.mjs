@@ -119,6 +119,8 @@ export function maker(url, { limit = 90000, prep = null } = {}) {
     return true;
   }
   const ask = (fn, ...args) => {
+    // (The 測試工具's 歌都做不出來, testing.mjs.)
+    if (globalThis.ORBIT_TEST?.flags?.makeFail && fn !== 'setKit') return Promise.reject(new Error('test: making fails'));
     if (!prep) return call(fn, ...args);
     const posted = line
       .then(() => prep(fn, args, sent))

@@ -27,7 +27,7 @@ Jay's, dated (Taiwan day), newest wins; the family's are in Orbit-Core `docs/RUL
 ## How it works
 
 - **Tabs:** 首頁 (the player: cover, ▶, the song's parts as one line; 接下來, 今日精選, 電台 and 類型, 最近播放, 你的歌, 自己做; `lib/homeview.mjs`) · 創作 (即興's card and sets, 樂器, 做歌, 節奏遊戲, 你的歌; `hubDraw` in `app.js`) · 資料庫 (kept songs in IndexedDB, 清單). 簡單 / 進階 (`lib/easy.mjs`): 簡單 has fixed settings of its own; controls only one mode shows carry `data-ctl`. Wide screens draw their own layouts (`isWide()`, `.bt-wide`, `.cr-wide`, `.lib-split`).
-- **聽** (`lib/radio.mjs`, `radioview.mjs`): each song is its own band on the app's instruments in a groove of the mood, made by the worker two ahead (`lib/maker.mjs`), next picked by `radioPick` (no groove within the last six, the seed that repeats least of the last eight, `MEMORY`; `tests/variety*.test.mjs`). One endless stream where Media Source can take it (`lib/tape.mjs`: FLAC, AAC or Opus in MP4), else file by file; the way taken in `localStorage['orbit-beats-radio-path']` (`?debug`). Covers from the seed (`lib/cover.mjs`); 睡眠定時; lock-screen controls.
+- **聽** (`lib/radio.mjs`, `radioview.mjs`): each song is its own band on the app's instruments in a groove of the mood, made by the worker two ahead (`lib/maker.mjs`), next picked by `radioPick` (no groove within the last six, the seed that repeats least of the last eight, `MEMORY`; `tests/variety*.test.mjs`). One endless stream where Media Source can take it (`lib/tape.mjs`: FLAC, AAC or Opus in MP4), else file by file; the way taken in `localStorage['orbit-beats-radio-path']` (shown by the 測試工具's 電台走哪條路). Covers from the seed (`lib/cover.mjs`); 睡眠定時; lock-screen controls.
 - **Out of sight:** the Orbit apps share one WebKit and likely one audio session; Beats names its sound music (`navigator.audioSession.type = 'playback'`, `soundAs`) from its first sound, keeps one song ahead out of sight, and the workers let go of their instruments (`letGo`). The 除錯紀錄 notes `beats-yielded` and `beats-gone`.
 - **Pieces in** (`lib/sources.mjs`, `lib/rhythm.mjs`): split on silences, then any long stretch cut by its beat (librosa's methods ported: SuperFlux onsets, tempo by autocorrelation, Ellis's beats, the bar, patterns by self-similarity; `node scripts/beat-eval.mjs 24`). Tempo, roles and key heard by `analyze.mjs`. Arrangement in the usual song form; 49 grooves (`STYLES` in `engine.mjs`, mirrored in the script; names in `lib/names.mjs`).
 - **Mix** (`lib/mix.mjs`): buses, glue, width, room, sidechain, then one RMS, saturation and a -1 dBFS limiter; stems add up to the mix.
@@ -42,6 +42,7 @@ Jay's, dated (Taiwan day), newest wins; the family's are in Orbit-Core `docs/RUL
 | File | What |
 | --- | --- |
 | `app.js`, `index.html` | The page, tabs, player, library |
+| `testing.mjs` | The app's switches in the kit's hidden 測試工具 (never saved or sent): flags `makeFail`, `instruments` (slow/fail), `storageFull`, `gameAuto` (no record kept), `radioPath`; actions 別的聲音接手 / 聲音被打斷 (the `orbit-beats-test` event) and 電台走哪條路 |
 | `engine.mjs` | Song planning and rendering (port of the script) |
 | `analyze.mjs` | Hearing tempo and roles |
 | `lib/sources.mjs`, `lib/rhythm.mjs` | Files to one rate, split on silence, then by the beat; the beat, bars and patterns heard |

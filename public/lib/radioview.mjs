@@ -216,6 +216,7 @@ export function mountRadio(panel, api) {
       localStorage.setItem('orbit-beats-next', JSON.stringify(nexts));
     } catch {}
   };
+  // (An opening kept under 'o:…', from before 11-03 when 首頁 had every row's openings made ahead, still plays at once.)
   const okey = e => `o:${heardKey(e)}`;
   const keptFor = id => (nexts[id] && (heardHasNow(heardKey(nexts[id])) || heardHasNow(okey(nexts[id]))) ? nexts[id] : null);
   heardHas('').then(prepNext);
@@ -223,7 +224,7 @@ export function mountRadio(panel, api) {
     // (Not till what's kept is known.)
     if (heardHasNow('') === null) return;
     const id = HOME.find(i => !keptFor(i));
-    if (!id) return openAhead();
+    if (!id) return;
     if (preparing || q.busy || looking || starting || document.visibilityState === 'hidden') return;
     if (want && q.ready.length + (upcoming() ? 1 : 0) < 2) return;
     const f = stationFilter(id, api.taste?.());
@@ -237,39 +238,6 @@ export function mountRadio(panel, api) {
       })
       .catch(() => {})
       .finally(() => preparing === mine && ((preparing = false), setTimeout(prepNext, 300)));
-  }
-  // The openings of the rest of 首頁 (lib/homeview.mjs radio.ahead()): its songs, and its stations' next songs,
-  // made one at a time on the opening's worker when nothing else is, and kept on the phone: a tap on any
-  // plays its opening at once, the song made while it plays.
-  const aheadSongs = [];
-  const aheadStations = [];
-  let opensMade = 0;
-  function openings({ songs = [], stations = [] } = {}) {
-    aheadSongs.splice(0, Infinity, ...songs.map(e => ({ seed: e.seed, mood: e.mood || 'all', style: e.style })));
-    aheadStations.splice(0, Infinity, ...new Set(stations.map(stationId)));
-    prepNext();
-  }
-  function openAhead() {
-    if (!api.quick || preparing || q.busy || looking || starting || document.visibilityState === 'hidden') return;
-    if (want && q.ready.length + (upcoming() ? 1 : 0) < 2) return;
-    const id = aheadStations.find(i => !HOME.includes(i) && !keptFor(i));
-    const song = id ? null : aheadSongs.find(e => !heardHasNow(heardKey(e)) && !heardHasNow(okey(e)));
-    // (All made: the worker let go of their instruments.)
-    if (!id && !song) return opensMade && ((opensMade = 0), api.quick.reset?.());
-    let s = song;
-    if (id) {
-      const f = stationFilter(id, api.taste?.());
-      s = radioPick(f.mood, last, Math.floor(Math.random() * 1e9), f.styles || f.bpm ? f : null);
-    }
-    const mine = (preparing = {});
-    api.quick
-      .radioStart(s)
-      .then(v => {
-        const e = song || { seed: s.seed, mood: s.mood || 'all', style: v.info.style };
-        return keepHeard(okey(e), v, wavPcm(v.wav), RADIO_SR, RADIO_V, 'opening').then(ok => ok && id && ((nexts[id] = e), saveNexts()));
-      })
-      .catch(() => {})
-      .finally(() => (opensMade++, preparing === mine && ((preparing = false), setTimeout(prepNext, 300))));
   }
   const urlOf = it => (it.url ||= URL.createObjectURL(new Blob([it.wav], { type: 'audio/wav' })));
   const drop = it => it && !it.hush && it !== cur && !tape?.marks.some(m => m.item === it) && !q.ready.includes(it) && (it.url && URL.revokeObjectURL(it.url), (it.url = null), (it.pcm = null), (it.wav = null));
@@ -361,7 +329,7 @@ export function mountRadio(panel, api) {
         t.sb = ms.addSourceBuffer(t.type);
         t.sb.mode = 'segments';
         t.sb.addEventListener('updateend', pump);
-        // (Why, for ?debug: which append, the encoder's description, the player's error.)
+        // (Why, for 'orbit-beats-radio-path': which append, the encoder's description, the player's error.)
         t.sb.addEventListener('error', () => {
           const d = bytesOf(t.desc);
           toFiles(`append (${t.stage}${d ? `, description ${[...d.subarray(0, 12)].map(x => x.toString(16).padStart(2, '0')).join('')} ${d.length} B` : ''}${audio.error ? `, error ${audio.error.code} ${audio.error.message || ''}` : ''})`);
@@ -551,7 +519,7 @@ export function mountRadio(panel, api) {
   }
   const broken = () => Boolean(audio.error) || (tape && tape.ms.readyState === 'closed');
   // Which way this phone plays (decided once, as the screen opens), kept for a look:
-  // localStorage 'orbit-beats-radio-path' ('stream: …' or 'files: …'), and on 聽 with ?debug.
+  // localStorage 'orbit-beats-radio-path' ('stream: …' or 'files: …'), shown by the 測試工具's 電台走哪條路 (testing.mjs).
   let taped = false;
   let choice = null;
   // (Decided on files: songs come as a Blob made in the worker. Until it's decided, as samples, which can go either way.)
@@ -566,7 +534,7 @@ export function mountRadio(panel, api) {
   // ('orbit-beats-radio' on this phone: 'files', or one codec to try alone: 'flac', 'aac', 'opus'.)
   let forced = null;
   try {
-    forced = localStorage.getItem('orbit-beats-radio');
+    forced = globalThis.ORBIT_TEST?.flags?.radioPath || localStorage.getItem('orbit-beats-radio');
   } catch {}
   if (forced === 'files') note('files', "set to files on this phone ('orbit-beats-radio')");
   else
@@ -911,6 +879,12 @@ export function mountRadio(panel, api) {
   });
   const sound = navigator.audioSession;
   sound?.addEventListener?.('statechange', () => sound.state === 'interrupted' && setTimeout(() => yieldTo('interrupted'), 0));
+  // (The 測試工具's 別的聲音接手 / 聲音被打斷, testing.mjs: the phone's own pause, past ours, and the session's interruption.)
+  addEventListener('orbit-beats-test', e => {
+    if (!want) return;
+    HTMLMediaElement.prototype.pause.call(audio);
+    if (e.detail === 'interrupt') setTimeout(() => yieldTo('test: interrupted'), 0);
+  });
   audio.addEventListener('playing', () => ((retried = 0), starting && ((starting = 0), fill())));
   // (Every few seconds: the stream topped up, and a stall, time not moving with music ahead, caught.)
   setInterval(() => {
@@ -1059,7 +1033,6 @@ export function mountRadio(panel, api) {
     warm: () => setTimeout(fill, 1500),
     // Songs to have ready before they're tapped ([{ seed, mood, style }]).
     prep,
-    ahead: openings,
     stop: () => want && pause(),
     playing: () => want && !audio.paused,
     refresh: () => emit('state'),

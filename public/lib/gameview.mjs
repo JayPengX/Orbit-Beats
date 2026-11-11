@@ -844,7 +844,10 @@ export function mountGame(host, api) {
 
   // (For screenshots and the Mac's walkthrough: localStorage['orbit-beats-game-auto'] = '1' plays every note itself,
   // its frame count on the stage; 'shot' plays it the same with no count, as a player sees it.)
+  // (Or the 測試工具's 節奏遊戲自動玩, testing.mjs: as a player sees it, and no record kept.)
+  const testAuto = Boolean(globalThis.ORBIT_TEST?.flags?.gameAuto);
   const autoMode = (() => {
+    if (testAuto) return 'shot';
     try {
       // (Or ?gameauto in the address, for a phone's Safari.)
       if (/[?&]gameauto\b/.test(location.search)) localStorage.setItem('orbit-beats-game-auto', '1');
@@ -1133,8 +1136,10 @@ export function mountGame(host, api) {
     const key = bestKey(R.it, R.level);
     const was = store.bests?.[key]?.score || 0;
     const kept = withRound(store, key, { ...r, combo: R.best });
-    store = { ...kept.store, level, mood, offset: store.offset };
-    save();
+    if (!testAuto) {
+      store = { ...kept.store, level, mood, offset: store.offset };
+      save();
+    }
     if (r.full) R.banner = { text: r.allPerfect ? W('全部完美！', 'ALL PERFECT!') : W('全連擊！', 'FULL COMBO!'), t: performance.now(), big: true };
     const it = R.it;
     const tally = { ...R.tally };

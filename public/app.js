@@ -8,6 +8,7 @@
 // screen, the bar and the tab bar, keeps the app current and opening
 // offline; the Orbit Pass keeps the settings, each kit's tempo and roles
 // and the styles you keep (your taste); the sound never leaves the phone.
+import './testing.mjs';
 import { banksFor } from './lib/sampleload.mjs';
 import { orbitSession, storedAccount, topActions, installGate, watchUpdates, keepOffline, tabBar, ask } from '#kit/orbit.mjs';
 import * as kit from '#kit/orbit.mjs';
@@ -432,7 +433,6 @@ const tasteTop = () =>
 function tasteHint() {
   const top = tasteTop();
   $('taste-row').hidden = !top.length;
-  $('taste-hint').textContent = !settings.smart ? W('關著：每種一樣多', 'Off: every style alike') : W(`多做你常聽、收藏的 ${top.join('、')}`, `More of what you play and keep: ${top.join(', ')}`);
 }
 const weights = () => (cfg().smart && Object.keys(taste()).length ? taste() : null);
 
@@ -465,28 +465,15 @@ function problem() {
   if (!(count >= 1 && count <= MAX_SONGS)) return W(`首數要 1 到 ${MAX_SONGS}`, `Songs must be 1 to ${MAX_SONGS}`);
   if (!styles.length) return W('至少選一種鼓的風格', 'Pick at least one drum style');
   if (seed && !(/^\d+$/.test(seed) && +seed <= 4294967295)) return W('種子要是整數', 'Seed must be a whole number');
-  if (pieces.length && !roles.some(x => x === 'riff' || x === 'phrase')) return simple() ? W('聽不出旋律：到「樂器」做一段旋律', 'No tune heard: make a melody in Studio') : W('需要一段 Riff 或樂句：設一段，或到「樂器」做一段', 'Needs a riff or a phrase: set one, or make one in Studio');
+  if (pieces.length && !roles.some(x => x === 'riff' || x === 'phrase')) return W('需要一段 Riff 或樂句：設一段，或到「樂器」做一段', 'Needs a riff or a phrase: set one, or make one in Studio');
   if (pieces.length && !(bpm >= 40 && bpm <= 250)) return W('速度要 40 到 250 BPM', 'Tempo must be 40 to 250 BPM');
   return '';
-}
-// Songs are an even number of bars when the range has one, plus ~1.5 s for the last hit to ring.
-function lengthText() {
-  return W(`每首約 ${clock(settings.length)}`, `About ${clock(settings.length)} each`);
-}
-// The mixer in a few words: 混音 · 殘響 25%, or 原音.
-function mixText() {
-  const m = settings.mix;
-  if (!m.on) return W('原音：不加工', 'Raw: as recorded');
-  const bits = [m.reverb ? W(`殘響 ${Math.round(m.reverb * 100)}%`, `Room ${Math.round(m.reverb * 100)}%`) : '', m.delay ? W('回音', 'Echo') : '', m.pump ? W('側鏈', 'Pump') : '', m.fade ? W('淡出', 'Fade') : ''].filter(Boolean);
-  return [W('開', 'On'), ...bits].join(' · ');
 }
 // Simple's batch is the kit's when it has a tune, else the app's own band's.
 const ownBand = () => simple() && !(pieces.length && roles.some(x => x === 'riff' || x === 'phrase'));
 function update() {
   const { count } = cfg();
   const bad = problem();
-  $('more-hint').textContent = simple() ? `${lengthText()} · ${W('簡單模式', 'Simple')}` : `${lengthText()} · ${W('人味', 'Humanize')} ${settings.humanize}%`;
-  $('mix-hint').textContent = mixText();
   $('count-down').disabled = busy || count <= 1;
   $('count-up').disabled = busy || count >= MAX_SONGS;
   $('error').textContent = bad;
@@ -733,7 +720,6 @@ function kitShown() {
 function clearPieces() {
   $('pieces').textContent = '';
   ingredientCards($('pieces'));
-  $('pieces-hint').hidden = true;
   $('clear-all').hidden = $('save-kit').hidden = true;
   pieces = [];
   roles = [];
@@ -768,7 +754,6 @@ function split() {
       edited.add(+i);
     }
   $('bpm').value = bpm;
-  tempoHint();
   $('tempo-row').hidden = !pieces.length;
   kitStatus();
   showPieces();
@@ -795,10 +780,6 @@ function kitKey() {
   const of = want => roles.map((r, i) => (want.includes(r) ? i : -1)).filter(i => i >= 0);
   const use = of(['riff', 'phrase']).length ? of(['riff', 'phrase']) : of(['bass']);
   return keyOf(use.map(i => pieceChroma(pieces[i], sr)));
-}
-function tempoHint() {
-  const from = kept.kits[print]?.bpm === bpm && bpm !== heard?.detected;
-  $('bpm-hint').textContent = !heard?.detected ? W('聽不出來：請設定', "Couldn't hear it: set it") : bpm === heard.detected ? W('從片段聽出來的', 'Heard from the pieces') : from ? W(`你設的 · 聽到 ${heard.detected}`, `Yours · heard ${heard.detected}`) : W(`手動設定 · 聽到 ${heard.detected}`, `Set by hand · heard ${heard.detected}`);
 }
 
 // 簡單's row: ＋ first, then the pieces; with none, the built-in band as a dimmed card (what the songs are made of).
@@ -848,7 +829,6 @@ function showPieces() {
     grid.append(tile);
   });
   ingredientCards(grid);
-  $('pieces-hint').hidden = !pieces.length;
   $('clear-all').hidden = $('save-kit').hidden = !pieces.length;
   kitChanged();
   update();
@@ -865,7 +845,6 @@ function setTempo(v) {
   $('bpm').value = bpm;
   if (!heard || !(bpm >= 40 && bpm <= 250)) return update();
   roles = heard.analyses.map((a, i) => (edited.has(i) ? roles[i] : guessRole(a, bpm)));
-  tempoHint();
   showPieces();
   keepKit();
 }
@@ -1128,7 +1107,6 @@ function restoreKit(snap, set) {
         roles[+i] = r;
         edited.add(+i);
       }
-  tempoHint();
   kitStatus();
   showPieces();
   keepKit();
@@ -1175,7 +1153,7 @@ async function kitsSheet() {
             h('button', { class: 'mini', type: 'button', text: W('打開', 'Open'), onclick: () => (s.close(), openKit(k)) }),
             h('button', { class: 'mini', type: 'button', html: icon('more'), 'aria-label': W('更多', 'More'), onclick: e => menu(e.currentTarget, [
               { label: W('重新命名', 'Rename'), icon: 'edit', onClick: () => nameSheet(W('重新命名', 'Rename'), k.name, async v => (await renameNamed(k.id, v), draw())) },
-              { label: W('刪除', 'Delete'), icon: 'trash', danger: true, onClick: async () => { await deleteNamed(k.id); draw(); const t = toast(W(`已刪除「${k.name}」`, `“${k.name}” deleted`), { ms: 5000 }); t.append(h('button', { type: 'button', class: 'toast-undo', text: W('復原', 'Undo'), onclick: async () => (t.remove(), await saveNamed(k), toast(W('已復原', 'Restored')))})); } }
+              { label: W('刪除', 'Delete'), icon: 'trash', danger: true, onClick: async () => { await deleteNamed(k.id); draw(); const t = toast(W(`已刪除「${k.name}」`, `“${k.name}” deleted`), { ms: 5000 }); t.append(h('button', { type: 'button', class: 'toast-undo', text: W('復原', 'Undo'), onclick: async () => (t.remove(), await saveNamed(k), body.isConnected && draw(), toast(W('已復原', 'Restored')))})); } }
             ]) })
           ])))
         : empty({ icon: icon('note'), title: W('還沒有存過套組', 'No kits saved yet'), body: W('把目前的片段存成套組，之後隨時打開。', 'Save the pieces you have now as a kit, and open it any time.') }),
@@ -1248,7 +1226,6 @@ function insertMade(made, tempo, had) {
       edited.add(i);
     }
   });
-  tempoHint();
   kitStatus();
   showPieces();
   keepKit();
@@ -1950,6 +1927,11 @@ function yieldSound(why) {
   const sound = navigator.audioSession;
   sound?.addEventListener?.('statechange', () => sound.state === 'interrupted' && yieldSound('interrupted'));
 }
+// (The 測試工具's 別的聲音接手 / 聲音被打斷, testing.mjs: the phone's own pause, past ours, and the session's interruption.)
+addEventListener('orbit-beats-test', e => {
+  if (nowPlaying && !audio.paused) HTMLMediaElement.prototype.pause.call(audio);
+  if (e.detail === 'interrupt') yieldSound('test: interrupted');
+});
 // A song the phone left stuck (the share sheet, a call: time standing still, or a play it
 // won't take): its file loaded again where it was, and on.
 async function revive() {
@@ -2461,7 +2443,8 @@ async function keepRadio(item) {
 }
 // A song from the jam's take. Kept: straight into 資料庫 (made from its seed and groove on the built-in set), nothing played,
 // 復原 takes it out again. Otherwise into the batch, played.
-async function jamSong(hits, beats, band, { keep: kept = false } = {}) {
+// (Always kept to 資料庫: 即興's own takes row lists it; nothing goes to 做歌's list.)
+async function jamSong(hits, beats, band) {
   try {
     if (!band) await kitToMaker();
     const recipe = { print: band ? 'band' : print, ...(band ? { band } : {}), jam: hits, plan: null, mix: { ...cfg().mix }, at: Date.now() };
@@ -2471,12 +2454,6 @@ async function jamSong(hits, beats, band, { keep: kept = false } = {}) {
     const label = `${W('即興', 'Jam')}${band ? ` · ${name(STYLE_NAMES, band.style)}` : ''} ${when}`;
     const song = { id: recipeId(recipe), name: label, info, data: wav, url: URL.createObjectURL(new Blob([wav], { type: 'audio/wav' })), bits: cfg().bits, recipe, from: 'jam' };
     await autoKeep(song);
-    if (kept) return;
-    songs.unshift(song);
-    $('out').hidden = false;
-    $('songs').prepend(songRow(song));
-    $('zip').disabled = false;
-    playRow(song);
   } catch (e) {
     toast(W(`做不出來：${e.message}`, `Couldn't make it: ${e.message}`), { tone: 'bad' });
   }
@@ -2742,7 +2719,7 @@ async function boot() {
     // (The built-in set made in a worker of its own: not queued behind 聽's songs.)
     band: set => (jamMake ||= maker(new URL('./lib/maker.worker.mjs', import.meta.url), { prep })).jamBand(set),
     simple,
-    take: (hits, beats, band, opts) => jamSong(hits, beats, band, opts),
+    take: (hits, beats, band) => jamSong(hits, beats, band),
     takes: () =>
       lib
         .all()

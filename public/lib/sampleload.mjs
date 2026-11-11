@@ -91,9 +91,15 @@ function hurry(urls) {
   for (const e of moved) queued.splice(queued.indexOf(e), 1);
   queued.splice(firstEnd(), 0, ...moved.map(e => ((e.first = true), e)));
 }
+// (The 測試工具's 樂器聲音載入, testing.mjs: 2 s a file, or none.)
+const fetchFile = url => {
+  const how = globalThis.ORBIT_TEST?.flags?.instruments;
+  if (how === 'fail') return Promise.reject(new Error('test: instruments fail'));
+  return how === 'slow' ? new Promise(ok => setTimeout(ok, 2000)).then(() => fetch(url)) : fetch(url);
+};
 const fetchDecode = (url, first = false) =>
   slot(url, first)
-    .then(() => fetch(url).then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status))))).finally(free))
+    .then(() => fetchFile(url).then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status))))).finally(free))
     .then(buf => turn().then(() => decode(buf).finally(() => pause().then(done))));
 const drumFiles = name => {
   const [, kit, drum] = name.split(':');

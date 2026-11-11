@@ -170,7 +170,9 @@ export const forgetLast = () => run('readwrite', s => s.delete('last')).catch(()
 // ---- The songs kept (歌單): on this phone only, never sent anywhere ----------------
 // { id, name, at, info, recipe: { print, seed, detail, style, plan, minBars, maxBars, styles, humanize, mix } | { print, jam, plan, mix } | { print: 'radio', radio } | { print: 'band', band, jam, mix },
 //   sound: Blob, form: 'aac' | 'opus' | 'mono' | 'wav', sr, seconds } (lib/pack.mjs). (Kept before: { bits: 16, wav: Blob }, packed by 歌單瘦身.)
-export const saveSong = song => run('readwrite', s => s.put(song), SONGS);
+// (The 測試工具's 手機空間滿了, testing.mjs: a write refused as a full phone refuses it.)
+const full = () => globalThis.ORBIT_TEST?.flags?.storageFull && Promise.reject(new DOMException('test: storage full', 'QuotaExceededError'));
+export const saveSong = song => full() || run('readwrite', s => s.put(song), SONGS);
 export const deleteSong = id => run('readwrite', s => s.delete(id), SONGS);
 export const getSong = id => run('readonly', s => s.get(id), SONGS);
 // (A packed copy waits under TEMP + its id until it's read back whole; never listed.)
@@ -212,7 +214,7 @@ export async function renameSong(id, name) {
 
 // ---- Kits kept by name (我的套組): on this phone only, never sent anywhere ----------
 // lib/kitops.mjs's namedKit: { id, name, at, bpm, count, roles, sources: [{ name, sr, L, R }] }
-export const saveNamed = kit => run('readwrite', s => s.put(kit), NAMED);
+export const saveNamed = kit => full() || run('readwrite', s => s.put(kit), NAMED);
 export const deleteNamed = id => run('readwrite', s => s.delete(id), NAMED);
 export async function listNamed() {
   const all = (await run('readonly', s => s.getAll(), NAMED).catch(() => null)) || [];
