@@ -105,7 +105,7 @@ export function songTileOf(api, t, c) {
 // Songs as an even grid of covers (no part row: the kit's fullRows; the most telling first).
 export function songGridOf(key, head_, tiles, opts = {}) {
   if (!tiles.length) return null;
-  return kitUI.section(head_, h('div', { class: 'bt-tiles q-rows-full' }, tiles), { cls: `bt-sec bt-${key}`, ...opts });
+  return kitUI.section(head_, h('div', { class: 'bt-tiles q-rows-full q-rows-snug' }, tiles), { cls: `bt-sec bt-${key}`, ...opts });
 }
 // The ways in (自己做, 創作's tools) as tiles side by side: its mark, what it is, what it does.
 export function wayTilesOf(items) {
@@ -398,6 +398,12 @@ export function mountHome(panel, api) {
     const key = [id, ...list.map(t => t.id), '/', ...mine.map(t => t.id)].join('|');
     if (key === recentKey) return;
     recentKey = key;
+    // (Wide: covers in an even grid, as 接下來's and 今日精選's: a list beside nothing stood a
+    // fifth of the page wide, the rest empty, Jay's iPad 2026-11-11.)
+    if (isWide())
+      return recentSlot.replaceChildren(
+        ...[songGridOf('recent', W('最近播放', 'Recently played'), list.map(t => songTileOf(api, t, radio.coverOf(t)))), songGridOf('mine', W('你的歌', 'Your songs'), mine.map(t => songTileOf(api, t)), { more: W('資料庫', 'Library'), onMore: () => api.go('library') })].filter(Boolean)
+      );
     recentSlot.replaceChildren(
       ...[songList('recent', W('最近播放', 'Recently played'), list.map(t => songRow(t, radio.coverOf(t)))), songList('mine', W('你的歌', 'Your songs'), mine.map(t => songRow(t)), { more: W('資料庫', 'Library'), onMore: () => api.go('library') })].filter(Boolean)
     );
@@ -408,9 +414,8 @@ export function mountHome(panel, api) {
     drawUp();
     drawRecent();
     // (Wide: the player across the top, then what plays as covers, the radio beside the genres,
-    // what you heard beside what you kept, the ways to make your own side by side: the phone's order.)
+    // what you heard and what you kept as covers, the ways to make your own side by side: the phone's order.)
     const wide = isWide();
-    recentSlot.classList.toggle('bt-pair', wide);
     panel.replaceChildren(
       wide
         ? h('div', { class: 'bt-home bt-wide' }, [card, upSlot, stationsWide(), recentSlot, makeWide()])

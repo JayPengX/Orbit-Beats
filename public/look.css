@@ -243,7 +243,7 @@ html[data-look='native'] .bt-sub-head {
 /* ---------- Wide (DESIGN §10): a big screen's own home, not a phone's made long ----------
    The player across the top (a large cover, the song, ▶ beside it, its parts the whole width
    under it); what plays next and today's picks as an even grid of covers; the radio's stations
-   beside the genres, each its own cover; what you heard beside what you kept; the four ways to
+   beside the genres, each its own cover; what you heard and what you kept as covers; the four ways to
    make your own side by side. Read left to right, top to bottom: the phone's order. */
 html[data-look='native'] .bt-wide {
   display: flex;
@@ -409,7 +409,7 @@ html[data-look='native'] .bt-wide .bt-ctl > .bt-btn[hidden] {
   display: none;
 }
 
-/* Two things side by side (the radio and the genres; what you heard and what you kept); one alone takes the width. */
+/* Two things side by side (the radio and the genres); one alone takes the width. */
 html[data-look='native'] .bt-pair {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
