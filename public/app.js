@@ -2318,7 +2318,7 @@ function renameKept(song) {
     closeLabel: W('關閉', 'Close'),
     body: h('div', { class: 'card sheet-card' }, [input, h('button', { class: 'primary', type: 'button', text: W('好', 'Done'), onclick: done })])
   });
-  setTimeout(() => input.focus(), 60);
+  input.focus();
 }
 // Songs in a zip (stored: WAVs barely shrink), each its own name once, each at full quality (wavOf).
 async function zipOf(list, filename) {

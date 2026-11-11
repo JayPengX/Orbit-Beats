@@ -69,7 +69,7 @@ export function nameSheet(title, value, done, { keep = false } = {}) {
   };
   input.addEventListener('keydown', e => e.key === 'Enter' && go());
   const s = sheet({ title, closeLabel: W('關閉', 'Close'), body: h('div', { class: 'card sheet-card' }, [input, h('button', { class: 'primary', type: 'button', text: W('好', 'Done'), onclick: go })]) });
-  setTimeout(() => input.focus(), 60);
+  input.focus();
 }
 
 // The newest kept songs first, as many as a shelf shows (pure: the tests call it).
