@@ -17,14 +17,20 @@ Music that never stops, and your own beat pieces arranged into new songs. Everyt
 
 <p align="center">
   <img src="docs/screenshots/beats-1.webp" width="30%" alt="Music made for you">
-  <img src="docs/screenshots/beats-2.webp" width="30%" alt="Moods and stations">
-  <img src="docs/screenshots/beats-3.webp" width="30%" alt="Create your way">
+  <img src="docs/screenshots/beats-2.webp" width="30%" alt="Say what you want to hear">
+  <img src="docs/screenshots/beats-3.webp" width="30%" alt="Moods and stations">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/beats-4.webp" width="30%" alt="Make beats in the studio">
-  <img src="docs/screenshots/beats-5.webp" width="30%" alt="Jam on the pads">
-  <img src="docs/screenshots/beats-6.webp" width="30%" alt="A rhythm game for any song">
+  <img src="docs/screenshots/beats-4.webp" width="30%" alt="Create your way">
+  <img src="docs/screenshots/beats-5.webp" width="30%" alt="Make beats in the studio">
+  <img src="docs/screenshots/beats-6.webp" width="30%" alt="Jam on the pads">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/beats-7.webp" width="30%" alt="A rhythm game for any song">
+  <img src="docs/screenshots/beats-8.webp" width="30%" alt="Now playing">
+  <img src="docs/screenshots/beats-9.webp" width="30%" alt="Keep the songs you like">
 </p>
 
 <details>
@@ -32,20 +38,28 @@ Music that never stops, and your own beat pieces arranged into new songs. Everyt
 
 <p align="center">
   <img src="docs/screenshots/beats-1.zh.webp" width="30%" alt="為你做的音樂">
-  <img src="docs/screenshots/beats-2.zh.webp" width="30%" alt="各種心情與電台">
-  <img src="docs/screenshots/beats-3.zh.webp" width="30%" alt="用你的方式創作">
+  <img src="docs/screenshots/beats-2.zh.webp" width="30%" alt="說想聽什麼，就換成那種歌">
+  <img src="docs/screenshots/beats-3.zh.webp" width="30%" alt="各種心情與電台">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/beats-4.zh.webp" width="30%" alt="在樂器室做節拍">
-  <img src="docs/screenshots/beats-5.zh.webp" width="30%" alt="用打擊墊即興">
-  <img src="docs/screenshots/beats-6.zh.webp" width="30%" alt="每首歌都能玩節奏遊戲">
+  <img src="docs/screenshots/beats-4.zh.webp" width="30%" alt="用你的方式創作">
+  <img src="docs/screenshots/beats-5.zh.webp" width="30%" alt="在樂器室做節拍">
+  <img src="docs/screenshots/beats-6.zh.webp" width="30%" alt="用打擊墊即興">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/beats-7.zh.webp" width="30%" alt="每首歌都能玩節奏遊戲">
+  <img src="docs/screenshots/beats-8.zh.webp" width="30%" alt="正在播放">
+  <img src="docs/screenshots/beats-9.zh.webp" width="30%" alt="收藏你喜歡的歌">
 </p>
 
 </details>
 
 ## Features
 
+- **用說的做節奏:** say what you'd like to hear over 電台 (讀書用的 lo-fi); code reads it into grooves, a scene and a tempo, and only words code can't place go to AI, which never touches sound.
+- **Plays nicely:** another app's sound stops Beats, and nothing restarts it but your tap. Songs made on the app's own band sync to every phone through the Pass, as recipes.
 - **聽 Listen:** one play button and a mood (relaxed, energetic, groovy, classic, or one groove). Each song is written on the spot: a groove, tempo, key, chords, melodies, bass and drums, arranged into verses, hooks and a bridge and mixed, about two and a half minutes. It plays on with the screen locked, one song running into the next with no gap.
 - **今日精選 and 今日挑戰** are the same on every phone, made from Taiwan's date alone; 為你推薦, 為你電台 and 做歌 learn from what you listen to the end and what you skip.
 - **即興 Jam:** 16 coloured pads of a built-in band over a groove, or your own pieces as pads; record a take and it becomes a song.
