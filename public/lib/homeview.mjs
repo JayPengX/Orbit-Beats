@@ -282,10 +282,13 @@ export function mountHome(panel, api) {
   // ---- 用說的做節奏 (the family's AI, Jay 11-10; code first): what you'd like to hear in your own
   // words, read by code (lib/say.mjs) into a station; only words code can't place go to the AI door
   // (beats-say: the words only, never a sound), and it answers grooves and a tempo, nothing more.
+  // (The bar on screen's own go, for 問 Orbit's question: app.js, #ask=<words>.)
+  let sayNow = null;
   function sayBar() {
     const note = h('p', { class: 'bt-say-note', 'aria-live': 'polite' });
     const bar = kitAI.aiBar?.({ placeholder: W('想聽什麼？例如讀書 lo-fi', 'What to play? Study lo-fi…'), label: W('用說的選電台', 'Say what to play'), max: 80, onSend: t => go(t) });
     if (!bar) return null;
+    sayNow = t => go(String(t).slice(0, 80));
     async function go(t) {
       bar.busy(true);
       note.textContent = '';
@@ -434,5 +437,5 @@ export function mountHome(panel, api) {
     drawRecent();
     paintTiles();
   });
-  return { refresh: drawAll };
+  return { refresh: drawAll, say: t => Boolean(t && sayNow && (sayNow(t), true)) };
 }
