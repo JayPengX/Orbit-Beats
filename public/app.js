@@ -2759,8 +2759,10 @@ async function boot() {
     split();
   }
   kitShown();
+  // (#game read before the first tab writes its own hash over it.)
+  const wantsGame = location.hash === '#game';
   showTab(firstTab());
-  if (location.hash === '#game') game?.open();
+  if (wantsGame) game?.open();
   await lib.read();
   home?.refresh();
   // (A newer deploy is loaded behind the loading screen, never over the app once it shows: the kit's
