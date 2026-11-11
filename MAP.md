@@ -235,10 +235,14 @@ Live: https://orbit.jaypengx.com/beats/ (was Passion Beats)
   instruments and the notes made from them (`letGo` in `lib/maker.mjs` and
   `lib/make.mjs`, in line with the calls; 聽's after each song, the others at
   once if idle; the radio's last rings stay): 聽's worker drops from 170 MB
-  to under 10 MB between songs. The audio session's `statechange` out of
-  `interrupted` (a call, Siri) resumes 聽, a song, 樂器 and 即興; a song the
-  phone stopped goes on when the app is back on screen, as 聽 does. The
-  除錯紀錄 notes `beats-stopped` (the phone stopped 聽 out of sight: after how
+  to under 10 MB between songs. **Beats yields** (Jay 2026-11-11: it fought
+  Orbit Law's live video): another sound taking the phone (a pause Beats
+  didn't make, the audio session or the AudioContext `interrupted`) is ⏸ for
+  聽 (`yieldTo` in `lib/radioview.mjs`), leaves a song paused, and stops
+  樂器, 即興 and the pads (`yieldSound` in `app.js`). Nothing starts the sound
+  again by itself, not a timer, the screen coming back or the session
+  ending: only a tap (`tests/background.test.mjs`). The
+  除錯紀錄 notes `beats-yielded` (what took the sound, out of sight how
   long, the way it played, the session's state) and `beats-gone` (music was
   playing when the page went: `orbit-beats-alive`, written every 15 s while
   something plays).

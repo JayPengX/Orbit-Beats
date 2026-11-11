@@ -965,20 +965,17 @@ function soundAs(type) {
   } catch {}
 }
 // One sound for the whole app (the pieces, the instruments, the pads): made on the first tap.
-// (One stopped by a call, Siri or the screen locking is started again when it's wanted.)
+// (One another sound takes, a call or Siri, stops what played on it: yieldSound, below. Started again only by a tap.)
 let ctx = null;
-const wanted = () => Boolean(studio?.playing() || jam?.playing() || playing || example);
-const wake = () => ctx && ctx.state !== 'running' && wanted() && ctx.resume().catch(() => {});
 const audioCtx = () => {
   if (!ctx) {
     if (!recorder) soundAs('playback');
     ctx = new AudioContext();
-    ctx.addEventListener?.('statechange', wake);
+    ctx.addEventListener?.('statechange', () => ctx.state === 'interrupted' && yieldSound('instruments interrupted'));
   }
   if (ctx.state !== 'running') ctx.resume().catch(() => {});
   return ctx;
 };
-document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && wake());
 // How far ahead 樂器 and 即興 lay their notes: a moment on the screen (a tap
 // heard at once), two seconds off it (locked or in another app, where the
 // phone runs the page's clock only now and then).
@@ -1922,40 +1919,36 @@ audio.addEventListener('ended', () => {
   if (repeat === 'section' && loopAt) return void ((audio.currentTime = loopAt.from), audio.play().catch(() => {}));
   P.ended();
 });
-// A song the phone stopped (another app's sound, a call), not you: tried again every few seconds
-// out of sight for up to 30 minutes, as the radio does (iOS says nothing when the other sound ends).
+// Another sound took the phone (a video in Orbit Law, another app, a call, Siri): Orbit Beats yields and
+// stays stopped. A song stays paused where it was, 樂器 and 即興 stop; nothing starts itself again, on the
+// screen or off it, only a tap in Orbit Beats does (Jay 2026-11-11: "fighting my audio… unacceptable").
 // (Every pause the app makes is its own; any other is the phone's.)
 let ownPause = false;
-let heldAt = 0;
 {
   const pauseOf = audio.pause.bind(audio);
   audio.pause = () => ((ownPause = true), pauseOf());
 }
 audio.addEventListener('pause', () => {
-  heldAt = ownPause || audio.ended || !nowPlaying ? 0 : Date.now();
+  const theirs = !ownPause && !audio.ended && nowPlaying;
   ownPause = false;
+  if (!theirs) return;
+  kit.rec?.('beats-yielded', { why: 'song paused by the phone', away: document.visibilityState === 'hidden', session: navigator.audioSession?.state || null });
+  try {
+    if (navigator.mediaSession) navigator.mediaSession.playbackState = 'paused';
+  } catch {}
 });
-audio.addEventListener('playing', () => (heldAt = 0));
-setInterval(() => {
-  if (!heldAt || !audio.paused || !nowPlaying || Date.now() - heldAt > 30 * 60e3) return void (heldAt = audio.paused && nowPlaying && Date.now() - heldAt <= 30 * 60e3 ? heldAt : 0);
-  if (document.visibilityState === 'hidden') audio.play().catch(() => {});
-}, 5000);
-// Back on the screen, or iOS saying what stopped it is over (a call, Siri): a song the phone stopped goes
-// on at once, as 聽's songs do (it had waited for a tap), and so do the instruments and pads.
-const heldSong = () => heldAt && nowPlaying && audio.paused && !audio.ended && Date.now() - heldAt < 30 * 60e3;
-const goOn = () => {
-  if (heldSong()) audio.play().catch(() => {});
-  wake();
-};
-document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && goOn());
-addEventListener('pageshow', goOn);
+function yieldSound(why) {
+  if (!(studio?.playing() || jam?.playing() || playing || example)) return;
+  kit.rec?.('beats-yielded', { why, away: document.visibilityState === 'hidden', session: navigator.audioSession?.state || null });
+  stopPiece();
+  stopExample();
+  studio?.stop();
+  jam?.stop();
+  live(false);
+}
 {
   const sound = navigator.audioSession;
-  let cut = false;
-  sound?.addEventListener?.('statechange', () => {
-    if (sound.state === 'interrupted') return void (cut = true);
-    if (cut) (cut = false), setTimeout(goOn, 300);
-  });
+  sound?.addEventListener?.('statechange', () => sound.state === 'interrupted' && yieldSound('interrupted'));
 }
 // A song the phone left stuck (the share sheet, a call: time standing still, or a play it
 // won't take): its file loaded again where it was, and on.

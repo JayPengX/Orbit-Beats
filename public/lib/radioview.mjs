@@ -550,18 +550,6 @@ export function mountRadio(panel, api) {
     claim();
   }
   const broken = () => Boolean(audio.error) || (tape && tape.ms.readyState === 'closed');
-  // Music asked for and not playing (the phone stopped it, not you): on again. A play the
-  // phone won't allow yet (off the screen) waits for the next chance; a broken one opens afresh.
-  function resume(why) {
-    if (!want || !audio.paused) return;
-    if (broken()) return tape ? freshTape(why) : cur ? (q.ready.length ? advance() : retry()) : undefined;
-    audio.play().catch(e => {
-      if (e?.name === 'NotAllowedError') return paint();
-      if (tape) freshTape(`${why}: ${e?.name || e}`);
-      else if (q.ready.length) advance();
-    });
-    if (tape) pump();
-  }
   // Which way this phone plays (decided once, as the screen opens), kept for a look:
   // localStorage 'orbit-beats-radio-path' ('stream: …' or 'files: …'), and on 聽 with ?debug.
   let taped = false;
@@ -906,36 +894,24 @@ export function mountRadio(panel, api) {
     if (cur && want && audio.src === cur.url) q.ready.length ? advance() : retry();
   });
   for (const ev of ['play', 'pause']) audio.addEventListener(ev, paint);
-  // (The phone stopped it, not you: another app's sound, a call, Siri. Tried again in a
-  // moment, a few times; and whenever the page is back, or ▶ is tapped anywhere.)
-  // (iOS says nothing when the other sound ends: another home-screen app closed, a call over. So while
-  // the music is still wanted it's tried again every few seconds out of sight, for up to 30 minutes.)
-  let held = 0;
+  // Another sound took the phone (a video in Orbit Law, another app, a call, Siri): the radio yields and
+  // stays paused, as if ⏸ were tapped. It never starts itself again, on the screen or off it: only ▶ does
+  // (Jay 2026-11-11: "Orbit Beats is fighting my audio… unacceptable"). A song change's own pause (a new
+  // src) and a stretch the phone couldn't play (an error, handled above) are not a yield.
   let hiddenAt = 0;
+  const yieldTo = why => {
+    if (!want || !audio.paused) return;
+    api.rec?.('beats-yielded', { why, away: hiddenAt ? Math.round((Date.now() - hiddenAt) / 1000) : null, path: taped ? 'stream' : 'files', session: navigator.audioSession?.state || null, t: Math.round(audio.currentTime) });
+    pause();
+  };
   audio.addEventListener('pause', () => {
-    if (!want) return;
-    held = Date.now();
-    // (Noted for the 除錯紀錄 when it's still stopped a moment later, not a song change's pause: out of sight
-    // how long, the way it played, what iOS said of its sound.)
-    const at = held;
-    setTimeout(() => want && audio.paused && away() && held === at && api.rec?.('beats-stopped', { away: hiddenAt ? Math.round((at - hiddenAt) / 1000) : null, path: taped ? 'stream' : 'files', session: navigator.audioSession?.state || null, t: Math.round(audio.currentTime) }), 800);
-    for (const ms of [1000, 3000, 8000, 20000]) setTimeout(() => resume('paused by the phone'), ms);
+    if (!want || audio.ended || audio.error) return;
+    const src = audio.src;
+    setTimeout(() => !starting && audio.src === src && !broken() && yieldTo('paused by the phone'), 700);
   });
-  // iOS's word that what stopped the sound is over (a call, Siri: the page's audio session out of
-  // 'interrupted'): on again at once, as it was asked for. (Another app's video or voice ends without a word.)
   const sound = navigator.audioSession;
-  let cut = false;
-  sound?.addEventListener?.('statechange', () => {
-    if (sound.state === 'interrupted') return void (cut = true);
-    if (cut) (cut = false), setTimeout(() => resume('the phone let go'), 300);
-  });
-  setInterval(() => {
-    if (!held || !want || !audio.paused) return void (held = want && audio.paused ? held : 0);
-    if (Date.now() - held > 30 * 60e3) return void (held = 0);
-    if (document.visibilityState === 'hidden') resume('still stopped by the phone');
-  }, 5000);
-  for (const ev of ['pageshow', 'focus']) addEventListener(ev, () => resume(ev));
-  audio.addEventListener('playing', () => ((retried = 0), (held = 0), starting && ((starting = 0), fill())));
+  sound?.addEventListener?.('statechange', () => sound.state === 'interrupted' && setTimeout(() => yieldTo('interrupted'), 0));
+  audio.addEventListener('playing', () => ((retried = 0), starting && ((starting = 0), fill())));
   // (Every few seconds: the stream topped up, and a stall, time not moving with music ahead, caught.)
   setInterval(() => {
     if (!tape || !want) return;
@@ -946,11 +922,10 @@ export function mountRadio(panel, api) {
     tape.last = audio.currentTime;
     if (tape.stuck >= 5) toFiles(ahead() > 1 ? 'stalled' : 'nothing came out');
   }, 1000);
-  // Back on the screen after a call or Siri: the music was asked for, so it goes on.
   // (Off the screen: the songs made for 今日精選's taps let go, a few dozen MB, so the phone keeps the
   // page (and the music) rather than closing it to free memory; they're made again once it's back.)
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') return (hiddenAt = 0), resume('back on the screen'), setTimeout(() => (prepNext(), fill()), 1500);
+    if (document.visibilityState === 'visible') return (hiddenAt = 0), setTimeout(() => (prepNext(), fill()), 1500);
     hiddenAt = Date.now();
     for (const [k, it] of prepared) drop(it), prepWant.some(x => prepKey(x) === k) || prepWant.unshift(it.spec);
     prepWant.splice(3);

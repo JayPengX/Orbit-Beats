@@ -69,11 +69,30 @@ test('the sound is music from the first sound (every sound starts through quiet(
   assert.ok(rec.indexOf("soundAs('auto')") > -1 && rec.indexOf("soundAs('auto')") < rec.indexOf('getUserMedia'), 'auto before the microphone');
 });
 
-test('out of sight: 聽 keeps one song ahead (two on screen), its workers let go of their instruments; songs and pads go on when iOS lets go', () => {
+test('out of sight: 聽 keeps one song ahead (two on screen), its workers let go of their instruments', () => {
   assert.match(radio, /want && !away\(\) \? 2 : 1/);
   assert.match(radio, /if \(away\(\)\) api\.make\.letGo\?\.\(\)/);
   assert.match(radio, /if \(!q\.busy\) api\.make\.letGo\?\.\(\)/);
   assert.match(app, /if \(!make\.busy\(\)\) make\.letGo\(\)/);
   assert.match(app, /jamMake && !jam\?\.playing\(\) && !jamMake\.busy\(\)\) jamMake\.letGo\(\)/);
-  for (const src of [app, radio]) assert.match(src, /sound\?\.addEventListener\?\.\('statechange'/);
+});
+
+// Jay 2026-11-11: "Orbit Beats is fighting my audio even when I started playing live video in Orbit Law… unacceptable".
+// Another sound taking the phone stops Orbit Beats, and nothing in it starts the sound again by itself: only a tap.
+test('Beats yields to another sound and never takes the phone back by itself', () => {
+  // 聽: a pause it didn't make, or the session interrupted, is ⏸; no retries, no resume on the screen's return.
+  assert.match(radio, /yieldTo\('paused by the phone'\)/);
+  assert.match(radio, /sound\.state === 'interrupted' && setTimeout\(\(\) => yieldTo\('interrupted'\)/);
+  const yields = radio.slice(radio.indexOf('const yieldTo'), radio.indexOf('audio.addEventListener', radio.indexOf('const yieldTo')));
+  assert.match(yields, /pause\(\);/);
+  assert.doesNotMatch(radio, /function resume\(|resume\('/);
+  assert.doesNotMatch(radio, /\[1000, 3000, 8000, 20000\]/);
+  for (const ev of ['pageshow', 'focus']) assert.doesNotMatch(radio, new RegExp(`'${ev}'[^\\n]*resume`));
+  // A song, the instruments, the pads: stopped; their sound never woken by the screen, the session or a timer.
+  assert.match(app, /sound\?\.addEventListener\?\.\('statechange', \(\) => sound\.state === 'interrupted' && yieldSound/);
+  assert.match(app, /ctx\.state === 'interrupted' && yieldSound/);
+  assert.doesNotMatch(app, /heldAt|heldSong|goOn|const wake\b/);
+  assert.doesNotMatch(app, /'hidden'\) audio\.play\(\)/);
+  // (The only resumes left come from a tap: the pointerdown in the page, ▶, a seek, the share sheet Beats opened.)
+  for (const line of app.split('\n').filter(l => /ctx\.resume\(\)/.test(l))) assert.match(line, /pointerdown|const audioCtx|if \(ctx\.state !== 'running'\) ctx\.resume/, line);
 });
