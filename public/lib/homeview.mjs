@@ -284,7 +284,7 @@ export function mountHome(panel, api) {
   // (beats-say: the words only, never a sound), and it answers grooves and a tempo, nothing more.
   function sayBar() {
     const note = h('p', { class: 'bt-say-note', 'aria-live': 'polite' });
-    const bar = kitAI.aiBar?.({ placeholder: W('說想聽什麼，例如「讀書用的 lo-fi」', 'Say what to play: “lo-fi to study”'), label: W('用說的選電台', 'Say what to play'), max: 80, onSend: t => go(t) });
+    const bar = kitAI.aiBar?.({ placeholder: W('想聽什麼？例如讀書 lo-fi', 'What to play? Study lo-fi…'), label: W('用說的選電台', 'Say what to play'), max: 80, onSend: t => go(t) });
     if (!bar) return null;
     async function go(t) {
       bar.busy(true);
