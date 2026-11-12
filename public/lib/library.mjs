@@ -131,8 +131,8 @@ export function libraryView({ panel, row, goMake, zip, play, cover = () => '', s
   }
   const newList = then => nameSheet(W('新清單', 'New playlist'), '', v => {
     const id = `l${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-    saveLists(makeList(lists, v, id));
-    then?.(id);
+    // (Only once it's kept: a list that couldn't be saved isn't added to, nor said to be.)
+    if (saveLists(makeList(lists, v, id)) === true) then?.(id);
   });
   const countText = n => W(`${n} 首`, `${n} song${n === 1 ? '' : 's'}`);
   const img = (src, cls = '') => h('img', { class: cls, alt: '', src, loading: 'lazy', decoding: 'async', draggable: 'false' });
@@ -307,7 +307,7 @@ export function libraryView({ panel, row, goMake, zip, play, cover = () => '', s
             const has = x.songs.includes(song.id);
             return cell({ title: x.name, sub: countText(songsOf(x, songs).length), trailing: has ? h('span', { class: 'lib-check', html: icon('check') }) : null, onClick: () => (saveLists(has ? removeFrom(lists, x.id, song.id) : addTo(lists, x.id, song.id)), fill(), toast(has ? W(`已從「${x.name}」移除`, `Removed from “${x.name}”`) : W(`已加到「${x.name}」`, `Added to “${x.name}”`), { ms: 1400 })) });
           }),
-          cell({ title: W('新清單…', 'New playlist…'), onClick: () => (s.close(), newList(id => (saveLists(addTo(lists, id, song.id)), toast(W('已加到新清單', 'Added to the new playlist'), { ms: 1400 })))) })
+          cell({ title: W('新清單…', 'New playlist…'), onClick: () => (s.close(), newList(id => { const n = lists.find(l => l.id === id)?.name; saveLists(addTo(lists, id, song.id)); toast(n ? W(`已加到「${n}」`, `Added to “${n}”`) : W('已加到新清單', 'Added to the new playlist'), { ms: 1400 }); })) })
         ])
       );
     fill();

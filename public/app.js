@@ -257,6 +257,9 @@ function showTab(id) {
 const firstTab = () => (SCREEN_TAB[location.hash.slice(1)] ? location.hash.slice(1) : 'home');
 $('subnav-back').innerHTML = icon('back-chevron');
 $('subnav-back').onclick = () => showTab('create');
+// A swipe in from the left edge goes back to 創作 from 樂器, 做歌 or 即興, as the chevron does
+// (the kit's edgeBack, read with a fallback for an older kit on the phone).
+ui.edgeBack?.({ target: () => (SUBS.includes(tabNow) ? $(`panel-${tabNow}`) : null), back: () => showTab('create') });
 // 創作 in Orbit's own look (DESIGN §11): one graphite card for 即興 (the set ready on the pads, its
 // cover small, ▶ on the app's colour, the other sets as a row of taps), then the other ways in as
 // rows that say what each does (樂器, 做歌 with how many pieces wait there, 節奏遊戲), then your
@@ -2116,13 +2119,21 @@ async function fillSounds() {
 // toast counts what was just kept, and 復原 takes those out again.
 let autoKept = [];
 let autoTimer = 0;
+let autoKeeping = 0;
 async function autoKeep(song) {
   if (lib.has(song.id)) return;
-  await keepSong({ ...song, from: song.from || 'made' }, { quiet: true });
+  autoKeeping++;
+  try {
+    await keepSong({ ...song, from: song.from || 'made' }, { quiet: true });
+  } finally {
+    autoKeeping--;
+  }
   if (!lib.has(song.id)) return;
   autoKept.push(song);
   clearTimeout(autoTimer);
-  autoTimer = setTimeout(() => (autoKept = []), 6000);
+  // (A batch counts as one: the count runs till 6 s after its last song is kept, however long each takes.)
+  const reset = () => (autoTimer = busy || autoKeeping ? setTimeout(reset, 6000) : (autoKept = [], 0));
+  autoTimer = setTimeout(reset, 6000);
   const these = [...autoKept];
   document.querySelector('.q-toast.auto-kept')?.remove();
   const t = toast(these.length > 1 ? W(`已存 ${these.length} 首到資料庫`, `${these.length} kept in Library`) : W('已存到資料庫', 'Kept in Library'), { ms: 5000 });
@@ -2431,14 +2442,20 @@ document.addEventListener('visibilitychange', () => {
   });
 }
 // ♡ on 聽: the song whole into 資料庫 (made again from its seed), or out again.
+// (A radio song is made whole before it's kept, a few seconds on a phone: 存到資料庫中… stays up till
+// 已存到資料庫 replaces it, and ♡ tapped again meanwhile doesn't make it a second time.)
+const keepingRadio = new Set();
 async function keepRadio(item) {
   const id = `radio:${item.spec.seed}:${item.spec.mood}:${item.info.style}`;
+  if (keepingRadio.has(id)) return;
   const there = lib.has(id);
-  if (!there) toast(W('存到資料庫中…', 'Keeping it…'), { ms: 1200 });
+  if (!there) keepingRadio.add(id), toast(W('存到資料庫中…', 'Keeping it…'), { ms: 60000 });
   try {
     await keepSong(there ? { id, info: item.info } : await bandSong({ ...item.spec, style: item.info.style }).then(s => ({ ...s, name: item.title, from: 'radio' })));
   } catch (e) {
     toast(W(`存不下來：${e.message}`, `Couldn't keep it: ${e.message}`), { tone: 'bad' });
+  } finally {
+    keepingRadio.delete(id);
   }
 }
 // A song from the jam's take. Kept: straight into 資料庫 (made from its seed and groove on the built-in set), nothing played,

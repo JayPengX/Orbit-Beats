@@ -228,3 +228,14 @@ test('autoplay is kept; shuffle is not', () => {
   assert.equal(back.shuffle, false);
   assert.equal(fromText('{"v":1,"autoplay":"yes"}').autoplay, false);
 });
+
+test('the queue stops at 200 songs, either end', () => {
+  let q = newQueue();
+  for (let i = 0; i < 210; i++) q = playLater(q, s(`l${i}`));
+  assert.equal(q.upNext.length, 200);
+  assert.equal(q.upNext.at(-1).id, 'l199');
+  q = playNext(q, s('first'));
+  assert.equal(q.upNext.length, 200);
+  assert.equal(q.upNext[0].id, 'first');
+  assert.equal(fromText(toText(q)).upNext.length, 200);
+});

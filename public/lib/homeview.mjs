@@ -116,7 +116,7 @@ export function wayTilesOf(items) {
   );
 }
 
-// api: { P, radio, taste() -> { style: n }, trackMenu(track, anchor), openNow(), songs(), go(tab, run), game() }
+// api: { P, radio, taste() -> { style: n }, trackMenu(track, anchor, { np }), openNow(), songs(), go(tab, run), game() }
 export function mountHome(panel, api) {
   const { P, radio } = api;
   const taste = () => api.taste();
@@ -269,7 +269,8 @@ export function mountHome(panel, api) {
     P.play(t);
   };
   next.onclick = () => P.forward();
-  more.onclick = e => api.trackMenu(shown().t, e.currentTarget);
+  // (The song playing: its menu as Now Playing's, without 播放.)
+  more.onclick = e => api.trackMenu(shown().t, e.currentTarget, shown().live ? { np: true } : {});
   // (While the card is on screen the mini player steps aside: one player at a time.)
   try {
     new IntersectionObserver(([en_]) => document.body.classList.toggle('bt-now-seen', en_.isIntersecting), { threshold: 0.35 }).observe(card);
@@ -378,9 +379,11 @@ export function mountHome(panel, api) {
   const recentSlot = h('div', { class: 'bt-slot' });
   function drawUp() {
     const s = P.state();
-    const queued = s?.track ? [...P.q.upNext, ...(P.q.station?.kind === 'radio' ? P.upNextRadio() : P.stationNext())] : [];
-    const seen = new Set([s?.track?.id]);
-    const ups = queued.filter(t => t && !seen.has(t.id) && seen.add(t.id)).slice(0, 8);
+    // (What you queued shows as queued, the song playing too if you queued it again; the station's own next ones once each.)
+    const mine = s?.track ? P.q.upNext.filter(Boolean) : [];
+    const seen = new Set([s?.track?.id, ...mine.map(t => t.id)]);
+    const theirs = s?.track ? (P.q.station?.kind === 'radio' ? P.upNextRadio() : P.stationNext()) : [];
+    const ups = [...mine, ...theirs.filter(t => t && !seen.has(t.id) && seen.add(t.id))].slice(0, 8);
     const ps = pickList().filter(p => p.t.id !== shown().t.id);
     const key = [s?.track?.id || '', ...ups.map(t => t.id)].join('|');
     if (key === upKey) return;

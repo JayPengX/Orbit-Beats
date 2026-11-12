@@ -45,3 +45,29 @@ test('wide 首頁: cover grids are snug, and what you heard is covers', () => {
   const recent = src.slice(src.indexOf('function drawRecent()'), src.indexOf('function drawAll()'));
   assert.match(recent, /if \(isWide\(\)\)[\s\S]*songGridOf\('recent'/);
 });
+
+// Fixed in testing (2026-11-12): a song queued again was left out of 接下來, the card's ⋯ offered
+// 播放 for the song already playing, ♡ on a radio song could make it twice, a batch's 復原 undid
+// only its last song, and 樂器/做歌/即興 had no swipe back.
+test('接下來 keeps what you queued, in order, before the station\'s own', () => {
+  assert.match(home, /const mine = s\?\.track \? P\.q\.upNext\.filter\(Boolean\) : \[\];/);
+  assert.match(home, /const ups = \[\.\.\.mine, \.\.\.theirs\.filter\(/);
+});
+test('the card\'s ⋯ on the song playing is Now Playing\'s menu (no 播放)', () => {
+  assert.match(home, /api\.trackMenu\(shown\(\)\.t, e\.currentTarget, shown\(\)\.live \? \{ np: true \} : \{\}\)/);
+});
+test('♡ on a radio song makes it once, with 存到資料庫中… till it\'s kept', () => {
+  assert.match(app, /if \(keepingRadio\.has\(id\)\) return;/);
+  assert.match(app, /finally \{\s*keepingRadio\.delete\(id\);/);
+});
+test('a batch\'s auto-keep counts the whole batch, so 復原 takes every song out', () => {
+  assert.match(app, /const reset = \(\) => \(autoTimer = busy \|\| autoKeeping \? setTimeout\(reset, 6000\)/);
+});
+test('a swipe in from the left edge goes back from a 創作 screen', () => {
+  assert.match(app, /ui\.edgeBack\?\.\(\{ target: \(\) => \(SUBS\.includes\(tabNow\)/);
+});
+test('a new list that couldn\'t be saved isn\'t added to or said to be; one that is is named', () => {
+  const lib = read('lib/library.mjs');
+  assert.match(lib, /if \(saveLists\(makeList\(lists, v, id\)\) === true\) then\?\.\(id\);/);
+  assert.match(lib, /toast\(n \? W\(`已加到「\$\{n\}」`/);
+});

@@ -74,28 +74,11 @@ Jay's, dated (Taiwan day), newest wins; the family's are in Orbit-Core `docs/RUL
 
 ```bash
 npm test
-```
-
-```bash
-node ../Orbit-Core/tools/preview.mjs beats --width 375
-```
-
-The script:
-
-```bash
-python3 passion_beats.py all_beats.wav --count 20 --out songs/
-```
-
-Its flags: `--bpm`, `--roles 3=riff,12=off`, `--styles`, `--humanize`,
-`--seed`, `--min-bars` / `--max-bars`, `--silence-db -60`,
-`--save-pieces`, `--raw` (no mix), `--levels`, `--reverb`, `--delay`,
-`--pump`, `--width`, `--fade`, `--no-sweep`, `--stems`, `--plan`. A push to `main` tests and deploys to Cloudflare.
-
-## Run and test
-
-```bash
-npm test
 node ../Orbit-Core/tools/preview.mjs beats --width 375
 python3 passion_beats.py all_beats.wav --count 20 --out songs/   # --help for its flags
 ```
 
+The script's flags: `--bpm`, `--roles 3=riff,12=off`, `--styles`, `--humanize`,
+`--seed`, `--min-bars` / `--max-bars`, `--silence-db -60`,
+`--save-pieces`, `--raw` (no mix), `--levels`, `--reverb`, `--delay`,
+`--pump`, `--width`, `--fade`, `--no-sweep`, `--stems`, `--plan`. A push to `main` tests and deploys to Cloudflare.
