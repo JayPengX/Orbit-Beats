@@ -699,6 +699,8 @@ body.lv-simple #pieces .piece .more { width: 28px; height: 28px; }
 /* (Only while it is up: a class left behind can never lock the page.) */
 html:has(body.np-open .np.in), body.np-open:has(.np.in) { overflow: hidden; overscroll-behavior: none; }
 body.np-open .q-toast { bottom: auto; top: calc(max(10px, env(safe-area-inset-top)) + 52px); }
+/* (Above the mini player while it's up: both sat at the tab bar's top, the toast over the song, 11-12.) */
+body:has(#player:not([hidden])):not(.np-open) .q-toast { translate: 0 -68px; }
 .np { position: fixed; inset: 0; z-index: 80; display: flex; flex-direction: column; align-items: center; padding: max(10px, env(safe-area-inset-top)) 24px calc(16px + env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; background: #1c1c1e; color: #fff; --text: #fff; --text-2: rgba(255,255,255,.72); --text-3: rgba(255,255,255,.5); --fill: rgba(255,255,255,.18); --fill-2: rgba(255,255,255,.32); transform: translateY(100%); transition: transform .34s cubic-bezier(.2, .8, .2, 1); }
 .np.in { transform: none; }
 .np[hidden] { display: none; }
@@ -874,7 +876,9 @@ footer, .q-brand-logo, .q-brand-text { display: none; }
 .ing-band span { position: absolute; z-index: 1; left: 6px; right: 6px; bottom: 5px; font-size: 12px; font-weight: 600; line-height: 1.2; text-align: center; }
 .easy-moods { padding: 0; margin-bottom: 22px; }
 body.lv-simple .len-row { padding: 0; }
-body.lv-simple .len-row .len-chips { margin: 10px 0 0; }
+/* (Under its label as 情境's cards are: 8, not 16, 11-12.) */
+body.lv-simple .len-row .sheet-line { min-height: 0; }
+body.lv-simple .len-row .len-chips { margin: 8px 0 0; }
 body.lv-simple #panel-make #go { margin-top: 24px; }
 .easy-moods .label, .len-row .sheet-line .label { font-size: 15px; font-weight: 600; color: var(--text); }
 .mood-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 8px; }
