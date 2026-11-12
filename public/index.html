@@ -237,8 +237,10 @@ input[type="range"] { width: 120px; accent-color: var(--accent); }
 .song .si svg { width: 22px; height: 22px; }
 .song .what { display: block; flex: 1; min-width: 0; }
 .song .name { display: block; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.song .info { display: block; color: var(--text-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+/* One line: what doesn't fit (the key, then the speed) is left out whole, never a second line (320: 2:22 · 爵士搖擺 · 慢 wrapped). */
+.song .info { display: flex; flex-wrap: wrap; height: 18px; line-height: 18px; overflow: hidden; color: var(--text-2); font-size: 13px; font-variant-numeric: tabular-nums; }
 .song .info span { white-space: nowrap; }
+.song .info span + span::before { content: " · "; white-space: pre; }
 .song .act {
   width: 36px; height: 36px; border-radius: 18px; border: 0; display: grid; place-items: center; flex: none;
   background: none; color: var(--text-2);

@@ -1285,7 +1285,7 @@ function songRow(song, { lib: inLib = false, list = null } = {}) {
   const what = [timeText(info.seconds), info.style ? name(STYLE_NAMES, info.style) : W('即興', 'Jam'), info.bpm ? speedText(info.bpm) : '', simple() ? '' : keyName(info.key)].filter(Boolean);
   const plan = info.plan.map(([t]) => name(SECTION_NAMES, t)).join(', ');
   const play = h('span', { class: 'play' }, [h('img', { class: 'sc', alt: '', src: coverOfTrack(P.track(song)), width: 52, height: 52, loading: 'lazy' }), h('span', { class: 'si', html: ICON.play })]);
-  const main = h('button', { class: 'main', type: 'button', 'aria-label': W(`播放 ${song.name}`, `Play ${song.name}`), onclick: () => toggleSong(song) }, [play, h('span', { class: 'what' }, [h('span', { class: 'name', text: song.name }), h('span', { class: 'info' }, what.flatMap((w, i) => [...(i ? [' · '] : []), h('span', { text: w })]))])]);
+  const main = h('button', { class: 'main', type: 'button', 'aria-label': W(`播放 ${song.name}`, `Play ${song.name}`), onclick: () => toggleSong(song) }, [play, h('span', { class: 'what' }, [h('span', { class: 'name', text: song.name }), h('span', { class: 'info' }, what.map(w => h('span', { text: w })))])]);
   const heart = h('button', { class: `act heart${lib.has(song.id) ? ' kept' : ''}`, type: 'button', 'aria-label': lib.has(song.id) ? W('取消收藏', 'Remove from Library') : W('收藏', 'Keep'), 'aria-pressed': String(lib.has(song.id)), html: lib.has(song.id) ? ICON.hearted : ICON.heart, onclick: () => keepSong(song) });
   const more = h('button', { class: 'act', type: 'button', 'aria-label': W('更多', 'More'), html: ICON.more, onclick: e => songMenu(song, e.currentTarget, inLib, list) });
   li.append(h('div', { class: 'line' }, [main, heart, more]));
