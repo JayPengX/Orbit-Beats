@@ -16,42 +16,30 @@
 Music that never stops, and your own beat pieces arranged into new songs. Everything runs on the phone; no sound is uploaded. Part of **Orbit**, a family of apps for life in Taiwan that share one sign-in, the Orbit Pass. See them all at [orbit.jaypengx.com](https://orbit.jaypengx.com/pass/).
 
 <p align="center">
-  <img src="docs/screenshots/beats-1.webp" width="30%" alt="Music made for you">
-  <img src="docs/screenshots/beats-2.webp" width="30%" alt="Say what you want to hear">
-  <img src="docs/screenshots/beats-3.webp" width="30%" alt="Moods and stations">
+  <img src="docs/screenshots/beats-1.webp" width="30%" alt="Music made on your phone, never repeated">
+  <img src="docs/screenshots/beats-2.webp" width="30%" alt="49 styles: say what you want to hear">
+  <img src="docs/screenshots/beats-3.webp" width="30%" alt="Your own sounds, made into songs">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/beats-4.webp" width="30%" alt="Create your way">
-  <img src="docs/screenshots/beats-5.webp" width="30%" alt="Make beats in the studio">
-  <img src="docs/screenshots/beats-6.webp" width="30%" alt="Jam on the pads">
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/beats-7.webp" width="30%" alt="A rhythm game for any song">
-  <img src="docs/screenshots/beats-8.webp" width="30%" alt="Now playing">
-  <img src="docs/screenshots/beats-9.webp" width="30%" alt="Keep the songs you like">
+  <img src="docs/screenshots/beats-4.webp" width="30%" alt="Make beats in the studio">
+  <img src="docs/screenshots/beats-5.webp" width="30%" alt="Jam on the pads">
+  <img src="docs/screenshots/beats-6.webp" width="30%" alt="A rhythm game for any song">
 </p>
 
 <details>
 <summary>中文畫面</summary>
 
 <p align="center">
-  <img src="docs/screenshots/beats-1.zh.webp" width="30%" alt="為你做的音樂">
-  <img src="docs/screenshots/beats-2.zh.webp" width="30%" alt="說想聽什麼，就換成那種歌">
-  <img src="docs/screenshots/beats-3.zh.webp" width="30%" alt="各種心情與電台">
+  <img src="docs/screenshots/beats-1.zh.webp" width="30%" alt="手機現做的音樂，首首不重複">
+  <img src="docs/screenshots/beats-2.zh.webp" width="30%" alt="49 種曲風，說想聽什麼就換">
+  <img src="docs/screenshots/beats-3.zh.webp" width="30%" alt="用你的素材，做成整首歌">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/beats-4.zh.webp" width="30%" alt="用你的方式創作">
-  <img src="docs/screenshots/beats-5.zh.webp" width="30%" alt="在樂器室做節拍">
-  <img src="docs/screenshots/beats-6.zh.webp" width="30%" alt="用打擊墊即興">
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/beats-7.zh.webp" width="30%" alt="每首歌都能玩節奏遊戲">
-  <img src="docs/screenshots/beats-8.zh.webp" width="30%" alt="正在播放">
-  <img src="docs/screenshots/beats-9.zh.webp" width="30%" alt="收藏你喜歡的歌">
+  <img src="docs/screenshots/beats-4.zh.webp" width="30%" alt="在樂器室做節拍">
+  <img src="docs/screenshots/beats-5.zh.webp" width="30%" alt="打擊墊，隨手即興">
+  <img src="docs/screenshots/beats-6.zh.webp" width="30%" alt="每首歌都能玩節奏遊戲">
 </p>
 
 </details>
