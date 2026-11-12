@@ -16,7 +16,7 @@
 Music that never stops, and your own beat pieces arranged into new songs. Everything runs on the phone; no sound is uploaded. Part of **Orbit**, a family of apps for life in Taiwan that share one sign-in, the Orbit Pass. See them all at [orbit.jaypengx.com](https://orbit.jaypengx.com/pass/).
 
 <p align="center">
-  <img src="docs/screenshots/beats-1.webp" width="30%" alt="Music made on your phone, never repeated">
+  <img src="docs/screenshots/beats-1.webp" width="30%" alt="Endless music, made on your phone">
   <img src="docs/screenshots/beats-2.webp" width="30%" alt="49 styles: say what you want to hear">
   <img src="docs/screenshots/beats-3.webp" width="30%" alt="Your own sounds, made into songs">
 </p>
