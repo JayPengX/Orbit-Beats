@@ -995,6 +995,8 @@ export function mountRadio(panel, api) {
   }
   function sleepTick() {
     if (!sleep) return;
+    // (The same song after its opening is a new stretch with the same id: still this song.)
+    if (sleep.song && cur?.id && cur.id === sleep.item?.id) sleep.item = cur;
     if (sleep.song && cur !== sleep.item) {
       // (⏭ or no song yet: the end of the one playing now.)
       if (!sleep.item || sleep.skipped) Object.assign(sleep, { item: cur, skipped: false });

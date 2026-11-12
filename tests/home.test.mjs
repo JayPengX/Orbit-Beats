@@ -71,3 +71,19 @@ test('a new list that couldn\'t be saved isn\'t added to or said to be; one that
   assert.match(lib, /if \(saveLists\(makeList\(lists, v, id\)\) === true\) then\?\.\(id\);/);
   assert.match(lib, /toast\(n \? W\(`已加到「\$\{n\}」`/);
 });
+test('創作\'s 你的歌 is drawn again once 資料庫 is read, and when songs come from the Pass', () => {
+  assert.match(app, /const songsShown = \(\) => \(home\?\.refresh\(\), tabNow === 'create' && hubDraw\(\)\);/);
+  assert.match(app, /await lib\.read\(\);\n\s*\/\/[^\n]*\n\s*songsShown\(\);/);
+  assert.match(app, /if \(changed\) songsShown\(\);/);
+});
+test('從這個清單移除 says which list the song left', () => {
+  assert.match(read('lib/library.mjs'), /=== true && l\) toast\(W\(`已從「\$\{l\.name\}」移除`/);
+});
+test('a clip\'s pads: the song big, the section small, numbered when one clip gave several', () => {
+  const jam = read('lib/jamview.mjs');
+  assert.match(jam, /many\[named\(i\)\] > 1 \? String\(n\) : ''/);
+  assert.match(jam, /return \{ name: \[head, head\], sub: tail \? \[tail, tail\] : null, clip: true \};/);
+});
+test('這首結束 set during an opening waits for the song, not the opening\'s end', () => {
+  assert.match(read('lib/radioview.mjs'), /if \(sleep\.song && cur\?\.id && cur\.id === sleep\.item\?\.id\) sleep\.item = cur;\n\s*if \(sleep\.song && cur !== sleep\.item\)/);
+});

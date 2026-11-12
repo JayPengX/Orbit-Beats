@@ -2036,6 +2036,8 @@ async function takePass(theirs) {
   }
   await syncSongs();
 }
+// The kept songs changed under 首頁 and 創作 (read at the start, or come from the Pass): both drawn again.
+const songsShown = () => (home?.refresh(), tabNow === 'create' && hubDraw());
 async function syncSongs() {
   await lib.read();
   const plan = songsPlan(kept.songs, lib.all());
@@ -2061,7 +2063,7 @@ async function syncSongs() {
     lib.setLists(lp.lists);
   }
   keep(false);
-  if (changed) home?.refresh();
+  if (changed) songsShown();
   if (added.length) setTimeout(() => fillSounds().catch(() => {}), 6000);
 }
 // A song from the Pass with its sound made and kept (once, however often it's asked for). -> the record
@@ -2759,7 +2761,8 @@ async function boot() {
   showTab(firstTab());
   if (wantsGame) game?.open();
   await lib.read();
-  home?.refresh();
+  // (創作's 你的歌 too: drawn before 資料庫 was read, it showed 從這裡開始 over kept songs.)
+  songsShown();
   if (asked) askHere(asked);
   // (A newer deploy is loaded behind the loading screen, never over the app once it shows: the kit's
   // boot check says false while it reloads to one. Still here after 8 s: the app opens as it is.)

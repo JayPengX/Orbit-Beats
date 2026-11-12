@@ -351,7 +351,8 @@ export function libraryView({ panel, row, goMake, zip, play, cover = () => '', s
     pickList,
     // Out of the list it's shown in.
     unlist(listId, id) {
-      saveLists(removeFrom(lists, listId, id));
+      const l = lists.find(x => x.id === listId);
+      if (saveLists(removeFrom(lists, listId, id)) === true && l) toast(W(`已從「${l.name}」移除`, `Removed from “${l.name}”`), { ms: 1400 });
     },
     // The songs as shown (the player goes on to the next of these): the open list's, in its order.
     shown: () => {

@@ -223,7 +223,18 @@ export function mountJam(panel, api) {
       const loops = k.heard ? k.heard.analyses.map(a => loopBeats(a, k.bpm)) : [];
       // (A clip taken from a song keeps its own name on the pad: ♪ title · section.)
       const named = i => (k.names?.[i]?.startsWith('♪') ? k.names[i].replace(/^♪\s*/, '') : '');
-      pads = padsOf(k.roles, loops).map(p => ({ ...p, fam: FAMILY[p.role] || 'drum', ...(named(p.i) ? { name: [named(p.i), named(p.i)], sub: null, clip: true } : {}) }));
+      // (A clip's pads: its song's name big, the rest of its name small, and a number when one clip
+      // gave several pads, so eight pads cut from one 副歌 aren't eight of the same.)
+      const many = {};
+      for (let i = 0; i < k.roles.length; i++) if (named(i)) many[named(i)] = (many[named(i)] || 0) + 1;
+      const nth = {};
+      const clipName = i => {
+        const [head, ...rest] = named(i).split(' · ');
+        const n = (nth[named(i)] = (nth[named(i)] || 0) + 1);
+        const tail = [...rest, many[named(i)] > 1 ? String(n) : ''].filter(Boolean).join(' · ');
+        return { name: [head, head], sub: tail ? [tail, tail] : null, clip: true };
+      };
+      pads = padsOf(k.roles, loops).map(p => ({ ...p, fam: FAMILY[p.role] || 'drum', ...(named(p.i) ? clipName(p.i) : {}) }));
     }
     bpm = cur.bpm;
     if (setsOf !== cur.print) {
@@ -249,7 +260,7 @@ export function mountJam(panel, api) {
         ...pads.map(p => {
           const big = p.name ? W(...p.name) : String(p.i + 1);
           const small = p.name ? (p.sub ? W(...p.sub) : '') : name(ROLE_NAMES, p.role);
-          const b = h('button', { class: `jam-pad${p.loop ? ' loop' : ''}`, type: 'button', 'data-i': String(p.i), 'data-fam': p.fam, 'aria-label': `${p.name ? big : `${small} ${big}`}${p.loop ? W('（循環）', ' (loop)') : ''}` }, [
+          const b = h('button', { class: `jam-pad${p.loop ? ' loop' : ''}`, type: 'button', 'data-i': String(p.i), 'data-fam': p.fam, 'aria-label': `${p.name ? [big, small].filter(Boolean).join(' · ') : `${small} ${big}`}${p.loop ? W('（循環）', ' (loop)') : ''}` }, [
             // (A clip from a song: the note icon, not a ♪ typed in its name.)
             p.clip ? h('b', { class: 'clip' }, [h('i', { class: 'clip-ico', 'aria-hidden': 'true', html: icon('note') }), h('span', { text: big })]) : h('b', { text: big }),
             small ? h('small', { text: small }) : null,
