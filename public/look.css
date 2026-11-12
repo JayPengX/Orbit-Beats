@@ -2,6 +2,9 @@
    today's dark one; every card the kit's graphite; colour only on what it names: a song's
    cover, and each part of the song on its own colour (the 做歌 strip's), the one playing lit. */
 
+/* (.q-cols too: the kit's .q-cols, weightier, sets no row gap, and on a phone the two columns stack:
+   今日精選's 再看 bar sat on 電台's heading.) */
+html[data-look='native'] .q-cols.bt-home,
 html[data-look='native'] .bt-home {
   row-gap: var(--q-s-5);
   padding-top: var(--q-s-2);

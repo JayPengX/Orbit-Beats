@@ -16,6 +16,11 @@ test('the look is always on: data-look on the page, look.css after the page\'s s
   assert.match(app, /home = mountHome\(\$\('panel-home'\)/);
 });
 
+test('a phone\'s two stacked columns keep the page\'s gap between them (the kit\'s .q-cols has none and outweighs .bt-home)', () => {
+  assert.match(home, /h\('div', \{ class: 'q-cols bt-home' \}/);
+  assert.match(css, /html\[data-look='native'\] \.q-cols\.bt-home,[^{]*\{\s*row-gap: var\(--q-s-5\)/);
+});
+
 test('首頁 opens on the player card: cover, ▶ and the parts line, then the rows', () => {
   assert.match(home, /class: 'q-card bt-now' \}, \[head, h\('div', \{ class: 'bt-line' \}, \[parts, names\]\)/);
   assert.match(home, /\[h\('div', \{ class: 'bt-col' \}, \[card, upSlot\]\)/);
