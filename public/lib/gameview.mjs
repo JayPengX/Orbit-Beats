@@ -719,8 +719,9 @@ export function mountGame(host, api) {
   // ---- Input: a lane each quarter of the screen; a key each (D F J K, or the arrows) ----
   const fingers = new Map();
   const laneAt = x => Math.max(0, Math.min(LANES - 1, Math.floor((x - (geo.cx - (geo.lane * LANES) / 2)) / geo.lane)));
+  // (While the level is made, R holds only its turn: a tap or a key then does nothing.)
   function down(lane, perf) {
-    if (!R || R.paused || R.over) return;
+    if (!R?.pressed || R.paused || R.over) return;
     R.pressed[lane] = true;
     R.flash[lane] = 1;
     const t = clockAt(perf);
@@ -740,7 +741,7 @@ export function mountGame(host, api) {
     }
   }
   function up(lane, perf) {
-    if (!R) return;
+    if (!R?.pressed) return;
     R.pressed[lane] = [...fingers.values()].includes(lane) || keysDown.has(lane);
     if (R.pressed[lane]) return;
     const n = R.held[lane];

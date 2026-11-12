@@ -87,3 +87,8 @@ test('a clip\'s pads: its section on the pad, numbered when one clip gave severa
 test('這首結束 set during an opening waits for the song, not the opening\'s end', () => {
   assert.match(read('lib/radioview.mjs'), /if \(sleep\.song && cur\?\.id && cur\.id === sleep\.item\?\.id\) sleep\.item = cur;\n\s*if \(sleep\.song && cur !== sleep\.item\)/);
 });
+test('the game: a tap or a key while the level is still being made does nothing (no error)', () => {
+  const g = read('lib/gameview.mjs');
+  assert.match(g, /function down\(lane, perf\) \{\n\s*if \(!R\?\.pressed \|\| R\.paused \|\| R\.over\) return;/);
+  assert.match(g, /function up\(lane, perf\) \{\n\s*if \(!R\?\.pressed\) return;/);
+});
