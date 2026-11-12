@@ -37,7 +37,16 @@ export function solName(i, n) {
   const d = SOL[Math.max(0, Math.min(SOL.length - 1, n - 1 - i))];
   return i === 0 ? `${d} ${W('高', 'high')}` : i === n - 1 ? `${d} ${W('低', 'low')}` : d;
 }
-const noteName = m => `${NOTE_NAMES[m % 12]}${Math.floor(m / 12) - 1}`;
+// A note's name spelt as its key writes it: the sharp keys' (G, D, A, E, B, F♯, C♯ major and their
+// minors) all sharps, the flat keys' (F, B♭, E♭, A♭) all flats; C major / A minor as NOTE_NAMES. (One
+// spelling for every key had B major read B, B♭, A♭, F♯, E, E♭: right pitches, a musician's wrong names.)
+const SHARP_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+const FLAT_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
+export function spelling(key) {
+  const major = key ? (key.minor ? key.tonic + 3 : key.tonic) % 12 : 0;
+  return major === 0 ? NOTE_NAMES : [5, 10, 3, 8].includes(major) ? FLAT_NAMES : SHARP_NAMES;
+}
+export const noteName = (m, key = null) => `${spelling(key)[m % 12]}${Math.floor(m / 12) - 1}`;
 
 export const MOST_PATS = 4;
 export const MOST_CHAIN = 8;
@@ -335,7 +344,7 @@ export function mountStudio(panel, api) {
     if (st.mode === 'notes') return rows();
     return shownLanes(lanes(), bank().pats, more);
   }
-  const laneName = (i, n, m) => (easy() ? solName(i, n) : `${solName(i, n)} · ${noteName(m)}`);
+  const laneName = (i, n, m) => (easy() ? solName(i, n) : `${solName(i, n)} · ${noteName(m, keyNow())}`);
   function drawGrid() {
     page = Math.min(page, st.bars - 1);
     pager.hidden = st.bars < 2;

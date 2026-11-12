@@ -1,7 +1,7 @@
 // The 樂器 tab's patterns, chain and hit levels (lib/studio.mjs, lib/synth.mjs, lib/midi.mjs).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { stateOf, bankOf, chainOf, dropPattern, nextHit } from '../public/lib/studio.mjs';
+import { stateOf, bankOf, chainOf, dropPattern, nextHit, spelling, noteName } from '../public/lib/studio.mjs';
 import { emptyDrums, emptyNotes, clipOf, stepHits, chainClips, renderClip, levelGain, STEPS } from '../public/lib/synth.mjs';
 import { clipTracks, midiFile, readMidi } from '../public/lib/midi.mjs';
 
@@ -116,4 +116,17 @@ test('the part not being edited plays under it, unless it is empty', () => {
   st.drums.pats[0] = ed(1);
   st.mode = 'notes';
   assert.equal(otherPart(st), null);
+});
+
+test('樂器 spells a note the way its key writes it: B major in sharps, F major with B♭', () => {
+  const B = { tonic: 11, minor: false };
+  assert.deepEqual([71, 70, 68, 66, 63].map(m => noteName(m, B)), ['B4', 'A♯4', 'G♯4', 'F♯4', 'D♯4']);
+  assert.equal(noteName(70, { tonic: 5, minor: false }), 'B♭4');
+  assert.equal(noteName(63, { tonic: 0, minor: true }), 'E♭4', 'C minor = E♭ major: flats');
+  assert.equal(noteName(66, { tonic: 4, minor: true }), 'F♯4', 'E minor = G major: sharps');
+  assert.equal(spelling({ tonic: 9, minor: true }), spelling(null), 'A minor reads as C major');
+  for (let t = 0; t < 12; t++) for (const minor of [false, true]) {
+    const names = spelling({ tonic: t, minor });
+    assert.ok(!(names.some(n => n.includes('♯')) && names.some(n => n.includes('♭'))) || names === spelling(null), `one kind of accidental for ${t}${minor ? 'm' : ''}`);
+  }
 });
