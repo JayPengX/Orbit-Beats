@@ -287,7 +287,7 @@ export function mountHome(panel, api) {
   let sayNow = null;
   function sayBar() {
     const note = h('p', { class: 'bt-say-note', 'aria-live': 'polite' });
-    const bar = kitAI.aiBar?.({ placeholder: W('想聽什麼？例如讀書 lo-fi', 'What to play? Study lo-fi…'), label: W('用說的選電台', 'Say what to play'), max: 80, onSend: t => go(t) });
+    const bar = kitAI.aiBar?.({ placeholder: W('想聽什麼？例如讀書 lo-fi', 'What to play? Study lo-fi…'), label: W('用說的選電台', 'Say what to play'), max: 80, code: true, onSend: t => go(t) });
     if (!bar) return null;
     sayNow = t => go(String(t).slice(0, 80));
     async function go(t) {
