@@ -19,13 +19,13 @@ Music that never stops, and your own beat pieces arranged into new songs. Everyt
 
 <p align="center">
   <img src="docs/screenshots/beats-1.webp" width="30%" alt="Endless music, made on your phone">
-  <img src="docs/screenshots/beats-2.webp" width="30%" alt="49 styles: say what you want to hear">
-  <img src="docs/screenshots/beats-3.webp" width="30%" alt="Keep favorites, each with its own cover">
+  <img src="docs/screenshots/beats-2.webp" width="30%" alt="Make beats in the studio">
+  <img src="docs/screenshots/beats-3.webp" width="30%" alt="49 styles: say what you want to hear">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/beats-4.webp" width="30%" alt="Make beats in the studio">
-  <img src="docs/screenshots/beats-5.webp" width="30%" alt="Jam on the pads">
+  <img src="docs/screenshots/beats-4.webp" width="30%" alt="16 pads to jam on">
+  <img src="docs/screenshots/beats-5.webp" width="30%" alt="Keep favorites, each with its own cover">
   <img src="docs/screenshots/beats-6.webp" width="30%" alt="A rhythm game for any song">
 </p>
 
@@ -34,13 +34,13 @@ Music that never stops, and your own beat pieces arranged into new songs. Everyt
 
 <p align="center">
   <img src="docs/screenshots/beats-1.zh.webp" width="30%" alt="手機現做的音樂，首首不重複">
-  <img src="docs/screenshots/beats-2.zh.webp" width="30%" alt="49 種曲風，說想聽什麼就換">
-  <img src="docs/screenshots/beats-3.zh.webp" width="30%" alt="喜歡就收藏，首首都有封面">
+  <img src="docs/screenshots/beats-2.zh.webp" width="30%" alt="在樂器室做節拍">
+  <img src="docs/screenshots/beats-3.zh.webp" width="30%" alt="49 種曲風，說想聽什麼就換">
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/beats-4.zh.webp" width="30%" alt="在樂器室做節拍">
-  <img src="docs/screenshots/beats-5.zh.webp" width="30%" alt="打擊墊，隨手即興">
+  <img src="docs/screenshots/beats-4.zh.webp" width="30%" alt="16 個打擊墊，隨手即興">
+  <img src="docs/screenshots/beats-5.zh.webp" width="30%" alt="喜歡就收藏，首首都有封面">
   <img src="docs/screenshots/beats-6.zh.webp" width="30%" alt="每首歌都能玩節奏遊戲">
 </p>
 
