@@ -386,8 +386,7 @@ function showSettings() {
 // The styles you keep most: what a batch leans to (依你的口味).
 // ♡s (kept.taste, the Pass) and what's listened through or skipped on the
 // radio (the family's one engine, the kit's feedback.mjs, kept on the Pass
-// too) as one taste (lib/listen.mjs tasteFrom). (Loaded on the side: an older
-// kit without it leans on ♡s alone.)
+// too) as one taste (lib/listen.mjs tasteFrom). (Loaded on the side.)
 let feedback = null;
 // A groove's weight as learnt, at its likely least (one heard by luck isn't one heard ten times).
 const SURE = 0.5;
@@ -1295,7 +1294,7 @@ function songRow(song, { lib: inLib = false, list = null } = {}) {
     const total = info.plan.reduce((a, [, n]) => a + n, 0);
     // (The strip's room: the songs' card (the page's column: 688 at most alone, half a wide page beside the settings), less the row and card padding and the play column; on the safe side so no label is cut.)
     const page = (document.querySelector('main')?.clientWidth || Math.min(innerWidth, 440)) - 32;
-    const width = (kit.screenFit?.().wide ? (page - 16) / 2 : Math.min(page, 688)) - 62 - 40;
+    const width = (kit.screenFit().wide ? (page - 16) / 2 : Math.min(page, 688)) - 62 - 40;
     sectionTimes(info.plan, info.bpm || bpm).forEach((s, k) => {
       const label = name(SECTION_NAMES, s.type);
       const em = en ? label.length * 0.66 : label.length;
@@ -1912,14 +1911,14 @@ audio.addEventListener('pause', () => {
   const theirs = !ownPause && !audio.ended && nowPlaying;
   ownPause = false;
   if (!theirs) return;
-  kit.rec?.('beats-yielded', { why: 'song paused by the phone', away: document.visibilityState === 'hidden', session: navigator.audioSession?.state || null });
+  kit.rec('beats-yielded', { why: 'song paused by the phone', away: document.visibilityState === 'hidden', session: navigator.audioSession?.state || null });
   try {
     if (navigator.mediaSession) navigator.mediaSession.playbackState = 'paused';
   } catch {}
 });
 function yieldSound(why) {
   if (!(studio?.playing() || jam?.playing() || playing || example)) return;
-  kit.rec?.('beats-yielded', { why, away: document.visibilityState === 'hidden', session: navigator.audioSession?.state || null });
+  kit.rec('beats-yielded', { why, away: document.visibilityState === 'hidden', session: navigator.audioSession?.state || null });
   stopPiece();
   stopExample();
   studio?.stop();
@@ -2011,7 +2010,7 @@ async function keepSong(song, { quiet = false } = {}) {
   // (Made on the app's own band: its recipe onto the Pass, a few hundred bytes; lib/songsync.mjs.)
   if (syncable(rec)) kept.songs[rec.id] = songEntry(rec);
   // The songs kept, toward the 十首歌 milestone.
-  listSongs().then(all => kit.milestone?.(q, 'beats', all.length), () => {});
+  listSongs().then(all => kit.milestone(q, 'beats', all.length), () => {});
   if (song.info.style) kept.taste = liked(kept.taste, song.info.style, 1);
   keep();
   refreshHearts(song.id);
@@ -2427,7 +2426,7 @@ document.addEventListener('visibilitychange', () => {
   try {
     const was = JSON.parse(localStorage.getItem(ALIVE) || 'null');
     localStorage.removeItem(ALIVE);
-    if (was?.t && Date.now() - was.t < 60 * 60e3) kit.rec?.('beats-gone', { ago: Math.round((Date.now() - was.t) / 1000), away: was.away, what: was.what, path: was.path });
+    if (was?.t && Date.now() - was.t < 60 * 60e3) kit.rec('beats-gone', { ago: Math.round((Date.now() - was.t) / 1000), away: was.away, what: was.what, path: was.path });
   } catch {}
   setInterval(() => {
     const s = P?.state();
@@ -2586,7 +2585,7 @@ function helpSheet() {
     closeLabel: W('關閉', 'Close'),
     body: [
       h('div', { class: 'card sheet-card tours' }, cards),
-      h('div', { class: 'card sheet-card' }, [row(W('名詞小辭典', 'Music words'), () => wordsSheet()), row(W('完整說明', 'The full guide'), () => (s.close(), kitQ.openHelp ? kitQ.openHelp(q) : (location.hash = 'help=beats')))]),
+      h('div', { class: 'card sheet-card' }, [row(W('名詞小辭典', 'Music words'), () => wordsSheet()), row(W('完整說明', 'The full guide'), () => (s.close(), kitQ.openHelp(q)))]),
       h('p', { class: 'sheet-credit' }, en ? ['Recorded instruments: the MusyngKite soundfont (CC BY-SA 3.0), via gleitz/midi-js-soundfonts; strings: VSCO 2 Community Edition (Versilian Studios, CC0); piano: the Salamander Grand Piano (Alexander Holm, CC BY 3.0). Drums: Virtuosity Drums (Versilian Studios, Karoryfer Samples), the TR-808 by Michael Fischer, Sonic Pi (CC0).'] : ['樂器錄音：MusyngKite 音色庫（CC BY-SA 3.0），經 ', h('span', { lang: 'en', text: 'gleitz/midi-js-soundfonts' }), '；弦樂：VSCO 2 Community Edition（Versilian Studios，CC0）；鋼琴：Salamander Grand Piano（Alexander Holm，CC BY 3.0）。鼓組：Virtuosity Drums（Versilian Studios、Karoryfer Samples）、Michael Fischer 的 TR-808、Sonic Pi（CC0）。'])
     ]
   });
@@ -2620,7 +2619,7 @@ async function boot() {
     meta: o => sessionMeta(o),
     taste,
     heard: heardSong,
-    rec: (kind, data) => kit.rec?.(kind, data),
+    rec: (kind, data) => kit.rec(kind, data),
     mood: settings.radioMood,
     setMood: m => ((settings.radioMood = m), save())
   });
@@ -2701,7 +2700,7 @@ async function boot() {
     }
   });
   // (A new kind of screen: 首頁's rows again, 適合現在 one banner or two.)
-  kit.onScreen?.(() => (home?.refresh?.(), tabNow === 'create' && hubDraw(), tabNow === 'library' && lib.draw()));
+  kit.onScreen(() => (home?.refresh?.(), tabNow === 'create' && hubDraw(), tabNow === 'library' && lib.draw()));
   // (The loop button leaves a section on repeat.)
   let loopWas = P.q.loop;
   P.on(w => {

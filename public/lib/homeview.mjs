@@ -80,7 +80,7 @@ export function songListOf(open, key, head_, rows, opts = {}) {
   const box = h('div', { class: 'q-rowcard bt-list' }, rows.slice(0, open[key] ? rows.length : SHOW));
   const tail =
     rows.length > SHOW
-      ? kitUI.moreToggle?.({
+      ? kitUI.moreToggle({
           more: W(`再看 ${rows.length - SHOW} 首`, `${rows.length - SHOW} more`),
           less: W('收起', 'Less'),
           open: Boolean(open[key]),
@@ -198,7 +198,7 @@ export function mountHome(panel, api) {
       sub.textContent = [subOf(t), live ? '' : clock(t.seconds || 0)].filter(Boolean).join(' · ');
       drawParts(t);
       card.classList.toggle('idle', !live);
-      kit.fitNames?.(card);
+      kit.fitNames(card);
     }
     paintTime();
   }
