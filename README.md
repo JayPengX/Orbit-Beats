@@ -6,14 +6,16 @@
 
 <p align="center">
   <b>Make your own beats.</b><br>
-  <a href="https://orbit.jaypengx.com/beats/"><b>orbit.jaypengx.com/beats</b></a>
+  <a href="https://orbit.jaypengx.com/app/"><b>Use it in Orbit</b></a> · on its own at <a href="https://orbit.jaypengx.com/beats/">orbit.jaypengx.com/beats</a>
 </p>
 
 <p align="center">
   <img alt="JavaScript" src="https://img.shields.io/badge/JavaScript-ES_modules-F7DF1E?logo=javascript&logoColor=000"> <img alt="PWA" src="https://img.shields.io/badge/PWA-works_offline-5A0FC8?logo=pwa&logoColor=fff"> <img alt="Cloudflare" src="https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=fff"> <img alt="Tests" src="https://img.shields.io/badge/Tests-node_--test-339933?logo=nodedotjs&logoColor=fff"> <img alt="Python" src="https://img.shields.io/badge/Python-CLI-3776AB?logo=python&logoColor=fff">
 </p>
 
-Music that never stops, and your own beat pieces arranged into new songs. Everything runs on the phone; no sound is uploaded. Part of **Orbit**, a family of apps for life in Taiwan that share one sign-in, the Orbit Pass. See them all at [orbit.jaypengx.com](https://orbit.jaypengx.com/pass/).
+Music that never stops, and your own beat pieces arranged into new songs. Everything runs on the phone; no sound is uploaded. Part of **Orbit**, a family of apps for life in Taiwan that share one sign-in, the Orbit Pass.
+
+> **Best in Orbit.** Add [Orbit](https://orbit.jaypengx.com/app/) to your home screen: every Orbit app in one, signed in once, switching between them without reloading. Orbit Beats also works on its own at [orbit.jaypengx.com/beats](https://orbit.jaypengx.com/beats/) if it's the only one you want.
 
 <p align="center">
   <img src="docs/screenshots/beats-1.webp" width="30%" alt="Endless music, made on your phone">
@@ -153,6 +155,8 @@ Push to `main`. GitHub Actions runs the tests, stamps every file with its conten
 Recorded instruments from the MusyngKite soundfont (CC BY-SA 3.0), strings from VSCO 2 Community Edition (CC0) and piano from the Salamander Grand Piano (CC BY 3.0); drum kits from Virtuosity Drums, a TR-808 sampled by Michael Fischer, and Sonic Pi (CC0). Full credits are in the app's ? sheet.
 
 ## Part of Orbit
+
+Every app below is in **[Orbit](https://orbit.jaypengx.com/app/)**, one home-screen app for them all; each also works on its own.
 
 | App | What it is |
 | --- | --- |
