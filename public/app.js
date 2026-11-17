@@ -590,7 +590,7 @@ $('more-settings').onclick = () => {
   const seed = h('input', { class: 'num wide', type: 'text', inputmode: 'numeric', placeholder: W('隨機', 'Random'), autocomplete: 'off', 'aria-label': W('種子', 'Seed') });
   seed.value = settings.seed;
   seed.addEventListener('input', () => {
-    settings.seed = seed.value.trim();
+    settings.seed = seed.value.normalize('NFKC').trim();
     save();
     update();
   });
