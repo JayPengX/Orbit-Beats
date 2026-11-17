@@ -19,8 +19,8 @@ Music that never stops, and your own beat pieces arranged into new songs. Everyt
 
 <p align="center">
   <img src="docs/screenshots/beats-1.webp" width="30%" alt="Endless music, made on your phone">
-  <img src="docs/screenshots/beats-2.webp" width="30%" alt="Make beats in the studio">
-  <img src="docs/screenshots/beats-3.webp" width="30%" alt="49 styles: say what you want to hear">
+  <img src="docs/screenshots/beats-2.webp" width="30%" alt="49 styles: say what you want to hear">
+  <img src="docs/screenshots/beats-3.webp" width="30%" alt="Make your own beats in the studio">
 </p>
 
 <p align="center">
@@ -34,8 +34,8 @@ Music that never stops, and your own beat pieces arranged into new songs. Everyt
 
 <p align="center">
   <img src="docs/screenshots/beats-1.zh.webp" width="30%" alt="手機現做的音樂，首首不重複">
-  <img src="docs/screenshots/beats-2.zh.webp" width="30%" alt="在樂器室做節拍">
-  <img src="docs/screenshots/beats-3.zh.webp" width="30%" alt="49 種曲風，說想聽什麼就換">
+  <img src="docs/screenshots/beats-2.zh.webp" width="30%" alt="49 種曲風，說想聽什麼就換">
+  <img src="docs/screenshots/beats-3.zh.webp" width="30%" alt="在樂器室，做你自己的節拍">
 </p>
 
 <p align="center">
