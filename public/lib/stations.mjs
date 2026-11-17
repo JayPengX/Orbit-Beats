@@ -4,7 +4,7 @@
 //   'style:<id>'         one groove
 //   'tempo:slow|mid|fast' a range of tempos
 //   'taste'              the grooves you keep (♡), most kept first
-import { MOODS, radioPick, radioSpec } from './radio.mjs';
+import { MOODS, radioPick, radioSpec, songSeconds } from './radio.mjs';
 import { STYLE_ORDER, STYLE_NAMES, name } from './names.mjs';
 import { W } from './lang.mjs';
 
@@ -78,7 +78,7 @@ export function dailyPicks(day, n = 8, from = []) {
     const seed = dayHash(`${day}:${i}`) % 1e9;
     const p = radioPick('all', out, seed, null);
     const sp = radioSpec(p.seed, p.mood, p.style);
-    out.push({ seed: p.seed, mood: p.mood, style: p.style, bpm: sp.bpm, key: { tonic: sp.key.tonic, minor: Boolean(sp.key.minor) }, seconds: Math.round(sp.seconds) });
+    out.push({ seed: p.seed, mood: p.mood, style: p.style, bpm: sp.bpm, key: { tonic: sp.key.tonic, minor: Boolean(sp.key.minor) }, seconds: Math.round(songSeconds(sp)) });
   }
   return out;
 }

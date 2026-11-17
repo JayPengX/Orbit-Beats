@@ -7,6 +7,8 @@ import { makeRng, planOf, planSong } from '../public/engine.mjs';
 test('lengths read as minutes and seconds, clamped to 0:30 to 8:00', () => {
   assert.equal(clock(30), '0:30');
   assert.equal(clock(125), '2:05');
+  // The player's fractional time: never a minute short at the turn (59.5 read 0:00).
+  assert.deepEqual([58.9, 59.5, 59.8, 119.6, 179.7].map(clock), ['0:59', '1:00', '1:00', '2:00', '3:00']);
   assert.deepEqual(LENGTH_PRESETS.map(clock), ['0:30', '1:00', '2:00', '3:00', '4:00', '6:00']);
   assert.equal(clampLength(5), LENGTH_MIN);
   assert.equal(clampLength(9999), LENGTH_MAX);
@@ -46,4 +48,12 @@ test('a song made for a length is about that long', () => {
   const longer = radioSong({ seed: 7, mood: 'all', style: 'lofi', seconds: 120 });
   assert.ok(short.info.seconds >= 25 && short.info.seconds < 45, `${short.info.seconds}`);
   assert.ok(Math.abs(longer.info.seconds - 120) < 25, `${longer.info.seconds}`);
+});
+
+test('a batch song at a long length: the same 種子, the same sections (they were drawn at random each time)', async () => {
+  const { askedPlan } = await import('../public/lib/radio.mjs');
+  assert.ok(kitLength(180, 120).plan);
+  assert.deepEqual(askedPlan(868613560, 120, 180), askedPlan(868613560, 120, 180));
+  const seeds = [1, 2, 3, 4, 5, 6].map(s => JSON.stringify(askedPlan(s, 120, 180)));
+  assert.ok(new Set(seeds).size > 1);
 });

@@ -6,7 +6,12 @@ export const LENGTH_STEP = 10;
 export const LENGTH_PRESETS = [30, 60, 120, 180, 240, 360];
 export const clampLength = v => (Number.isFinite(+v) ? Math.max(LENGTH_MIN, Math.min(LENGTH_MAX, Math.round(+v / LENGTH_STEP) * LENGTH_STEP)) : 60);
 // 90 -> "1:30"
-export const clock = s => `${Math.floor(Math.max(0, s) / 60)}:${String(Math.round(Math.max(0, s)) % 60).padStart(2, '0')}`;
+// (Rounded once, as a whole: minutes floored and seconds rounded apart, 59.5
+// read 0:00 and 119.6 read 1:00, the player's clock a minute short each turn.)
+export const clock = s => {
+  const n = Math.round(Math.max(0, s || 0));
+  return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
+};
 // Whole bars for a length at a tempo (an even number, 8 or more).
 export const barsFor = (seconds, bpm) => Math.max(8, Math.round((seconds * bpm) / 240 / 2) * 2);
 // How a kit's batch asks the engine for it: up to 64 bars, a range of a bar or two (the

@@ -68,6 +68,9 @@ export const SOUND = {
 const tempoJump = (a, b) => Math.abs(a - b) >= 15 || Math.abs(a / b - 2) < 0.12 || Math.abs(b / a - 2) < 0.12;
 const modeName = sp => sp.mode || (sp.key.minor ? 'minor' : 'major');
 const planSig = sp => radioPlan(makeRng(sp.seed ^ 0x1b873593), sp.bpm, sp.seconds).map(p => p.join('')).join();
+// A radio song's length as it's made: its plan's bars at its tempo (`sp.seconds` is only the length the
+// plan is drawn toward: 今日精選 said 3:39 for a song of 2:40).
+export const songSeconds = sp => (radioPlan(makeRng(sp.seed ^ 0x1b873593), sp.bpm, sp.seconds).reduce((a, [, b]) => a + b, 0) * 240) / sp.bpm;
 // What a song is remembered by, so the next ones can steer clear of it: the verse's chord loop and the hook's (a loop and its turns are one family), the key, the lead and chord instruments, the form, the tempo and the drums' touches.
 const marks = sp => ({ fam: progFamily(sp.progV || sp.prog), famB: sp.progB ? progFamily(sp.progB) : null, tonic: sp.key.tonic, lead: sp.lead, chords: sp.chords, chords2: sp.chords2, form: planSig(sp), bpm: sp.bpm, dress: sp.dress.id });
 export const MEMORY = 8;
@@ -478,6 +481,11 @@ function sound(R, xs, style, weigh = null) {
 // What a song is made from: { seed, mood, style }. The style, its tempo, the
 // key and everything else from the seed (the page rotates the style so two
 // in a row differ, and may name it).
+// A song as it is made when its groove is passed on (the game's songs, the
+// day's challenge drawn with none): the groove drawn from the seed, then the
+// spec for that groove. (radioSpec with no groove draws it first, and its
+// tempo and key in another order: 今日挑戰 said 71 BPM and played 76.)
+export const playedSpec = (seed, mood = 'all', style = null) => radioSpec(seed, mood, style || radioSpec(seed, mood).style);
 export function radioSpec(seed, mood = 'all', style = null) {
   const R = makeRng(seed ^ 0x2545f491);
   const styles = moodStyles(mood);
@@ -1489,6 +1497,10 @@ function kitOf(sp, sr, { song = false, lift = true, introOnly = false } = {}) {
 // their chords): an intro, verse–hook pairs (pre-hooks maybe), a break or
 // bridge, and an outro; about `seconds` long.
 export const RING_BARS = 3.5;
+// A batch song's sections at a length asked for, drawn from its seed: the
+// same 種子 makes the same songs again (they were drawn at random, so a long
+// one came out another song each time).
+export const askedPlan = (seed, bpm, seconds) => radioPlan(makeRng(Number.isFinite(seed) ? (seed ^ 0x2c1b3c6d) >>> 0 : Math.floor(Math.random() * 1e9)), bpm, seconds, true);
 export function radioPlan(R, bpm, seconds = 90, asked = false) {
   // (A length asked for: from 8 bars to 400, 8 minutes at 100 BPM. The radio's own songs: 24 to 96, 1:30 to 3:30 or so.)
   // (The last notes ring on for about RING_BARS after the outro: an asked length counts them.)

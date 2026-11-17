@@ -104,3 +104,14 @@ test('適合現在: a station for the hour', () => {
   for (let h = 0; h < 24; h++) assert.ok(stationId(at(h)) === at(h), `${h}: a real station`);
   assert.equal(dayKey(new Date(Date.UTC(2026, 9, 5, 4))), '2026-10-05');
 });
+
+test('今日精選 says each song’s length as it’s made (3:39 shown for a song of 2:40)', async () => {
+  const { radioSpec, radioPlan } = await import('../public/lib/radio.mjs');
+  const { makeRng } = await import('../public/engine.mjs');
+  for (const day of ['2026-11-15', '2026-11-17'])
+    for (const e of dailyPicks(day, 8)) {
+      const sp = radioSpec(e.seed, e.mood, e.style);
+      const bars = radioPlan(makeRng(e.seed ^ 0x1b873593), sp.bpm, sp.seconds).reduce((a, [, b]) => a + b, 0);
+      assert.ok(Math.abs(e.seconds - (bars * 240) / sp.bpm) <= 0.5, `${day} ${e.style}`);
+    }
+});
