@@ -107,3 +107,11 @@ test('首頁 is drawn again on a new day, on coming back and each minute on scre
   assert.match(src, /addEventListener\('visibilitychange', newDay\)/);
   assert.match(src, /setInterval\(newDay, 60_000\)/);
 });
+
+// 遊戲's picks left open past midnight: 今日挑戰 stayed yesterday's, as 首頁's did.
+test('遊戲’s 今日挑戰 is drawn again on a new day, on coming back and each minute on screen', () => {
+  const src = readFileSync(new URL('../public/lib/gameview.mjs', import.meta.url), 'utf8');
+  assert.match(src, /const newDay = \(\) => document\.visibilityState === 'visible' && !root\.hidden && !pick\.hidden && pickDay && pickDay !== dayKey\(\) && drawPick\(\)/);
+  assert.match(src, /pickDay = day;/);
+  assert.match(src, /setInterval\(newDay, 60_000\)/);
+});

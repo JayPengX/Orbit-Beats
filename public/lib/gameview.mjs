@@ -252,8 +252,10 @@ export function mountGame(host, api) {
       })
     );
   const recsBtn = () => h('button', { class: 'gm-recs-btn', type: 'button', html: `${icon('trophy')}<span>${W('紀錄', 'Records')}</span>`, onclick: () => drawRecords() });
+  let pickDay = '';
   function drawPick() {
     const day = dayKey();
+    pickDay = day;
     today = itemOf(dailyOf(day));
     list = setOf(day, mood).map(itemOf);
     bg.src = coverOf(today);
@@ -1130,6 +1132,11 @@ export function mountGame(host, api) {
     }, () => {});
   }
   document.addEventListener('visibilitychange', () => document.hidden && pause());
+  // A new day (Taiwan's) with 遊戲's picks on screen: today's 今日挑戰, not
+  // yesterday's (as 首頁's, homeview.mjs newDay). Looked at on coming back and each minute.
+  const newDay = () => document.visibilityState === 'visible' && !root.hidden && !pick.hidden && pickDay && pickDay !== dayKey() && drawPick();
+  document.addEventListener('visibilitychange', newDay);
+  setInterval(newDay, 60_000);
 
   function finish() {
     R.over = true;
