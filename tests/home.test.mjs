@@ -97,3 +97,13 @@ test('the game: a tap or a key while the level is still being made does nothing 
   assert.match(g, /function down\(lane, perf\) \{\n\s*if \(!R\?\.pressed \|\| R\.paused \|\| R\.over\) return;/);
   assert.match(g, /function up\(lane, perf\) \{\n\s*if \(!R\?\.pressed\) return;/);
 });
+
+// 首頁 left open past midnight with nothing playing (Orbit keeps it running
+// overnight): 今日精選 and 今天的第一首 stayed yesterday's (2026-11-17, a fresh
+// opening at 07:30 showed other songs). A new day draws 首頁 again.
+test('首頁 is drawn again on a new day, on coming back and each minute on screen', () => {
+  const src = readFileSync(new URL('../public/lib/homeview.mjs', import.meta.url), 'utf8');
+  assert.match(src, /const newDay = \(\) => document\.visibilityState === 'visible' && picksDay && picksDay !== dayKey\(\) && drawAll\(\)/);
+  assert.match(src, /addEventListener\('visibilitychange', newDay\)/);
+  assert.match(src, /setInterval\(newDay, 60_000\)/);
+});

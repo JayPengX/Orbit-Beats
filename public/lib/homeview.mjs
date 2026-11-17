@@ -429,6 +429,12 @@ export function mountHome(panel, api) {
     paintTiles();
   }
   drawAll();
+  // A new day (Taiwan's) with the app still open and nothing playing (Orbit keeps it running
+  // overnight): 今日精選 and the card's 今天的第一首 stayed yesterday's all morning. Looked at
+  // on coming back and each minute on screen.
+  const newDay = () => document.visibilityState === 'visible' && picksDay && picksDay !== dayKey() && drawAll();
+  document.addEventListener('visibilitychange', newDay);
+  setInterval(newDay, 60_000);
   P.on(w => {
     if (w === 'time') return paintTime();
     paintCard();
