@@ -2043,7 +2043,9 @@ async function takePass(theirs) {
 // The kept songs changed under 首頁 and 創作 (read at the start, or come from the Pass): both drawn again.
 const songsShown = () => (home?.refresh(), tabNow === 'create' && hubDraw());
 async function syncSongs() {
-  await lib.read();
+  // (The kept songs unread: nothing to bring in step with, tried again the next time. Read as none,
+  // every song on the Pass was saved again over its kept copy, without its sound.)
+  if (!(await lib.read())) return;
   const plan = songsPlan(kept.songs, lib.all());
   kept.songs = plan.map;
   let changed = plan.add.length + plan.drop.length + plan.rename.length;

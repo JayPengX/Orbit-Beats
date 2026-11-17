@@ -178,8 +178,9 @@ export const getSong = id => run('readonly', s => s.get(id), SONGS);
 // (A packed copy waits under TEMP + its id until it's read back whole; never listed.)
 const TEMP = 'slim:';
 export const tempId = id => TEMP + id;
+// (A refused read throws: it is no list, never "nothing kept", lib/library.mjs readAll.)
 export async function listSongs() {
-  const all = (await run('readonly', s => s.getAll(), SONGS).catch(() => null)) || [];
+  const all = (await run('readonly', s => s.getAll(), SONGS)) || [];
   return all.filter(x => !String(x.id).startsWith(TEMP)).sort((a, b) => b.at - a.at);
 }
 // The song `id` given the packed copy at its temp id, in one go: as it is

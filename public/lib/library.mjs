@@ -106,7 +106,16 @@ export function libraryView({ panel, row, goMake, zip, play, cover = () => '', s
   let page = 'root'; // root | songs | lists | list
   let open = null; // the list shown, by id (page 'list')
   let mixed = null; // a shuffled copy of the open list, while 隨機播放 plays it
-  const readAll = () => (read ||= listSongs().catch(() => []).then(all => (songs = all)));
+  // The kept songs, read once a visit. A refused read (IndexedDB, as iOS refuses it now and then) is
+  // no list for that look only: kept as none, 資料庫 said 還沒有收藏的歌 the whole visit over songs
+  // still kept, and the Pass's songs were saved again without their sound (proven 11-18). -> the
+  // songs, or null when they couldn't be read.
+  let unread = false;
+  const readAll = () =>
+    (read ||= listSongs().then(
+      all => ((unread = false), (songs = all)),
+      () => ((read = null), (unread = true), null)
+    ));
   const openList = () => (page === 'list' ? lists.find(l => l.id === open) || null : null);
   function go(next, id = null) {
     page = next;
@@ -222,7 +231,11 @@ export function libraryView({ panel, row, goMake, zip, play, cover = () => '', s
       cols(
         [rows, ...sections],
         [
-          nodes.length ? h('section', { class: 'lib-shelf' }, [h('h2', { text: W('最近播放', 'Recently played') }), h('ol', { class: 'lib-recs' }, nodes)]) : ui.empty({ icon: icon('heart'), title: W('還沒有收藏的歌', 'No songs kept yet'), body: W('按愛心或做一首歌，就會在這裡。', 'Heart a song or make one: it shows up here.') }),
+          unread
+            ? ui.empty({ icon: icon('heart'), title: W('讀不到資料庫', 'Couldn’t read your Library'), body: W('你收藏的歌還在這支手機上。', 'Your kept songs are still on this phone.'), action: { label: W('再試一次', 'Try again'), onTap: () => draw() } })
+            : nodes.length
+              ? h('section', { class: 'lib-shelf' }, [h('h2', { text: W('最近播放', 'Recently played') }), h('ol', { class: 'lib-recs' }, nodes)])
+              : ui.empty({ icon: icon('heart'), title: W('還沒有收藏的歌', 'No songs kept yet'), body: W('按愛心或做一首歌，就會在這裡。', 'Heart a song or make one: it shows up here.') }),
           h('div', { class: 'lib-actions' }, [
             h('button', { class: 'primary', type: 'button', html: `${icon('radio')}<span>${W('聽電台', 'Listen to Radio')}</span>`, onclick: goListen }),
             h('button', { class: 'secondary', type: 'button', html: `${icon('create')}<span>${W('去做歌', 'Make songs')}</span>`, onclick: goMake })
