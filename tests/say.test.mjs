@@ -28,3 +28,13 @@ test('a said station is a station: its grooves and tempo, a broken one none', ()
   assert.equal(sayOf('say:nope'), null);
   assert.equal(stationId('say:<script>'), 'all');
 });
+
+test('English words read whole: workout is a workout, not work; training not rain; breakfast not fast', () => {
+  const calm = ['lofi', 'ambient', 'jazz', 'bossa'];
+  for (const w of ['workout', 'gym workout music']) assert.ok(!readVibe(w).styles.some(x => calm.includes(x)), w);
+  assert.deepEqual(readVibe('workout').bpm, readVibe('running').bpm);
+  assert.ok(readVibe('homework').styles.includes('lofi'));
+  assert.equal(readVibe('training music'), null);
+  assert.ok(readVibe('rainy day').styles.includes('lofi'));
+  assert.equal(readVibe('breakfast'), null);
+});

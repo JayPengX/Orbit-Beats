@@ -38,13 +38,15 @@ const ALIAS = {
   trance: ['trance', '迷幻'],
   dubstep: ['dubstep', '回響貝斯']
 };
-// What a time or a feeling sounds like: [words, grooves, tempo].
+// What a time or a feeling sounds like: [words, grooves, tempo]. (English
+// words whole: "workout" read as work, lofi and jazz at 150 BPM; "training"
+// as rain; "breakfast" as fast.)
 const SCENES = [
-  [/讀書|唸書|念書|專心|專注|寫作業|工作|study|focus|work/i, ['lofi', 'ambient', 'jazz', 'bossa', 'neosoul'], null],
+  [/讀書|唸書|念書|專心|專注|寫作業|工作|study|focus|work(?!out)/i, ['lofi', 'ambient', 'jazz', 'bossa', 'neosoul'], null],
   [/睡|助眠|放空|sleep/i, ['ambient', 'lofi', 'ballad'], 'slow'],
-  [/下雨|雨天|雨聲|rain/i, ['lofi', 'jazz', 'bossa', 'ambient', 'neosoul'], null],
+  [/下雨|雨天|雨聲|\brain/i, ['lofi', 'jazz', 'bossa', 'ambient', 'neosoul'], null],
   [/咖啡|cafe|coffee/i, ['bossa', 'jazz', 'lofi', 'neosoul'], null],
-  [/運動|跑步|健身|重訓|騎車|workout|gym|run/i, ['trap', 'drill', 'house', 'dnb', 'techno', 'phonk', 'rock'], 'fast'],
+  [/運動|跑步|健身|重訓|騎車|workout|gym|\brun/i, ['trap', 'drill', 'house', 'dnb', 'techno', 'phonk', 'rock'], 'fast'],
   [/派對|跳舞|夜店|嗨|party|dance/i, ['house', 'disco', 'dembow', 'amapiano', 'baile', 'funk', 'garage'], null],
   [/開車|兜風|公路|drive/i, ['synthwave', 'citypop', 'funk', 'disco', 'rock'], null],
   [/深夜|半夜|夜晚|晚上|night/i, ['lofi', 'ambient', 'synthwave', 'neosoul'], null],
@@ -55,7 +57,7 @@ const SCENES = [
   [/放鬆|輕鬆|chill|relax/i, MOODS.chill.styles, null]
 ];
 const SLOW = /慢|緩|輕柔|安靜|柔和|slow|calm/i;
-const FAST = /快|激烈|動感|有勁|強烈|fast|energetic/i;
+const FAST = /快|激烈|動感|有勁|強烈|\bfast|energetic/i;
 const MID = /中等|中速|不快不慢/;
 
 const norm = s => String(s || '').toLowerCase().replace(/\s+/g, ' ');
