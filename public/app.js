@@ -2754,15 +2754,13 @@ async function boot() {
     split();
   }
   kitShown();
-  // (#game read before the first tab writes its own hash over it; 問 Orbit's question too.)
+  // (#game read before the first tab writes its own hash over it.)
   const wantsGame = location.hash === '#game';
-  const asked = await askOfLink();
   showTab(firstTab());
   if (wantsGame) game?.open();
   await lib.read();
   // (創作's 你的歌 too: drawn before 資料庫 was read, it showed 從這裡開始 over kept songs.)
   songsShown();
-  if (asked) askHere(asked);
   // (A newer deploy is loaded behind the loading screen, never over the app once it shows: the kit's
   // boot check says false while it reloads to one. Still here after 8 s: the app opens as it is.)
   if (!(await kit.updateChecked())) await new Promise(r => setTimeout(r, 8000));
@@ -2776,20 +2774,6 @@ async function boot() {
   pass.watch();
 }
 if (!gated) boot();
-
-// 問 Orbit's question (the Pass sheet, kit ask-orbit.mjs: #ask=<words>): 用說的做節奏 with it, on 首頁.
-// (Taken out of the address, so a reload doesn't ask again.)
-function askOfLink() {
-  if (!/(?:^#|&)ask=/.test(location.hash)) return Promise.resolve('');
-  return import('#kit/ask-orbit.mjs')
-    .then(m => m.takeAsk?.() || '')
-    .catch(() => '');
-}
-function askHere(text) {
-  showTab('home');
-  home?.say?.(text);
-}
-window.addEventListener('hashchange', () => home && askOfLink().then(text => text && askHere(text)));
 
 // Opens without a connection: the kit registers the worker and has it keep every file loaded.
 keepOffline();
