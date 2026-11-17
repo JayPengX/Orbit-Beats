@@ -16,7 +16,7 @@ import { passSync } from '#kit/pass-sync.mjs';
 import { h, sheet, menu, toast, toggle, empty } from './lib/ui.mjs';
 import * as ui from './lib/ui.mjs';
 import { sectionTimes, sectionIndex, labelFits } from './lib/sections.mjs';
-import { STYLES, SECTIONS, ROLES, makeRng, NOTE_NAMES, keyOf, pieceChroma, parseWav, analyzeRecording, guessRole, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
+import { STYLES, SECTIONS, ROLES, NOTE_NAMES, keyOf, pieceChroma, parseWav, analyzeRecording, guessRole, batch, encodeWav, zipParts, demoRecording } from './engine.mjs';
 import { atRate, splitAll, baseName, planAll, unplanned, beatTempo, cutWay } from './lib/sources.mjs';
 import { fingerprint, decode, encode, merge, keptSettings, settingsOf, DEFAULTS, kitEntry, saveLast, loadLast, liked, saveSong, listSongs, deleteSong, getSong, swapSong, dropTemps, tempId, renameSong, forgetLast, saveNamed, deleteNamed, listNamed, renameNamed } from './lib/kits.mjs';
 import { songsPlan, songEntry, syncable, soundless, listsChanged, listsPlan } from './lib/songsync.mjs';
@@ -35,7 +35,7 @@ import { mountJam, readSet, setCover } from './lib/jamview.mjs';
 import { specOf, setOf } from './lib/jamset.mjs';
 import { W, en, lang } from './lib/lang.mjs';
 import { shows, levelCss, makeSettings, makeWith, easyMood, EASY_MOODS } from './lib/easy.mjs';
-import { MOODS, radioPick, radioPlan, RADIO_V } from './lib/radio.mjs';
+import { MOODS, radioPick, askedPlan, RADIO_V } from './lib/radio.mjs';
 import { tasteFrom, grooveItem, LISTEN_DONE, LISTEN_SKIP, LISTENED_OLD, oldListening } from './lib/listen.mjs';
 import { mountRadio } from './lib/radioview.mjs';
 import { mountGame } from './lib/gameview.mjs';
@@ -763,7 +763,7 @@ function split() {
 // What the kit is: its pieces, files, rate and length, and the key its riffs are in.
 function kitStatus() {
   const len = sources.reduce((s, x) => s + x.L.length, 0) / sr;
-  const time = `${Math.floor(len / 60)}:${String(Math.round(len % 60) % 60).padStart(2, '0')}`;
+  const time = clock(len);
   const nFiles = new Set(sources.map(x => x.name)).size;
   const files = nFiles > 1 ? W(` · ${nFiles} 個檔`, ` · ${nFiles} files`) : '';
   if (!pieces.length) {
@@ -1165,11 +1165,15 @@ async function kitsSheet() {
   draw();
 }
 function openKit(k) {
-  if (pieces.length) undos.push('open', nowKit());
+  // (復原 only with a kit to go back to: opened over no pieces, it took back an
+  // older change instead, the kit from before 清除全部 put back over this one.)
+  const back = pieces.length > 0;
+  if (back) undos.push('open', nowKit());
   const kit = kitFrom(k);
   restoreKit({ sources: kit.sources, roles: [], edited: [], bpm: kit.bpm }, kit.set);
-  if (pieces.length) undoToast(W(`已打開「${k.name}」`, `Opened “${k.name}”`));
-  else undos.clear();
+  if (!pieces.length) undos.clear();
+  else if (back) undoToast(W(`已打開「${k.name}」`, `Opened “${k.name}”`));
+  else toast(W(`已打開「${k.name}」`, `Opened “${k.name}”`), { ms: 2500 });
 }
 $('clear-all').onclick = clearAll;
 $('save-kit').onclick = saveKit;
@@ -1241,7 +1245,8 @@ $('legend').innerHTML = SECTIONS.map(s => `<span><i style="background:var(--${s}
 
 const timeText = s => `${Math.floor(s / 60)}:${String(Math.floor(s) % 60).padStart(2, '0')}`;
 // A song's id: its kit and how it was made (the same song made again is the same song).
-const recipeId = r => (r.jam ? `${r.print}:jam:${r.at}` : `${r.print}:${r.seed}:${r.detail ?? ''}:${r.style ?? ''}:${r.plan ? r.plan.map(x => x.join('')).join('.') : ''}:${r.mix?.on === false ? 'raw' : 'mix'}`);
+// (A remix's speed, opened from its file, its own: else the song it came from, already listed, played instead.)
+const recipeId = r => `${r.jam ? `${r.print}:jam:${r.at}` : `${r.print}:${r.seed}:${r.detail ?? ''}:${r.style ?? ''}:${r.plan ? r.plan.map(x => x.join('')).join('.') : ''}:${r.mix?.on === false ? 'raw' : 'mix'}`}${r.speed && r.speed !== 1 ? `:x${Math.round(r.speed * 1000) / 1000}` : ''}`;
 const urls = new Map(); // a kept song's sound as a URL, made when first played
 const lib = libraryView({
   panel: $('panel-library'),
@@ -1340,7 +1345,7 @@ async function kitToMaker() {
 const recipeOf = (over = {}) => {
   const c = cfg();
   const len = kitLength(settings.length, bpm);
-  return { print, minBars: len.minBars, maxBars: len.maxBars, styles: [...c.styles], humanize: c.humanize, mix: { ...c.mix }, weights: weights(), detail: null, style: null, plan: len.plan ? radioPlan(makeRng(Math.floor(Math.random() * 1e9)), bpm, settings.length, true) : null, ...over };
+  return { print, minBars: len.minBars, maxBars: len.maxBars, styles: [...c.styles], humanize: c.humanize, mix: { ...c.mix }, weights: weights(), detail: null, style: null, plan: len.plan ? askedPlan(over.seed, bpm, settings.length) : null, ...over };
 };
 // One song made from a recipe: { id, name, info, data, url, bits, recipe }.
 async function makeOne(recipe, title) {

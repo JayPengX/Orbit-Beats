@@ -49,3 +49,13 @@ test('kits kept by name: free names, the record, renaming, deleting, newest firs
   const back = kitFrom(namedKit({ id: 'm', name: 'm', sources: [{ name: 'm', sr: 1, L: mono.sources[0].L, R: mono.sources[0].L }], roles: [], edited: [], bpm: 80 }));
   assert.equal(back.sources[0].R, back.sources[0].L);
 });
+
+test('opening a kit over no pieces offers no 復原: it took back an older change (the kit from before 清除全部)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const app = readFileSync(new URL('../public/app.js', import.meta.url), 'utf8');
+  const open = app.slice(app.indexOf('function openKit(k) {'), app.indexOf('\n}\n', app.indexOf('function openKit(k) {')));
+  // 復原 only where this opening pushed the kit it replaced.
+  assert.match(open, /const back = pieces\.length > 0;\n\s*if \(back\) undos\.push\('open', nowKit\(\)\);/);
+  assert.match(open, /else if \(back\) undoToast\(/);
+  assert.equal(open.match(/undoToast\(/g).length, 1);
+});

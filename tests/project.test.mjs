@@ -97,3 +97,20 @@ test('odd extras in a good file are dropped, not carried', () => {
   assert.equal(r.project.roles, null);
   assert.equal(r.project.bpm, null);
 });
+
+test('a remix’s 快一點 opens again as it was: its speed kept, the kit’s own tempo the file’s', async () => {
+  const { remix, baseOf } = await import('../public/lib/remix.mjs');
+  const recipe = { print: 'kabc', seed: 12345, detail: null, style: 'house', plan: null, minBars: 25, maxBars: 29, styles: [...STYLES], humanize: 100, mix: { on: true } };
+  const rx = remix(baseOf(recipe, { bpm: 120, seconds: 60, style: 'house' }), { speed: 2 }).recipe;
+  const played = Math.round(120 * rx.speed * 10) / 10;
+  const f = JSON.parse(toText(toFile({ name: 'Mine (Remix)', info: { bpm: played, plan: [] }, recipe: rx })));
+  assert.equal(f.bpm, 120);
+  const back = fromText(JSON.stringify(f));
+  assert.equal(back.project.recipe.speed, rx.speed);
+  assert.equal(back.project.bpm, 120);
+  // A jam's too; a file with no speed, none; one out of range, refused.
+  const jx = remix(baseOf({ print: 'kabc', jam: [{ i: 0, beat: 0 }], plan: null, mix: { on: true }, at: 1 }, { bpm: 120, seconds: 8 }), { speed: -1 }).recipe;
+  assert.equal(fromText(toText(toFile({ name: 'J', info: {}, recipe: jx }))).project.recipe.speed, jx.speed);
+  assert.ok(!('speed' in fromText(toText(toFile({ name: 'P', info: { bpm: 120 }, recipe }))).project.recipe));
+  assert.equal(fromText(JSON.stringify({ ...f, song: { ...f.song, speed: 9 } })).ok, false);
+});

@@ -8,7 +8,10 @@
 //
 // { app: 'orbit-beats', kind: 'song', v: 1, name, kit, pieces, bpm, roles,
 //   mood, key, sections, song: { seed, detail, style, plan, minBars, maxBars,
-//   styles, humanize, mix } }   (a jam's take: song: { jam: [{ i, beat, g?, len? }], plan, mix, at })
+//   styles, humanize, mix, speed? } }   (a jam's take: song: { jam: [{ i, beat, g?, len? }], plan, mix, at, speed? })
+// `speed` is a remix's 快一點/慢一點 (the tape's, lib/remix.mjs), and `bpm` the
+// kit's own tempo under it (before, the speed was dropped and the played
+// tempo kept as the kit's: opened again, the kit's tempo itself changed).
 // `key` and `sections` only say what the song is (for a person reading it).
 // No DOM.
 
@@ -24,11 +27,13 @@ const say = (code, zh, en) => ({ ok: false, code, zh, en });
 
 // The file for a song: { name, info, recipe } of the page, with the kit's
 // tempo, roles and the mood its styles make (any of them may be missing).
-export function toFile({ name, info, recipe }, { bpm = info?.bpm, roles = null, mood = '' } = {}) {
+export function toFile({ name, info, recipe }, { bpm: played = info?.bpm, roles = null, mood = '' } = {}) {
   const r = recipe;
+  const sped = Number.isFinite(r.speed) && r.speed !== 1 ? { speed: r.speed } : {};
+  const bpm = sped.speed && Number.isFinite(played) ? Math.round((played / sped.speed) * 10) / 10 : played;
   const song = r.jam
-    ? { jam: r.jam.map(e => ({ i: e.i, beat: e.beat, ...(e.g != null ? { g: e.g } : {}), ...(e.len != null ? { len: e.len } : {}) })), plan: r.plan ?? null, mix: r.mix ?? null, at: r.at ?? 0 }
-    : { seed: r.seed, detail: r.detail ?? null, style: r.style ?? null, plan: r.plan ?? null, minBars: r.minBars, maxBars: r.maxBars, styles: [...r.styles], humanize: r.humanize, mix: r.mix ?? null };
+    ? { jam: r.jam.map(e => ({ i: e.i, beat: e.beat, ...(e.g != null ? { g: e.g } : {}), ...(e.len != null ? { len: e.len } : {}) })), plan: r.plan ?? null, mix: r.mix ?? null, at: r.at ?? 0, ...sped }
+    : { seed: r.seed, detail: r.detail ?? null, style: r.style ?? null, plan: r.plan ?? null, minBars: r.minBars, maxBars: r.maxBars, styles: [...r.styles], humanize: r.humanize, mix: r.mix ?? null, ...sped };
   return {
     app: APP,
     kind: 'song',
@@ -73,13 +78,15 @@ export function fromText(text) {
   try {
     const name = typeof f.name === 'string' && f.name.trim() ? f.name.trim().slice(0, 80) : '';
     let recipe;
+    if (s.speed != null && !isNum(s.speed, 0.6, 1.6)) throw new Error('speed');
+    const sped = s.speed != null && s.speed !== 1 ? { speed: s.speed } : {};
     if (s.jam !== undefined) {
       if (!Array.isArray(s.jam) || !s.jam.length || s.jam.length > MAX_HITS) throw new Error('hits');
       const jam = s.jam.map(e => {
         if (!e || !isInt(e.i, 0, 255) || !isNum(e.beat, 0, 4096) || (e.g != null && !isNum(e.g, 0, 1)) || (e.len != null && !isNum(e.len, 0, 4096))) throw new Error('hit');
         return { i: e.i, beat: e.beat, ...(e.g != null ? { g: e.g } : {}), ...(e.len != null ? { len: e.len } : {}) };
       });
-      recipe = { jam, plan: planIn(s.plan), mix: mixOf(s.mix), at: Number.isFinite(s.at) ? s.at : 0 };
+      recipe = { jam, plan: planIn(s.plan), mix: mixOf(s.mix), at: Number.isFinite(s.at) ? s.at : 0, ...sped };
     } else {
       if (!isInt(s.seed, 0, 9_999_999_999)) throw new Error('seed');
       if (s.detail != null && !isInt(s.detail, 0, 9_999_999_999)) throw new Error('detail');
@@ -87,7 +94,7 @@ export function fromText(text) {
       if (!isInt(s.minBars, MIN_BARS, 64) || !isInt(s.maxBars, MIN_BARS, 64) || s.minBars > s.maxBars) throw new Error('bars');
       if (!Array.isArray(s.styles) || !s.styles.length || s.styles.some(x => !STYLES.includes(x))) throw new Error('styles');
       if (!isNum(s.humanize, 0, 200)) throw new Error('humanize');
-      recipe = { seed: s.seed, detail: s.detail ?? null, style: s.style ?? null, plan: planIn(s.plan), minBars: s.minBars, maxBars: s.maxBars, styles: [...new Set(s.styles)], humanize: s.humanize, mix: mixOf(s.mix) };
+      recipe = { seed: s.seed, detail: s.detail ?? null, style: s.style ?? null, plan: planIn(s.plan), minBars: s.minBars, maxBars: s.maxBars, styles: [...new Set(s.styles)], humanize: s.humanize, mix: mixOf(s.mix), ...sped };
     }
     const roles = Array.isArray(f.roles) && f.roles.length <= 256 && f.roles.every(r => ROLES.includes(r)) ? f.roles : null;
     return {
