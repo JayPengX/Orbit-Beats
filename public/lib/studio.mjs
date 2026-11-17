@@ -48,6 +48,33 @@ export function spelling(key) {
 }
 export const noteName = (m, key = null) => `${spelling(key)[m % 12]}${Math.floor(m / 12) - 1}`;
 
+// The notes a play has scheduled and not yet over, let go at ■ (quickly faded,
+// and those not begun never begin): they were left to play out, up to two
+// seconds of them when stopped from the lock screen (scheduled further ahead
+// while the phone is away).
+export function liveNotes() {
+  const set = new Set();
+  return {
+    add(src, g) {
+      const x = { src, g };
+      set.add(x);
+      src.onended = () => set.delete(x);
+    },
+    stop(now) {
+      for (const { src, g } of set)
+        try {
+          g.gain.setTargetAtTime(0, now, 0.012);
+          src.stop(now + 0.06);
+        } catch {
+          // (Already stopped.)
+        }
+      set.clear();
+    },
+    get size() {
+      return set.size;
+    }
+  };
+}
 export const MOST_PATS = 4;
 export const MOST_CHAIN = 8;
 export const PAT_NAMES = ['A', 'B', 'C', 'D'];
@@ -768,7 +795,8 @@ export function mountStudio(panel, api) {
     }
     return buffers.get(key);
   }
-  function fire(inst, midi, len, when, gain = 1) {
+  const live = liveNotes(); // the play's notes, let go at ■
+  function fire(inst, midi, len, when, gain = 1, played = false) {
     const c = api.audio();
     const src = c.createBufferSource();
     src.buffer = buffer(inst, midi, len);
@@ -776,6 +804,7 @@ export function mountStudio(panel, api) {
     g.gain.value = gain;
     src.connect(g).connect(c.destination);
     src.start(when);
+    if (played) live.add(src, g);
   }
   // A tap heard at once.
   function audition(r, lv = 1, force = false) {
@@ -807,6 +836,7 @@ export function mountStudio(panel, api) {
     if (!playing) return;
     playing = false;
     clearInterval(timer);
+    live.stop(api.audio().currentTime);
     cancelAnimationFrame(raf);
     api.live?.(false);
     for (const b of panel.querySelectorAll('.now')) b.classList.remove('now');
@@ -829,13 +859,13 @@ export function mountStudio(panel, api) {
     while (nextTime < c.currentTime + api.ahead(0.12)) {
       const s = nextStep % n;
       const at = nextTime + swingOf(cl, s) * per;
-      for (const x of stepHits(cl, s)) fire(x.inst, x.midi, x.len, at, x.gain);
+      for (const x of stepHits(cl, s)) fire(x.inst, x.midi, x.len, at, x.gain, true);
       // (The other part plays under it, a little softer, so the beat and the tune are always heard together.)
       const oc = otherPart(st);
       if (oc) {
         const o = s % (STEPS * oc.bars);
         const at2 = nextTime + swingOf(oc, o) * per;
-        for (const x of stepHits(oc, o)) fire(x.inst, x.midi, x.len, at2, x.gain * 0.6);
+        for (const x of stepHits(oc, o)) fire(x.inst, x.midi, x.len, at2, x.gain * 0.6, true);
       }
       queue.push([nextTime, s]);
       nextTime += per;

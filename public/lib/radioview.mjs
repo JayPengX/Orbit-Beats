@@ -633,8 +633,11 @@ export function mountRadio(panel, api) {
     if (cur?.info?.style && heardOut !== cur.id && songTime() < SKIP_WITHIN) (heardOut = cur.id), api.heard?.(cur.info.style, LISTEN_SKIP);
     const id = cur?.id;
     const other = it => it && it.id !== id;
-    for (const it of q.ready.filter(it => !other(it))) drop(it), unart(it);
+    // (Out of the queue first: drop() keeps what's still in it, so the skipped song's
+    // whole made copy, waiting there, was never let go, its sound held for good.)
+    const gone = q.ready.filter(it => !other(it));
     q.ready = q.ready.filter(other);
+    for (const it of gone) drop(it), unart(it);
     if (cur?.quick) skipped = id;
     looking = null;
     const n = tape && tape.marks.find(m => m.t > audio.currentTime && other(m.item) && !m.item.hush)?.item;

@@ -1,7 +1,7 @@
 // The 樂器 tab's patterns, chain and hit levels (lib/studio.mjs, lib/synth.mjs, lib/midi.mjs).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { stateOf, bankOf, chainOf, dropPattern, nextHit, spelling, noteName } from '../public/lib/studio.mjs';
+import { stateOf, bankOf, chainOf, dropPattern, nextHit, spelling, noteName, liveNotes } from '../public/lib/studio.mjs';
 import { emptyDrums, emptyNotes, clipOf, stepHits, chainClips, renderClip, levelGain, STEPS } from '../public/lib/synth.mjs';
 import { clipTracks, midiFile, readMidi } from '../public/lib/midi.mjs';
 
@@ -129,4 +129,21 @@ test('樂器 spells a note the way its key writes it: B major in sharps, F major
     const names = spelling({ tonic: t, minor });
     assert.ok(!(names.some(n => n.includes('♯')) && names.some(n => n.includes('♭'))) || names === spelling(null), `one kind of accidental for ${t}${minor ? 'm' : ''}`);
   }
+});
+
+test('■ lets the play’s scheduled notes go: faded and stopped, those not begun never begun (they played out, two seconds of them from the lock screen)', () => {
+  const calls = [];
+  const note = name => ({ src: { stop: t => calls.push([name, 'stop', t]) }, g: { gain: { setTargetAtTime: (v, t) => calls.push([name, 'fade', v, t]) } } });
+  const live = liveNotes();
+  const a = note('a');
+  const b = note('b');
+  const c = note('c');
+  live.add(a.src, a.g);
+  live.add(b.src, b.g);
+  live.add(c.src, c.g);
+  c.src.onended(); // (one already over)
+  assert.equal(live.size, 2);
+  live.stop(10);
+  assert.deepEqual(calls, [['a', 'fade', 0, 10], ['a', 'stop', 10.06], ['b', 'fade', 0, 10], ['b', 'stop', 10.06]]);
+  assert.equal(live.size, 0);
 });

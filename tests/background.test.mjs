@@ -96,3 +96,11 @@ test('Beats yields to another sound and never takes the phone back by itself', (
   // (The only resumes left come from a tap: the pointerdown in the page, ▶, a seek, the share sheet Beats opened.)
   for (const line of app.split('\n').filter(l => /ctx\.resume\(\)/.test(l))) assert.match(line, /pointerdown|const audioCtx|if \(ctx\.state !== 'running'\) ctx\.resume/, line);
 });
+
+test('a song skipped while its made copy waits in the queue: that copy is let go (drop() keeps what is still queued)', () => {
+  const drop = radio.slice(radio.indexOf('const drop = it =>'), radio.indexOf('\n', radio.indexOf('const drop = it =>')));
+  assert.match(drop, /!q\.ready\.includes\(it\)/);
+  const skip = radio.slice(radio.indexOf('function skip()'), radio.indexOf('looking = null;', radio.indexOf('function skip()')));
+  const out = skip.indexOf('q.ready = q.ready.filter(other)');
+  assert.ok(out > -1 && out < skip.indexOf('drop(it)'), 'out of the queue before drop()');
+});
