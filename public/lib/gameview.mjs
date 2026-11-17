@@ -11,7 +11,7 @@
 import { h } from './ui.mjs';
 import { icon } from './icons.mjs';
 import { W, en } from './lang.mjs';
-import { radioSpec, MOODS } from './radio.mjs';
+import { playedSpec, MOODS } from './radio.mjs';
 import { coverSvg, coverUrl, coverPalette } from './cover.mjs';
 import { STYLE_NAMES, SECTION_NAMES, name } from './names.mjs';
 import { dayKey } from './stations.mjs';
@@ -215,9 +215,10 @@ export function mountGame(host, api) {
   let mood = store.mood && (store.mood === 'all' || MOODS[store.mood]) ? store.mood : 'all';
   const offset = () => (Number.isFinite(store.offset) ? store.offset : 0);
 
-  // A song to play: its spec, and what it is (the radio's spec is drawn from its seed, no sound made).
+  // A song to play: its spec, and what it is (the radio's spec is drawn from its seed, no sound made;
+  // as make.game makes it, its groove passed on).
   const itemOf = s => {
-    const sp = radioSpec(s.seed, s.mood || 'all', s.style || null);
+    const sp = playedSpec(s.seed, s.mood || 'all', s.style || null);
     return { seed: s.seed, mood: s.mood || 'all', style: sp.style, bpm: sp.bpm, key: sp.key, title: s.title || api.title(s.seed) };
   };
   const coverOf = it => coverUrl(coverSvg({ seed: it.seed, style: it.style, mood: it.mood, key: it.key, bpm: it.bpm, text: false }));

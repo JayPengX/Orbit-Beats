@@ -100,3 +100,24 @@ test('records: every song played, its best at each level, the last played first'
   assert.equal(r.songs[1].style, 'house');
   assert.deepEqual(recordsOf(null), { songs: [], plays: 0, cleared: 0, s: 0, full: 0 });
 });
+
+test('a genre station’s or a said station’s song: its record found again under the same key', () => {
+  for (const it of [{ seed: 123456, mood: 'style:hiphop', style: 'hiphop' }, { seed: 5, mood: 'say:lofi.jazz@60-95', style: 'jazz' }, { seed: 8, mood: 'all', style: '' }]) {
+    const { store } = withRound(null, bestKey(it, 'normal'), { score: 900000, grade: 'A', full: false, combo: 40 }, 1000);
+    const x = recordsOf(store).songs[0];
+    assert.deepEqual({ seed: x.seed, mood: x.mood, style: x.style }, it);
+    assert.equal(store.bests[bestKey(x, 'normal')].score, 900000);
+  }
+});
+
+test('a game song is shown at the tempo and key it plays at (今日挑戰 11-17 said 71 BPM, played 76)', async () => {
+  const { playedSpec, radioSpec } = await import('../public/lib/radio.mjs');
+  const d = dailyOf('2026-11-17');
+  assert.equal(playedSpec(d.seed, d.mood).bpm, 76);
+  assert.deepEqual(playedSpec(d.seed, d.mood).key, { tonic: 7, minor: false });
+  // What make.game is given (its groove passed on) is what's shown, for each song of a set.
+  for (const s of [d, ...setOf('2026-11-17', 'chill'), ...setOf('2026-11-18', 'hype')]) {
+    const shown = playedSpec(s.seed, s.mood);
+    assert.deepEqual(radioSpec(s.seed, s.mood, shown.style), shown);
+  }
+});

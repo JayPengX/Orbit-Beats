@@ -254,7 +254,9 @@ export function recordsOf(store) {
     const level = parts.pop();
     if (!LEVELS.includes(level) || !b) continue;
     const song = parts.join(':');
-    if (!by.has(song)) by.set(song, { seed: Number(parts[0]), mood: parts[1] || 'all', style: parts[2] || '', at: 0, levels: Object.fromEntries(LEVELS.map(l => [l, null])) });
+    // (The mood read from both ends: a genre's or a said station's has a colon
+    // of its own, style:hiphop, and was read as "style", its bests never found.)
+    if (!by.has(song)) by.set(song, { seed: Number(parts[0]), mood: parts.slice(1, -1).join(':') || 'all', style: parts.length > 2 ? parts.at(-1) : '', at: 0, levels: Object.fromEntries(LEVELS.map(l => [l, null])) });
     const x = by.get(song);
     x.levels[level] = b;
     x.at = Math.max(x.at, store.last?.[song] || 0, b.at || 0);
