@@ -103,9 +103,22 @@ test('the game: a tap or a key while the level is still being made does nothing 
 // opening at 07:30 showed other songs). A new day draws 首頁 again.
 test('首頁 is drawn again on a new day, on coming back and each minute on screen', () => {
   const src = readFileSync(new URL('../public/lib/homeview.mjs', import.meta.url), 'utf8');
-  assert.match(src, /const newDay = \(\) => document\.visibilityState === 'visible' && picksDay && picksDay !== dayKey\(\) && drawAll\(\)/);
+  assert.match(src, /const newDay = \(\) => document\.visibilityState === 'visible' && picksDay && \(picksDay !== dayKey\(\) \|\|[^\n]*\) && !typing\(\) && drawAll\(\)/);
   assert.match(src, /addEventListener\('visibilitychange', newDay\)/);
   assert.match(src, /setInterval\(newDay, 60_000\)/);
+});
+
+// 首頁's radio row names the part of the day (早晨 放鬆, 午後, 傍晚, 深夜): drawn at
+// 10:50 and looked at again at 15:10, it still offered 早晨 · 放鬆 (proven 11-18).
+test('首頁’s radio row moves on with the part of the day, never under a wish being typed', () => {
+  const src = readFileSync(new URL('../public/lib/homeview.mjs', import.meta.url), 'utf8');
+  const newDay = src.match(/const newDay = [^\n]*/)[0];
+  assert.match(newDay, /partShown !== nowStation\(new Date\(\)\.getHours\(\)\)\.id/);
+  for (const fn of ['function stations() {', 'function stationsWide() {']) {
+    const body = src.slice(src.indexOf(fn), src.indexOf('\n  }\n', src.indexOf(fn)));
+    assert.match(body, /partShown = now\.id;/, `${fn} notes the part it drew`);
+  }
+  assert.match(src, /const typing = \(\) => panel\.contains\(document\.activeElement\) && document\.activeElement\.matches\('input, textarea'\)/);
 });
 
 // 遊戲's picks left open past midnight: 今日挑戰 stayed yesterday's, as 首頁's did.

@@ -313,9 +313,12 @@ export function mountHome(panel, api) {
 
   // ---- Stations: one row of taps; genres: another ----
   const chip = (id, label = stationName(id), extra = null) => h('button', { class: 'q-chip bt-st', type: 'button', 'data-station': id, 'aria-pressed': 'false', onclick: () => tune(id) }, [extra, h('span', { text: label })]);
+  // (The part of the day the radio row names: drawn again when it changes, as 今日精選 on a new day.)
+  let partShown = '';
   function stations() {
     const hr = new Date().getHours();
     const now = nowStation(hr);
+    partShown = now.id;
     const rows = homeRows(taste());
     const forYou = rows.find(r => r.key === 'for-you').ids;
     const moods = rows.find(r => r.key === 'moods').ids.filter(id => id !== now.id);
@@ -335,6 +338,7 @@ export function mountHome(panel, api) {
     ]);
   function stationsWide() {
     const now = nowStation(new Date().getHours());
+    partShown = now.id;
     const rows = homeRows(taste());
     const forYou = rows.find(r => r.key === 'for-you').ids;
     const moods = rows.find(r => r.key === 'moods').ids.filter(id => id !== now.id);
@@ -431,8 +435,11 @@ export function mountHome(panel, api) {
   drawAll();
   // A new day (Taiwan's) with the app still open and nothing playing (Orbit keeps it running
   // overnight): 今日精選 and the card's 今天的第一首 stayed yesterday's all morning. Looked at
-  // on coming back and each minute on screen.
-  const newDay = () => document.visibilityState === 'visible' && picksDay && picksDay !== dayKey() && drawAll();
+  // on coming back and each minute on screen. So is the radio row's 早晨, 午後, 傍晚 or 深夜: drawn
+  // at 10:50 and looked at again at 15:10, it still offered 早晨 · 放鬆. (Never under a wish being
+  // typed: the next minute's look, once it's sent.)
+  const typing = () => panel.contains(document.activeElement) && document.activeElement.matches('input, textarea');
+  const newDay = () => document.visibilityState === 'visible' && picksDay && (picksDay !== dayKey() || partShown !== nowStation(new Date().getHours()).id) && !typing() && drawAll();
   document.addEventListener('visibilitychange', newDay);
   setInterval(newDay, 60_000);
   P.on(w => {
