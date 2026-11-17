@@ -132,6 +132,7 @@ export function createPlayer(d) {
   // The radio, as it is (a hero's ▶ before anything played).
   function radioPlay() {
     active = 'radio';
+    handing = false;
     d.quiet?.();
     if (q.station?.kind !== 'radio') set(Q.setStation(q, { kind: 'radio', id: radio.station() }));
     radio.start();
@@ -160,6 +161,9 @@ export function createPlayer(d) {
     if (r.handoff === 'radio') {
       if (active === 'radio') return radio.skip();
       active = 'radio';
+      // (Back on the radio after a lined-up song: the next one lined up takes over too.
+      // Left set, it never did: the radio played on past every song added after.)
+      handing = false;
       d.quiet?.();
       // (Autoplay: the list ran out, so the radio is the station from here.)
       if (q.station?.kind !== 'radio') set(Q.setStation(q, { kind: 'radio', id: radio.station() }));
@@ -219,6 +223,7 @@ export function createPlayer(d) {
   // ---- What the radio and the song player tell ----
   radio.on(what => {
     if (what === 'song') {
+      handing = false;
       const r = radio.state();
       if (active === 'radio' && r.cur) set(Q.radioNow(q, r.cur));
     }
